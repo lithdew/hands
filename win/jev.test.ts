@@ -283,7 +283,8 @@ describe("Jev Windows handover", () => {
       const { runtime, handedOver } = await fixture({ run: async () => ({ status, reason: "Stopped", steps: [] }) });
       await runtime.prompt("Continue on the current page");
       expect(handedOver).toHaveLength(0);
-      if (status === "denied") expect(runtime.status().text).toContain("declined");
+      // A gate denial is Jev's call, not the user's: the text names the action check and its reason.
+      if (status === "denied") { expect(runtime.status().text).toContain("action check"); expect(runtime.status().text).toContain("Stopped"); expect(runtime.status().text).not.toContain("declined"); }
       await runtime.close();
     }
   });
