@@ -1,0 +1,3 @@
+/* KaTeX centres display mathematics with a 1em margin above and below; the templates do their own spacing. */
+.katex-display { margin: 0 !important; }
+.katex-display > .katex { white-space: nowrap; }
