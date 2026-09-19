@@ -5,8 +5,12 @@
 // they are looked for in this checkout and, from a git worktree, in the main one.
 //
 // This build of the shell ignores --screenshot and --dump-dom (it starts and waits for ever), so it is
-// driven the way Remotion drives it: a DevTools port, and four commands over a WebSocket. Everything has
+// driven the way Remotion drives it: a DevTools port, and a few commands over a WebSocket. Everything has
 // a deadline, and the browser is killed whatever happens.
+//
+// The stills in shots/ each show BOTH widths side by side (top of the page, the projects, the last
+// section): a still is looked at alone, and "readable on a phone and on a desktop" cannot be seen in a
+// picture of one of them. The single views and the whole page at each width are in shots/single/.
 
 import { $ } from "bun";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
@@ -31,18 +35,24 @@ export async function findChrome(): Promise<{ chrome: string; libs: string | nul
   return chrome ? { chrome, libs: await first(process.env.PUK_CHROME_LIBS, LIBS) } : null;
 }
 
-export type Shot = { name: string; width: number; height: number; mobile?: boolean; whole?: boolean };
-export const DESKTOP: Shot = { name: "1-desktop", width: 1280, height: 900 }, PHONE: Shot = { name: "2-phone", width: 390, height: 844, mobile: true };
+export type View = { name: string; width: number; height: number; mobile?: boolean };
+export const DESKTOP: View = { name: "desktop", width: 1280, height: 900 }, PHONE: View = { name: "phone", width: 390, height: 844, mobile: true };
 
-/** The two stills side by side at their true sizes, labelled: one picture that shows the page at both widths. */
-export const sheet = (desktop: Shot, phone: Shot) => `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+/** Two stills of the same place on the page, side by side at their true sizes and labelled: one picture that shows the page at both widths. Whoever looks at a single still sees both. */
+export const sheet = (desktopPng: string, phonePng: string, where: string) => `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 body{margin:0;background:#e9e9ec;font:600 15px/1 system-ui,sans-serif;color:#44464d;display:flex;gap:40px;padding:36px 40px;align-items:flex-start}
 figure{margin:0}figcaption{margin:0 0 14px;letter-spacing:.04em;text-transform:uppercase;font-size:13px}
 img{display:block;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.22)}
 </style></head><body>
-<figure><figcaption>Desktop, ${desktop.width} px wide</figcaption><img src="${desktop.name}.png" width="${desktop.width}" height="${desktop.height}"></figure>
-<figure><figcaption>Phone, ${phone.width} px wide</figcaption><img src="${phone.name}.png" width="${phone.width}" height="${phone.height}"></figure>
+<figure><figcaption>Desktop, ${DESKTOP.width} px wide &middot; ${where}</figcaption><img src="${desktopPng}" width="${DESKTOP.width}" height="${DESKTOP.height}"></figure>
+<figure><figcaption>Phone, ${PHONE.width} px wide &middot; ${where}</figcaption><img src="${phonePng}" width="${PHONE.width}" height="${PHONE.height}"></figure>
 </body></html>`;
+
+/** Which places on the page to show: its top, its projects (else its second section), its last section. Exported for tests. */
+export function places(sectionIds: string[]): { id: string | null; label: string }[] {
+  const middle = sectionIds.find((id) => /project|work/i.test(id)) ?? sectionIds[1], last = sectionIds.at(-1);
+  return [{ id: null, label: "top of the page" }, ...[middle, last].filter((id, i, all): id is string => Boolean(id) && all.indexOf(id) === i).map((id) => ({ id, label: `section "${id}"` }))];
+}
 
 /** A DevTools connection: send a command, get its result; wait for an event. */
 function devtools(ws: WebSocket) {
@@ -79,27 +89,49 @@ export async function shoot(siteDir: string, file = "index.html"): Promise<{ mad
     const ws = new WebSocket(endpoint);
     await within(15_000, "the DevTools socket", new Promise<void>((resolve, reject) => { ws.addEventListener("open", () => resolve()); ws.addEventListener("error", () => reject(new Error("the DevTools socket would not open"))); }));
     const cdp = devtools(ws);
-    const still = async (s: Shot, url: string) => {
+    const open = async (v: { width: number; height: number; mobile?: boolean }, url: string) => {
       const { targetId } = await within(20_000, "a new tab", cdp.send<{ targetId: string }>("Target.createTarget", { url: "about:blank" }));
       const { sessionId } = await cdp.send<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
-      await cdp.send("Emulation.setDeviceMetricsOverride", { width: s.width, height: s.height, deviceScaleFactor: 1, mobile: Boolean(s.mobile) }, sessionId);
+      await cdp.send("Emulation.setDeviceMetricsOverride", { width: v.width, height: v.height, deviceScaleFactor: 1, mobile: Boolean(v.mobile) }, sessionId);
       await cdp.send("Page.enable", {}, sessionId);
       await cdp.send("Page.navigate", { url }, sessionId);
-      if (!(await cdp.event("Page.loadEventFired", sessionId, 30_000))) log.push(`still ${s.name}: the page never finished loading; taken as it was`);
+      if (!(await cdp.event("Page.loadEventFired", sessionId, 30_000))) log.push(`${url.split("/").at(-1)}: never finished loading; taken as it was`);
       await Bun.sleep(300);
-      const overflow = await cdp.send<{ result: { value: number } }>("Runtime.evaluate", { expression: "document.documentElement.scrollWidth - window.innerWidth", returnByValue: true }, sessionId).then((r) => r.result.value, () => 0);
-      // The whole page, not only the window: the page says how tall it is, and the still is clipped to that.
-      const tall = s.whole ? await cdp.send<{ result: { value: number } }>("Runtime.evaluate", { expression: "Math.ceil(document.documentElement.scrollHeight)", returnByValue: true }, sessionId).then((r) => Math.min(r.result.value, 8000), () => s.height) : s.height;
-      const { data } = await within(30_000, "the still", cdp.send<{ data: string }>("Page.captureScreenshot", { format: "png", ...(s.whole ? { captureBeyondViewport: true, clip: { x: 0, y: 0, width: s.width, height: tall, scale: 1 } } : {}) }, sessionId));
-      await Bun.write(join(out, `${s.name}.png`), Buffer.from(data, "base64"));
-      await cdp.send("Target.closeTarget", { targetId }).catch(() => {});
-      made.push(`site/shots/${s.name}.png`); log.push(`still ${s.name}: ${s.width}x${s.height}${overflow > 1 ? `; WARNING the page is ${overflow}px wider than the window and scrolls sideways` : "; nothing scrolls sideways"}`);
+      const evaluate = <T>(expression: string, otherwise: T) => cdp.send<{ result: { value: T } }>("Runtime.evaluate", { expression, returnByValue: true }, sessionId).then((r) => r.result.value ?? otherwise, () => otherwise);
+      const capture = async (to: string, whole = false) => {
+        // The whole page, not only the window: the page says how tall it is, and the still is clipped to that.
+        const tall = whole ? Math.min(await evaluate("Math.ceil(document.documentElement.scrollHeight)", v.height), 8000) : v.height;
+        const { data } = await within(30_000, "the still", cdp.send<{ data: string }>("Page.captureScreenshot", { format: "png", ...(whole ? { captureBeyondViewport: true, clip: { x: 0, y: 0, width: v.width, height: tall, scale: 1 } } : {}) }, sessionId));
+        await Bun.write(join(out, to), Buffer.from(data, "base64"));
+      };
+      return { evaluate, capture, close: () => cdp.send("Target.closeTarget", { targetId }).catch(() => {}) };
     };
     const pageUrl = `file://${join(siteDir, file)}`;
-    await still(DESKTOP, pageUrl); await still(PHONE, pageUrl);
-    await Bun.write(join(out, "sheet.html"), sheet(DESKTOP, PHONE));
-    await still({ name: "3-both-widths", width: DESKTOP.width + PHONE.width + 120, height: Math.max(DESKTOP.height, PHONE.height) + 110 }, `file://${join(out, "sheet.html")}`);
-    await still({ ...DESKTOP, name: "4-desktop-whole-page", whole: true }, pageUrl); await still({ ...PHONE, name: "5-phone-whole-page", whole: true }, pageUrl);
+    let where: ReturnType<typeof places> = [];
+    for (const view of [DESKTOP, PHONE]) {
+      const tab = await open(view, pageUrl);
+      if (view === DESKTOP) where = places(await tab.evaluate<string[]>("[...document.querySelectorAll('section[id]')].map((s) => s.id)", []));
+      const overflow = await tab.evaluate("document.documentElement.scrollWidth - window.innerWidth", 0);
+      log.push(`${view.name}, ${view.width}px: ${overflow > 1 ? `WARNING the page is ${overflow}px wider than the window and scrolls sideways` : "nothing scrolls sideways"}`);
+      for (const [i, place] of where.entries()) {
+        // A page with smooth scrolling would still be on its way when the still is taken: scroll at once, to a computed place.
+        await tab.evaluate(`(document.documentElement.style.scrollBehavior = "auto", window.scrollTo(0, ${place.id ? `Math.max(0, (document.getElementById(${JSON.stringify(place.id)})?.getBoundingClientRect().top ?? 0) + window.scrollY - 16)` : "0"}), 1)`, 1);
+        await Bun.sleep(150);
+        await tab.capture(`single/${view.name}-${i + 1}.png`);
+      }
+      await tab.evaluate("(window.scrollTo(0, 0), 1)", 1);
+      await tab.capture(`single/${view.name}-whole-page.png`, true);
+      made.push(`site/shots/single/${view.name}-whole-page.png`);
+      await tab.close();
+    }
+    // Every still in shots/ shows both widths: whoever judges one picture alone can see the page on a desktop and on a phone.
+    for (const [i, place] of where.entries()) {
+      const name = `${i + 1}-${(place.id ?? "top").replace(/[^a-z0-9-]/gi, "")}-both-widths.png`;
+      await Bun.write(join(out, "sheet.html"), sheet(`single/desktop-${i + 1}.png`, `single/phone-${i + 1}.png`, place.label));
+      const tab = await open({ width: DESKTOP.width + PHONE.width + 120, height: Math.max(DESKTOP.height, PHONE.height) + 110 }, `file://${join(out, "sheet.html")}`);
+      await tab.capture(name); await tab.close();
+      made.unshift(`site/shots/${name}`); log.push(`still ${name}: desktop and phone side by side, ${place.label}`);
+    }
     ws.close();
   } catch (e) { log.push(`stills stopped: ${e instanceof Error ? e.message : e}`); }
   finally { proc.kill(9); await rm(join(out, "sheet.html"), { force: true }); await rm(profile, { recursive: true, force: true }).catch(() => {}); }

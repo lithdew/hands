@@ -4,7 +4,7 @@ import { duckResults } from "../web";
 import { record } from "./site";
 import { anchorsOf, entryFiles, foldersTouched, maskEmail, parseAuthors, remoteSlug, texReadable, textBlocks, tieIn, type Owner } from "./site/owner";
 import { evidenceFor, evidenceLines, links, lint, sentences, unbalanced, urlsIn, visibleLines } from "./site/page";
-import { sheet, DESKTOP, PHONE } from "./site/shots";
+import { places, sheet } from "./site/shots";
 
 // An invented person: no fact about the real owner belongs in code, tests included.
 const owner: Owner = { name: "Ada Quill", email: "ada.quill@mail.test", remote: "github.com/someteam/widget", remoteVisible: false, authors: [{ name: "Ada Quill", email: "ada.quill@mail.test", commits: 4 }, { name: "Bo Reed", email: "bo@mail.test", commits: 9 }],
@@ -118,7 +118,11 @@ test("DuckDuckGo's results: the real address is inside the redirect", async () =
   expect(await duckResults(html)).toEqual([{ title: "A & B", url: "https://a.test/page?x=1", snippet: "Some bold words" }]);
 });
 
-test("the sheet shows both stills at their true widths", () => {
-  expect(sheet(DESKTOP, PHONE)).toContain('src="1-desktop.png" width="1280"');
-  expect(sheet(DESKTOP, PHONE)).toContain('src="2-phone.png" width="390"');
+test("every still shows both widths, at the top, the projects and the last section", () => {
+  expect(sheet("single/desktop-1.png", "single/phone-1.png", "top of the page")).toContain('src="single/desktop-1.png" width="1280"');
+  expect(sheet("single/desktop-1.png", "single/phone-1.png", "top of the page")).toContain('src="single/phone-1.png" width="390"');
+  expect(places(["about", "projects", "writing", "contact"]).map((p) => p.id)).toEqual([null, "projects", "contact"]);
+  expect(places(["intro", "things", "reach"]).map((p) => p.id)).toEqual([null, "things", "reach"]);
+  expect(places(["only"]).map((p) => p.id)).toEqual([null, "only"]);
+  expect(places([]).map((p) => p.id)).toEqual([null]);
 });
