@@ -77,11 +77,14 @@ export async function artifactResponse(request: Request, root = ARTIFACT_ROOT): 
   if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
     || request.headers.get("host") && request.headers.get("host") !== url.host) return new Response("Local artifacts only", { status: 403 });
   const origin = request.headers.get("origin"), site = request.headers.get("sec-fetch-site"), destination = request.headers.get("sec-fetch-dest");
-  // Opaque frames omit Origin on no-cors images/styles/media. Permit only those
-  // read-only asset requests, never cross-site document navigation or fetch.
+  // Opaque frames omit Origin on assets and mark their own link navigations
+  // cross-site. Permit clicked read-only document links too; never fetch/control
+  // requests. The served document keeps its opaque origin and framing policy.
   const opaqueAsset = !origin && ["image", "style", "script", "font", "audio", "video", "track"].includes(destination ?? "")
     && request.headers.get("sec-fetch-mode") === "no-cors";
-  if (origin && origin !== "null" && origin !== url.origin || site && ["cross-site", "same-site"].includes(site) && origin !== "null" && !opaqueAsset) return new Response("Local artifacts only", { status: 403 });
+  const clickedDocument = !origin && request.method === "GET" && ["document", "iframe"].includes(destination ?? "")
+    && request.headers.get("sec-fetch-mode") === "navigate" && request.headers.get("sec-fetch-user") === "?1";
+  if (origin && origin !== "null" && origin !== url.origin || site && ["cross-site", "same-site"].includes(site) && origin !== "null" && !opaqueAsset && !clickedDocument) return new Response("Local artifacts only", { status: 403 });
   if (request.method !== "GET" && request.method !== "HEAD") return new Response("Use GET or HEAD", { status: 405, headers: { Allow: "GET, HEAD" } });
   const requested = parts(url.pathname);
   if (!requested) return new Response("Invalid artifact path", { status: 400 });

@@ -25,6 +25,7 @@ import { attachExistingBrowser, browserTarget, captureBound, closeWindowsDesktop
 import { loginTargets } from "./session";
 import { createHud, hudEnabled, type HudStatus } from "./hud";
 import { artifactResponse } from "./artifacts";
+import { evalsResponse } from "./eval-observer";
 import type { AgentStatus } from "../ai";
 
 /** The Windows control page; the shared panel.html stays for Linux. Same CSP as hotkey.ts sends for its page. */
@@ -237,6 +238,8 @@ if (import.meta.main) {
         const path = new URL(request.url).pathname;
         const page = await panelResponse(request);
         if (page) return page;
+        const evals = await evalsResponse(request);
+        if (evals) return evals;
         if (request.method === "GET" && path === "/status") {
           const state = await (await local("/status")).json() as { hand: number; workers: { hand: number }[] };
           return Response.json({ ...state, workers: state.workers.map(worker => {

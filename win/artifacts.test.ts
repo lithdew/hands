@@ -46,6 +46,11 @@ describe("isolated generated artifact files", () => {
     expect(video!.status).toBe(200);
     await video!.arrayBuffer();
     expect((await artifactResponse(request("index.html", { headers: { "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "iframe", "Sec-Fetch-Mode": "navigate" } }), root))!.status).toBe(403);
+    for (const destination of ["document", "iframe"]) {
+      const clicked = await artifactResponse(request("index.html", { headers: {"Sec-Fetch-Site":"cross-site","Sec-Fetch-Dest":destination,"Sec-Fetch-Mode":"navigate","Sec-Fetch-User":"?1"} }), root);
+      expect(clicked!.status).toBe(200);expect(clicked!.headers.get("Content-Security-Policy")).toBe(ARTIFACT_CSP);await clicked!.text();
+    }
+    expect((await artifactResponse(request("index.html", { headers: {"Sec-Fetch-Site":"cross-site","Sec-Fetch-Dest":"empty","Sec-Fetch-Mode":"cors","Sec-Fetch-User":"?1"} }), root))!.status).toBe(403);
   });
 
   test("supports video ranges and HEAD without exposing extra bytes", async () => {
