@@ -1,0 +1,13 @@
+# Matrix lesson — independent creative acceptance
+
+Final actual Hands run: `7031f76b-2353-4d37-997e-ba19ce3a06cb`. Verdict: **pass with advisories**. [Open lesson](http://127.0.0.1:7777/artifacts/7031f76b-2353-4d37-997e-ba19ce3a06cb/index.html).
+
+Hands authored all final lesson files using Astra low and returned to Jev for bounded execution and delivery. The final movie is 104.043 seconds of actual ManimGL geometry and Remotion composition with verified original instrumental AAC music, no narration. Four large equation scenes replace repetitive prose slides; exact inverse/solve arithmetic and singular qualifications are correct.
+
+The accepted bundle passed 37 runtime checks. Independent review covers 17 decoded temporal frames, seven film/math checks, 38 companion controls, 25 focused mobile/hash checks, and 15 fresh checks on the final production route. All nine authored files and four reused media assets match the independently inspected source hashes. The Astra visual reviews scored each of five dimensions 4/5 across desktop, mobile and film views. This supports polished craft, not a claim of exceptional bespoke motion.
+
+The real audit fixed four functional defects and then mobile readalong/caption layout. The current scene now sits immediately below the player before chapters. Optional native captions load but start hidden, preventing duplicate boxes over the burned-in captions. Sound from zero, keyboard captions/cards, fullscreen, seeks, honest print/data navigation and local links all work through the opaque artifact sandbox.
+
+The recorded history includes the original film and 361.710 seconds of subsequent repair/validation runs. It retains a 1.367-second premature Jev stop and a 64.232-second run held by an out-of-scope film-review demand for page screenshots. Corrected routing/reviewer eligibility then completed unchanged-content revalidation in 37.920 seconds. This final latency is not end-to-end generation cost. All five recorded runs total 722.570 seconds and 28,805 model output tokens.
+
+Remaining advisories: geometry fine print is smaller than equation heroes; mobile readability relies on adjacent readalong and fullscreen. The identity hero shows one product while captions/companions cover both; the worked inverse arrow could use explicit A/A⁻¹ labels. Music verification is objective waveform/playback evidence, not a subjective listening review. Native controls can temporarily cover lower film text; readable current-scene content remains immediately adjacent. Full details and exact hashes are in the run’s independent-inspection.json and this case’s results JSON.

@@ -1,0 +1,80 @@
+{
+  "caseId": "gravitational-wave-editorial",
+  "runId": "17c77cfa-6d3b-4461-85d7-e3966d40aaff",
+  "passed": true,
+  "verdict": "pass-with-advisories",
+  "previewUrl": "/artifacts/17c77cfa-6d3b-4461-85d7-e3966d40aaff/index.html",
+  "posterUrl": "/artifacts/17c77cfa-6d3b-4461-85d7-e3966d40aaff/poster.html",
+  "finalAttempt": {
+    "elapsedMs": 42043,
+    "resumeOf": "0c89be63-1ad5-4c18-bc81-803e58ee9cad",
+    "jev": {
+      "calls": 4,
+      "durationMs": 1388
+    },
+    "specialists": {
+      "calls": 4,
+      "durationMs": 33588
+    },
+    "routing": {
+      "calls": 1,
+      "durationMs": 806
+    },
+    "runtimeChecks": 24,
+    "independentBrowserChecks": 45
+  },
+  "earlierAttempts": [
+    {
+      "runId": "0c89be63-1ad5-4c18-bc81-803e58ee9cad",
+      "elapsedMs": 130638,
+      "runtimeStatus": "complete",
+      "independentStatus": "failed-one-control",
+      "defect": "Script-driven Print button blocked by the actual opaque sandbox; held acceptance until repaired."
+    }
+  ],
+  "print": {
+    "pages": 1,
+    "pageSizePoints": [
+      841.92,
+      1191.12
+    ],
+    "format": "A3 portrait, approximately297x420mm",
+    "path": "independent-review/poster-a3.pdf",
+    "sha256": "2a45899e57dca8225ec7c44d9080fb4db985286a0ca7165e369fbdcaa8527767",
+    "method": "Chromium print derivative of actual Hands HTML/CSS, pdfinfo dimensions, pdftoppm rasterization and complete direct image inspection; no content authored outside Hands.",
+    "visual": "Clear title/illustration/facts/source hierarchy, no clipping or accidental extra page; references readable at full A3."
+  },
+  "sourceReview": {
+    "passed": true,
+    "retrievedPrimarySources": [
+      "https://arxiv.org/pdf/1602.03837",
+      "https://gwosc.org/events/GW150914/"
+    ],
+    "checked": [
+      "Detection 14 September 2015 and publication 11 February 2016 are distinct and supported.",
+      "Only approximate dimensionless peak strain 10^-21 is shown; no mixed masses/distance estimates.",
+      "h=DeltaL/L is correctly described as differential arm-length strain.",
+      "Illustration labeled schematic, uncalibrated and not measured.",
+      "Binary merger interpretation presented as evidence/model, no fabricated affiliation or conference."
+    ],
+    "retrievalLimit": "Broad discovery search failed; both seeded primary sources were actually retrieved."
+  },
+  "advisories": [
+    {
+      "severity": "warning",
+      "file": "editorial.css",
+      "detail": "Mobile schematic caption and narrow poster fact columns could use more breathing room; they remain legible without overflow."
+    },
+    {
+      "severity": "warning",
+      "file": "index.html",
+      "detail": "Expanded companion is a long reading page. Native disclosures keep the default view compact; no pagination or long-page navigation was requested."
+    }
+  ],
+  "evidence": {
+    "manifest": "out/artifacts/17c77cfa-6d3b-4461-85d7-e3966d40aaff/manifest.json",
+    "inspection": "out/artifacts/17c77cfa-6d3b-4461-85d7-e3966d40aaff/independent-inspection.json",
+    "browser": "out/artifacts/17c77cfa-6d3b-4461-85d7-e3966d40aaff/independent-review/interaction-print-checks.json"
+  },
+  "timingLimit": "42.043s is a final checkpoint repair/validation attempt, not fresh generation or total end-to-end wall time."
+}

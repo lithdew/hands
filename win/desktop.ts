@@ -83,6 +83,20 @@ export async function ensureHelper(): Promise<string> {
 
 type Helper = { ask(line: string): Promise<string>; close(): void };
 
+/** Recover an Explorer restart without losing ownership or Chrome bindings.
+ * Never replay input/window mutations whose dispatch outcome is uncertain. */
+export async function helperReply(request: string, send: (request: string) => Promise<string>): Promise<string> {
+  let out = await send(request);
+  const readOnly = /^(?:desktops|where|state|external-browsers|external-read)(?: |$)/.test(request);
+  if (readOnly && /^error .*0x(?:800706BA|800706BE|80010108|80010007|80040154)/i.test(out)) {
+    const connected = await send("desktop-reconnect");
+    if (connected.startsWith("error ")) throw new Error(connected.slice(6));
+    out = await send(request);
+  }
+  if (out.startsWith("error ")) throw new Error(out.slice(6));
+  return out;
+}
+
 /** One long-lived `puk-win serve`: a request line in, a reply line out. */
 export function createHelper(exe: string, ownerNamespace?: string): Helper {
   const proc = Bun.spawn([exe, "serve"], { env: { ...subprocessEnv(), ...(ownerNamespace ? { PUK_WINDOW_OWNER_NAMESPACE: ownerNamespace } : {}) }, stdin: "pipe", stdout: "pipe", stderr: "ignore" });
@@ -102,10 +116,10 @@ export function createHelper(exe: string, ownerNamespace?: string): Helper {
       if (closed) return Promise.reject(new Error("The Windows helper is closed."));
       if (/[\r\n]/.test(request)) throw new Error("Helper requests are single lines.");
       const reply = queue.then(async () => {
-        proc.stdin.write(`${request}\n`); await proc.stdin.flush();
-        const out = await line();
-        if (out.startsWith("error ")) throw new Error(out.slice(6));
-        return out;
+        return helperReply(request, async next => {
+          proc.stdin.write(`${next}\n`); await proc.stdin.flush();
+          return line();
+        });
       });
       queue = reply.catch(() => {});
       return reply;

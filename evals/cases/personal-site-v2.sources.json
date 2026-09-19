@@ -1,0 +1,75 @@
+{
+  "caseId": "personal-site-v2",
+  "preparedAt": "2026-09-19T17:00:43.456Z",
+  "purpose": "Creative direction and bounded factual context for an actual Hands generation; not final website code.",
+  "artDirection": "# Ishaan / Hands — an engineered personal site\n\nThe site should feel like the public notebook of someone making a new way to use a computer: precise, curious, and confident. It needs a memorable visual idea and one interaction worth trying. A technically valid collection of headings and rectangular cards is not an acceptable result.\n\n## Direction\n\nUse warm off-white paper, near-black ink, and a decisive cobalt blue. Keep the palette disciplined. Large editorial type, fine rules, small monospaced annotations, offset alignments, and deliberate changes in scale should establish the identity. Use local/system font stacks skillfully; no dependency on remote fonts. Broad whitespace needs a compositional purpose, not an empty hero followed by three cards.\n\nChoose an asymmetric grid and a strong typographic opening around Ishaan Batra and the work on Hands. The first desktop viewport should already communicate the project and contain a distinctive piece of product illustration. At 390px, redesign the composition into a confident vertical sequence rather than simply shrinking the desktop layout. Put useful content near the top. Avoid giant mobile gaps, truncated headings, and microscopic diagram labels.\n\nThe visual signature is an original Hands workbench: a graphic, inspectable explanation of how an instruction becomes a specialist handoff and returns to a fast decision. Build it from original HTML/CSS/SVG and JavaScript. Give it the care of a small instrument: clear active state, precise connectors, a meaningful input, an obvious next step, and considered transitions. It should read as a designed interface, not a generic flowchart, a static wireframe, or an unrelated decorative animation.\n\n## Interaction to design\n\nMake the workbench a genuinely functioning local interface study. A visitor can select a task example, step through or replay its instruction → specialist → review → return sequence, and see the active stage and concrete output preview change coherently. A pause/reset or direct stage selection must work. Keyboard interaction and reduced-motion behavior must preserve the same meaning. Show a compact visible “Interactive concept” label so no one mistakes it for a live model or computer connection.\n\nThis is not permission to fake a model invocation or fabricate live telemetry. Do not call Hands control endpoints, capture a browser, send messages, or invent loading/success states for a nonexistent service. The interaction itself must be real local state, with honest labels. Do not present a disabled text input, dead slider, pretend video play button, or decorative button as a working feature.\n\nUse measured microinteractions elsewhere: underline movement, row focus, a changing diagram, and a restrained arrival animation. Animations should have a reason. Avoid cursor followers, magnetic buttons, background particles, relentless marquee text, and large scroll reveals that hide content or make screenshots blank. Respect prefers-reduced-motion, and keep the page usable before JavaScript runs.\n\n## Content and structure\n\nCreate a personal homepage and a distinct Hands work/project page. Choose their final layout; do not reuse the old site's arrangement. The pages must link clearly in both directions. Use concise, specific copy. Known facts are enough: Ishaan Batra is building Hands and working on the transition between computer-use decisions and general-agent reasoning, speed, correctness, and user corrections.\n\nShow two or three particular experiments from the supplied evidence, not vague “AI solutions.” A calculus study pack, a reinforcement-learning reading brief, and a matrix-inversion lesson are available. Make their presentation feel editorial: varied scale, short meaningful descriptions, and original lightweight visual excerpts or diagrams. Do not make a row of three identical service cards or an invented portfolio of clients. If an output preview is illustrative rather than a source screenshot, label it naturally as an illustration. Do not claim the previous outputs establish visual excellence, commercial traction, or general reliability.\n\nKeep provenance in README/provenance.json and an unobtrusive short about note. Public visitors should learn what Ishaan is making, what the interface lets them try, and what the experiments produced. They should not have to read source-packet mechanics, evaluator terminology, repeated disclaimers, internal UUIDs, or a compliance checklist. One calm “In development” note is enough for project status. No invented employer, degree, location, portrait, contact details, testimonials, funding, clients, social profile, or founder biography.\n\n## Acceptance standard\n\nThe result needs a recognizable graphic idea, strong type and spacing, coherent composition, readable hierarchy, and at least one rewarding interaction. Desktop and mobile should both look intentionally designed. A screenshot should show a finished personal/work site, not a generated template, a text document wearing a website shell, or a dark dashboard full of generic panels.\n\nCheck the workbench's real state changes, keyboard behavior, reduced motion, back/home links, and all visible buttons. Check all four initial desktop/mobile page views, then inspect the actual workbench and one lower-page content region. No navigation dead ends, fake contact action, errors, clipped text, or unreadable labels. Critique visual craft explicitly, even if all overflow checks pass.\n\nProduce complete local HTML/CSS/JS files through Hands. The evaluation coordinator supplies this brief and independent feedback, never the final site code. Use Astra low for the design and synthesis in this run. Keep the code compact and purposeful; no build tool, dependency installation, external asset service, analytics, or unexecuted React project is needed.\n",
+  "confirmedFacts": [
+    {
+      "claim": "The requested personal name is Ishaan Batra.",
+      "source": "Direct user statement",
+      "publicationUse": "Name and personal website identity permitted."
+    },
+    {
+      "claim": "Ishaan is building Hands, a computer-use assistant, and is working on Jev/general-agent handoffs, speed, correctness and mid-task corrections.",
+      "source": "Direct user request and ongoing project work",
+      "publicationUse": "Describe current work in first person. Do not infer profession, founder title, team size, tenure, location or employer."
+    },
+    {
+      "claim": "The Hands prototype combines fast constrained Jev decisions with expressive model work and computer interaction; it has a task preview and correction controls.",
+      "source": "Provided repository context and actual ongoing Hands evaluations",
+      "publicationUse": "Present as an in-development project. The new website workbench is an original local interface study of the idea, not a running computer-control product."
+    }
+  ],
+  "auditedExperiments": [
+    {
+      "id": "calculus",
+      "sourceRunId": "f7db73c3-bb83-4312-bbdc-a9395d34dc71",
+      "description": "Original 180-minute, 100-mark mock:12 questions, 40/60 course split; all12 solutions independently checked, 23-page A4 print inspected; sources and syllabus years distinguished.",
+      "entrypoint": "mock-exam.html",
+      "sourceClass": "Provided actual Hands run and independent inspection",
+      "inspectionVerdict": "pass-with-advisories",
+      "inspectionSha256": "6cc51a652c89b1b005dcb92e7f768bb4ef9e84d88e8348353d701d1380b01311",
+      "publicationUse": "Describe this particular local prototype output, not general app competence or design excellence. Internal run IDs and review mechanics belong only in provenance.json. Do not invent a client, testimonial or measured speedup."
+    },
+    {
+      "id": "reinforcement-learning",
+      "sourceRunId": "2da3987e-b999-4bb8-af12-98ecea72e761",
+      "description": "About 2376 words, six themes, 13 primary works, contextual empirical/theory claims and three proposed experiments; independent source/claim audit and desktop/mobile checks passed.",
+      "entrypoint": "rl-research.html",
+      "sourceClass": "Provided actual Hands run and independent inspection",
+      "inspectionVerdict": "pass-with-advisories",
+      "inspectionSha256": "691877f5d7612570c103b32b42e4b77994fa901e37e3b4de3d5dfaaeecab9979",
+      "publicationUse": "Describe this particular local prototype output, not general app competence or design excellence. Internal run IDs and review mechanics belong only in provenance.json. Do not invent a client, testimonial or measured speedup."
+    },
+    {
+      "id": "matrix-inversion",
+      "sourceRunId": "3f81c0aa-0a32-4264-80cf-f7a5a2952dc7",
+      "description": "105-second silent Remotion video with actual ManimGL scenes, 12 keyboard-tested flashcards and a printable cheat sheet; exact media hashes preserve prior math/frame/print audit; new mobile read-along and fullscreen tested.",
+      "entrypoint": "index.html",
+      "sourceClass": "Provided actual Hands run and independent inspection",
+      "inspectionVerdict": "pass-with-advisories",
+      "inspectionSha256": "c594b77e0de3bac8601e7c95f8bbf307bf7960ef7fc7b255b588f9eb70b999c2",
+      "publicationUse": "Describe this particular local prototype output, not general app competence or design excellence. Internal run IDs and review mechanics belong only in provenance.json. Do not invent a client, testimonial or measured speedup."
+    }
+  ],
+  "identityResearch": {
+    "status": "Previous research did not reliably match any public profile to the user.",
+    "exclude": [
+      "2019 Chinese-conversion paper namesake",
+      "Unrelated Whirlpool LinkedIn namesake",
+      "Unconfirmed HKUST student affiliation",
+      "Any guessed public contact or portrait"
+    ],
+    "direction": "Use the confirmed identity and current work. Do not turn uncertain identity into repeated public-facing caution or invent facts to fill a page."
+  },
+  "contentGuidance": {
+    "homepageVoice": "Confident, concise and specific. Lead with the person and work; connect the interaction to a useful idea. Avoid evaluator/process boilerplate.",
+    "workExamples": "Use a small selection of the real supplied experiments. Prefer one concrete sentence per case and original visual shorthand to large volumes of copy. Bounded output facts are enough; no need to claim a portfolio of customers.",
+    "provenance": "Put supporting record IDs and missing identity facts in the sidecar/README. A small development/concept label on public pages is sufficient."
+  },
+  "runtimeNotes": {
+    "delivery": "Local static HTML/CSS/JS in an opaque-origin sandbox; no network fetches, panel APIs, account actions, CDNs or server process required.",
+    "interaction": "All interactive state must run locally. Inline or local classic JS can update SVG/CSS/DOM. Do not fetch JSON under connect-src restrictions. No persisted secrets or storage dependency.",
+    "models": "Use gpt-6-astra at low effort for this run, with Jev routing and return. Allowed expressive family remains Luna/Vertex Gemini/Astra low."
+  }
+}

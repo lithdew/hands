@@ -1,7 +1,24 @@
 import { describe, expect, test } from "bun:test";
-import { adoptable, bindWindowCapture, capturedImage, createDriverPool, createExistingBrowserTargets, createWindowTracker, frontWindow, handFor, isPrivateBrowser, launchedBrowserWindow, signInLine, type RawWindow, type WindowOwner } from "./desktop";
+import { adoptable, bindWindowCapture, capturedImage, createDriverPool, createExistingBrowserTargets, createWindowTracker, frontWindow, handFor, helperReply, isPrivateBrowser, launchedBrowserWindow, signInLine, type RawWindow, type WindowOwner } from "./desktop";
 import { serverResources, virtualKey } from "./serve";
 import type { CuaConnection, Hand } from "../desktop";
+
+test("Explorer RPC recovery re-observes once without replaying window mutations", async () => {
+  const failure = "error The RPC server is unavailable. (Exception from HRESULT: 0x800706BA)";
+  const sent: string[] = [];
+  expect(await helperReply("external-read Puk hand 1|7:20:0000000000000001", async request => {
+    sent.push(request); return sent.length === 1 ? failure : request === "desktop-reconnect" ? "ok" : '{"pid":20}';
+  })).toBe('{"pid":20}');
+  expect(sent).toHaveLength(3); expect(sent[1]).toBe("desktop-reconnect"); expect(sent[2]).toBe(sent[0]);
+  for (const request of ["move 7 Puk hand 1", "external-focus Puk hand 1|7:20:0000000000000001", "ensure Puk hand 1"]) {
+    let count = 0;
+    await expect(helperReply(request, async () => { count++; return failure; })).rejects.toThrow("RPC server");
+    expect(count).toBe(1);
+  }
+  let count = 0;
+  await expect(helperReply("desktops", async request => {count++;return request === "desktop-reconnect" ? "ok" : failure;})).rejects.toThrow("RPC server");
+  expect(count).toBe(3);
+});
 
 describe("frontWindow", () => {
   const had = (...ids: number[]) => new Set(ids);

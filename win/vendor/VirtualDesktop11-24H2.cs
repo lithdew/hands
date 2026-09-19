@@ -236,6 +236,12 @@ namespace VirtualDesktop
 	{
 		static DesktopManager()
 		{
+			Reconnect();
+		}
+
+		// Hands: refresh Explorer COM interfaces without losing helper window reservations.
+		internal static void Reconnect()
+		{
 			var shell = (IServiceProvider10)Activator.CreateInstance(Type.GetTypeFromCLSID(Guids.CLSID_ImmersiveShell));
 			VirtualDesktopManagerInternal = (IVirtualDesktopManagerInternal)shell.QueryService(Guids.CLSID_VirtualDesktopManagerInternal, typeof(IVirtualDesktopManagerInternal).GUID);
 			VirtualDesktopManager = (IVirtualDesktopManager)Activator.CreateInstance(Type.GetTypeFromCLSID(Guids.CLSID_VirtualDesktopManager));

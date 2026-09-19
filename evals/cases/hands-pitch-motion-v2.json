@@ -1,0 +1,58 @@
+{
+  "id": "hands-pitch-motion-v2",
+  "version": 2,
+  "qualityProfile": "creative",
+  "title": "Hands — from intent to work",
+  "preferredModel": "gpt-6-astra",
+  "preferredEffort": "low",
+  "task": "Create a crafted 60–90 second Remotion launch film for Hands, the computer-use assistant, aimed at early-stage accelerator reviewers. Use Astra low and return to Jev for checked render and delivery. Tell a simple story: a person knows the outcome but must coordinate tools; Hands can take a request, involve a specialist, execute bounded next steps and accept corrections; show two actual inspected outputs supplied in the runtime evidence; close with one concrete next milestone. Do not turn the pitch into a technical audit or a disclaimer slideshow. Brand it Hands. Make the motion, music and companion website feel carefully designed.",
+  "creativeBrief": {
+    "direction": "Ink, warm ivory and electric cobalt. Large concise type, varied asymmetric compositions, kinetic opening, animated workflow nodes, moving task chips, deliberate reveals of two real output images, and a confident closing hold. Use at least four distinct layouts and three tones. Show visual evidence at a readable scale. No generic card grid or uniform bullet slides.",
+    "story": "Original opening tension and concise product promise; one development prototype label; two useful real output demonstrations; Jev → specialist → Jev execution diagram with a correction path; one plain-language next milestone. Intended users can be described as builders, students and researchers without pretending there are existing customers. Keep evidence detail in a sidecar.",
+    "soundtrack": "Required original minimal-electronic instrumental score: music={style:minimal-electronic,tempoBpm:112,intensity:0.7,seed:73,gainDb:-4}. No narration. Purposeful build, restrained beat and clean opening/closing fades. Never describe it as silent.",
+    "renderer": "Trusted1280x72024fps Remotion. storyboard.design={theme:editorial-cobalt,motion:expressive}. Scene layout supports kinetic-title,workflow,task-field,artifact-stage,editorial,statement,closing-mark. Use explicit workflow nodes (3 or4) and terse captions. artifact-stage needs supplied actual artifactImage ID. No generated executable renderer/config or fictional capabilities.",
+    "website": "A strong launch-film viewing experience, with beautifully composed title/player/chapters, working play/pause, sound toggle, captions, seek and fullscreen controls. Deliberate mobile layout and nearby readable scene copy. Keep evidence collapsed or linked; do not fill the player site with audit metadata. No audible autoplay. Use native button click handlers rather than form submission because the preview sandbox forbids forms.",
+    "tone": "Direct, useful, specific and confident. Never invent customers, revenue, YC endorsement, biography or measured end-to-end reliability. A brief development-prototype label and one future milestone provide honest scope. Omit performance numbers for this film."
+  },
+  "sources": [
+    {
+      "use": "Current implemented product description; does not establish general reliability or actual task completion.",
+      "path": "README.md"
+    }
+  ],
+  "artifactContract": {
+    "requiredFiles": [
+      "index.html",
+      "storyboard.json",
+      "evidence-ledger.json",
+      "transcript.md",
+      "README.md"
+    ]
+  },
+  "rubric": {
+    "mustPass": [
+      "Actual Hands creation with allowed expressive model and genuine Jev return decisions. Coordinator-written final content does not count.",
+      "A complete60–90second MP4 using actual Remotion at1280x72024fps fully decodes and plays.",
+      "Strong independent creative score on hierarchy, typography, composition, originality and brief fit; no clipped/unreadable captions or proof images.",
+      "The final film has at least four varied layouts, three tones and actual intra-scene motion; contact sheets alone do not prove motion.",
+      "Two distinct actual inspected Hands artifact images, bound by runtime IDs and hashes, support the demo. No invented screenshot or claimed recording of a live desktop.",
+      "The generated evidence ledger maps concrete claims to supplied repository/runtime evidence, with short honest development scope and no invented traction or speed claim.",
+      "Original music is encoded as AAC and verified audible, non-clipping, with arrangement variation and fades. The sound controls actually affect playback.",
+      "The player works on desktop and mobile: play/pause, seek, sound, captions, fullscreen and chapter controls. Local page navigation works in the real opaque-origin artifact sandbox.",
+      "Inspect real motion samples and readable scene stills, plus the actual player views and interactions. Report specific observed limitations; do not conflate model scores with user taste."
+    ]
+  },
+  "revisionFindings": [
+    "Previous rendered run a00e0598-490f-4982-8b49-0045454f1b0a failed its independent creative gate. Repair the actual observed design issues; preserve correct evidence and working functionality.",
+    "The trusted task-field layout is now a staggered connected sequence beside a435px title; use a short left title and terse task chips. Remove the generic grid appearance from the actual companion page too.",
+    "Workflow now supports explicit correction:string (<=65chars) and directional arrows. Use it for the actual user correction path; chips are not a substitute. Workflow details must be terse enough for two lines.",
+    "Keep the outcome / Correct the course should form two intentional editorial columns: concise title and body. Do not strand course on its own line. Remove the on-screen intended-users disclaimer; evidence ledger can state scope. One development-prototype label suffices.",
+    "Closing-mark has a large brand title and prominent38px body. Put the concrete next milestone in that body, not only in tiny caption. Maintain one confident final hold.",
+    "The research artifact-2 now uses an independently inspected faithful1100x253 focused screenshot from the same report, with section identity, C2 paragraph and HiPER/SkillGate source links visible. Use the supplied image unchanged. Renderer removes on-screen internal IDs; retain full identity/hashes/provenance in evidence-ledger.json.",
+    "Mobile player must be prominent early with readable adjacent current-scene text and functional chapter controls. Avoid a large empty intro and duplicate native/custom controls. Choosing a chapter should reveal/preserve the player, not scroll it offscreen. Sound must work in one click even after volume0. Do not advertise sandbox-blocked window.print or download behavior.",
+    "No custom/generated renderer code. Use the exact supplied schema. Preserve original instrumental score and no narration. Check source claims against runtime evidence, not earlier generator statements.",
+    "Newest run f350abc9-1de0-4c30-80a3-610a4e2fcbdd passed full-film creative review and desktop review, but mobile task-field labels were too small. Trusted task-field now renders up to4 labels at52px, so keep each to1–2short words; let nearby scene text retain the explanation. Left title short, body concise; renderer fails rather than shrinking overloaded labels. Preserve the strong revised workflow, evidence images and closing.",
+    "Improve mobile controls: give the seek slider an accessible44px interactive area and readable14px time. Give film and live scene text an intentional common scene index and consistent spacing; adjacent current-scene copy should feel attached to the film. Use a specific editorial treatment, not extra decorative cards. Avoid duplicate native/custom controls, audible autoplay or moving the player offscreen on a chapter selection.",
+    "Fresh independent QA of f350abc9:39 functional/hash checks passed at desktop/mobile, with no JavaScript/console errors. Preserve these working interactions. Correct small source-of-truth mismatch: opening transcript/readalong lists three tool fragments although kinetic-title does not render chips. Make the transcript accurately describe what is visible, or label extra copy as companion explanation; do not claim invisible words appear in the film. Native research and diagnostic detail is readable; give mobile users landscape/fullscreen guidance without claiming portrait fullscreen necessarily enlarges it."
+  ]
+}

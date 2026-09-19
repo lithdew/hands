@@ -1,0 +1,270 @@
+{
+  "date": "2026-09-20",
+  "scope": "Onboarding, science editorial and the repaired motion/music pitch. Content/code emitted and repaired through actual Hands workflows/eval.ts, with fresh Jev handoff and delivery. Independent reviewers performed QA, faithful evidence capture and reports only; this is not a complete inventory of other creative cases.",
+  "accepted": 3,
+  "cases": [
+    {
+      "caseId": "hands-onboarding-prototype",
+      "runId": "b57a00e9-c996-445f-bbbf-c6e4f0d91ae4",
+      "verdict": "pass-with-advisories",
+      "passed": true,
+      "previewUrl": "/artifacts/b57a00e9-c996-445f-bbbf-c6e4f0d91ae4/index.html",
+      "finalAttempt": {
+        "elapsedMs": 39937,
+        "resumeOf": "afba8267-93c3-42b8-9b54-b16c482d1f11",
+        "jev": {
+          "calls": 4,
+          "durationMs": 1445
+        },
+        "specialists": {
+          "calls": 4,
+          "durationMs": 34026
+        },
+        "routing": {
+          "calls": 1,
+          "durationMs": 811
+        },
+        "runtimeChecks": 18,
+        "independentChecks": 44
+      },
+      "earlierAttempts": [
+        {
+          "runId": "d797d57b-5e91-4a0e-9ee6-c3690fb98fed",
+          "elapsedMs": 9846,
+          "status": "failed-before-generation",
+          "defect": "Source-free brief had no truthful proceed option."
+        },
+        {
+          "runId": "afba8267-93c3-42b8-9b54-b16c482d1f11",
+          "elapsedMs": 119397,
+          "status": "needs-review",
+          "defects": [
+            "Mobile craft gate failed.",
+            "Independent real interaction audit found sandbox-blocked form submit."
+          ]
+        }
+      ],
+      "scope": {
+        "browser": "Fresh isolated Chromium with actual production artifactResponse and opaque sandbox CSP, 1440x900 and 390x844. No signed-in profile or account actions.",
+        "visual": "All three states at both sizes directly inspected; task images recaptured with CSS animation fast-forwarded. Full below-fold output checked.",
+        "keyboard": "Separate flow used Tab, typing, Enter, back/reset; visible focus and reduced-motion styles checked.",
+        "limits": "Not physical-device testing or a general reliability benchmark. This artifact is deliberately a local conceptual prototype."
+      },
+      "advisories": [
+        {
+          "severity": "warning",
+          "file": "prototype.css",
+          "detail": "Some stage-rail labels remain compact. Both mobile correction and result states require ordinary vertical scrolling; primary controls remain reachable without overflow."
+        },
+        {
+          "severity": "warning",
+          "file": "index.html",
+          "detail": "Desktop repeats the gesture motif at two scales. This is coherent but could be simplified in another design iteration."
+        }
+      ],
+      "defectsRepaired": [
+        {
+          "owner": "Hands specialist",
+          "detail": "Replaced form-submit dependency with semantic button click handlers compatible with the opaque sandbox. Moved mobile primary action above examples and retained the gesture motif; increased support-copy sizing."
+        },
+        {
+          "owner": "Shared trusted runtime",
+          "detail": "User-activated read-only local artifact navigation was narrowly allowed by the root agent while preserving opaque CSP and control-route isolation. Independent brand navigation now passes at both sizes."
+        }
+      ],
+      "evidence": {
+        "manifest": "out/artifacts/b57a00e9-c996-445f-bbbf-c6e4f0d91ae4/manifest.json",
+        "inspection": "out/artifacts/b57a00e9-c996-445f-bbbf-c6e4f0d91ae4/independent-inspection.json",
+        "interactionChecks": "out/artifacts/b57a00e9-c996-445f-bbbf-c6e4f0d91ae4/independent-review/interaction-checks.json"
+      },
+      "timingLimit": "39.937s is the final checkpoint repair/validation attempt, not fresh creation or total end-to-end elapsed time. No controlled speedup claim."
+    },
+    {
+      "caseId": "gravitational-wave-editorial",
+      "runId": "17c77cfa-6d3b-4461-85d7-e3966d40aaff",
+      "passed": true,
+      "verdict": "pass-with-advisories",
+      "previewUrl": "/artifacts/17c77cfa-6d3b-4461-85d7-e3966d40aaff/index.html",
+      "posterUrl": "/artifacts/17c77cfa-6d3b-4461-85d7-e3966d40aaff/poster.html",
+      "finalAttempt": {
+        "elapsedMs": 42043,
+        "resumeOf": "0c89be63-1ad5-4c18-bc81-803e58ee9cad",
+        "jev": {
+          "calls": 4,
+          "durationMs": 1388
+        },
+        "specialists": {
+          "calls": 4,
+          "durationMs": 33588
+        },
+        "routing": {
+          "calls": 1,
+          "durationMs": 806
+        },
+        "runtimeChecks": 24,
+        "independentBrowserChecks": 45
+      },
+      "earlierAttempts": [
+        {
+          "runId": "0c89be63-1ad5-4c18-bc81-803e58ee9cad",
+          "elapsedMs": 130638,
+          "runtimeStatus": "complete",
+          "independentStatus": "failed-one-control",
+          "defect": "Script-driven Print button blocked by the actual opaque sandbox; held acceptance until repaired."
+        }
+      ],
+      "print": {
+        "pages": 1,
+        "pageSizePoints": [
+          841.92,
+          1191.12
+        ],
+        "format": "A3 portrait, approximately297x420mm",
+        "path": "independent-review/poster-a3.pdf",
+        "sha256": "2a45899e57dca8225ec7c44d9080fb4db985286a0ca7165e369fbdcaa8527767",
+        "method": "Chromium print derivative of actual Hands HTML/CSS, pdfinfo dimensions, pdftoppm rasterization and complete direct image inspection; no content authored outside Hands.",
+        "visual": "Clear title/illustration/facts/source hierarchy, no clipping or accidental extra page; references readable at full A3."
+      },
+      "sourceReview": {
+        "passed": true,
+        "retrievedPrimarySources": [
+          "https://arxiv.org/pdf/1602.03837",
+          "https://gwosc.org/events/GW150914/"
+        ],
+        "checked": [
+          "Detection 14 September 2015 and publication 11 February 2016 are distinct and supported.",
+          "Only approximate dimensionless peak strain 10^-21 is shown; no mixed masses/distance estimates.",
+          "h=DeltaL/L is correctly described as differential arm-length strain.",
+          "Illustration labeled schematic, uncalibrated and not measured.",
+          "Binary merger interpretation presented as evidence/model, no fabricated affiliation or conference."
+        ],
+        "retrievalLimit": "Broad discovery search failed; both seeded primary sources were actually retrieved."
+      },
+      "advisories": [
+        {
+          "severity": "warning",
+          "file": "editorial.css",
+          "detail": "Mobile schematic caption and narrow poster fact columns could use more breathing room; they remain legible without overflow."
+        },
+        {
+          "severity": "warning",
+          "file": "index.html",
+          "detail": "Expanded companion is a long reading page. Native disclosures keep the default view compact; no pagination or long-page navigation was requested."
+        }
+      ],
+      "evidence": {
+        "manifest": "out/artifacts/17c77cfa-6d3b-4461-85d7-e3966d40aaff/manifest.json",
+        "inspection": "out/artifacts/17c77cfa-6d3b-4461-85d7-e3966d40aaff/independent-inspection.json",
+        "browser": "out/artifacts/17c77cfa-6d3b-4461-85d7-e3966d40aaff/independent-review/interaction-print-checks.json"
+      },
+      "timingLimit": "42.043s is a final checkpoint repair/validation attempt, not fresh generation or total end-to-end wall time."
+    },
+    {
+      "caseId": "hands-pitch-motion-v2",
+      "runId": "b53aeab3-37bd-4617-b526-a7276e3ba4ae",
+      "passed": true,
+      "verdict": "pass-with-advisories",
+      "previewUrl": "/artifacts/b53aeab3-37bd-4617-b526-a7276e3ba4ae/index.html",
+      "report": "docs/cases/hands-pitch-motion-2026-09-20.json",
+      "checks": { "runtime": 25, "independent": 51, "browserAndIntegrityIncludedInIndependent": 43, "browserErrors": 0 },
+      "finalAttempt": {
+        "elapsedMs": 148142,
+        "resumeOf": "f350abc9-1de0-4c30-80a3-610a4e2fcbdd",
+        "jev": { "calls": 4, "durationMs": 1879 },
+        "routing": { "calls": 1, "durationMs": 913 },
+        "specialists": { "model": "gpt-6-astra", "effort": "low", "calls": 5, "durationMs": 50591, "outputTokens": 3549 },
+        "renderer": { "renderMs": 71724, "totalMs": 88970 }
+      },
+      "allAttempts": [
+        { "runId": "eeb7ac7c-b7e2-4de3-919e-c39c24878b9b", "elapsedMs": 52487, "status": "failed-before-generation", "defect": "Planner stated second evidence image was missing; Jev stopped before retrieval. Incomplete/truncated evidence context was the diagnosis, not output-token truncation." },
+        { "runId": "a00e0598-490f-4982-8b49-0045454f1b0a", "elapsedMs": 253475, "status": "needs-review", "defect": "Creative gate failed task grid, mobile controls/readability, research overview and correction path." },
+        { "runId": "f350abc9-1de0-4c30-80a3-610a4e2fcbdd", "elapsedMs": 207102, "status": "needs-review", "defect": "Mobile primary task labels remained too small; independent acceptance held despite working controls." },
+        { "runId": "b53aeab3-37bd-4617-b526-a7276e3ba4ae", "elapsedMs": 148142, "status": "complete", "verdict": "pass-with-advisories" }
+      ],
+      "attemptTotals": { "recordedWorkflowMs": 661206, "modelCalls": 18, "modelDurationMs": 341421, "modelOutputTokens": 29394, "jevDecisionCalls": 13, "jevDecisionDurationMs": 6414, "jevRoutingCalls": 4, "jevRoutingDurationMs": 3412 },
+      "media": {
+        "durationSeconds": 75.050667,
+        "dimensions": [1280, 720],
+        "fps": 24,
+        "sha256": "82029aa6fa4a4dc248197886c94e47da247391a258024ad8e4235c7c27000ca4",
+        "sound": "Original local minimal-electronic score, AAC48kHz stereo, no narration. Independent decoded measurements exactly match runtime: peak-7.307dBFS, RMS-21.9dBFS, zero clipping and attenuated edges. No ear-based taste claim.",
+        "motion": "Actual decoded within-scene samples inspected; changed task field reviewed afresh. Seven other native stills hash-identical to the fully inspected predecessor.",
+        "evidence": "Two actual accepted Hands outputs: faithful focused calculus Q5 and research-credit screenshots, with original and in-render hashes checked. No invented/live-account imagery."
+      },
+      "evidence": { "inspection": "out/artifacts/b53aeab3-37bd-4617-b526-a7276e3ba4ae/independent-inspection.json", "manifest": "out/artifacts/b53aeab3-37bd-4617-b526-a7276e3ba4ae/manifest.json" },
+      "timingLimit": "661.206s is the sum of four recorded workflow attempts, excluding human review, inter-attempt pauses, renderer preflight and earlier silent-pitch work. Final148.142s is a resumed repair. No fresh reliability or controlled speedup claim.",
+      "advisories": ["Opening line break and small secondary film labels could be refined.", "Fine source-document detail needs native/landscape/fullscreen viewing; readable companion notes are present.", "No physical-device, full accessibility or continuous ear-and-eye viewing certification."]
+    }
+  ],
+  "productionRepairs": [
+    {
+      "caseId": "hands-onboarding-prototype",
+      "runId": "b57a00e9-c996-445f-bbbf-c6e4f0d91ae4",
+      "file": "repair-10.json",
+      "model": "gpt-6-astra",
+      "usage": {
+        "input": 3,
+        "output": 1283,
+        "cacheRead": 0,
+        "cacheWrite": 14004,
+        "reasoning": 0,
+        "totalTokens": 15290
+      },
+      "edits": 11,
+      "replacements": 0,
+      "scope": "Actual production BundlePatch observation, not a controlled contract comparison.",
+      "durationMs": 12870,
+      "usageNote": "SDK-reported token metadata; these are actual single repair observations, not controlled benchmarks."
+    },
+    {
+      "caseId": "gravitational-wave-editorial",
+      "runId": "17c77cfa-6d3b-4461-85d7-e3966d40aaff",
+      "file": "repair-13.json",
+      "model": "gpt-6-astra",
+      "usage": {
+        "input": 3,
+        "output": 365,
+        "cacheRead": 0,
+        "cacheWrite": 26036,
+        "reasoning": 0,
+        "totalTokens": 26404
+      },
+      "edits": 5,
+      "replacements": 0,
+      "scope": "Actual production BundlePatch observation, not a controlled contract comparison.",
+      "durationMs": 5129,
+      "usageNote": "SDK-reported token metadata; these are actual single repair observations, not controlled benchmarks."
+    }
+  ],
+  "observer": {
+    "implementation": [
+      "win/eval-observer.ts",
+      "win/eval-observer.test.ts",
+      "win/panel.html",
+      "win/serve.ts"
+    ],
+    "boundedRead": "Latest 12 valid progress records, last 40 events, strict same-run preview URL validation, local GET endpoint behind existing request guard.",
+    "nativeTests": {
+      "tests": 18,
+      "assertions": 138,
+      "command": "bun test win/eval-observer.test.ts win/panel-artifacts.test.ts win/serve.test.ts"
+    },
+    "typecheck": "bun x tsc --noEmit passed after observer integration.",
+    "isolatedFixtureAudit": {
+      "checks": 11,
+      "passed": 11,
+      "evidence": "out/win/eval-observer-audit/checks.json"
+    },
+    "actualLivePanelAudit": {
+      "checks": 12,
+      "passed": 12,
+      "evidence": "out/win/live-eval-observer-v2.json",
+      "scope": "Fresh isolated Chromium against restarted :7777; actual accepted matrix film, concrete check explanations, sidebar/mobile wrapping, caption state preserved across polling and revision-sheet navigation. Local GET requests only; desktop snapshots blocked. Previous onboarding run aged out of the bounded recent list."
+    }
+  },
+  "limitations": [
+    "All accepted cases here required repairs and independent inspection. Do not describe this as a fresh success rate.",
+    "Reported final-attempt times exclude earlier attempts, coordinator inspection and broader session wall time; no end-to-end speedup claim.",
+    "Creative scores judge observed stills. Actual interaction, motion, audio measurement and print checks are separately recorded; audio metering is not a listening/taste review."
+  ]
+}

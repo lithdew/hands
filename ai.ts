@@ -277,7 +277,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     if (action.challenge_submit && decision?.kind !== "captcha") throw new Error("A CAPTCHA submission needs a currently observed visible challenge; inspect it first.");
     if (!decision) return;
     if (decision.action === "user_takeover") throw new Error(decision.guidance);
-    if (["screenshot", "snapshot", "tabs"].includes(action.action ?? "") || action.action === "dialog" && action.operation === "inspect") return;
+    if (["screenshot", "snapshot", "canvas_snapshot", "tabs"].includes(action.action ?? "") || action.action === "dialog" && action.operation === "inspect") return;
     const control = current?.controls.find(control => "ref" in control && control.ref === action.ref);
     if (decision.kind === "captcha" && action.action === "batch") throw new Error("Use single grounded actions for a CAPTCHA so each submitted answer and its fresh result remain within the two-attempt budget.");
     const submission = decision.kind === "captcha" && (action.challenge_submit === true
@@ -328,7 +328,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     return { name, label: name, description, parameters: jsonSchema as TSchema, executionMode: "sequential", execute: async (_id, args, signal) => {
       signal?.throwIfAborted();
       const meta = args as { action?: string; what?: string; operation?: string };
-      const readOnly = ["apps", "jev", "computer_look"].includes(name) || name === "computer" && meta.action === "screenshot" || name === "computer_browser" && (["tabs", "snapshot"].includes(meta.action ?? "") || meta.action === "dialog" && meta.operation === "inspect");
+      const readOnly = ["apps", "jev", "computer_look"].includes(name) || name === "computer" && meta.action === "screenshot" || name === "computer_browser" && (["tabs", "snapshot", "canvas_snapshot"].includes(meta.action ?? "") || meta.action === "dialog" && meta.operation === "inspect");
       if (!readOnly) assertLatestInput();
       const end = trace?.span("tool_execution", { tool: name, action: meta.action ?? meta.what });
       try {
@@ -616,8 +616,10 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       BROWSER_INTERRUPTION_POLICY,
       "When a CAPTCHA answer is ready, mark its final pixel/key/Verify action challenge_submit:true. Do not mark individual tile-selection clicks. Use the observed challenge and fresh screenshot; this flag is bookkeeping, never permission. A repeated unresolved challenge or authentication interruption can pause this task with its exact checkpoint preserved.",
       ...(semantic ? ["Prefer computer_look and computer_act for labelled native controls, and computer_browser for web pages. Their action results already contain fresh state and current refs: read those instead of reflexively taking another screenshot. Ask for an image when labels are missing or visual evidence is needed. Never reuse a ref from an earlier observation. A changed state is evidence to inspect, not automatic proof of success."] : []),
-      "For freehand drawing, select the app's pencil/brush, plan a few visible shapes as point paths, then use computer draw with bounded stroke batches. It holds the mouse button through each path. You choose coordinates from the screenshot; Jev can classify independent choices and checks the exact batch, but cannot invent coordinates or see the canvas. Inspect the result before the next batch. Do not paste an image or draw through code when the user asked for freehand strokes.",
-      "Batch known steps on the same observed screen with computer batch, at most 8 actions per call. For example, click a visible color field, ctrl+a, type its value; or choose a preset swatch, select fill, then click the region. Prefer available preset colors unless the user requires exact shades. Stop a batch before a new dialog/page needs inspection, and verify the final screenshot. Split drawings into at most 8 strokes per draw call.",
+      "For the user's attached Chrome, a browser/application shortcut may require computer_browser key with delivery=foreground. Use this explicit supported delivery after a fresh observation when background delivery is unsupported; it reveals only the exact attached window. Never replay an input with an uncertain outcome. Selecting an observed existing tab must preserve other tabs and their URLs.",
+      "For an unlabelled canvas in attached Chrome, use computer_browser canvas_snapshot, then one canvas_click(x,y) or canvas_drag(x,y,to_x,to_y) with delivery=foreground in that image's printed pixel dimensions. Each input consumes its capture: take a new canvas_snapshot before another canvas action. focused_text with delivery=foreground, fresh ref and text types at a focused editable field's caret/selection only when a fresh exact scoped read proves the same field; ambiguous editors refuse. It cannot replace text or target passwords. Prefer ref-targeted browser type for text, and never use generic computer pixels or guessed coordinates in attached Chrome.",
+      "For freehand drawing in a private/native target, select the app's pencil/brush, plan a few visible shapes as point paths, then use computer draw with bounded stroke batches. It holds the mouse button through each path. You choose coordinates from the screenshot; Jev can classify independent choices and checks the exact batch, but cannot invent coordinates or see the canvas. Inspect the result before the next batch. Do not paste an image or draw through code when the user asked for freehand strokes.",
+      "For private/native targets, batch known steps on the same observed screen with computer batch, at most 8 actions per call. For example, click a visible color field, ctrl+a, type its value; or choose a preset swatch, select fill, then click the region. Prefer available preset colors unless the user requires exact shades. Stop a batch before a new dialog/page needs inspection, and verify the final screenshot. Split drawings into at most 8 strokes per draw call.",
       "When asked to show, open, find or view something, make it visible in the agent desktop and inspect the result. Image markdown or an unverified URL in chat does not fulfill 'show me a photo'. Browse through the visible browser using computer; do not replace browsing with repeated curl/download attempts.",
       "You may start from a live spoken instruction. Work on the clear request now; later updates refine this same task. Reuse completed work. Consequential actions wait for speech to finish. If the request is cancelled, stop immediately.",
       "Use jev for repeated or substantial text classifications or bounded choices when it reduces work. It is not a planner or a vision model. Answer small, obvious classifications already in your context directly: a Jev tool call adds another LLM turn, which can cost more time than the decision saves.",
@@ -627,6 +629,10 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     ].join("\n") },
     streamFn: async (_model, context, options) => {
       const contextRevision = revision;
+      // Choose the advertised tool surface from observed runtime state on every
+      // turn, including after attach/detach. Failed reads retain the last target.
+      await syncSemanticTarget();
+      const existing = semanticRecovery.existing;
       // Coalesce speech updates until the next model turn. A simple opening
       // can grow into difficult work without being stuck on its initial tier.
       if (routedRevision !== contextRevision) await chooseModel(taskAbort?.signal);
@@ -652,10 +658,13 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       const request = { ...options, apiKey: opts.apiKey ?? providerConfig(status.provider).apiKey, reasoning: status.effort,
         onPayload: async (payload: unknown) => tierPayload(status.provider, await options?.onPayload?.(payload, model) ?? payload),
         maxTokens: status.effort === "high" ? 16_384 : status.effort === "medium" ? 8192 : 4096 };
-      const coordinateContract = status.provider === "gemini"
+      const coordinateContract = existing
+        ? "Current target: the user's attached existing Chrome. Use computer_browser for input and computer_look for observation; legacy computer and its batch/draw actions are unavailable. Prefer browser type with a fresh editable ref. Use explicit key delivery=foreground when needed, or canvas_snapshot followed by one supported foreground canvas action in that image's actual pixel dimensions. Preserve other tabs. Do not switch targets to recover a rejected input."
+        : status.provider === "gemini"
         ? 'Your computer input contract requires coordinate_space="normalized_1000": x and y each range from 0 to 1000 across the full screenshot. Set that field explicitly for clicks, moves, scrolls, batches and drawings. Pixel or omitted units are rejected for Gemini. The harness converts your declared coordinates using the bound screenshot dimensions.'
         : 'For computer coordinates, set coordinate_space="pixels" and use actual screenshot pixels. If deliberately using 0..1000 coordinates, set coordinate_space="normalized_1000". The declaration applies to every point in a batch or drawing; omitted units always mean pixels.';
-      const groundedContext = { ...context, systemPrompt: `${context.systemPrompt ?? ""}\n${coordinateContract}` };
+      const groundedContext = { ...context, tools: existing ? context.tools?.filter(tool => tool.name !== "computer") : context.tools,
+        systemPrompt: `${context.systemPrompt ?? ""}\nRuntime model identity: you are currently executing as ${status.model} at ${status.effort} effort. Astra/Luna/Gemini are model selections made by Hands, not separate tools you need to locate.\n${coordinateContract}` };
       endModel = trace?.span("model", { model: status.model, provider: status.provider, effort: status.effort, revision: contextRevision });
       try { return opts.streamFn ? await opts.streamFn(model, groundedContext, request) : models.streamSimple(model, groundedContext, request); }
       catch (error) { endModel?.({ outcome: taskAbort?.signal.aborted ? "cancelled" : "failed" }); endModel = undefined; throw error; }
@@ -708,7 +717,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
         }
       }
       if (denied || ++calls > 120) return { block: true, terminate: true, reason: denied ? "The user declined this action. Stop and wait for another request." : "The 120-tool limit was reached. Summarize progress and wait for another request." };
-      if (["apps", "jev", "computer_look"].includes(toolCall.name) || (toolCall.name === "computer" && (args as { action: string }).action === "screenshot") || (toolCall.name === "computer_browser" && (["tabs", "snapshot"].includes((args as { action: string }).action) || (args as { action: string }).action === "dialog" && (args as { operation?: string }).operation === "inspect"))) return;
+      if (["apps", "jev", "computer_look"].includes(toolCall.name) || (toolCall.name === "computer" && (args as { action: string }).action === "screenshot") || (toolCall.name === "computer_browser" && (["tabs", "snapshot", "canvas_snapshot"].includes((args as { action: string }).action) || (args as { action: string }).action === "dialog" && (args as { operation?: string }).operation === "inspect"))) return;
       if (modelRevision !== revision) return { block: true, reason: "The spoken instruction changed. Read the queued update before acting." };
       if (toolCall.name === "bash") {
         const command = args as { command: string; cwd?: string };

@@ -14,11 +14,23 @@ export const ActSchema = z.object({
   description: z.string().max(1000).optional(), ...projection,
   challenge_submit: z.boolean().describe("Set true only when this input submits the final answer/Verify for the currently observed CAPTCHA, not for each selected image tile. It consumes one of two attempts; normal action checks still apply.").optional(),
 });
-export const BrowserSchema = ActSchema.extend({ action: z.enum(["attach", "tabs", "snapshot", "navigate", "click", "type", "key", "scroll", "dialog"]), url: z.url().optional(),
+export const BrowserSchema = ActSchema.extend({ action: z.enum(["attach", "tabs", "snapshot", "canvas_snapshot", "canvas_click", "canvas_drag", "focused_text", "navigate", "click", "type", "key", "scroll", "dialog"]), url: z.url().optional(),
+  delivery: z.enum(["background", "foreground"]).describe("Explicit foreground delivery for keys or screenshot-bound canvas input reveals only the exact attached Chrome window.").optional(),
+  x:z.int().nonnegative().optional(),y:z.int().nonnegative().optional(),to_x:z.int().nonnegative().optional(),to_y:z.int().nonnegative().optional(),
   mode: z.enum(["existing", "private"]).optional(), window_id: z.int().positive().optional(), pid: z.int().positive().optional(),
   operation: z.enum(["inspect", "dismiss", "accept"]).describe("For action=dialog: inspect is read-only; resolving requires the exact id from the latest inspection.").optional(),
   dialog_id: z.string().min(1).max(100).optional(),
 }).superRefine((value, ctx) => {
+  const canvas=["canvas_click","canvas_drag","focused_text"].includes(value.action);
+  if (value.delivery && value.action !== "key" && !canvas) ctx.addIssue({code:"custom",message:"delivery is only valid for a key or canvas input action"});
+  if(canvas&&value.delivery!=="foreground")ctx.addIssue({code:"custom",message:"Canvas input requires explicit delivery: foreground."});
+  if(["canvas_click","canvas_drag"].includes(value.action)&&(value.x===undefined||value.y===undefined))ctx.addIssue({code:"custom",message:"Canvas pointer input requires x and y in the latest canvas_snapshot pixels."});
+  if(value.action==="canvas_drag"&&(value.to_x===undefined||value.to_y===undefined))ctx.addIssue({code:"custom",message:"canvas_drag requires to_x and to_y."});
+  if(["canvas_click","canvas_drag"].includes(value.action)&&value.ref)ctx.addIssue({code:"custom",message:"Canvas coordinates cannot also name a semantic ref."});
+  if(!["canvas_click","canvas_drag"].includes(value.action)&&[value.x,value.y,value.to_x,value.to_y].some(x=>x!==undefined))ctx.addIssue({code:"custom",message:"Coordinates are only valid for canvas pointer input."});
+  if(value.action==="canvas_click"&&(value.to_x!==undefined||value.to_y!==undefined))ctx.addIssue({code:"custom",message:"Only canvas_drag accepts end coordinates."});
+  if(value.action==="focused_text"&&(!value.ref||!value.text))ctx.addIssue({code:"custom",message:"focused_text requires an observed focused editable ref and text."});
+  if(value.action==="focused_text"&&value.replace!==undefined)ctx.addIssue({code:"custom",message:"focused_text types at the observed caret/selection; use an explicit foreground selection key before capturing instead of replace."});
   if (value.action === "dialog") {
     if (!value.operation) ctx.addIssue({ code: "custom", path: ["operation"], message: "dialog requires operation: inspect, dismiss or accept." });
     else if (value.operation !== "inspect" && !value.dialog_id) ctx.addIssue({ code: "custom", path: ["dialog_id"], message: "Resolving a dialog requires its freshly inspected dialog_id." });
@@ -28,13 +40,13 @@ export const BrowserSchema = ActSchema.extend({ action: z.enum(["attach", "tabs"
 export type SemanticAction = z.infer<typeof ActSchema> | z.infer<typeof BrowserSchema>;
 export type Element = { key: string; role: string; name: string; value?: string; within?: string; editable?: boolean; visible?: boolean; type?: string; address: Record<string, unknown> };
 export type PixelCapture = { window: { pid: number; containerId: number; title: string; ownerNonce?: string } | null; width: number; height: number; digest: string };
-export type Snapshot = { identity: string; kind: "native" | "browser"; title: string; url?: string; elements: Element[]; texts: string[]; image?: ImageContent; capture?: PixelCapture; binding: Record<string, unknown> };
+export type Snapshot = { identity: string; kind: "native" | "browser"; title: string; url?: string; elements: Element[]; texts: string[]; image?: ImageContent; capture?: PixelCapture; canvasCoordinates?:{width:number;height:number}; binding: Record<string, unknown> };
 export type SemanticResult = { content: ({ type: "text"; text: string } | ImageContent)[]; details: Record<string, unknown> };
 export type DialogObservation = { window: string; url?: string; binding: Record<string, unknown> } &
   ({ present: false } | { present: true; dialog_id: string; kind: "alert" | "confirm" | "prompt" | "beforeunload" | "other" });
 export type SemanticBackend = {
   windows(): Promise<unknown>;
-  observe(options: { screenshot?: boolean; signal?: AbortSignal }): Promise<Snapshot>;
+  observe(options: { screenshot?: boolean; nativeCanvas?:boolean; signal?: AbortSignal }): Promise<Snapshot>;
   act(snapshot: Snapshot, action: SemanticAction, element: Element | undefined, signal?: AbortSignal): Promise<void>;
   attach?(target: { mode: "existing" | "private"; window_id?: number; pid?: number }, signal?: AbortSignal): Promise<void>;
   inspectDialog?(signal?: AbortSignal): Promise<DialogObservation>;
@@ -78,7 +90,7 @@ export function createSemanticComputer(backend: SemanticBackend, beforeInput: ()
   const invalidate = () => { current = undefined; currentDialog = undefined; references.clear(); observationRevision++; };
   const reply = (text: string, details: Record<string, unknown> = {}, image?: ImageContent): SemanticResult => ({ content: [{ type: "text", text }, ...(image ? [image] : [])], details });
 
-  async function look(options: { query?: string; screenshot?: boolean; signal?: AbortSignal }, afterAction = false): Promise<SemanticResult> {
+  async function look(options: { query?: string; screenshot?: boolean; nativeCanvas?:boolean; signal?: AbortSignal }, afterAction = false): Promise<SemanticResult> {
     const started = performance.now(), previous = current;
     // Any failed refresh invalidates the old references too.
     invalidate(); const revision = observationRevision;
@@ -104,7 +116,7 @@ export function createSemanticComputer(backend: SemanticBackend, beforeInput: ()
         ? `State changed: +${diff.added.length}, -${diff.removed.length}.\n${boundedLines(diff.added.slice(0, 12).map((s) => `+ ${clean(s, 240)}`), 2500).join("\n")}\n`
         : "No semantic change observed; this does not prove the action worked.\n";
     }
-    const header = `${snapshot.kind} window: ${clean(snapshot.title, 200)}${snapshot.url ? `\nURL: ${clean(snapshot.url, 400)}` : ""}`;
+    const header = `${snapshot.kind} window: ${clean(snapshot.title, 200)}${snapshot.url ? `\nURL: ${clean(snapshot.url, 400)}` : ""}${snapshot.canvasCoordinates?`\nCanvas coordinates: Cua window screenshot pixels, ${snapshot.canvasCoordinates.width} x ${snapshot.canvasCoordinates.height}. Only canvas_click/canvas_drag/focused_text may consume this one-use capture. It is not a desktop/viewport coordinate system.`:""}`;
     return reply(`${header}\n${changes}Current references (replace all previous references):\n${lines.join("\n")}\nVisible text:\n${text.join("\n")}${!references.size ? snapshot.image ? "\nNo labelled controls. Inspect the attached screenshot for visual input." : "\nNo labelled controls. Request screenshot=true or use computer screenshot for visual input." : ""}`, { observationMs: Math.round(performance.now() - started), refs: references.size, kind: snapshot.kind, ...(snapshot.image && snapshot.capture ? { puk_snapshot: snapshot.capture } : {}) }, snapshot.image);
   }
 
@@ -112,9 +124,11 @@ export function createSemanticComputer(backend: SemanticBackend, beforeInput: ()
     if (!current) throw new Error("Look at this window before acting.");
     const element = action.ref ? references.get(action.ref) : undefined;
     if (action.ref && !element) throw new Error("That reference is stale or was not shown. Take a fresh observation.");
+    if(["canvas_click","canvas_drag","focused_text"].includes(action.action)&&(!current.image||!current.canvasCoordinates||!current.binding.canvas))throw new Error("Take computer_browser canvas_snapshot before canvas input; ordinary screenshots are not a native canvas capability.");
     if (["click", "type", "set_value"].includes(action.action) && !element) throw new Error(`${action.action} needs a current ref.`);
     if (["type", "set_value"].includes(action.action) && action.text === undefined) throw new Error(`${action.action} needs text.`);
     if (["type", "set_value"].includes(action.action) && !element?.editable) throw new Error("The selected control is not editable.");
+    if(action.action==="focused_text"&&(!element?.editable||!action.text))throw new Error("focused_text requires the current focused editable ref and text.");
     if (action.action === "key" && !action.key?.trim()) throw new Error("key needs a key or chord.");
     if (action.action === "navigate" && (!action.url || !/^https?:\/\//i.test(action.url))) throw new Error("navigate needs an http(s) URL.");
     return { snapshot: current, element };
@@ -194,7 +208,7 @@ export function createSemanticComputer(backend: SemanticBackend, beforeInput: ()
     describe(tool: string, args: unknown) {
       if (tool !== "computer_act" && tool !== "computer_browser") return undefined;
       const action = (tool === "computer_act" ? ActSchema : BrowserSchema).parse(args);
-      if (["tabs", "snapshot"].includes(action.action)) return undefined;
+      if (["tabs", "snapshot", "canvas_snapshot"].includes(action.action)) return undefined;
       if (action.action === "dialog" && "operation" in action) {
         if (action.operation === "inspect") return undefined;
         const observed = resolvedDialog(action);
@@ -204,7 +218,7 @@ export function createSemanticComputer(backend: SemanticBackend, beforeInput: ()
       if (action.action === "attach" && "mode" in action) return { browserMode: action.mode, window_id: action.window_id, pid: action.pid };
       const { snapshot, element } = resolved(action);
       const fields = snapshot.elements.filter((item) => item.editable && !/password/i.test(item.role));
-      return { window: snapshot.title, url: snapshot.url, ...(element ? { control: label(element) } : {}),
+      return { window: snapshot.title, url: snapshot.url, ...(element ? { control: label(element) } : {}), ...(snapshot.canvasCoordinates?{canvasCoordinates:snapshot.canvasCoordinates}:{}),
         // These are observed values, never permission. In particular, a Send
         // label alone cannot establish which recipient or body will be sent.
         observedFields: fields.slice(0, 20).map((item) => ({ name: clean(item.name, 200), within: clean(item.within ?? "", 200),
@@ -234,8 +248,8 @@ export function createSemanticComputer(backend: SemanticBackend, beforeInput: ()
         beforeInput(); signal?.throwIfAborted();
         return look({ ...params, signal });
       }
-      if (["tabs", "snapshot"].includes(params.action)) {
-        const result = await look({ ...params, signal });
+      if (["tabs", "snapshot", "canvas_snapshot"].includes(params.action)) {
+        const result = await look({ ...params, ...(params.action==="canvas_snapshot"?{nativeCanvas:true,screenshot:true}:{}), signal });
         if (current?.kind !== "browser") throw new Error("The hand's active window is not its browser. Open the browser first.");
         return result; // This adapter exposes the hand's current page; no arbitrary tab fallback.
       }

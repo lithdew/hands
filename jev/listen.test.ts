@@ -565,6 +565,16 @@ describe("listener integration races", () => {
     expect(l.tasks).toHaveLength(0);
   });
 
+  test("a failed desktop lookup cannot strand a typed task in waiting or dispatch it later", async () => {
+    let broken = true;
+    const {l,jobs} = listener({ask:fakeJev(() => undefined).ask,buildIntent:literal,hands:async()=>{if(broken)throw new Error("Explorer RPC unavailable");return hands;}});
+    await expect(l.submit("Open notes")).rejects.toThrow("Explorer RPC unavailable");
+    expect(l.tasks[0]?.status).toBe("failed");expect(jobs).toHaveLength(0);
+    broken = false;await l.schedule();expect(jobs).toHaveLength(0);
+    await l.submit("Open files");expect(jobs).toHaveLength(1);
+    jobs[0]!.end();await l.idle();
+  });
+
   test("new creation and worker completion cannot reserve the same hand", async () => {
     const jev = fakeJev((name) => ({ relation: "new_task", startable: 0.99, route: "jev" })[name]);
     const available = Promise.withResolvers<Hand[]>();

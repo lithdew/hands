@@ -27,6 +27,11 @@ describe("read-only evaluation observer", () => {
     }
   });
 
+  test("creative check details expose the diagnosis rather than a truncated JSON blob", () => {
+    const value=evalProgress({...progress,checks:[{name:"creative-review",passed:false,detail:JSON.stringify({passed:false,summary:"Mobile equation is too small.",issues:[{severity:"error",detail:"Move the readable equation beside the player."}],hidden:"not part of the diagnosis"})}]},id)!;
+    expect(value.checks[0]?.detail).toBe("Mobile equation is too small. Move the readable equation beside the player.");
+  });
+
   test("reads only valid progress files and tolerates an incomplete or oversized write", async () => {
     const root = await mkdtemp(join(tmpdir(),"hands-eval-observer-"));
     try {
