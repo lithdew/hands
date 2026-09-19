@@ -14,7 +14,8 @@
 //   write     LLM            files, from the notes and from the best sources word for word (or from what
 //                            the kit prepares: closed decisions by Jev, counts by code). Redone, the writer
 //                            gets its own files back with what is wrong, and mends them
-//   build     code           the kit's commands (render, bundle). No model chooses a command
+//   build     code           the kit's commands (render, bundle). No model chooses a command. A build that failed
+//                            sends the files back to their writer with its log, and builds again
 //   check     code + JEV     after every step. What is exact (counts, lengths, links) the kit's code checks,
 //                            with Jev for closed checks in bulk; the step's statements are Nouls over what
 //                            was made. A step that fails is redone once with what failed
@@ -186,7 +187,7 @@ export async function relay(task: string, ws: Workspace, deps: RelayDeps): Promi
     let feedback: string[] = [];
     for (let attempt = 0; attempt <= REDO; attempt++) {
       const t = performance.now();
-      const made = step.worker === "research" ? await research(step, feedback, attempt) : step.worker === "write" ? await write(step, feedback, attempt) : await build(step);
+      const made = step.worker === "research" ? await research(step, feedback, attempt) : step.worker === "write" ? await write(step, feedback, attempt) : await build(step, feedback, attempt);
       if (made === null) { log(`${step.id}: not redone, nothing a new search or reading could mend`); break; } // what failed stays failed, and no time is spent pretending
       if (attempt) trace.redone.push(step.id);
       const wrong = [...made.wrong, ...await check(step, made.text)];
@@ -208,7 +209,7 @@ export async function relay(task: string, ws: Workspace, deps: RelayDeps): Promi
     // LLM call says which it is: something a search could still find (new queries), something the material had
     // and the notes left out (read again), or neither, and then nothing is redone.
     const again = attempt === 0 ? null : (await llm(`again:${step.id}`, { model, effort: "low", schema: AGAIN_SCHEMA, user: JSON.stringify({ goal: step.goal, not_yet_true: feedback, note_taker_said_missing: missing.get(step.id) ?? [], queries_tried: step.queries, sources_kept: before.slice(0, 40).map((s) => s.title) }), system:
-      `A research step's notes did not pass a check. Decide what could mend that. "queries": up to ${MAX_QUERIES} NEW web queries, as someone would type them, for what the sources lack: other words, other sites, narrower or broader than those tried; none if no search could help. "reread": true only if the sources kept already hold what is wanted and the notes left it out or put it badly. If what is asked cannot come from searching or reading at all, give no queries and false.` })) as { queries: string[]; reread: boolean };
+      `A research step's notes did not pass a check. Decide what could mend that. "queries": up to ${MAX_QUERIES} NEW web queries, as someone would type them, for what the sources lack: other words, other sites, narrower or broader than those tried; none if no search could help. "reread": true only if the sources kept already hold what is wanted and the notes left it out or put it badly. If what is asked cannot come from searching or reading at all, give no queries and false.${kit.reading ? ` The note-taker is told: "${kit.reading}" A statement that asks the notes for something else than that is not worth a second reading.` : ""}` })) as { queries: string[]; reread: boolean };
     const queries = again ? again.queries.filter((q) => !step.queries.includes(q)).slice(0, MAX_QUERIES) : step.queries;
     if (again && !queries.length && !again.reread) return null;
     const none = () => [] as Result[];
@@ -261,10 +262,14 @@ Use only facts that are in the notes and sources you are given, with their addre
     return { text: describe(ws.files, [...written].filter(([, id]) => id === step.id).map(([p]) => p)), wrong };
   }
 
-  async function build(_step: Step): Promise<{ text: string; wrong: string[] }> {
+  // -- build: the kit's commands. A build that failed is not run again as it is: what is wrong is in the files, so they go
+  // back to their writer with the build's log, and then it is built again.
+  async function build(step: Step, feedback: string[], attempt: number): Promise<{ text: string; wrong: string[] }> {
     if (!kit.build) return { text: "This kit has nothing to build.", wrong: [] };
+    const writer = attempt > 0 ? [...plan.steps].reverse().find((s) => s.worker === "write" && (!step.needs.length || step.needs.includes(s.id))) : undefined;
+    if (writer) await write(writer, feedback, attempt);
     const made = await kit.build(ws);
-    return { text: `build ${made.ok ? "succeeded" : "FAILED"}; outputs: ${made.outputs.join(", ") || "none"}\n${made.log.slice(-4000)}`, wrong: [] };
+    return { text: `build ${made.ok ? "succeeded" : "FAILED"}; outputs: ${made.outputs.join(", ") || "none"}\n${made.log.slice(-4000)}`, wrong: made.ok ? [] : [`The build failed. The end of its log: ${made.log.slice(-1500)}`] };
   }
 
   // -- check: back to Jev after every step

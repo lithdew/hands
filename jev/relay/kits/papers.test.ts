@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { arxivId, arxivSearch, arxivTerms, countProblems, mendCitations, paperBullets, select, wordCount, type Candidate } from "./papers";
+import { arxivId, arxivSearch, arxivTerms, countProblems, mendCitations, pairKey, paperBullets, select, wordCount, type Candidate } from "./papers";
 
 describe("arXiv asked the way it answers", () => {
   test("a typed query becomes the few terms that carry its topic", () => {
@@ -32,6 +32,11 @@ describe("select", () => {
   test("an old paper gives way to a recent one when too few are recent", () => {
     const got = select([c("a1", "a", 0.9, false), c("a2", "a", 0.8), c("a3", "a", 0.7), c("b1", "b", 0.6), c("b2", "b", 0.5), c("b3", "b", 0.4)], opts);
     expect(got.map((g) => g.id).sort()).toEqual(["a2", "a3", "b1", "b2"]);
+  });
+  test("a paper too like one ahead of it waits behind the rest of its theme, and still serves a thin theme", () => {
+    const pool = [c("a1", "a", 0.9), c("a2", "a", 0.8), c("a3", "a", 0.7), c("b1", "b", 0.6), c("b2", "b", 0.5)];
+    expect(select(pool, opts, new Set([pairKey("a2", "a1")])).map((g) => g.id)).toEqual(["a1", "b1", "a3", "b2"]);
+    expect(select(pool, opts, new Set([pairKey("b1", "b2")])).map((g) => g.id)).toEqual(["a1", "b1", "a2", "b2"]);
   });
   test("never more than the most", () => {
     const many = ["a", "b", "c", "d"].flatMap((t) => [1, 2, 3].map((n) => c(`${t}${n}`, t, 1 - n / 10)));

@@ -7,7 +7,8 @@
 //   sift      JEV    every abstract against its theme's goal (relay.ts), hundreds in a few requests
 //   reading   LLM    per theme: what the papers are after, the lines of attack, the open ends. Not a list of papers
 //   prepare   JEV    every kept paper, in bulk: which theme is it (a choice over the director's themes), is it a
-//             code   contribution of its own, does its abstract say what was found. Code then holds the counts:
+//             code   contribution of its own, does its abstract say what was found; then the best of each theme pair by pair:
+//                    "the same narrow problem?", so a theme shows its breadth. Code then holds the counts:
 //                    so many a theme, so many in all, enough of them recent. The writer starts inside the limits
 //   write     LLM    the file, from whole abstracts
 //   review    code   titles and addresses set back to arXiv's exactly; a paper the run never fetched is taken out;
@@ -24,7 +25,7 @@ import { arxiv, arxivByIds, type Result } from "../web";
 const FILE = "rl-frontier.md";
 /** The standard asks for 600 to 2,500 words, 12 papers, 10 of them recent, 4 themes. Code holds the file to a little more than that, so a near miss is still a pass. */
 export const LIMITS = { minWords: 800, maxWords: 2_350, minPapers: 14, minRecent: 12, minThemes: 4, perTheme: 4, most: 20 };
-const PER_SEARCH = 150, PAPERS_PER_REQUEST = 20, ABSTRACT_CHARS = 1_600, FIX_ROUNDS = 2;
+const PER_SEARCH = 150, PAPERS_PER_REQUEST = 20, TOP_FOR_BREADTH = 8, ABSTRACT_CHARS = 1_600, FIX_ROUNDS = 2;
 
 // ---------------------------------------------------------------- arXiv, asked the way it answers
 
@@ -67,10 +68,13 @@ async function gather(results: Result[]): Promise<Result[]> {
 
 export type Candidate = { id: string; theme: string; score: number; recent: boolean };
 
-/** The papers to write about. Best of each theme in turn, so no theme crowds out another; themes too thin to be a theme are let go while four remain; enough recent papers, by exchange if need be. */
-export function select(candidates: Candidate[], opts: { perTheme: number; most: number; minRecent: number; minThemes: number } = LIMITS): Candidate[] {
+export const pairKey = (a: string, b: string): string => a < b ? `${a}|${b}` : `${b}|${a}`;
+
+/** The papers to write about. Best of each theme in turn, so no theme crowds out another; a paper too like one already ahead of it in its theme (`alike`, pairs Jev judged) waits behind the rest, so a theme shows its breadth; themes too thin to be a theme are let go while four remain; enough recent papers, by exchange if need be. */
+export function select(candidates: Candidate[], opts: { perTheme: number; most: number; minRecent: number; minThemes: number } = LIMITS, alike: Set<string> = new Set()): Candidate[] {
   const byTheme = new Map<string, Candidate[]>();
   for (const c of [...candidates].sort((a, b) => b.score - a.score)) if (c.theme !== "none") byTheme.set(c.theme, [...(byTheme.get(c.theme) ?? []), c]);
+  for (const [theme, list] of byTheme) { const ahead: Candidate[] = [], behind: Candidate[] = []; for (const c of list) (ahead.some((k) => alike.has(pairKey(k.id, c.id))) ? behind : ahead).push(c); byTheme.set(theme, [...ahead, ...behind]); }
   let themes = [...byTheme.values()].sort((a, b) => b.length - a.length || b[0]!.score - a[0]!.score);
   const full = themes.filter((t) => t.length >= 2);
   themes = full.length >= opts.minThemes ? full : themes.slice(0, Math.max(opts.minThemes, full.length));
@@ -113,8 +117,23 @@ async function prepare(ctx: KitContext): Promise<Record<string, unknown>> {
     const theme = (i: number) => (answers[`theme${i}`] as ChoiceResponse).choice, yes = (name: string) => (answers[name] as NoulResponse).noul;
     return lot.map(({ id, source }, i) => ({ id, source, theme: theme(i), recent: isRecent(id), score: source.score * yes(`own${i}`) * yes(`found${i}`) * (isRecent(id) ? 1 : 0.6) }));
   }))).flat();
-  const chosen = select(rated), byId = new Map(rated.map((r) => [r.id, r]));
-  ctx.log(`prepare: Jev placed ${rated.length} papers in ${themes.length} themes and rated each (${lots.length} requests, ${rated.length * 3} questions); code chose ${chosen.length}, ${chosen.filter((c) => c.recent).length} recent, in ${new Set(chosen.map((c) => c.theme)).size} themes`);
+  // Breadth: the best few of each theme, every pair of them, one request a theme. Two papers on the same narrow problem are one entry in a short summary.
+  const alike = new Set<string>();
+  let pairsAsked = 0;
+  await Promise.all(themes.map(async (t) => {
+    const top = rated.filter((r) => r.theme === t.id).sort((a, b) => b.score - a.score).slice(0, TOP_FOR_BREADTH), questions: Questions = {}, pairs: [string, string][] = [];
+    for (let a = 0; a < top.length; a++) for (let b = a + 1; b < top.length; b++) {
+      const text = (i: number) => JSON.stringify(`${top[i]!.source.title}. ${top[i]!.source.text.slice(0, 700)}`);
+      questions[`p${pairs.length}`] = noul(`These two papers work on the same narrow problem, so that a short survey would cite only one of them. Paper A: ${text(a)} Paper B: ${text(b)}`, { true: "The same specific problem and the same kind of contribution (two sample-complexity bounds for one setting, a method and its direct follow-up).", false: "They share a broad area at most; their problems or their kinds of contribution differ." });
+      pairs.push([top[a]!.id, top[b]!.id]);
+    }
+    if (!pairs.length) return;
+    pairsAsked += pairs.length;
+    const answers = await ctx.ask({ task: "Choosing papers for a short survey that should show the breadth of each theme." }, questions) as unknown as Record<string, NoulResponse>;
+    pairs.forEach(([a, b], i) => { if (answers[`p${i}`]!.noul >= 0.55) alike.add(pairKey(a, b)); });
+  }));
+  const chosen = select(rated, LIMITS, alike), byId = new Map(rated.map((r) => [r.id, r]));
+  ctx.log(`prepare: Jev placed ${rated.length} papers in ${themes.length} themes and rated each (${lots.length} requests, ${rated.length * 3} questions), then compared ${pairsAsked} pairs of the best for breadth (${alike.size} too alike); code chose ${chosen.length}, ${chosen.filter((c) => c.recent).length} recent, in ${new Set(chosen.map((c) => c.theme)).size} themes`);
   await Bun.write(`${ctx.ws.dir}/notes/chosen.json`, JSON.stringify(rated.sort((a, b) => b.score - a.score).map((r) => ({ chosen: chosen.some((c) => c.id === r.id), theme: r.theme, score: Number(r.score.toFixed(3)), id: r.id, title: r.source.title })), null, 1));
   return {
     themes: themes.filter((t) => chosen.some((c) => c.theme === t.id)).map((t) => ({ theme: t.id, about: t.goal, papers: chosen.filter((c) => c.theme === t.id).map((c) => { const s = byId.get(c.id)!.source; return { title: s.title, address: s.url, submitted: s.date, abstract: s.text }; }) })),

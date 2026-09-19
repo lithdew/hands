@@ -118,6 +118,17 @@ describe("the loop, with a fake Jev and a fake LLM", () => {
     expect(result.trace.redone).toEqual(["make"]);
   });
 
+  test("a build that failed sends the files back to their writer with its log, and builds again", async () => {
+    let builds = 0;
+    const { result, asked, ws } = await run({ ...kit, build: async (w) => ({ ok: w.files["out.md"] === "second draft", log: `build ${++builds}: out.md line 3: unexpected token`, outputs: [] }) });
+    expect(result.plan.steps.map((s) => s.id)).toEqual(["find", "make", "ship"]);
+    const mend = JSON.parse(asked.filter((r) => r.schema.name === "files")[1]!.user) as { wrong_with_them: string[] };
+    expect(mend.wrong_with_them[0]).toContain("unexpected token");
+    expect(ws.files["out.md"]).toBe("second draft");
+    expect(builds).toBe(2);
+    expect(result.ok).toBe(true);
+  });
+
   test("research that no search or reading could mend is not redone", async () => {
     const { result, asked } = await run(kit, (statement) => !statement.includes("It is there.") ? true : false);
     expect(asked.map((r) => r.schema.name)).toEqual(["relay_plan", "notes", "research_again", "files", "files"]);
