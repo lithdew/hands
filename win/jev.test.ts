@@ -88,7 +88,8 @@ describe("Jev Windows handover", () => {
         expect(controllerRuns).toBe(0);
         expect(triageCalls).toBe(0);
         expect(handedOver).toHaveLength(1);
-        expect(handedOver[0]).toContain("bound to the user's existing browser");
+        expect(handedOver[0]).toContain(ready ? "action: snapshot" : "action: attach");
+        if (ready) expect(handedOver[0]).toContain("Reuse the working connection");
       } finally { await runtime.close(); }
     }
   });

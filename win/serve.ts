@@ -21,7 +21,7 @@ import { debugLog, subprocessEnv, type Hand } from "../desktop";
 import { isLocalRequest, servePuk, startRecording } from "../hotkey";
 import type { HandState } from "../pip";
 import { createJevFirstAgent } from "./jev";
-import { capture, closeWindowsDesktop, driver, ensureHelper, getHand, handFor, helper, listHands, signInAll, signInStatus, startHands, warmBrowser, windowsDesktop } from "./desktop";
+import { attachExistingBrowser, browserTarget, captureBound, closeWindowsDesktop, detachExistingBrowser, driver, ensureHelper, existingBrowserCandidates, focusExistingBrowser, getHand, handFor, helper, listHands, signInAll, signInStatus, startHands, warmBrowser, windowsDesktop, type BrowserTarget } from "./desktop";
 import { loginTargets } from "./session";
 import { createHud, hudEnabled, type HudStatus } from "./hud";
 
@@ -32,6 +32,45 @@ export async function panelResponse(request: Request): Promise<Response | null> 
   const path = new URL(request.url).pathname;
   if (request.method !== "GET" || (path !== "/" && path !== "/index.html")) return null;
   return new Response(await WIN_PANEL.text(), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Content-Security-Policy": PANEL_CSP } });
+}
+
+/** An image belongs to the hand requested by the client, even if selection changes
+ * while it is being captured. Never fall back to another hand's image. */
+export async function previewResponse(request: Request, deps: {
+  selected(): Promise<Hand>; lookup(id: number): Promise<Hand | null>; capture: typeof captureBound; target?: typeof browserTarget;
+}): Promise<Response> {
+  const params = new URL(request.url).searchParams, wanted = params.get("hand"), expected = params.get("target");
+  if (wanted !== null && !/^[1-9]\d*$/.test(wanted)) return new Response("Invalid hand", { status: 400 });
+  const hand = wanted === null ? await deps.selected() : await deps.lookup(Number(wanted));
+  if (!hand) return new Response("Hand unavailable", { status: 404 });
+  try {
+    const target = deps.target?.(hand);
+    if (expected !== null && (!target || previewTargetKey(hand.id, target) !== expected)) return new Response("Browser target changed", { status: 409 });
+    const frame = await deps.capture(hand, true);
+    const current = deps.target?.(hand);
+    if (expected !== null && (!current || previewTargetKey(hand.id, current) !== expected)) return new Response("Browser target changed", { status: 409 });
+    if (current?.mode === "existing" && (frame.window?.pid !== current.pid || frame.window.containerId !== current.window_id || frame.window.ownerNonce !== current.ownerNonce)) return new Response("Browser target unavailable", { status: 503 });
+    return new Response(Buffer.from(frame.data, "base64"), { headers: {
+      "Content-Type": "image/png", "Cache-Control": "no-store", "X-Puk-Hand": String(hand.id),
+      "X-Puk-Window": String(frame.window?.containerId ?? 0),
+      "X-Puk-Pid": String(frame.window?.pid ?? 0), "X-Puk-Owner-Nonce": frame.window?.ownerNonce ?? "",
+    } });
+  } catch { return new Response("Desktop unavailable", { status: 503 }); }
+}
+
+/** Shared wire shape with panel.html: selection includes the browser identity,
+ * because changing a hand's target must invalidate its old in-flight image. */
+export const previewTargetKey = (hand: number, target: BrowserTarget = { mode: "private" }) => JSON.stringify(target.mode === "existing"
+  ? [hand, target.mode, target.pid, target.window_id, target.ownerNonce] : [hand, "private"]);
+
+/** Multiple callers share one expensive observation. Its render reads the
+ * newest status after awaiting native state, so an old poll cannot paint over it. */
+export function coalesceLatest<T>(work: (latest: () => T) => Promise<void>) {
+  let latest: T, active: Promise<void> | undefined;
+  return (value: T) => {
+    latest = value;
+    return active ??= work(() => latest).finally(() => { active = undefined; });
+  };
 }
 
 /** Preview caption: `task · title`, the dot omitted when either half is empty. PipForm splits on the
@@ -96,14 +135,26 @@ if (import.meta.main) {
     // A short task would otherwise blink its preview on and off: hold the result a moment.
     const busyUntil = new Map<number, number>();
     const captions = new Map<number, string>(), tasks = new Map<number, string>(), tools = new Map<number, string>();
-    async function paint(hand: Hand, state: HandState) {
-      const front = (await windowsDesktop.state(hand)).windows.find((w) => w.focused);
-      if (state !== "idle") busyUntil.set(hand.id, Date.now() + 6000);
-      const shown = state === "idle" && Date.now() < (busyUntil.get(hand.id) ?? 0) ? "done" : state;
-      // Before the hand has a window, the current tool is the only thing to say about it.
-      const title = captions.get(hand.id) || front?.title || (front ? "" : tools.get(hand.id)) || "";
-      pip.stdin.write(`hand ${hand.id} ${front?.containerId ?? 0} ${shown} ${previewLabel(shown === "idle" ? "" : tasks.get(hand.id) ?? "", title)}\n`);
-      await pip.stdin.flush();
+    const painters = new Map<number, ReturnType<typeof coalesceLatest<{ hand: Hand; state: HandState }>>>();
+    function paint(hand: Hand, state: HandState) {
+      let painter = painters.get(hand.id);
+      if (!painter) {
+        painter = coalesceLatest(async (latest: () => { hand: Hand; state: HandState }) => {
+          const hand = latest().hand, expected = previewTargetKey(hand.id, browserTarget(hand));
+          let front = (await windowsDesktop.state(hand)).windows.find((w) => w.focused);
+          const target = browserTarget(hand);
+          if (previewTargetKey(hand.id, target) !== expected || target.mode === "existing" && (front?.pid !== target.pid || front.containerId !== target.window_id || front.ownerNonce !== target.ownerNonce)) front = undefined;
+          const state = latest().state;
+          if (state !== "idle") busyUntil.set(hand.id, Date.now() + 6000);
+          const shown = state === "idle" && Date.now() < (busyUntil.get(hand.id) ?? 0) ? "done" : state;
+          // Before the hand has a window, the current tool is the only thing to say about it.
+          const title = captions.get(hand.id) || front?.title || (front ? "" : tools.get(hand.id)) || "";
+          pip.stdin.write(`hand ${hand.id} ${front?.containerId ?? 0} ${shown} ${previewLabel(shown === "idle" ? "" : tasks.get(hand.id) ?? "", title)}\n`);
+          await pip.stdin.flush();
+        });
+        painters.set(hand.id, painter);
+      }
+      return painter({ hand, state });
     }
     // The F8 caption: what the user sees while holding the key, without looking at the browser.
     const hudProc = hudEnabled() ? native(["hud"]) : null;
@@ -131,7 +182,10 @@ if (import.meta.main) {
     // servePuk repaints once a second. A preview that appears the moment a hand
     // starts is most of what makes it feel alive, so look more often.
     type Worker = { hand: number; agent: { running: boolean; error: string | null; approval: unknown; narration?: string; task: string; currentTool: string | null } };
+    let quickRunning = false;
     const quick = setInterval(async () => {
+      if (quickRunning) return;
+      quickRunning = true;
       try {
         const at = hudEpoch();
         const status = (await (await local("/status")).json()) as HudStatus & { workers: Worker[] };
@@ -145,6 +199,7 @@ if (import.meta.main) {
         }
         driveHud(status, at);
       } catch { /* shutting down */ }
+      finally { quickRunning = false; }
     }, 300);
     quick.unref();
     resources.add(() => clearInterval(quick));
@@ -152,6 +207,7 @@ if (import.meta.main) {
     // Entering a hand is a desktop switch; the same control brings the user back.
     let cameFrom: string | undefined;
     async function enter(hand: Hand) {
+      if (browserTarget(hand).mode === "existing") { await focusExistingBrowser(hand); return; }
       const ask = (await helper()).ask, here = JSON.parse(await ask("where"));
       if (here === hand.display) return leave();
       if (!/^Puk hand \d+$/.test(here)) cameFrom = here;
@@ -169,9 +225,30 @@ if (import.meta.main) {
         const path = new URL(request.url).pathname;
         const page = await panelResponse(request);
         if (page) return page;
+        if (request.method === "GET" && path === "/status") {
+          const state = await (await local("/status")).json() as { hand: number; workers: { hand: number }[] };
+          return Response.json({ ...state, workers: state.workers.map(worker => {
+            const hand = hands.find(hand => hand.id === worker.hand);
+            return { ...worker, browser: hand ? browserTarget(hand) : { mode: "private" } };
+          }) });
+        }
+        if (path === "/browser") {
+          try {
+            if (request.method === "GET") return Response.json({ candidates: await existingBrowserCandidates(), target: browserTarget(await selected()) });
+            if (request.method !== "POST") return new Response("Use POST", { status: 405 });
+            const body = await request.json() as { mode?: string; hand?: number; window_id?: number; pid?: number };
+            if (!["existing", "private"].includes(body.mode ?? "") || body.hand !== undefined && (!Number.isInteger(body.hand) || body.hand < 1)
+              || body.window_id !== undefined && (!Number.isInteger(body.window_id) || body.window_id < 1) || body.pid !== undefined && (!Number.isInteger(body.pid) || body.pid < 1)) return Response.json({ error: "Choose a valid browser target." }, { status: 400 });
+            const hand = body.hand === undefined ? await selected() : await getHand(body.hand);
+            if (!hand) return Response.json({ error: "Hand unavailable." }, { status: 404 });
+            const status = await (await local("/status")).json() as { workers: { hand: number; agent: { running: boolean } }[] };
+            if (status.workers.find(worker => worker.hand === hand.id)?.agent.running) return Response.json({ error: "Correct this hand's task to change its browser while it is working." }, { status: 409 });
+            const target = body.mode === "existing" ? await attachExistingBrowser(hand, { window_id: body.window_id, pid: body.pid }) : await detachExistingBrowser(hand);
+            return Response.json({ target });
+          } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "Browser connection failed." }, { status: 400 }); }
+        }
         if (request.method === "GET" && path === "/desktop.png") {
-          try { return new Response(Buffer.from(await capture(await selected(), true), "base64"), { headers: { "Content-Type": "image/png", "Cache-Control": "no-store" } }); }
-          catch { return new Response("Desktop unavailable", { status: 503 }); }
+          return previewResponse(request, { selected, lookup: getHand, capture: captureBound, target: browserTarget });
         }
         if (request.method === "POST" && path.startsWith("/desktop/")) {
           try {

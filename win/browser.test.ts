@@ -48,6 +48,7 @@ describe("existing Chrome binding", () => {
     const calls: { name: string; args: Record<string, unknown> }[] = [];
     let bind = 0, exact = true, setup = false, denied = false;
     let tabs = [{ title: "Inbox", url: "https://mail.example/", active: true as boolean | null }];
+    let pageOverride: { title: string; url: string } | undefined;
     let onCall: ((name: string, args: Record<string, unknown>) => void) | undefined;
     const call: CuaConnection["call"] = async (name, args = {}) => {
       calls.push({ name, args }); onCall?.(name, args);
@@ -59,26 +60,31 @@ describe("existing Chrome binding", () => {
           tabs: tabs.map((tab, i) => ({ ...tab, tab_id: `tab-${bind}-${i}` })) });
       }
       if (name === "get_browser_state") return response({ status: "ok", mode: "snapshot", target_id: args.target_id, tab_id: args.tab_id,
-        snapshot: { id: "p17", format: "semantic_v2" }, page: { title: tabs[0]!.title, url: tabs[0]!.url }, outline: "Inbox\nCompose\nDraft saved",
+        snapshot: { id: "p17", format: "semantic_v2" }, page: pageOverride ?? { title: tabs[0]!.title, url: tabs[0]!.url }, outline: "Inbox\nCompose\nDraft saved",
         refs: [{ ref: "p17:1", role: "button", name: "Compose", actions: ["click"] }, { ref: "p17:2", role: "textbox", name: "Subject", actions: ["type"] },
           { ref: "p17:3", role: "generic", name: null, actions: ["scroll", "pointer"] }] });
       if (name === "browser_prepare") { setup = false; return response({ status: "ok", prepared: true }); }
       return response({ status: "ok" });
     };
-    const input = existingBrowserInput(call, async () => window, "account-test");
+    const input = existingBrowserInput(call, async () => window, "account-test", async (observed) => {
+      calls.push({ name: "focus_existing", args: { pid: observed.pid, window_id: observed.containerId, ownerNonce: observed.ownerNonce } });
+    });
     return { input, calls, mutateWindow: (change: Partial<ExistingBrowserWindow>) => { window = { ...window, ...change }; },
       tabs: (value: typeof tabs) => { tabs = value; }, setup: () => { setup = true; }, heuristic: () => { exact = false; }, deny: () => { denied = true; },
+      page: (value: typeof pageOverride) => { pageOverride = value; },
       onCall: (fn: NonNullable<typeof onCall>) => { onCall = fn; } };
   }
-  const mutations = (f: ReturnType<typeof fixture>) => f.calls.filter((call) => !["get_browser_state", "end_session"].includes(call.name));
+  const mutations = (f: ReturnType<typeof fixture>) => f.calls.filter((call) => !["get_browser_state", "end_session", "focus_existing"].includes(call.name));
 
   test("prepares only an explicitly requested exact existing profile, without launching a browser", async () => {
     const f = fixture(); f.setup();
     await f.input.attach();
     expect(mutations(f)).toEqual([{ name: "browser_prepare", args: { session: "account-test", pid: 90, window_id: 1234, strategy: { kind: "existing_profile" }, allow_launch: false } }]);
+    expect(f.calls.slice(0, 3).map((call) => call.name)).toEqual(["get_browser_state", "focus_existing", "browser_prepare"]);
+    expect(f.calls.filter((call) => call.name === "focus_existing")).toEqual([{ name: "focus_existing", args: { pid: 90, window_id: 1234, ownerNonce: "0000000000000123" } }]);
     const shot = await f.input.snapshot();
     expect(shot.refs.find((ref) => ref.ref === "p17:3")?.name).toBe("");
-    expect(f.calls.every((call) => call.args.session === "account-test")).toBe(true);
+    expect(f.calls.filter((call) => call.name !== "focus_existing").every((call) => call.args.session === "account-test")).toBe(true);
     expect(f.calls.some((call) => call.args.include_screenshot === false && call.args.snapshot_format === "semantic_v2")).toBe(true);
   });
 
@@ -89,15 +95,57 @@ describe("existing Chrome binding", () => {
       const f = fixture(); arrange(f);
       await expect(f.input.attach()).rejects.toThrow();
       expect(mutations(f)).toEqual([]);
+      expect(f.calls.some((call) => call.name === "focus_existing")).toBe(false);
+    }
+  });
+
+  test("snapshot mismatch metadata diagnoses aliases without exposing refs, page text or URL credentials", async () => {
+    const f = fixture();
+    f.page({ title: "New document", url: "https://person:secret@mail.example/?token=private-token#private-fragment" });
+    let message = "";
+    try { await f.input.snapshot(); } catch (error) { message = String(error); }
+    expect(message).toContain('"mode":"snapshot"');
+    expect(message).toContain('"target_matches":true');
+    expect(message).toContain('"format":"semantic_v2"');
+    expect(message).toContain('"page_title":"New document"');
+    expect(message).toContain('"urls_match":false');
+    for (const hidden of ["p17:1", "Compose", "Draft saved", "person", "secret", "private-token", "private-fragment"]) expect(message).not.toContain(hidden);
+  });
+
+  test("Chrome's New Tab document alias stays bound through snapshot and navigation", async () => {
+    for (const [tabUrl, pageUrl] of [["chrome://newtab/", "chrome://new-tab-page/"], ["chrome://new-tab-page/", "chrome://newtab/"]]) {
+      const f = fixture();
+      f.mutateWindow({ title: "New Tab - Google Chrome" });
+      f.tabs([{ title: "New Tab", url: tabUrl!, active: true }]);
+      f.page({ title: "New Tab", url: pageUrl! });
+      const snapshot = await f.input.snapshot();
+      expect(snapshot.url).toBe(pageUrl!);
+      await f.input.act(snapshot, { action: "navigate", url: "https://mail.example/" });
+      expect(mutations(f).map((call) => call.name)).toEqual(["browser_navigate"]);
+    }
+  });
+
+  test("internal aliases never relax http URLs, different Chrome pages or modified New Tab URLs", async () => {
+    for (const [tabUrl, pageUrl] of [
+      ["https://mail.example/#inbox", "https://mail.example/#sent"],
+      ["https://mail.example/?account=1", "https://mail.example/?account=2"],
+      ["chrome://newtab/", "chrome://settings/"],
+      ["chrome://newtab/", "chrome://new-tab-page/?override=1"],
+      ["chrome://newtab/", "chrome-extension://new-tab-page/"],
+    ]) {
+      const f = fixture(); f.tabs([{ title: "Inbox", url: tabUrl!, active: true }]); f.page({ title: "Inbox", url: pageUrl! });
+      await expect(f.input.snapshot()).rejects.toThrow("Browser snapshot metadata");
+      expect(mutations(f)).toEqual([]);
     }
   });
 
   test("re-attests the visible tab, then uses the old IDs that actually own the observed reference", async () => {
-    const f = fixture(), snapshot = await f.input.snapshot();
+    const f = fixture(); await f.input.attach(); const snapshot = await f.input.snapshot();
     await f.input.act(snapshot, { action: "click" }, "p17:1");
     expect(mutations(f)).toEqual([{ name: "browser_click", args: { session: "account-test", target_id: snapshot.target_id, tab_id: snapshot.tab_id, ref: "p17:1", input_route: "dom_event" } }]);
     await expect(f.input.act(snapshot, { action: "click" }, "p17:1")).rejects.toThrow("stale");
     expect(mutations(f)).toHaveLength(1);
+    expect(f.calls.some((call) => call.name === "focus_existing")).toBe(false);
   });
 
   test("an active tab changed after approval cannot receive a previously approved action", async () => {
