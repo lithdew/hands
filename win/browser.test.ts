@@ -89,9 +89,14 @@ describe("existing Chrome binding", () => {
     let nativeOutcome: Record<string, unknown> = {}, nativeError = false;
     let scopeOverride: Record<string, unknown> = {};
     let snapshotOverride: Record<string, unknown> = {};
+    let continuationOverride: Record<string, unknown> = {};
+    let sessionReply = response({ session: "account-test", implicit: false, state: "active", idle_seconds: 120, expires_in_seconds: 180 });
+    let sizeReply = response({ width: 1920, height: 1080, scale_factor: 1 });
     const call: CuaConnection["call"] = async (name, args = {}) => {
       calls.push({ name, args }); await onCall?.(name, args);
       if (denied) throw new Error("browser_consent_required: user denied this request");
+      if (name === "get_session") return sessionReply;
+      if (name === "get_screen_size") return sizeReply;
       if (name === "get_browser_state" && args.pid) {
         if (setup) throw new Error("browser_requires_setup: use browser_prepare");
         bind++;
@@ -103,6 +108,8 @@ describe("existing Chrome binding", () => {
         snapshot: { id: "p18", format: "semantic_v2", scope: "subtree", complete: true, selected_nodes: 1, total_nodes: 1, omitted: { css_hidden: 0, page_occluded: 0 } },
         page: pageOverride ?? { title: tabs[0]!.title, url: tabs[0]!.url }, content_refs: [],
         refs: [{ ref: "p18:0", role: "textbox", name: "Subject", actions: ["type"], states: { focused: focusedEditable } }], ...scopeOverride });
+      if (name === "get_browser_state" && args.continuation) return response({ status: "ok", mode: "snapshot", target_id: args.target_id, tab_id: args.tab_id,
+        page: pageOverride ?? { title: tabs[0]!.title, url: tabs[0]!.url }, ...continuationOverride });
       if (name === "get_browser_state") return response({ status: "ok", mode: "snapshot", target_id: args.target_id, tab_id: args.tab_id,
         snapshot: { id: "p17", format: "semantic_v2" }, page: pageOverride ?? { title: tabs[0]!.title, url: tabs[0]!.url }, outline: "Inbox\nCompose\nDraft saved",
         refs: [{ ref: "p17:1", role: "button", name: "Compose", actions: ["click"] }, { ref: "p17:2", role: "textbox", name: "Subject", actions: ["type"],states:{focused:focusedEditable} },
@@ -122,7 +129,7 @@ describe("existing Chrome binding", () => {
     const input = existingBrowserInput(call, async () => window, "account-test", canFocus ? async (observed) => {
       calls.push({ name: "focus_existing", args: { pid: observed.pid, window_id: observed.containerId, ownerNonce: observed.ownerNonce } });
       await onFocus?.();
-    } : undefined, diagnostics);
+    } : undefined, { ...diagnostics, maintenance: { schedule: () => () => {}, ...diagnostics.maintenance } });
     return { input, calls, mutateWindow: (change: Partial<ExistingBrowserWindow>) => { window = { ...window, ...change }; },
       tabs: (value: typeof tabs) => { tabs = value; }, setup: () => { setup = true; }, heuristic: () => { exact = false; }, deny: () => { denied = true; },
       page: (value: typeof pageOverride) => { pageOverride = value; },
@@ -135,11 +142,320 @@ describe("existing Chrome binding", () => {
       nativeOutcome:(value:typeof nativeOutcome,isError=false)=>{nativeOutcome=value;nativeError=isError;},
       scope:(value:typeof scopeOverride)=>{scopeOverride=value;},
       snapshotState:(value:typeof snapshotOverride)=>{snapshotOverride=value;},
+      continuationState:(value:typeof continuationOverride)=>{continuationOverride=value;},
+      sessionReply: (state: Record<string, unknown>, isError = false) => { sessionReply = { ...response(state), isError }; },
+      sizeReply: (state: Record<string, unknown>, isError = false) => { sizeReply = { ...response(state), isError }; },
       onFocus: (fn: NonNullable<typeof onFocus>) => { onFocus = fn; } };
   }
-  const mutations = (f: ReturnType<typeof fixture>) => f.calls.filter((call) => !["get_browser_state", "get_window_state", "end_session", "focus_existing"].includes(call.name)
+  const mutations = (f: ReturnType<typeof fixture>) => f.calls.filter((call) => !["get_browser_state", "get_window_state", "get_session", "get_screen_size", "end_session", "focus_existing"].includes(call.name)
     && !(call.name === "browser_dialog" && call.args.action === "inspect"));
   const dialogFixture = () => { const f = fixture(); f.dialog({ present: true, dialog_id: "dialog-7", kind: "alert" }); return f; };
+
+  function truncatedFixture() {
+    const f = fixture();
+    const first = { snapshot: { id: "p17", format: "semantic_v2", scope: "viewport", complete: false, selected_nodes: 300, total_nodes: 303,
+      node_budget: 300, omitted: { budget: 3, unprovable_frame: 0 }, continuation: "bc-first" }, content_refs: [],
+      refs: Array.from({ length: 300 }, (_, i) => ({ ref: `p17:${i}`, role: "button", name: `Row ${i}`, actions: ["click"], visibility: "in_viewport" })) };
+    const more = { snapshot: { id: "p17", format: "semantic_v2", scope: "continuation", complete: true, selected_nodes: 3, total_nodes: 303,
+      node_budget: 300, omitted: { budget: 0, unprovable_frame: 0 }, continuation: null },
+      refs: [{ ref: "p17:300", role: "textbox", name: "Message body", value: "Exact body", actions: ["type"], visibility: "in_viewport" }],
+      content_refs: [{ ref: "p17:301", role: "statictext", name: "recipient@example.test", actions: [], visibility: "in_viewport" },
+        { ref: "p17:302", role: "statictext", name: "Draft saved", actions: [], visibility: "in_viewport" }], outline: "Message body\nDraft saved" };
+    f.snapshotState(first); f.continuationState(more);
+    return { ...f, first, more };
+  }
+
+  test("one cached continuation retains a real late body ref and readonly content without repeating DOM extraction", async () => {
+    const f = truncatedFixture(), observed = await f.input.snapshot(undefined, { query: "Body" });
+    const reads = f.calls.filter(call => call.name === "get_browser_state" && call.args.target_id);
+    expect(reads).toHaveLength(2);
+    expect(reads[0]?.args).toMatchObject({ query: "Body", snapshot_format: "semantic_v2" });
+    expect(reads[1]?.args).toEqual({ target_id: observed.target_id, tab_id: observed.tab_id, snapshot_format: "semantic_v2", continuation: "bc-first", include_screenshot: false, session: "account-test" });
+    expect(observed.coverage).toEqual({ complete: true, selectedNodes: 303, totalNodes: 303, omitted: { budget: 0, unprovable_frame: 0 }, continuation: "used" });
+    expect(observed.refs).toHaveLength(301);
+    expect(observed.refs.at(-1)).toMatchObject({ ref: "p17:300", name: "Message body", value: "Exact body", actions: ["type"] });
+    expect(observed.content).toEqual([{ role: "statictext", name: "recipient@example.test", value: undefined, visibility: "in_viewport" },
+      { role: "statictext", name: "Draft saved", value: undefined, visibility: "in_viewport" }]);
+    expect(JSON.stringify(observed.content)).not.toMatch(/p17:|actions/);
+    await expect(f.input.act(observed, { action: "click" }, "p17:301")).rejects.toThrow("not observed");
+    await f.input.act(observed, { action: "type", text: "Updated body" }, "p17:300");
+    expect(mutations(f).map(call => call.name)).toEqual(["browser_type"]);
+  });
+
+  test("continuation is capped at one and missing handles stay explicitly incomplete", async () => {
+    for (const available of [false, true]) {
+      const f = truncatedFixture();
+      if (!available) f.snapshotState({ ...f.first, snapshot: { ...f.first.snapshot, continuation: null } });
+      else {
+        f.snapshotState({ ...f.first, snapshot: { ...f.first.snapshot, total_nodes: 307, omitted: { budget: 7 } } });
+        f.continuationState({ ...f.more, snapshot: { ...f.more.snapshot, complete: false, total_nodes: 307, omitted: { budget: 4 }, continuation: "bc-more" } });
+      }
+      const observed = await f.input.snapshot();
+      expect(observed.coverage?.complete).toBe(false);
+      expect(observed.coverage?.continuation).toBe(available ? "limit-reached" : "unavailable");
+      expect(f.calls.filter(call => call.args.continuation)).toHaveLength(available ? 1 : 0);
+      expect(f.calls.filter(call => call.args.target_id && !call.args.continuation)).toHaveLength(1);
+      expect(mutations(f)).toEqual([]);
+    }
+  });
+
+  test("identical repeated continuation references are deduplicated without inventing another input alias", async () => {
+    const f = truncatedFixture(); f.continuationState({ ...f.more, refs: [f.first.refs[0]] });
+    const observed = await f.input.snapshot();
+    expect(observed.refs).toHaveLength(300);
+    expect(observed.refs.filter(ref => ref.ref === "p17:0")).toHaveLength(1);
+    expect(observed.content).toHaveLength(2); expect(mutations(f)).toEqual([]);
+  });
+
+  test("stale, refused, conflicting or foreign continuation data invalidates all earlier refs without full-read retry", async () => {
+    for (const change of ["target", "tab", "snapshot", "scope", "page", "duplicate", "content-action", "stale", "oversized"]) {
+      const f = truncatedFixture(); f.snapshotState({}); const old = await f.input.snapshot(); f.snapshotState(f.first); f.calls.length = 0;
+      if (change === "target") f.continuationState({ ...f.more, target_id: "wrong" });
+      if (change === "tab") f.continuationState({ ...f.more, tab_id: "wrong" });
+      if (change === "snapshot") f.continuationState({ ...f.more, snapshot: { ...f.more.snapshot, id: "p18" } });
+      if (change === "scope") f.continuationState({ ...f.more, snapshot: { ...f.more.snapshot, scope: "viewport" } });
+      if (change === "page") f.continuationState({ ...f.more, page: { title: "Inbox", url: "https://other.test/" } });
+      if (change === "duplicate") f.continuationState({ ...f.more, refs: [{ ...f.more.refs[0], ref: "p17:0" }] });
+      if (change === "content-action") f.continuationState({ ...f.more, content_refs: [{ ...f.more.content_refs[0], actions: ["click"] }] });
+      if (change === "stale") f.continuationState({ status: "refused", code: "browser_ref_stale", message: "page navigated" });
+      if (change === "oversized") f.continuationState({ ...f.more, refs: Array.from({ length: 301 }, (_, i) => ({ ...f.more.refs[0], ref: `p17:${300 + i}` })) });
+      await expect(f.input.snapshot()).rejects.toThrow();
+      await expect(f.input.act(old, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+      expect(f.calls.filter(call => call.args.target_id && !call.args.continuation)).toHaveLength(1);
+      expect(f.calls.filter(call => call.args.continuation)).toHaveLength(1);
+      expect(mutations(f)).toEqual([]);
+    }
+  });
+
+  test("continuation completion rechecks native ownership, full geometry, cancellation and observation generation", async () => {
+    for (const change of ["owner", "move", "resize", "title", "cancel", "new-observation"]) {
+      const f = truncatedFixture(), abort = new AbortController(); let replacement: Awaited<ReturnType<typeof f.input.snapshot>> | undefined;
+      f.onCall(async (name, args) => {
+        if (name !== "get_browser_state" || !args.continuation) return;
+        if (change === "owner") f.mutateWindow({ ownerNonce: "0000000000009999" });
+        if (change === "move") f.mutateWindow({ rect: [2, 1, 1000, 800] });
+        if (change === "resize") f.mutateWindow({ rect: [1, 1, 1100, 800] });
+        if (change === "title") f.mutateWindow({ title: "Changed - Google Chrome" });
+        if (change === "cancel") abort.abort();
+        if (change === "new-observation") { f.snapshotState({}); replacement = await f.input.snapshot(); }
+      });
+      await expect(f.input.snapshot(abort.signal)).rejects.toThrow();
+      expect(mutations(f)).toEqual([]);
+      expect(f.calls.filter(call => call.args.target_id && !call.args.continuation)).toHaveLength(change === "new-observation" ? 2 : 1);
+      if (replacement) await f.input.act(replacement, { action: "click" }, "p17:1");
+    }
+  });
+
+  function maintenanceClock() {
+    let time = 0, current: (() => Promise<void>) | undefined;
+    const scheduled: { tick: () => Promise<void>; intervalMs: number }[] = [];
+    const maintenance = { now: () => time, schedule: (tick: () => Promise<void>, intervalMs: number) => {
+      scheduled.push({ tick, intervalMs }); current = tick;
+      return () => { if (current === tick) current = undefined; };
+    } };
+    return { maintenance, scheduled, advance: (ms: number) => { time += ms; }, active: () => Boolean(current), fire: async () => { await current?.(); } };
+  }
+
+  test("idle maintenance starts only after successful attach and touches only its verified named session", async () => {
+    const clock = maintenanceClock(), f = fixture({ maintenance: clock.maintenance });
+    await f.input.snapshot(); clock.advance(120_000); await clock.fire();
+    expect(clock.scheduled).toHaveLength(0);
+    await f.input.attach(); f.calls.length = 0;
+    expect(clock.scheduled.map(item => item.intervalMs)).toEqual([60_000]);
+    clock.advance(119_999); await clock.fire(); expect(f.calls).toEqual([]);
+    clock.advance(1); await clock.fire();
+    expect(f.calls).toEqual([{ name: "get_session", args: { session: "account-test" } }, { name: "get_screen_size", args: { session: "account-test" } }]);
+    expect(f.input.healthy()).toBe(true); expect(mutations(f)).toEqual([]);
+    f.calls.length = 0; clock.advance(60_000); await clock.fire(); expect(f.calls).toEqual([]);
+    await f.input.close(); expect(clock.active()).toBe(false);
+    const failedClock = maintenanceClock(), failed = fixture({ maintenance: failedClock.maintenance }); failed.deny();
+    await expect(failed.input.attach()).rejects.toThrow("denied");
+    expect(failedClock.scheduled).toHaveLength(0);
+  });
+
+  test("successful maintenance does not manufacture or consume browser capabilities", async () => {
+    for (const visual of [false, true]) {
+      const clock = maintenanceClock(), f = fixture({ maintenance: clock.maintenance }); await f.input.attach();
+      if (visual) {
+        const capture = await f.input.captureVisual(); clock.advance(120_000); await clock.fire();
+        await f.input.canvasAct(capture, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 });
+        await expect(f.input.canvasAct(capture, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 })).rejects.toThrow("stale");
+      } else {
+        const observed = await f.input.snapshot(); clock.advance(120_000); await clock.fire();
+        await f.input.act(observed, { action: "click" }, "p17:1");
+        await expect(f.input.act(observed, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+      }
+      expect(mutations(f).map(call => call.name)).toEqual([visual ? "click" : "browser_click"]);
+      await f.input.close();
+    }
+  });
+
+  test("ordinary activity postpones idle maintenance and long normal operations are never interrupted by it", async () => {
+    const clock = maintenanceClock(), f = fixture({ maintenance: clock.maintenance }); await f.input.attach();
+    clock.advance(60_000); await f.input.snapshot(); f.calls.length = 0;
+    clock.advance(60_000); await clock.fire(); expect(f.calls).toEqual([]);
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    f.onCall(async name => { if (name === "get_browser_state") { entered.resolve(); await release.promise; } });
+    const pending = f.input.snapshot(); await entered.promise;
+    clock.advance(180_000); await clock.fire();
+    expect(f.calls.filter(call => ["get_session", "get_screen_size"].includes(call.name))).toEqual([]);
+    release.resolve(); await pending; f.onCall(() => {}); f.calls.length = 0;
+    await clock.fire(); expect(f.calls).toEqual([]);
+    clock.advance(120_000); await clock.fire();
+    expect(f.calls.map(call => call.name)).toEqual(["get_session", "get_screen_size"]);
+    await f.input.close();
+  });
+
+  test("pending session inspection cannot queue a touch after normal work begins", async () => {
+    const clock = maintenanceClock(), f = fixture({ maintenance: clock.maintenance }); await f.input.attach();
+    const observed = await f.input.snapshot(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    f.onCall(async name => { if (name === "get_session") { entered.resolve(); await release.promise; } });
+    clock.advance(120_000); const pending = clock.fire(); await entered.promise;
+    await clock.fire(); // A second tick must not overlap this one.
+    await f.input.act(observed, { action: "click" }, "p17:1");
+    release.resolve(); await pending;
+    expect(f.calls.filter(call => call.name === "get_session")).toHaveLength(1);
+    expect(f.calls.some(call => call.name === "get_screen_size")).toBe(false);
+    expect(mutations(f).map(call => call.name)).toEqual(["browser_click"]);
+    expect(f.input.healthy()).toBe(true); await f.input.close();
+  });
+
+  test("detach stops scheduled and in-flight maintenance without reviving its session", async () => {
+    const clock = maintenanceClock(), f = fixture({ maintenance: clock.maintenance }); await f.input.attach();
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    f.onCall(async name => { if (name === "get_session") { entered.resolve(); await release.promise; } });
+    clock.advance(120_000); const pending = clock.fire(); await entered.promise;
+    await f.input.close(); release.resolve(); await pending;
+    clock.advance(600_000); await clock.scheduled[0]!.tick();
+    expect(clock.active()).toBe(false); expect(f.input.healthy()).toBe(false);
+    expect(f.calls.filter(call => ["get_session", "get_screen_size", "end_session", "start_session", "browser_prepare"].includes(call.name)).map(call => call.name)).toEqual(["get_session", "end_session"]);
+  });
+
+  test("known expiry, refusal and lost lease stop maintenance and revoke every observation without reattachment", async () => {
+    for (const failure of ["missing", "missing-text", "ending", "ended", "consent", "lease", "refused-status", "refused-size", "permission-size", "permission-text"]) {
+      const clock = maintenanceClock(), f = fixture({ maintenance: clock.maintenance }); await f.input.attach();
+      const observed = await f.input.snapshot(), capture = await f.input.captureCanvas(observed); f.calls.length = 0;
+      if (failure === "missing") f.sessionReply({ code: "session_not_started" }, true);
+      if (failure === "ending" || failure === "ended") f.sessionReply({ session: "account-test", implicit: false, state: failure });
+      if (failure === "refused-status") f.sessionReply({ status: "refused" });
+      if (failure === "refused-size") f.sizeReply({ status: "refused" });
+      if (failure === "permission-size") f.sizeReply({ code: "permission_required" }, true);
+      f.onCall(name => { if (name !== "get_session") return;
+        if (failure === "consent") throw new Error("browser_consent_required: user denied this request");
+        if (failure === "lease") throw new Error("Cua broker lease expired or disconnected.");
+        if (failure === "missing-text") throw new Error("session is not visible to this transport");
+        if (failure === "permission-text") throw new Error("permission_required: this read was refused");
+      });
+      clock.advance(120_000); await clock.fire();
+      expect(f.input.healthy()).toBe(false); expect(clock.active()).toBe(false);
+      await expect(f.input.act(observed, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+      await expect(f.input.canvasAct(capture, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 })).rejects.toThrow("stale");
+      const count = f.calls.length; clock.advance(600_000); await clock.scheduled[0]!.tick();
+      expect(f.calls).toHaveLength(count); expect(mutations(f)).toEqual([]);
+    }
+    const clock = maintenanceClock(), f = fixture({ maintenance: clock.maintenance }); await f.input.attach();
+    f.dialog({ present: true, dialog_id: "dialog-7", kind: "alert" }); const dialog = await f.input.inspectDialog();
+    f.sessionReply({ code: "session_not_started" }, true); clock.advance(120_000); await clock.fire();
+    await expect(f.input.resolveDialog(dialog, "accept", "dialog-7")).rejects.toThrow("stale");
+  });
+
+  test("unknown timeouts revoke stale observations and back off without claiming expiry or reconnecting", async () => {
+    const clock = maintenanceClock(), f = fixture({ maintenance: clock.maintenance }); await f.input.attach();
+    const observed = await f.input.snapshot(); f.calls.length = 0;
+    f.onCall(name => { if (name === "get_session") throw new Error("Cua request timed out"); });
+    clock.advance(120_000); await clock.fire();
+    expect(f.input.healthy()).toBe(true); expect(clock.active()).toBe(true);
+    await expect(f.input.act(observed, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+    clock.advance(119_999); await clock.fire(); expect(f.calls).toHaveLength(1);
+    clock.advance(1); await clock.fire(); expect(f.calls).toHaveLength(2);
+    expect(clock.active()).toBe(false); expect(f.input.healthy()).toBe(true);
+    clock.advance(600_000); await clock.scheduled[0]!.tick(); expect(f.calls).toHaveLength(2);
+    expect(f.calls.map(call => call.name)).toEqual(["get_session", "get_session"]);
+  });
+
+  test("missing or mismatched session proof never touches an implicit or alternate session", async () => {
+    for (const state of [{}, { session: "other", implicit: false, state: "active" }, { session: "account-test", implicit: true, state: "active" }]) {
+      const clock = maintenanceClock(), f = fixture({ maintenance: clock.maintenance }); await f.input.attach(); f.calls.length = 0;
+      f.sessionReply(state); clock.advance(120_000); await clock.fire();
+      expect(f.calls).toEqual([{ name: "get_session", args: { session: "account-test" } }]);
+      expect(f.input.healthy()).toBe(true); await f.input.close();
+    }
+  });
+
+  test("maintenance inspects lifecycle before every touch and cannot revive a session that ends between reads", async () => {
+    const clock = maintenanceClock(), f = fixture({ maintenance: clock.maintenance }); await f.input.attach(); f.calls.length = 0;
+    clock.advance(120_000); await clock.fire();
+    f.onCall(name => { if (name === "get_screen_size") throw new Error("this session has ended; call start_session explicitly to reuse its label"); });
+    clock.advance(120_000); await clock.fire();
+    expect(f.calls.map(call => call.name)).toEqual(["get_session", "get_screen_size", "get_session", "get_screen_size"]);
+    expect(f.input.healthy()).toBe(false); expect(clock.active()).toBe(false);
+  });
+
+  test("broker disconnection immediately stops maintenance and invalidates capabilities without ending or reconnecting", async () => {
+    const clock = maintenanceClock(), disconnected = new AbortController();
+    const f = fixture({ maintenance: { ...clock.maintenance, disconnected: disconnected.signal } }); await f.input.attach();
+    const capture = await f.input.captureVisual(); f.calls.length = 0;
+    disconnected.abort();
+    expect(f.input.healthy()).toBe(false); expect(clock.active()).toBe(false);
+    clock.advance(600_000); await clock.scheduled[0]!.tick();
+    await expect(f.input.canvasAct(capture, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 })).rejects.toThrow("stale");
+    await expect(f.input.snapshot()).rejects.toThrow("released");
+    expect(f.calls).toEqual([]);
+  });
+
+  test("transport loss during an idle read prevents its next RPC and cannot revive readiness on completion", async () => {
+    const clock = maintenanceClock(), disconnected = new AbortController();
+    const f = fixture({ maintenance: { ...clock.maintenance, disconnected: disconnected.signal } }); await f.input.attach(); f.calls.length = 0;
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    f.onCall(async name => { if (name === "get_session") { entered.resolve(); await release.promise; } });
+    clock.advance(120_000); const pending = clock.fire(); await entered.promise; disconnected.abort();
+    expect(clock.active()).toBe(false); expect(f.input.healthy()).toBe(false);
+    release.resolve(); await pending;
+    expect(f.calls).toEqual([{ name: "get_session", args: { session: "account-test" } }]);
+    expect(f.input.healthy()).toBe(false);
+  });
+
+  test("a connection already lost before construction never attaches or starts maintenance", async () => {
+    const clock = maintenanceClock(), disconnected = new AbortController(); disconnected.abort();
+    const f = fixture({ maintenance: { ...clock.maintenance, disconnected: disconnected.signal } });
+    await expect(f.input.attach()).rejects.toThrow("released");
+    expect(f.input.healthy()).toBe(false); expect(clock.scheduled).toEqual([]); expect(f.calls).toEqual([]);
+  });
+
+  test("idle maintenance skips foreground preparation gaps before a targeted input", async () => {
+    const clock = maintenanceClock(), f = fixture({ maintenance: clock.maintenance }); await f.input.attach();
+    const capture = await f.input.captureVisual(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    f.onFocus(async () => { entered.resolve(); await release.promise; });
+    const pending = f.input.canvasAct(capture, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 });
+    await entered.promise; clock.advance(600_000); await clock.fire();
+    expect(f.calls.some(call => ["get_session", "get_screen_size"].includes(call.name))).toBe(false);
+    release.resolve(); await pending;
+    expect(mutations(f).map(call => call.name)).toEqual(["click"]);
+    await f.input.close();
+  });
+
+  test("a late unverified maintenance failure cannot erase a newer normal observation", async () => {
+    const clock = maintenanceClock(), f = fixture({ maintenance: clock.maintenance }); await f.input.attach();
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    f.onCall(async name => { if (name === "get_session") { entered.resolve(); await release.promise; throw new Error("Cua request timed out"); } });
+    clock.advance(120_000); const pending = clock.fire(); await entered.promise;
+    const observed = await f.input.snapshot(); release.resolve(); await pending;
+    await f.input.act(observed, { action: "click" }, "p17:1");
+    expect(mutations(f).map(call => call.name)).toEqual(["browser_click"]);
+    expect(f.input.healthy()).toBe(true); await f.input.close();
+  });
+
+  test("a refused maintenance result still revokes readiness when normal activity started during the read", async () => {
+    const clock = maintenanceClock(), f = fixture({ maintenance: clock.maintenance }); await f.input.attach();
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    f.sessionReply({ status: "refused" });
+    f.onCall(async name => { if (name === "get_session") { entered.resolve(); await release.promise; } });
+    clock.advance(120_000); const pending = clock.fire(); await entered.promise;
+    const observed = await f.input.snapshot(); release.resolve(); await pending;
+    expect(f.input.healthy()).toBe(false); expect(clock.active()).toBe(false);
+    await expect(f.input.act(observed, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+    expect(mutations(f)).toEqual([]);
+  });
 
   test("visual canvas capture reads only exact bindings and native pixels, and revokes old DOM refs", async () => {
     const events:ExistingBrowserTiming[]=[],f=fixture({timing:event=>events.push(event)}),page=await f.input.snapshot();

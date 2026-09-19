@@ -6,7 +6,7 @@ export type SemanticFailure = { key: string; failureClass: "semantic-observation
 
 export function usesSemanticObservation(tool: string, args: unknown) {
   const action = args as Args | undefined;
-  return tool === "computer_act" || tool === "computer_browser" || tool === "computer_look" && action?.what !== "windows";
+  return tool === "computer_act" || tool === "computer_browser" && action?.action !== "query" || tool === "computer_look" && action?.what !== "windows";
 }
 
 /** Only known adapter contract failures count. Timeouts, refusals, stale refs,

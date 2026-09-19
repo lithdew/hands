@@ -220,7 +220,33 @@ export function browserInput(ask: Ask, port: (reread?: boolean) => Promise<numbe
 export type ExistingBrowserWindow = BrowserWindow & { pid: number; ownerNonce?: string; rect: Rect };
 type ExistingRef = { ref: string; role: string; name: string; value?: string; states?: Record<string, unknown>; actions?: string[]; visibility?: string };
 type ExistingTab = { tab_id: string; title: string; url: string; active: boolean | null };
-type ExistingPage = { target_id: string; tab_id: string; title: string; url: string; tabs: ExistingTab[]; refs: ExistingRef[]; outline: string; snapshot_id: string; window: ExistingBrowserWindow };
+type ExistingContent = { role: string; name: string; value?: string; visibility?: string };
+const omissionKeys = ["css_hidden", "offscreen", "page_occluded", "no_layout", "unknown", "budget", "unprovable_frame"] as const;
+export type ExistingCoverage = { complete: boolean | null; selectedNodes?: number; totalNodes?: number;
+  omitted: Partial<Record<typeof omissionKeys[number], number>>;
+  continuation: "not-needed" | "used" | "unavailable" | "limit-reached" };
+type ExistingPage = { target_id: string; tab_id: string; title: string; url: string; tabs: ExistingTab[]; refs: ExistingRef[]; outline: string; snapshot_id: string; window: ExistingBrowserWindow;
+  content?: ExistingContent[]; coverage?: ExistingCoverage };
+
+function semanticCoverage(snapshot: Record<string, unknown>): { coverage: ExistingCoverage; token?: string } {
+  const count = (value: unknown) => {
+    if (value === undefined) return undefined;
+    if (!Number.isSafeInteger(value) || Number(value) < 0 || Number(value) > 1_000_000) throw new Error("Invalid Cua semantic coverage count.");
+    return value as number;
+  };
+  if (snapshot.complete !== undefined && typeof snapshot.complete !== "boolean") throw new Error("Invalid Cua semantic completeness metadata.");
+  const omitted: ExistingCoverage["omitted"] = {};
+  if (snapshot.omitted !== undefined && (!snapshot.omitted || typeof snapshot.omitted !== "object" || Array.isArray(snapshot.omitted))) throw new Error("Invalid Cua semantic omissions metadata.");
+  for (const key of omissionKeys) {
+    const value = count((snapshot.omitted as Record<string, unknown> | undefined)?.[key]);
+    if (value !== undefined) omitted[key] = value;
+  }
+  const selectedNodes = count(snapshot.selected_nodes), totalNodes = count(snapshot.total_nodes);
+  if (selectedNodes !== undefined && selectedNodes > 300 || selectedNodes !== undefined && totalNodes !== undefined && selectedNodes > totalNodes
+    || snapshot.complete === true && (omitted.budget ?? 0) > 0) throw new Error("Inconsistent Cua semantic coverage metadata.");
+  const token = typeof snapshot.continuation === "string" && snapshot.continuation.length > 0 && snapshot.continuation.length <= 100 ? snapshot.continuation : undefined;
+  return { coverage: { complete: typeof snapshot.complete === "boolean" ? snapshot.complete : null, selectedNodes, totalNodes, omitted, continuation: "not-needed" }, token };
+}
 type ExistingBinding = { target_id: string; tab: ExistingTab; tabs: ExistingTab[]; window: ExistingBrowserWindow };
 export type ExistingCanvas = { binding:ExistingBinding; generation:number; page?:ExistingPage; window:ExistingBrowserWindow; width:number;height:number; image:{type:"image";mimeType:"image/png";data:string};digest:string };
 export type ExistingDialog = { target_id: string; tab_id: string; title: string; url: string; window: ExistingBrowserWindow } &
@@ -245,7 +271,12 @@ export type ExistingBrowserTiming = {
 };
 export type ExistingBrowserActivity = { active?: { phase: ExistingBrowserTiming["phase"]; sequence: number; startedAt: number };
   last?: { phase: ExistingBrowserTiming["phase"]; sequence: number; durationMs: number; outcome: "ok" | "failed" | "cancelled" } };
-type ExistingBrowserDiagnostics = { timing?: (event: ExistingBrowserTiming) => void; now?: () => number; epochNow?: () => number };
+type ExistingBrowserDiagnostics = {
+  timing?: (event: ExistingBrowserTiming) => void; now?: () => number; epochNow?: () => number;
+  maintenance?: { now?: () => number; schedule?: (tick: () => Promise<void>, intervalMs: number) => () => void; disconnected?: AbortSignal };
+};
+const SESSION_MAINTENANCE_INTERVAL_MS = 60_000;
+const SESSION_MAINTENANCE_IDLE_MS = 120_000;
 
 export function existingBrowserInput(call: CuaConnection["call"], current: () => Promise<ExistingBrowserWindow>, session = `puk-existing-${crypto.randomUUID()}`,
   beforePrepare?: (window: ExistingBrowserWindow) => Promise<void>, diagnostics: ExistingBrowserDiagnostics = {}) {
@@ -256,6 +287,24 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
   let currentDialog: ExistingDialog | undefined;
   let currentCanvas:ExistingCanvas|undefined;
   let generation = 0;
+  let normalWork = 0, activityRevision = 0;
+  const maintenanceNow = diagnostics.maintenance?.now ?? (() => performance.now());
+  let lastActivity = maintenanceNow(), maintenanceEpoch = 0, maintenancePending = false, maintenanceFailures = 0;
+  let cancelMaintenance: (() => void) | undefined;
+  const stopMaintenance = () => { maintenanceEpoch++; cancelMaintenance?.(); cancelMaintenance = undefined; };
+  const clearCapabilities = () => { currentPage = undefined; currentDialog = undefined; currentCanvas = undefined; lastBinding = undefined; generation++; };
+  const invalidateConnection = () => { healthy = false; clearCapabilities(); stopMaintenance(); };
+  const disconnected = diagnostics.maintenance?.disconnected;
+  // Losing the local broker lease/transport revokes capabilities immediately.
+  // This notification neither ends Cua's session nor creates a new connection.
+  disconnected?.addEventListener("abort", invalidateConnection, { once: true });
+  if (disconnected?.aborted) invalidateConnection();
+  // Track whole public operations, including focus hooks and gaps between RPCs.
+  // Maintenance must not add a read in the middle of a prepared input sequence.
+  const withActivity = <A extends unknown[], R>(work: (...args: A) => Promise<R>) => (...args: A): Promise<R> => {
+    normalWork++; activityRevision++;
+    return work(...args).finally(() => { normalWork--; lastActivity = maintenanceNow(); });
+  };
   let timingSequence = 0;
   const now = diagnostics.now ?? (() => performance.now());
   const epochNow = diagnostics.epochNow ?? (() => Date.now());
@@ -281,17 +330,17 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
   };
   const check = async (signal?: AbortSignal, expected?: ExistingBrowserWindow, frame = false) => timed("native_check", signal, async () => {
     signal?.throwIfAborted();
-    if (closed) throw new Error("This existing-browser binding has been released. Attach and look again.");
+    if (closed || disconnected?.aborted) throw new Error("This existing-browser binding has been released. Attach and look again.");
     const window = await current();
     signal?.throwIfAborted();
-    if (closed) throw new Error("This existing-browser binding has been released. Attach and look again.");
+    if (closed || disconnected?.aborted) throw new Error("This existing-browser binding has been released. Attach and look again.");
     if (!window.ownerNonce || expected && !sameExistingWindow(window, expected)) throw new Error("The existing Chrome window changed. Attach or look again before acting.");
     if (expected && frame && !sameExistingWindow(window,expected,true)) throw new BrowserObservationChanged("The existing Chrome window changed title or size. Take a fresh observation before acting.");
     return { ...window, rect: [...window.rect] as Rect };
   });
   const invalidateExpiredBinding = (message: string) => {
-    if (/session (?:has ended|'[^']*' has ended)|persistent Cua connection is disconnected|Cua transport closed|This Cua hand was disconnected|Cua broker lease expired or disconnected|browser_(?:consent_required|requires_setup)/i.test(message)) {
-      healthy = false; currentPage = undefined; currentDialog = undefined; currentCanvas = undefined; lastBinding = undefined; generation++;
+    if (/session (?:has ended|'[^']*' has ended|is not visible to this transport)|session_(?:ended|ending|not_started)|persistent Cua connection is disconnected|Cua transport closed|This Cua hand was disconnected|Cua broker lease expired or disconnected|browser_(?:consent_required|requires_setup)/i.test(message)) {
+      invalidateConnection();
     }
   };
   const callBound: CuaConnection["call"] = async (name, args, signal) => {
@@ -306,6 +355,62 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
       invalidateExpiredBinding(JSON.stringify([state, reply.content]));
     }
     return reply;
+  };
+  const startMaintenance = () => {
+    stopMaintenance(); maintenanceFailures = 0; lastActivity = maintenanceNow();
+    if (disconnected?.aborted) invalidateConnection();
+    if (closed || !healthy) return;
+    const epoch = maintenanceEpoch;
+    const refused = (message: string) => /\b(?:permission[_ ](?:required|denied)|access[_ ]denied|refused|(?:user|request|tool) (?:was )?(?:denied|declined|rejected))\b/i.test(message);
+    const schedule = diagnostics.maintenance?.schedule ?? ((tick: () => Promise<void>, intervalMs: number) => {
+      const timer = setInterval(() => { void tick(); }, intervalMs); timer.unref();
+      return () => clearInterval(timer);
+    });
+    const tick = async () => {
+      if (closed || !healthy || epoch !== maintenanceEpoch || normalWork || maintenancePending
+        || maintenanceNow() - lastActivity < SESSION_MAINTENANCE_IDLE_MS) return;
+      maintenancePending = true;
+      const revision = activityRevision;
+      const stillIdle = () => !closed && healthy && epoch === maintenanceEpoch && !normalWork && activityRevision === revision;
+      try {
+        // Cua 0.28.2 get_session is lifecycle-only and does not touch idle time.
+        // Prove this exact named session is active before the content-free read.
+        // Both calls use the ordinary broker queue/lease; neither can regrant it.
+        const status = await callBound("get_session", { session });
+        if (closed || epoch !== maintenanceEpoch) return;
+        const state = status.structuredContent as Record<string, unknown> | undefined;
+        const failed = (reply: typeof status) => {
+          const data = reply.structuredContent as Record<string, unknown> | undefined;
+          const denied = data?.status === "refused" || data?.effect === "refused" || refused(String(data?.code ?? ""))
+            || reply.isError && refused(JSON.stringify(reply.content));
+          if (denied) invalidateConnection();
+          return denied || reply.isError || data?.status !== undefined && data.status !== "ok"
+            || data?.effect !== undefined && !["confirmed", "unverifiable"].includes(String(data.effect));
+        };
+        if (state?.session === session && ["ending", "ended"].includes(String(state.state))) invalidateConnection();
+        if (failed(status) || state?.session !== session || state.implicit !== false || state.state !== "active") throw new Error("Unverified Cua session lifecycle.");
+        if (!stillIdle()) return;
+        const dimensions = await callBound("get_screen_size", { session });
+        if (closed || epoch !== maintenanceEpoch) return;
+        const size = dimensions.structuredContent as Record<string, unknown> | undefined;
+        if (failed(dimensions) || !size || ![size.width, size.height, size.scale_factor].every(value => typeof value === "number" && Number.isFinite(value) && value > 0)) throw new Error("Unverified Cua screen dimensions.");
+        if (!stillIdle()) return;
+        maintenanceFailures = 0; lastActivity = maintenanceNow();
+      } catch (error) {
+        // A transport timeout does not prove expiry or authorize reconnection.
+        // Revoke stale observations, back off, and bound unverified attempts.
+        // Superseded maintenance must never erase a newer task's capabilities.
+        if (epoch !== maintenanceEpoch || closed) return;
+        invalidateExpiredBinding(String(error));
+        if (refused(String(error))) invalidateConnection();
+        if (epoch !== maintenanceEpoch) return;
+        if (revision === activityRevision) clearCapabilities();
+        lastActivity = maintenanceNow();
+        if (++maintenanceFailures >= 2) stopMaintenance();
+        try { debugLog("win.browser.maintenance", { outcome: "unverified", attempts: maintenanceFailures, stopped: !cancelMaintenance }); } catch { /* Diagnostics do not affect lifecycle. */ }
+      } finally { maintenancePending = false; }
+    };
+    cancelMaintenance = schedule(tick, SESSION_MAINTENANCE_INTERVAL_MS);
   };
   const invoke = async (name: string, args: Record<string, unknown>, signal?: AbortSignal) => timed(
     name === "get_browser_state" ? args.target_id ? "snapshot_rpc" : "bind_rpc" : name === "browser_dialog" && args.action === "inspect" ? "bind_rpc" : name === "browser_prepare" ? "prepare_rpc" : "action_rpc", signal, async () => {
@@ -404,13 +509,14 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     if (publish) currentCanvas = capture;
     return capture;
   };
-  return {
+  const api = {
     healthy: () => healthy && !closed,
     activity(): ExistingBrowserActivity {
       const active = [...activePhases.values()].at(-1);
       return { ...(active ? { active: { ...active } } : {}), ...(lastPhase ? { last: { ...lastPhase } } : {}) };
     },
     async attach(signal?: AbortSignal, options: { allowPrepare?: boolean } = {}) {
+      stopMaintenance();
       currentPage = undefined; currentDialog = undefined; currentCanvas = undefined; generation++;
       try {
         try { await bindForAttach(signal); }
@@ -445,9 +551,11 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
         await bindForAttach(signal);
       }
       healthy = true;
+      startMaintenance();
     },
     async snapshot(signal?: AbortSignal, options: { query?: string } = {}, retry = 0): Promise<ExistingPage> {
       const query = options.query;
+      let continuationRequested = false;
       try {
       const observedGeneration = ++generation;
       currentPage = undefined; currentDialog = undefined; currentCanvas = undefined;
@@ -460,7 +568,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
       const result = await invoke("get_browser_state", { target_id: bound.target_id, tab_id: bound.tab.tab_id, snapshot_format: "semantic_v2", include_screenshot: false,
         ...(token && !/\s/u.test(token) ? { query: token } : {}) }, signal);
       const page = result.page as { title?: string; url?: string } | undefined;
-      const snapshot = result.snapshot as { id?: string; format?: string } | undefined;
+      const snapshot = result.snapshot as ({ id?: string; format?: string } & Record<string, unknown>) | undefined;
       if (result.mode !== "snapshot" || result.target_id !== bound.target_id || result.tab_id !== bound.tab.tab_id
         || snapshot?.format !== "semantic_v2" || !snapshot.id || !page || page.title !== bound.tab.title || !sameBrowserUrl(page.url, bound.tab.url) || !Array.isArray(result.refs)) {
         // Diagnose contract/version/internal-page aliases without logging any
@@ -485,14 +593,59 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
         throw new ErrorType(`The visible Chrome tab changed while observing it. Take a fresh snapshot. Browser snapshot metadata: ${JSON.stringify(metadata)}`);
       }
       await check(signal, bound.window, true);
-      const seen = new Set<string>();
-      const refs = (result.refs as ExistingRef[]).filter((ref) => {
-        if (!ref || typeof ref.ref !== "string" || !ref.ref || typeof ref.role !== "string" || seen.has(ref.ref)) return false;
-        seen.add(ref.ref);
-        return true;
-      }).map((ref) => ({ ...ref, name: typeof ref.name === "string" ? ref.name : "", value: typeof ref.value === "string" ? ref.value : undefined }));
+      const initial = semanticCoverage(snapshot), refs: ExistingRef[] = [], content: ExistingContent[] = [];
+      let coverage = initial.coverage, outline = typeof result.outline === "string" ? result.outline.slice(0, 40_000) : "";
+      const seen = new Map<string, string>();
+      const appendPage = (value: Record<string, unknown>) => {
+        if (!Array.isArray(value.refs) || value.content_refs !== undefined && !Array.isArray(value.content_refs)) throw new Error("Invalid Cua semantic reference lists.");
+        const lists = [value.refs, value.content_refs ?? []] as unknown[][];
+        if (lists[0]!.length + lists[1]!.length > 300) throw new Error("Cua semantic page exceeded the 300-node contract.");
+        for (const [kind, list] of lists.entries()) for (const raw of list) {
+          const ref = raw as ExistingRef;
+          if (!ref || typeof ref.ref !== "string" || !ref.ref.startsWith(`${snapshot.id}:`) || ref.ref.length > 100 || typeof ref.role !== "string") throw new Error("Cua returned a reference outside the original semantic snapshot.");
+          if (kind === 1 && (!Array.isArray(ref.actions) || ref.actions.length)) throw new Error("Cua content evidence cannot expose input actions.");
+          const normalized = { ...ref, name: typeof ref.name === "string" ? ref.name : "", value: typeof ref.value === "string" ? ref.value : undefined };
+          const signature = JSON.stringify([kind, normalized]);
+          if (seen.has(ref.ref)) {
+            if (seen.get(ref.ref) !== signature) throw new Error("Cua returned conflicting duplicate semantic references.");
+            continue;
+          }
+          seen.set(ref.ref, signature);
+          if (kind === 0) refs.push(normalized);
+          else if (!/password/i.test(ref.role) && ref.states?.protected !== true) content.push({ role: normalized.role, name: normalized.name,
+            value: normalized.value, visibility: normalized.visibility });
+        }
+      };
+      appendPage(result);
+      if ((coverage.omitted.budget ?? 0) > 0) {
+        coverage.continuation = "unavailable";
+        // Cua's continuation reuses its cached SemanticDocument, preserves the
+        // snapshot ID and revalidates document identity. Never add a query or
+        // manufacture a token, and never repeat the full DOM/AX collection.
+        if (coverage.complete === false && initial.token && snapshot.node_budget === 300
+          && coverage.selectedNodes !== undefined && coverage.totalNodes !== undefined) {
+          continuationRequested = true;
+          const next = await invoke("get_browser_state", { target_id: bound.target_id, tab_id: bound.tab.tab_id,
+            snapshot_format: "semantic_v2", continuation: initial.token, include_screenshot: false }, signal);
+          const meta = next.snapshot as Record<string, unknown> | undefined, nextPage = next.page as { title?: string; url?: string } | undefined;
+          if (next.mode !== "snapshot" || next.target_id !== bound.target_id || next.tab_id !== bound.tab.tab_id
+            || !meta || meta.id !== snapshot.id || meta.format !== "semantic_v2" || meta.scope !== "continuation" || meta.node_budget !== 300
+            || nextPage?.title !== page.title || !sameBrowserUrl(nextPage?.url, page.url)) throw new Error("The cached semantic continuation changed its tab, document or snapshot identity. All old references are invalid; observe again.");
+          const more = semanticCoverage(meta);
+          if (more.coverage.complete === null || more.coverage.selectedNodes === undefined || more.coverage.totalNodes !== coverage.totalNodes
+            || more.coverage.omitted.budget === undefined || coverage.selectedNodes + more.coverage.selectedNodes + more.coverage.omitted.budget !== coverage.totalNodes) {
+            throw new Error("The cached semantic continuation has inconsistent coverage. Observe again.");
+          }
+          appendPage(next);
+          coverage = { ...more.coverage, selectedNodes: coverage.selectedNodes + more.coverage.selectedNodes,
+            continuation: more.token || more.coverage.omitted.budget > 0 ? "limit-reached" : "used" };
+          if (typeof next.outline === "string") outline += `\n${next.outline.slice(0, 40_000)}`;
+        }
+      }
+      const after = await check(signal, bound.window, true);
+      if (after.rect.some((n, i) => n !== bound.window.rect[i])) throw new Error("The existing Chrome window moved during semantic observation. Observe again.");
       const observation: ExistingPage = { target_id: bound.target_id, tab_id: bound.tab.tab_id, title: page.title, url: page.url!,
-        tabs: bound.tabs, refs, outline: typeof result.outline === "string" ? result.outline : "", snapshot_id: snapshot.id, window: bound.window };
+        tabs: bound.tabs, refs, content, coverage, outline, snapshot_id: snapshot.id, window: bound.window };
       if (observedGeneration !== generation) throw new Error("A newer browser observation replaced this one. Use the newest snapshot.");
       currentPage = observation;
       return observation;
@@ -501,7 +654,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
         // refs and retry once on the same owned window, without reconnecting,
         // repeating input, or asking an expressive model to rediscover this.
         signal?.throwIfAborted();
-        if (retry === 0 && error instanceof BrowserObservationChanged) return this.snapshot(signal, { query }, 1);
+        if (!continuationRequested && retry === 0 && error instanceof BrowserObservationChanged) return this.snapshot(signal, { query }, 1);
         throw error;
       }
     },
@@ -706,6 +859,8 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
       return true;
     },
     async close() {
+      stopMaintenance();
+      disconnected?.removeEventListener("abort", invalidateConnection);
       closed = true;
       generation++;
       currentPage = undefined; currentDialog = undefined; currentCanvas = undefined; lastBinding = undefined;
@@ -714,6 +869,11 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
       await call("end_session", { session }).catch(() => {});
     },
   };
+  return { ...api, attach: withActivity(api.attach.bind(api)), snapshot: withActivity(api.snapshot.bind(api)),
+    inspectDialog: withActivity(api.inspectDialog.bind(api)), resolveDialog: withActivity(api.resolveDialog.bind(api)),
+    captureCanvas: withActivity(api.captureCanvas.bind(api)), captureVisual: withActivity(api.captureVisual.bind(api)),
+    assertCanvasCurrent: withActivity(api.assertCanvasCurrent.bind(api)), canvasAct: withActivity(api.canvasAct.bind(api)),
+    act: withActivity(api.act.bind(api)), navigate: withActivity(api.navigate.bind(api)) };
 }
 export type ExistingBrowserInput = ReturnType<typeof existingBrowserInput>;
 export type ExistingBrowserSnapshot = Awaited<ReturnType<ExistingBrowserInput["snapshot"]>>;

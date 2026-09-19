@@ -59,6 +59,26 @@ test("a successful challenge clears the interruption and resumes the original ta
   finally { await runtime.close(); }
 });
 
+test.each([false, true])("cached queries cannot clear an observed challenge or reset its attempt budget (rejected query: %s)", async rejected => {
+  let reads = 0, inputs = 0, gates = 0;
+  const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: route, narrate: false,
+    desktop: { discover: async () => [], state: async () => ({ width: 800, height: 600, windows: [] }),
+      semantic: (_hand, guard) => createSemanticComputer({ windows: async () => [],
+        observe: async () => { reads++; return challenge(); }, act: async () => { inputs++; } }, guard) },
+    gate: async () => { gates++; return allow; },
+    streamFn: script([snapshot, ...(rejected ? [{ name: "computer_browser", arguments: { action: "query", query: "Verify", screenshot: true } }] : []),
+      { name: "computer_browser", arguments: { action: "query", query: "unmatched article" } },
+      { name: "computer_browser", arguments: { action: "query", query: "Verify" } }]),
+  });
+  try {
+    await runtime.prompt("Inspect the captured challenge controls without submitting it.");
+    expect(reads).toBe(1); expect(inputs).toBe(0); expect(gates).toBe(0);
+    expect(runtime.status().interruption).toMatchObject({ kind: "captcha", challengeAttemptsRemaining: 2 });
+    expect(JSON.stringify(runtime.agent.state.messages)).toContain("cached projection does not establish that it cleared");
+    if (rejected) expect(JSON.stringify(runtime.agent.state.messages)).toContain("rejected cached query does not establish that it cleared");
+  } finally { await runtime.close(); }
+});
+
 test("a visual-only capture cannot clear an observed challenge or reset its attempt budget", async () => {
   let inputs = 0, gates = 0;
   const png = Buffer.alloc(24);

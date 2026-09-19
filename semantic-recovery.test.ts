@@ -5,6 +5,12 @@ const mismatch = 'The visible Chrome tab changed while observing it. Take a fres
 const browser = { mode: "existing", pid: 101, window_id: 202, ownerNonce: "0123456789abcdef" };
 const failure = () => semanticFailure("computer_browser", { action: "snapshot" }, mismatch)!;
 
+test("cached browser queries cannot count as a fresh recovery observation", () => {
+  expect(usesSemanticObservation("computer_browser", { action: "query", query: "Subject" })).toBe(false);
+  expect(usesSemanticObservation("computer_browser", { action: "snapshot", query: "Subject" })).toBe(true);
+  expect(semanticFailure("computer_browser", { action: "query" }, mismatch)).toBeUndefined();
+});
+
 test("ended Cua sessions count toward the bounded structural recovery budget", () => {
   const error = "this session has ended; call start_session explicitly to reuse its label";
   expect(semanticFailure("computer_browser", { action: "snapshot" }, error)?.diagnostic).toContain("explicitly attach");

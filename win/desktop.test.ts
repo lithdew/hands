@@ -428,6 +428,37 @@ describe("shared Cua transports", () => {
     await pool.close();
   });
 
+  test("pool publishes immediate transport loss without ending a session or opening a replacement", async () => {
+    let attempts = 0, closes = 0;
+    const closed: (() => void)[] = [], calls: string[] = [];
+    const pool = createDriverPool(async (_hand, onClosed) => {
+      attempts++; closed.push(onClosed);
+      return { call: async name => { calls.push(name); return { content: [] }; }, close: async () => { closes++; } };
+    });
+    const first = await pool.get(hand);
+    expect(first.disconnected?.aborted).toBe(false);
+    closed[0]!();
+    expect(first.disconnected?.aborted).toBe(true);
+    expect({ attempts, closes, calls }).toEqual({ attempts: 1, closes: 0, calls: [] });
+    const replacement = await pool.get(hand);
+    expect(replacement.disconnected?.aborted).toBe(false);
+    await first.close();
+    expect(replacement.disconnected?.aborted).toBe(false);
+    expect(await pool.get(hand)).toBe(replacement);
+    await pool.close();
+    expect(replacement.disconnected?.aborted).toBe(true);
+    expect({ attempts, closes, calls }).toEqual({ attempts: 2, closes: 2, calls: [] });
+  });
+
+  test("closing a raw driver publishes disconnection before its cleanup finishes", async () => {
+    const cleanup = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>();
+    const pool = createDriverPool(async () => raw(async () => { entered.resolve(); await cleanup.promise; }));
+    const connection = await pool.get(hand), closing = connection.close();
+    await entered.promise;
+    expect(connection.disconnected?.aborted).toBe(true);
+    cleanup.resolve(); await closing; await pool.close();
+  });
+
 
   test("failed connection attempts are evicted and an old close cannot evict a replacement", async () => {
     let attempts = 0;
