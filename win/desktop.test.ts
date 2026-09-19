@@ -221,7 +221,8 @@ describe("existing browser target ownership", () => {
       claim: async (hand, window) => { calls.push(`claim ${hand.id} ${window.containerId}`); },
       read: async () => reading ?? current,
       release: async (hand) => { calls.push(`release ${hand.id}`); },
-      prepare: async (_hand, checked, signal) => { preparations++; validate = checked; signal?.throwIfAborted(); if (failed) throw new Error("Cua permission denied"); return { close: async () => { calls.push("end session"); } }; },
+      endSession: async () => { calls.push("end disconnected session"); },
+      prepare: async (_hand, checked, signal, resume) => { preparations++; if (resume) calls.push("resume only"); validate = checked; signal?.throwIfAborted(); if (failed) throw new Error("Cua permission denied"); return { close: async () => { calls.push("end session"); } }; },
     });
     return { targets, calls, preparations: () => preparations, validate: () => validate!(), fail: () => { failed = true; }, found: (windows: RawWindow[]) => { available = windows; },
       current: (window: RawWindow | null) => { current = window; }, reading: (promise: Promise<RawWindow | null>) => { reading = promise; } };
@@ -237,6 +238,29 @@ describe("existing browser target ownership", () => {
     expect(f.targets.target(hand)).toEqual({ mode: "private" });
     expect(f.calls).toEqual(["claim 1 901", "end session", "release 1"]);
     await expect(f.validate()).rejects.toThrow("replaced");
+  });
+
+  test("restart restores only the original window through bind-only connection", async () => {
+    const f = fixture();
+    await f.targets.restore(hand, chrome());
+    expect(f.targets.target(hand)).toMatchObject({ mode: "existing", window_id: 901, ready: true });
+    expect(f.calls).toEqual(["claim 1 901", "resume only"]);
+    expect(await f.validate()).toEqual(chrome());
+  });
+
+  test("expired grants and recycled saved windows stay disconnected in existing mode", async () => {
+    for (const arrange of [(f: ReturnType<typeof fixture>) => f.fail(), (f: ReturnType<typeof fixture>) => f.found([]),
+      (f: ReturnType<typeof fixture>) => f.found([{ ...chrome(), ownerNonce: "0000000000000002" }])]) {
+      const f = fixture(); arrange(f);
+      await expect(f.targets.restore(hand, chrome())).rejects.toThrow();
+      expect(f.targets.target(hand)).toMatchObject({ mode: "existing", window_id: 901, ready: false });
+      expect(() => f.targets.connection(hand)).toThrow("reconnection");
+      expect(f.calls).not.toContain("end session");
+      expect(f.calls.length === 0 || f.calls.includes("resume only")).toBe(true);
+      await f.targets.detach(hand);
+      expect(f.calls).toContain("end disconnected session");
+      expect(f.targets.target(hand)).toEqual({ mode: "private" });
+    }
   });
 
   test("ambiguous Chrome windows and invalid nonces require explicit current selection", async () => {
@@ -351,6 +375,13 @@ describe("private browser ownership", () => {
 describe("shared Cua transports", () => {
   const hand: Hand = { id: 1, pid: 1, display: "test", width: 800, height: 600 };
   const raw = (close: () => Promise<void> = async () => {}): CuaConnection => ({ call: async () => ({ content: [] }), close });
+
+  test("pool preserves the broker's stable browser-session provider", async () => {
+    const session = "puk-browser-stable";
+    const pool = createDriverPool(async () => ({ ...raw(), browserSession: async () => session }));
+    expect(await (await pool.get(hand)).browserSession?.()).toBe(session);
+    await pool.close();
+  });
 
   test("failed connection attempts are evicted and an old close cannot evict a replacement", async () => {
     let attempts = 0;

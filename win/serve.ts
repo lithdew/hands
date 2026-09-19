@@ -21,7 +21,7 @@ import { debugLog, subprocessEnv, type Hand } from "../desktop";
 import { isLocalRequest, servePuk, startRecording } from "../hotkey";
 import type { HandState } from "../pip";
 import { createJevFirstAgent } from "./jev";
-import { attachExistingBrowser, browserTarget, captureBound, closeWindowsDesktop, detachExistingBrowser, driver, ensureHelper, existingBrowserCandidates, focusExistingBrowser, getHand, handFor, helper, listHands, signInAll, signInStatus, startHands, warmBrowser, windowsDesktop, type BrowserTarget } from "./desktop";
+import { attachExistingBrowser, browserTarget, captureBound, closeWindowsDesktop, detachExistingBrowser, driver, ensureHelper, existingBrowserCandidates, focusExistingBrowser, getHand, handFor, helper, listHands, restoreExistingBrowsers, signInAll, signInStatus, startHands, warmBrowser, windowsDesktop, type BrowserTarget } from "./desktop";
 import { loginTargets } from "./session";
 import { createHud, hudEnabled, type HudStatus } from "./hud";
 
@@ -124,6 +124,7 @@ if (import.meta.main) {
   try {
     const exe = await ensureHelper();
     const hands = await startHands(Math.max(1, Math.min(4, Number(process.argv[2] ?? process.env.PUK_HANDS ?? 2) || 2)));
+    await restoreExistingBrowsers(hands);
     const native = (mode: string[]) => {
       const proc = Bun.spawn([exe, ...mode], { env: subprocessEnv(), stdin: "pipe", stdout: "pipe", stderr: "pipe" });
       resources.add(() => { try { proc.stdin.end(); } catch { /* already stopped */ } });

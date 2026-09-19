@@ -120,6 +120,15 @@ describe("existing Chrome binding", () => {
     expect(f.calls.some((call) => call.args.include_screenshot === false && call.args.snapshot_format === "semantic_v2")).toBe(true);
   });
 
+  test("automatic restart binding never opens preparation or consent UI", async () => {
+    const f = fixture(); f.setup();
+    await expect(f.input.attach(undefined, { allowPrepare: false })).rejects.toThrow("browser_requires_setup");
+    expect(f.calls.map(call => call.name)).toEqual(["get_browser_state"]);
+    const alreadyApproved = fixture();
+    await alreadyApproved.input.attach(undefined, { allowPrepare: false });
+    expect(alreadyApproved.calls.map(call => call.name)).toEqual(["get_browser_state"]);
+  });
+
   test("denial, heuristic binding, missing active tab and duplicate titles never prepare or choose another tab", async () => {
     for (const arrange of [(f: ReturnType<typeof fixture>) => f.deny(), (f: ReturnType<typeof fixture>) => f.heuristic(),
       (f: ReturnType<typeof fixture>) => f.tabs([{ title: "Inbox", url: "https://mail.example/", active: null }]),

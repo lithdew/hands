@@ -32,6 +32,8 @@ import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { Ajv, AjvJsonSchemaValidator } from "@modelcontextprotocol/client/validators/ajv";
 import { debugLog, redact, subprocessEnv, type CuaConnection, type Hand, type InstalledApp } from "../desktop";
 import { browserInput, existingBrowserInput, type ExistingBrowserInput } from "./browser";
+import { connectBrokerHand } from "./cua-broker";
+import { browserSelections, windowOwnerNamespace } from "./browser-selection";
 import { loginPage, loginTargets, parseDevToolsFile, seenByUser, signedInSites, signInWall, type Cookie, type Foreground, type SeenWindow, type Wall } from "./session";
 
 const WSL = process.platform === "linux";
@@ -82,8 +84,8 @@ export async function ensureHelper(): Promise<string> {
 type Helper = { ask(line: string): Promise<string>; close(): void };
 
 /** One long-lived `puk-win serve`: a request line in, a reply line out. */
-export function createHelper(exe: string): Helper {
-  const proc = Bun.spawn([exe, "serve"], { env: subprocessEnv(), stdin: "pipe", stdout: "pipe", stderr: "ignore" });
+export function createHelper(exe: string, ownerNamespace?: string): Helper {
+  const proc = Bun.spawn([exe, "serve"], { env: { ...subprocessEnv(), ...(ownerNamespace ? { PUK_WINDOW_OWNER_NAMESPACE: ownerNamespace } : {}) }, stdin: "pipe", stdout: "pipe", stderr: "ignore" });
   const reader = proc.stdout.getReader(), decoder = new TextDecoder();
   let buffered = "", queue: Promise<unknown> = Promise.resolve(), closed = false;
   async function line(): Promise<string> {
@@ -116,9 +118,9 @@ let shared: Promise<Helper> | undefined;
 export function helper() {
   if (desktopClosing) return Promise.reject(new Error("The Windows desktop runtime is closing."));
   if (!shared) {
-    const pending = ensureHelper().then((exe) => {
+    const pending = Promise.all([ensureHelper(), windowOwnerNamespace(join(OUT, "browser-selection"))]).then(([exe, namespace]) => {
       if (desktopClosing) throw new Error("The Windows desktop runtime is closing.");
-      return createHelper(exe);
+      return createHelper(exe, namespace);
     });
     shared = pending;
     pending.catch(() => { if (shared === pending) shared = undefined; });
@@ -228,7 +230,9 @@ export function createExistingBrowserTargets<T extends { close(): Promise<void> 
   claim(hand: Hand, window: RawWindow): Promise<void>;
   read(hand: Hand, window: RawWindow): Promise<RawWindow | null>;
   release(hand: Hand): Promise<void>;
-  prepare(hand: Hand, current: () => Promise<RawWindow>, signal?: AbortSignal): Promise<T>;
+  endSession?(hand: Hand): Promise<void>;
+  prepare(hand: Hand, current: () => Promise<RawWindow>, signal?: AbortSignal, resume?: boolean): Promise<T>;
+  save?(hand: Hand, window: RawWindow | null): Promise<void>;
 }) {
   type Binding = { window: RawWindow; ready: boolean; error?: string; connection?: T };
   const bindings = new Map<number, Binding>();
@@ -256,6 +260,32 @@ export function createExistingBrowserTargets<T extends { close(): Promise<void> 
       return bound.connection;
     },
     read,
+    restore(hand: Hand, saved: RawWindow) {
+      return serial(async () => {
+        if (bindings.has(hand.id)) throw new Error("This hand already has a browser selection.");
+        if (!verifiedIdentity(saved)) throw new Error("The saved browser has no verified native identity.");
+        const bound: Binding = { window: { ...saved, rect: [...saved.rect] }, ready: false };
+        bindings.set(hand.id, bound);
+        try {
+          for (const [id, other] of bindings) if (id !== hand.id && (other.window.pid === saved.pid || other.window.containerId === saved.containerId))
+            throw new Error(`This Chrome process is already attached to hand ${id}.`);
+          const current = (await backend.candidates()).find(window => verifiedIdentity(window) && sameIdentity(window, saved));
+          if (!current) throw new Error("The previously selected Chrome window is unavailable. Choose its current window to reconnect.");
+          bound.window = { ...current, rect: [...current.rect] };
+          await backend.claim(hand, current);
+          bound.connection = await backend.prepare(hand, async () => {
+            if (bindings.get(hand.id) !== bound) throw new Error("This existing Chrome binding was replaced.");
+            const window = await read(hand);
+            if (!window) throw new Error("The selected Chrome window is unavailable.");
+            return window;
+          }, undefined, true);
+          bound.ready = true;
+        } catch (error) {
+          bound.error = `Chrome needs reconnection: ${error instanceof Error ? error.message : String(error)}`;
+          throw error;
+        }
+      });
+    },
     attach(hand: Hand, choice: BrowserChoice = {}, signal?: AbortSignal) {
       return serial(async () => {
         signal?.throwIfAborted();
@@ -282,6 +312,7 @@ export function createExistingBrowserTargets<T extends { close(): Promise<void> 
         const bound: Binding = { window: { ...window, rect: [...window.rect] }, ready: false };
         bindings.set(hand.id, bound);
         try {
+          await backend.save?.(hand, bound.window);
           await backend.claim(hand, window);
           signal?.throwIfAborted();
           bound.connection = await backend.prepare(hand, async () => {
@@ -305,8 +336,10 @@ export function createExistingBrowserTargets<T extends { close(): Promise<void> 
         if (!bound) return;
         bound.ready = false;
         // Keep the reservation until both cleanups finish; a failure stays closed.
-        await bound.connection?.close();
+        if (bound.connection) await bound.connection.close();
+        else await backend.endSession?.(hand);
         await backend.release(hand);
+        await backend.save?.(hand, null);
         bindings.delete(hand.id);
       });
     },
@@ -319,20 +352,35 @@ export const existingBrowserCandidates = async (): Promise<RawWindow[]> => {
   const candidates = JSON.parse(await ask("external-browsers")) as RawWindow[];
   return candidates.filter((window) => ![...browsers.values()].includes(window.pid));
 };
+const savedBrowsers = browserSelections(join(OUT, "browser-selection"));
 const existingTargets = createExistingBrowserTargets<ExistingBrowserInput>({
   candidates: existingBrowserCandidates,
   claim: async (hand, window) => { await ask(`external-bind ${borrowedRequest(hand, window)}`); },
   read: async (hand, window) => JSON.parse(await ask(`external-read ${borrowedRequest(hand, window)}`)),
   release: async (hand) => { await ask(`external-release ${hand.display}`); },
-  async prepare(hand, current, signal) {
-    const input = existingBrowserInput(async (name, args, callSignal) => (await driver(hand)).call(name, args, callSignal), current,
-      `puk-existing-${hand.id}-${crypto.randomUUID()}`, async () => focusExistingBrowser(hand));
-    try { await input.attach(signal); return input; }
-    catch (error) { await input.close(); throw error; }
+  endSession: async (hand) => {
+    const raw = await driver(hand), session = await raw.browserSession?.();
+    if (session) await raw.call("end_session", { session });
+  },
+  save: (hand, window) => savedBrowsers.save(hand.id, window),
+  async prepare(hand, current, signal, resume) {
+    const raw = await driver(hand);
+    const session = raw.browserSession ? await raw.browserSession() : `puk-existing-${hand.id}-${crypto.randomUUID()}`;
+    const input = existingBrowserInput(raw.call, current, session, async () => focusExistingBrowser(hand));
+    try { await input.attach(signal, { allowPrepare: !resume }); return input; }
+    catch (error) { if (!resume) await input.close(); throw error; }
   },
 });
 export const browserTarget = (hand: Hand): BrowserTarget => existingTargets.target(hand);
 export const existingBrowser = (hand: Hand) => existingTargets.connection(hand);
+export async function restoreExistingBrowsers(hands: Hand[]): Promise<void> {
+  for (const hand of hands) {
+    const saved = await savedBrowsers.read(hand.id);
+    if (!saved) continue;
+    // Restore is bind-only: no focus changes, setup or new permission prompts.
+    await existingTargets.restore(hand, saved).catch(error => debugLog("win.browser.restore", { hand: hand.id, error: String(error) }));
+  }
+}
 export async function attachExistingBrowser(hand: Hand, choice: BrowserChoice = {}, signal?: AbortSignal): Promise<BrowserTarget> {
   // Finish any private launch before claiming a real window; it must never be
   // mistaken for the new app that launchOne is waiting to move.
@@ -387,7 +435,7 @@ function onScreen<T>(hand: Hand, work: () => Promise<T>): Promise<T> {
 
 // ---------------------------------------------------------------- Cua
 
-type Raw = { call: CuaConnection["call"]; close(): Promise<void> };
+type Raw = { call: CuaConnection["call"]; close(): Promise<void>; browserSession?(): Promise<string> };
 /** A failed or closed transport must not remain the connection for a hand. A
  * late close from the old transport must not evict its replacement either. */
 export function createDriverPool(connect: (hand: Hand, closed: () => void) => Promise<Raw>) {
@@ -399,6 +447,7 @@ export function createDriverPool(connect: (hand: Hand, closed: () => void) => Pr
         const forget = () => { if (drivers.get(hand.id) === pending) drivers.delete(hand.id); };
         pending = connect(hand, forget).then((raw) => ({
           call: raw.call,
+          ...(raw.browserSession ? { browserSession: raw.browserSession } : {}),
           async close() { forget(); await raw.close(); },
         }));
         drivers.set(hand.id, pending);
@@ -421,8 +470,15 @@ async function cuaDriver(): Promise<string> {
   return path;
 }
 
-/** Drivers belong to the server, not to an individual Jev/Pi facade. */
-const driverPool = createDriverPool(async (_hand, closed) => {
+/** Native Windows keeps the MCP transport alive across Hands restarts. WSL
+ * retains its interop transport until it has a native broker launcher. */
+const driverPool = createDriverPool(async (hand, closed) => {
+  if (!WSL) {
+    if (desktopClosing) throw new Error("The Windows desktop runtime is closing.");
+    const connection = await connectBrokerHand(hand.id, await cuaDriver(), closed);
+    if (desktopClosing) { await connection.close(); throw new Error("The Windows desktop runtime is closing."); }
+    return connection;
+  }
   const client = new Client({ name: "puk", version: "0.1" }, { jsonSchemaValidator: new AjvJsonSchemaValidator(new Ajv({ strict: false, logger: false })) });
   client.onclose = closed;
   const transport = new StdioClientTransport({

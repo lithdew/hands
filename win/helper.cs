@@ -255,8 +255,15 @@ public static class PukWin
         public long nonce;
     }
     // Window properties die with the window, unlike HWNDs and process IDs, both
-    // of which Windows can reuse. The property name is private to this helper.
-    static readonly string ownerProperty = "Puk.Owner." + Guid.NewGuid().ToString("N");
+    // of which Windows can reuse. Hands supplies a durable random namespace so
+    // a new helper can attest the same window after a server restart.
+    static readonly string ownerProperty = "Puk.Owner." + OwnerNamespace();
+    static string OwnerNamespace()
+    {
+        Guid value;
+        return Guid.TryParse(Environment.GetEnvironmentVariable("PUK_WINDOW_OWNER_NAMESPACE"), out value)
+            ? value.ToString("N") : Guid.NewGuid().ToString("N");
+    }
     static readonly Dictionary<string, Dictionary<long, WindowOwner>> owned = new Dictionary<string, Dictionary<long, WindowOwner>>();
     sealed class BorrowedWindow { public long hwnd; public WindowOwner owner; }
     static readonly Dictionary<string, BorrowedWindow> borrowed = new Dictionary<string, BorrowedWindow>();
