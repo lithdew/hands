@@ -9,7 +9,7 @@ import {assertCaptionHeight, bodyRepeatsMatrixPanel, CAPTION_TOP, evidencePhase,
 // when it would not fit.
 const colors = {bg:"#0b1422", body:"#dbe5f1", muted:"#a9b8cc", text:"#f7f9fc", cyan:"#61ded8", gold:"#ffd174", line:"#2c4058"};
 const font = "'Segoe UI', Arial, sans-serif";
-const PAD=58, CONTENT_W=1280-2*PAD, PANEL_H=MATRIX_TEXT_HEIGHT, COPY_W=500, VIDEO_W=CONTENT_W-COPY_W-28, VIDEO_H=372;
+const PAD=58, CONTENT_W=1280-2*PAD, PANEL_H=MATRIX_TEXT_HEIGHT, COPY_W=540, VIDEO_W=CONTENT_W-COPY_W-28, VIDEO_H=372;
 const fmt = (n: number) => Number(n.toFixed(3)).toString().replace("-", "−");
 
 function InlineMatrix({rows}: {rows: string[][]}) {
@@ -81,7 +81,7 @@ function Scene({scene, index, total}: {scene: PreparedScene;index:number;total:n
   const copy=<div style={{display:"flex",flexDirection:"column",gap:matrixMode?16:24,width:"100%"}}>
     {scene.body && !(matrixMode && bodyRepeatsMatrixPanel(scene.body)) && <p style={{color:colors.body,fontSize:bodySize,lineHeight:1.34,margin:0}}><Rich text={scene.body}/></p>}
     {bullets.length>0 && <div style={{display:"flex",flexDirection:"column",gap:matrixMode?12:18}}>{bullets.map((b,i)=><div key={i} style={{display:"flex",gap:16,alignItems:"flex-start",fontSize:bulletSize,lineHeight:1.3,opacity:interpolate(f,[8+i*6,18+i*6],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"})}}><span style={{color:colors.cyan,fontSize:bulletSize*.55,paddingTop:bulletSize*.42,flexShrink:0}}>●</span><span><Rich text={b}/></span></div>)}</div>}
-    {matrix && <div style={{display:"flex",flexWrap:"wrap",gap:"14px 34px",alignItems:"center",marginTop:6}}><Matrix value={matrix} label={`${letter} =`}/>{inverseMatrix ? <Matrix value={inverseMatrix} label={`${letter}⁻¹ =`}/> : <span style={{fontSize:30,color:colors.gold,fontWeight:600}}>det({letter}) = 0 · no inverse</span>}</div>}
+    {matrix && <div style={{display:"flex",flexWrap:"wrap",gap:"14px 26px",alignItems:"center",marginTop:6}}><Matrix value={matrix} label={`${letter} =`}/>{inverseMatrix ? <Matrix value={inverseMatrix} label={`${letter}⁻¹ =`}/> : <span style={{display:"inline-flex",flexDirection:"column",fontSize:30,lineHeight:1.2,color:colors.gold,fontWeight:600,whiteSpace:"nowrap"}}><span>det({letter}) = 0</span><span>no inverse</span></span>}</div>}
     {(scene.evidence?.length ?? 0)>0 && <div style={{display:"grid",gridTemplateColumns:`repeat(${scene.evidence!.length}, minmax(0, 1fr))`,gap:34,marginTop:8}}>{scene.evidence!.map((item,i)=><div key={i} style={{borderTop:`3px solid ${colors.cyan}`,padding:"18px 0 0"}}><div style={{fontSize:22,color:colors.cyan,marginBottom:12,letterSpacing:1}}>{item.label}</div><div style={{fontSize:36,lineHeight:1.2,marginBottom:14,fontWeight:600}}>{item.value}</div><div style={{fontSize:20,lineHeight:1.3,color:colors.muted,overflowWrap:"anywhere"}}>{item.source}</div></div>)}</div>}
   </div>;
   const phaseLabel=matrixPhaseLabel(f,scene.frames,Boolean(inverseMatrix)).replace(/\bA\b/g,letter);
