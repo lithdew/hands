@@ -200,6 +200,13 @@ textarea#prompt::placeholder{color:var(--faint)}
 .slot[data-state=idle] .tile-now{color:var(--muted)}
 .tile-task{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:17px}
 .tile-task:empty::before{content:"—";color:var(--faint)}
+/* Artifact runs: the phases done so far, the current one in the hand's colour, and the tally at the end of the row. */
+.tile-phases{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px;font:11px/1.6 var(--mono);color:var(--faint);min-width:0}
+.tile-phases:empty{display:none}
+.tile-phases .done::after{content:"›";margin-left:6px;color:var(--line-3)}
+.tile-phases b{font-weight:500;color:var(--c)}
+.tile-phases .meta{margin-left:auto;color:var(--muted);white-space:nowrap}
+.tile-phases .meta[data-failed]{color:var(--amber)}
 .tile-bar{display:flex;justify-content:flex-end;padding:0 6px 6px}
 .tile-enter{height:28px;padding:0 10px;font-size:12px}
 
@@ -255,13 +262,20 @@ textarea#prompt::placeholder{color:var(--faint)}
   #events{max-height:320px}
 }
 @media (max-width:1000px){
-  body{height:auto;min-height:100vh;overflow:auto}
-  .main{grid-template-columns:1fr}
+  body{height:auto;min-height:100vh;overflow:auto;overflow-x:hidden}
+  /* minmax(0,1fr), not 1fr: a nowrap hint or a long identifier in the answer must never widen the column past the viewport. */
+  .main{grid-template-columns:minmax(0,1fr)}
   .drawer{border-left:0;border-top:1px solid var(--line);padding:14px 0 0;margin-top:14px}
   #events{max-height:320px}
   .stage{min-height:160px}
   .tile-frame{height:auto;width:100%}
 }
+/* A phone-width window: the header and the hints wrap instead of scrolling sideways. */
+@media (max-width:600px){
+  .top{flex-wrap:wrap;height:auto;min-height:48px;padding:6px 16px;gap:8px 10px}
+  .hints span{white-space:normal}
+}
+.deck,.stage-in,.reply,.card,#approvals{min-width:0}
 </style>
 
 <header class="top">
@@ -448,7 +462,29 @@ function artifactOf(agent) {
         && parts.every(part => part && part !== '.' && part !== '..' && !/[\\/:%\x00-\x1f\x7f]/.test(part) && !/[. ]$/.test(part))) url = candidate.pathname;
     } catch { /* show phase without a link for an invalid URL */ }
   }
-  return { runId: value.runId, kind: value.kind, phase: String(value.phase || 'Creating'), url };
+  const checks = value.checks && Number.isFinite(value.checks.passed) && Number.isFinite(value.checks.failed) ? { passed: value.checks.passed, failed: value.checks.failed } : undefined;
+  return { runId: value.runId, kind: value.kind, phase: String(value.phase || 'Creating'), url,
+    progress: typeof value.progress === 'string' ? value.progress.slice(0, 80) : undefined,
+    timeline: Array.isArray(value.timeline) ? value.timeline.filter(p => typeof p === 'string').slice(-8).map(p => p.slice(0, 24)) : undefined,
+    checks, decision: typeof value.decision === 'string' ? value.decision.slice(0, 24) : undefined,
+    startedAt: Number.isFinite(value.startedAt) ? value.startedAt : undefined, elapsedMs: Number.isFinite(value.elapsedMs) ? value.elapsedMs : undefined, done: value.done === true || undefined };
+}
+/* One line under the tile: "planning › fetching sources › writing › previewing 6:12 · 22 checks, 0 failed · Jev: deliver". */
+const runClock = ms => { const t = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
+function artifactTimeline(artifact, now) {
+  const elapsed = artifact.done && artifact.elapsedMs != null ? artifact.elapsedMs : artifact.startedAt ? now - artifact.startedAt : null;
+  const meta = [elapsed != null ? runClock(elapsed) : '', artifact.checks ? artifact.checks.passed + artifact.checks.failed + ' checks, ' + artifact.checks.failed + ' failed' : '', artifact.decision ? 'Jev: ' + artifact.decision : ''].filter(Boolean);
+  return { done: artifact.timeline || [], current: artifact.progress || artifact.phase, meta: meta.join(' · '), failed: Boolean(artifact.checks?.failed) };
+}
+function renderTimeline(node, artifact) {
+  if (!artifact) { if (node.childElementCount) node.replaceChildren(); return; }
+  const t = artifactTimeline(artifact, Date.now()), key = JSON.stringify([t.done, t.current, t.failed]);
+  if (node.dataset.timeline !== key) {
+    node.dataset.timeline = key;
+    node.replaceChildren(...t.done.map(p => el('span', 'done', p)), el('b', null, t.current), el('span', 'meta'));
+  }
+  const meta = node.lastElementChild; setText(meta, t.meta);
+  if (t.failed) meta.dataset.failed = ''; else delete meta.dataset.failed;
 }
 function panelError(status, agent, browser, artifact, localBrowserError) {
   return status.lastError || agent.error || status.listener.error
@@ -545,7 +581,7 @@ function makeTile() {
   open.append(document.createTextNode('Enter desktop'));
   view.append(blank, el('div', 'tile-frame'), open);
   const foot = el('div', 'tile-foot');
-  foot.append(el('span', 'tile-now'), el('span', 'tile-task'));
+  foot.append(el('span', 'tile-now'), el('span', 'tile-task'), el('span', 'tile-phases'));
   tile.append(head, view, foot);
   const bar = el('div', 'tile-bar');
   const enter = el('button', 'btn ghost tile-enter');
@@ -584,9 +620,10 @@ function updateTile(slot, w, s) {
   const name = tile.querySelector('.tile-name');
   name.dataset.hand = w.hand; setText(name, 'Hand ' + w.hand);
   setText(tile.querySelector('.tile-state'), STATE_WORD[state]);
-  setText(tile.querySelector('.tile-now'), artifact ? artifact.kind + ' · ' + artifact.phase : labelOf(w.agent, state));
+  setText(tile.querySelector('.tile-now'), artifact ? artifact.kind + ' · ' + (artifact.progress || artifact.phase) : labelOf(w.agent, state));
   const spoken = s.listener.tasks.find(t => t.hand === w.hand && (t.status === 'running' || t.status === 'waiting'));
   setText(tile.querySelector('.tile-task'), (w.agent.running && w.agent.task) || spoken?.request || (state === 'error' && w.agent.error) || '');
+  renderTimeline(tile.querySelector('.tile-phases'), artifact);
   const frame = tile.querySelector('.tile-frame');
   if (selected && artifact) {
     if (preview.parentElement === frame) $('stash').append(preview);
@@ -599,7 +636,7 @@ function updateTile(slot, w, s) {
     if (preview.complete && preview.naturalWidth > 0 && shownHand === w.hand) preview.dataset.ok = '1';
   }
   setText(tile.querySelector('.tile-blank span'), selected
-    ? (artifact ? artifact.phase + ' · ' + artifact.kind : state === 'idle' || state === 'finished' ? 'Idle · nothing on screen yet' : 'Waiting for a window…')
+    ? (artifact ? (artifact.progress || artifact.phase) + ' · ' + artifact.kind : state === 'idle' || state === 'finished' ? 'Idle · nothing on screen yet' : 'Waiting for a window…')
     : 'Select to watch');
   const enter = slot.querySelector('.tile-enter');
   enter.disabled = Boolean(artifact && !artifact.url);

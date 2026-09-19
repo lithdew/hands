@@ -67,6 +67,31 @@ describe("artifact preview selection", () => {
     expect(sources).toHaveLength(3);
   });
 
+  test("draws the run's timeline from the enriched status and ignores malformed extras", () => {
+    const { artifactOf: of, artifactTimeline } = new Function("location", `${functionSource("artifactOf", "openArtifact")} return { artifactOf, artifactTimeline };`)({ origin });
+    const artifact = of({ artifact: { runId, kind: "video", phase: "rendering", progress: "rendering 40%", timeline: ["routing", "planning", 7, "writing"], checks: { passed: 5, failed: 0 }, decision: "execute", startedAt: 1_000, elapsedMs: 200_000 } });
+    expect(artifact.progress).toBe("rendering 40%");
+    expect(artifact.timeline).toEqual(["routing", "planning", "writing"]);
+    expect(artifact.checks).toEqual({ passed: 5, failed: 0 });
+    expect(artifactTimeline(artifact, 373_000)).toEqual({ done: ["routing", "planning", "writing"], current: "rendering 40%", meta: "6:12 · 5 checks, 0 failed · Jev: execute", failed: false });
+    const finished = of({ artifact: { runId, kind: "report", phase: "needs-review", progress: "needs review · 2 failed", checks: { passed: 20, failed: 2 }, decision: "stop", startedAt: 1_000, elapsedMs: 65_000, done: true } });
+    expect(artifactTimeline(finished, 9_999_999)).toEqual({ done: [], current: "needs review · 2 failed", meta: "1:05 · 22 checks, 2 failed · Jev: stop", failed: true });
+    expect(of({ artifact: { runId, kind: "report", phase: "planning", checks: { passed: "5" }, timeline: "planning", progress: 4 } })).toEqual({ runId, kind: "report", phase: "planning", url: null });
+    expect(html).toContain("el('span', 'tile-phases')");
+    expect(html).toContain("renderTimeline(tile.querySelector('.tile-phases'), artifact)");
+    expect(html).toContain(".tile-phases:empty{display:none}");
+    expect(html).toContain("artifact.kind + ' · ' + (artifact.progress || artifact.phase)");
+  });
+
+  test("a phone-width window wraps the answer and header instead of scrolling sideways", () => {
+    expect(html).toContain(".main{grid-template-columns:minmax(0,1fr)}");
+    expect(html).toContain(".hints span{white-space:normal}");
+    expect(html).toContain(".deck,.stage-in,.reply,.card,#approvals{min-width:0}");
+    expect(html).toMatch(/#answer\{[^}]*overflow-wrap:anywhere/);
+    expect(html).toMatch(/#voice\{[^}]*overflow-wrap:anywhere/);
+    expect(html).toMatch(/\.card pre\{[^}]*overflow-wrap:anywhere/);
+  });
+
   test("keeps task errors visible while hiding an unrelated browser reconnect error from artifacts", () => {
     const error = new Function(`${functionSource("panelError", "openArtifact")} return panelError;`)();
     const status = { hand: 1, listener: {} };
