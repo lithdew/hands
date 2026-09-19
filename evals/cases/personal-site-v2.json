@@ -1,0 +1,46 @@
+{
+  "id": "personal-site-v2",
+  "version": 2,
+  "qualityProfile": "creative",
+  "title": "Ishaan / Hands — crafted personal work site",
+  "request": "Create a completely new, highly crafted personal work website for me, Ishaan Batra. I am building Hands, a computer-use assistant, and care about the Jev-to-specialist-to-Jev handoff, speed, correctness and correcting an agent mid-task. Use gpt-6-astra at low effort for this design and synthesis. The visual direction is a confident engineered personal/work site: warm off-white paper, ink, decisive cobalt, oversized typography, an asymmetric editorial grid, and an original animated Hands workbench with useful local interactions. Deliver a personal homepage plus a distinct Hands project/workbench page. Make the workbench genuinely respond to task selection and stage/step/replay controls, honestly labeled an interactive concept. Show specific supported experiments rather than generic service cards. Mobile must be deliberately composed and readable. Keep provenance unobtrusive and use only confirmed personal facts. The previous version was functional but visually generic and text-heavy; create a materially more distinctive and polished design. Follow the complete art-direction brief in the source packet. Hands must author all final HTML/CSS/JS. Review real rendered desktop/mobile views and interactions before returning the completed artifact to Jev.",
+  "rawUserTask": "Create a materially better, distinctive personal work website for Ishaan Batra and Hands with real local interactions and strong visual taste.",
+  "sourcePacket": "evals/cases/personal-site-v2.sources.json",
+  "artDirectionFile": "evals/cases/personal-site-v2.art-direction.md",
+  "preferredModel": "gpt-6-astra",
+  "preferredEffort": "low",
+  "artifactContract": {
+    "requiredFiles": ["index.html", "hands.html", "styles.css", "app.js", "README.md", "provenance.json"]
+  },
+  "rubric": {
+    "mustPass": [
+      "The actual Hands workflow authors both complete pages, delegates synthesis to an allowed model and returns to Jev for observed delivery. No coordinator-authored final site or disconnected mockup counts.",
+      "Visual craft is mandatory: a distinctive warm-paper/ink/cobalt identity, oversized type, asymmetric editorial composition, strong hierarchy and deliberate spacing. A generic centered hero plus three identical cards or text-heavy template fails even when technically valid.",
+      "The first desktop viewport already communicates Ishaan and Hands with a distinctive original product/workbench graphic; mobile at390x844 reorganizes the composition, preserves the primary action and uses readable text without giant empty gaps.",
+      "An original local Hands workbench makes task selection and instruction-specialist-review-return state visible. Step/replay and pause/reset or direct stage controls work coherently, and all visible controls have real behavior. It is clearly but unobtrusively labeled an interactive concept, not a live model or computer connection.",
+      "Use two or three specific supplied Hands experiments with meaningful descriptions and deliberately varied presentation. No identical generic service cards, invented client projects, fabricated screenshots or unverified output claims.",
+      "Both pages look complete and communicate useful content beyond the hero. Their layouts are distinct but use a coherent design language; home and project links work in both directions and every in-page target exists.",
+      "Public copy is concise, specific and human. Keep source-packet mechanics, internal UUIDs, evaluator jargon and repeated disclaimer language in the provenance sidecar. A short development/concept label is sufficient; no fictitious biography or commercial claims.",
+      "Inspect real1440x900 and390x844 views of both pages, the workbench active state and a lower-page section. No clipping, overflow, collisions, unreadable labels, missing assets or blank content hidden by animations.",
+      "Keyboard-accessible links/buttons, clear focus, useful semantic headings and readable contrast work. Reduced-motion keeps the diagram understandable without forced animation. Touch controls remain usable on mobile.",
+      "Measured interactions and transitions reinforce meaning. No fake live progress, dead inputs, pretend playback, cursor followers, excessive motion or dependency on external fonts/assets. The site stays readable before JavaScript runs.",
+      "Only confirmed Ishaan/Hands facts and accurately scoped experiment facts appear. No guessed employer, education, portrait, location, contact, social profile, funding, testimonials, customer counts or general reliability claims.",
+      "The local artifact has complete HTML/CSS/JS, no external network/control API requests, no private content, no broken local navigation and no JavaScript/console errors. Do not deploy or contact anyone.",
+      "Independent critique must explicitly assess typography, composition, distinctiveness, visual hierarchy and interaction quality; passing mechanical screenshot checks alone is not creative acceptance. Record actual shortcomings truthfully."
+    ],
+    "craftScorecard": {
+      "scale": "1 generic/unfinished, 3 competent, 5 distinctive/polished",
+      "dimensions": ["identity and art direction", "typography and hierarchy", "composition and spacing", "original workbench graphic", "interaction clarity and delight", "mobile craft", "specific content and restraint"],
+      "acceptance": "No dimension below3, median at least4, and no mandatory usability or truthfulness defect. The independent reviewer must explain the judgment from actual screenshots and interactions."
+    }
+  },
+  "inspectionPlan": {
+    "viewports": [{"width": 1440, "height": 900}, {"width": 390, "height": 844}],
+    "extraViews": ["Active workbench on Hands page", "One lower-page work/content section", "Reduced-motion state"],
+    "interactions": ["Navigate home to Hands and back", "Change task example", "Advance or replay the trace", "Pause/reset or directly choose a stage", "Keyboard focus visible on primary actions", "Reduced-motion preserves meaningful state"]
+  },
+  "performance": {
+    "guidance": "Use a compact authored bundle with shared styles and one purposeful interaction script. Review only real observed defects before requesting focused Hands repairs. Do not replace a failed craft review with mechanical assertions.",
+    "record": ["run UUID", "model and phase timings", "output tokens", "repair count", "Jev delivery", "screenshots and interaction evidence", "independent craft score"]
+  }
+}

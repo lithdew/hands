@@ -1,0 +1,39 @@
+{
+  "id": "creative-suite-2026-09-20",
+  "title": "Hands creative production and interaction evaluations",
+  "version": 1,
+  "purpose": "Exercise actual specialist-to-Jev creation and delivery across distinct creative formats, then independently inspect the saved outputs. Briefs and plans alone never count as completed cases.",
+  "allowedModels": [
+    "gpt-5.6-luna",
+    "gemini-3.8-flash",
+    "gpt-6-astra"
+  ],
+  "effort": "low",
+  "cases": [
+    {
+      "id": "hands-onboarding-prototype",
+      "brief": "evals/cases/hands-onboarding-prototype.json",
+      "priority": 1,
+      "deliverable": "A distinctive, responsive, functional three-step Hands onboarding prototype with local task, correction and result interactions.",
+      "acceptance": "Actual Hands output; independent task/correction/result/back/reset/keyboard tests plus direct desktop/mobile visual inspection."
+    },
+    {
+      "id": "gravitational-wave-editorial",
+      "brief": "evals/cases/gravitational-wave-editorial.json",
+      "priority": 2,
+      "deliverable": "An original A3 science editorial poster and companion mobile explainer using verified primary sources and clearly labeled illustrative artwork.",
+      "acceptance": "Actual Hands output; independent source/numerical checks, complete printed-poster inspection, mobile layout and functional disclosure tests."
+    }
+  ],
+  "sharedPassRequirements": [
+    "Creative content and source code are emitted by an allowed Hands specialist model and handed back to Jev for actual bounded save/validate/preview/deliver decisions.",
+    "The artifact exists on disk, loads locally and has no runtime errors or missing required assets; all advertised interactions work.",
+    "The visual composition has an intentional hierarchy, coherent typography, disciplined spacing and purposeful contrast; there are no clipping, overlap or filler scaffold defects.",
+    "The design responds to the particular subject and format, rather than repeating the previous personal website or generic landing-page cards.",
+    "Desktop and mobile outputs are directly inspected; keyboard operation, visible focus, semantic labels and reduced-motion behavior are checked where applicable.",
+    "Facts, provenance and prototype status are truthful. No invented live backend, user identity, measured capability, conference affiliation, customer or deployment is implied.",
+    "Repairs run through Hands. Independent reviewers may write reports and take screenshots, but may not directly repair the generated artifact and then count that as a Hands success.",
+    "Report final-attempt model/Jev timings, repairs and reused work separately from earlier attempts and overall wall time."
+  ],
+  "qualityProfile": "creative"
+}

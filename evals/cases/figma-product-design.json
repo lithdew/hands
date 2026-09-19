@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "figma-product-design",
+  "title": "Figma: editable Hands product screens in the existing account",
+  "task": "Use my existing connected Chrome session to go to Figma and sign in using my existing account if needed. Use Astra low for the design work. Create a new private draft design file named Hands — Product concept eval 2026-09-20. In Figma itself, build two editable product screen frames: a desktop task workspace and a mobile task-progress screen for Hands. Give it a deliberate visual direction: warm off-white, dark ink, cobalt accents, strong typography, generous spacing, a clear task hierarchy, and a useful current-task/correction interaction. Include meaningful original UI copy, visible task-progress states, a correction input and a completed-result card. Use real editable text and shapes, well-named layers and reusable components where practical; do not submit a flattened screenshot as the design. Make the desktop and mobile frames coherent but responsive. Inspect both frames, fix alignment/readability defects, verify the file is saved, and return its actual Figma URL and what was created. Work inside my account without public publishing, paid upgrades or invitations. Preserve other files. If a password, MFA or account-holder-only step is actually required, keep the exact task/browser state and identify that step rather than inventing credentials or claiming login succeeded.",
+  "rubric": {
+    "mustPass": [
+      "Actual Hands trace records the existing Chrome target, allowed specialist model and observed Figma interactions.",
+      "Figma login/session outcome is observed, not assumed; a real credential/MFA blocker is reported as incomplete.",
+      "A new saved private draft has an observed Figma URL and two clearly named desktop/mobile frames.",
+      "Designs contain editable text and shapes rather than a single flattened image.",
+      "Both frames have intentional typography, spacing, hierarchy and color; no overlapping text or clipped primary controls.",
+      "Task, progress, correction and completed-result states are meaningful and visually coherent.",
+      "Inspection captures actual Figma canvas output; no paid plan, public publishing, sharing invitations or unrelated file edits occur."
+    ]
+  },
+  "execution": "Submit task to the running Hands /task endpoint; do not use the local artifact workflow as a substitute for Figma."
+}
