@@ -77,6 +77,14 @@ export function bodyRepeatsMatrixPanel(body: string | undefined) {
   return parts.some(part => typeof part !== "string") && parts.filter((part): part is string => typeof part === "string").join("").replace(/[A-Z]⁻¹|[A-Z]|[=;,.·\s]/g, "") === "";
 }
 
+/** Workflow node labels are set at 39px only when they fit their box on one
+ * line; otherwise 30px, whose two lines (66px) still fit the 67px label box.
+ * A 4-node layout has 196px of label width, so a 13-character label at 39px
+ * (about 0.56em per character) would wrap into 86px and be refused at render. */
+export function workflowLabelSize(label: string, boxWidth: number, large = 39, small = 30, emPerChar = .56) {
+  return label.length * emPerChar * large <= boxWidth ? large : small;
+}
+
 /** The letter the lesson copy uses for the animated matrix, so the trusted
  * matrix panel does not call a singular example S "A". */
 export function matrixLetter(copy: (string | undefined)[], explicit?: string) {

@@ -1,5 +1,15 @@
 import {expect, test} from "bun:test";
-import {assertCaptionHeight, bodyRepeatsMatrixPanel, CAPTION_TOP, evidencePhase, evidenceTextScale, fitScale, inlineMatrices, MATRIX_TEXT_HEIGHT, matrixLetter, matrixPhaseLabel, matrixTextScale, PANEL_TOP} from "./layout";
+import {assertCaptionHeight, bodyRepeatsMatrixPanel, CAPTION_TOP, evidencePhase, evidenceTextScale, fitScale, inlineMatrices, MATRIX_TEXT_HEIGHT, matrixLetter, matrixPhaseLabel, matrixTextScale, PANEL_TOP, workflowLabelSize} from "./layout";
+
+test("workflow node labels drop to two 30px lines instead of wrapping 39px text past the label box", () => {
+  const fourNodeBox = 244 - 48, threeNodeBox = 300 - 48;
+  expect(workflowLabelSize("Validate", fourNodeBox)).toBe(39);
+  expect(workflowLabelSize("Agent creates", fourNodeBox)).toBe(30);
+  expect(workflowLabelSize("Jev routes", threeNodeBox)).toBe(39);
+  expect(workflowLabelSize("Specialist agent", threeNodeBox)).toBe(30);
+  // Two lines at 30px with the layout's 1.1 line height stay inside the 67px box.
+  expect(2 * 30 * 1.1).toBeLessThanOrEqual(67);
+});
 
 test("matrix overlays follow the actual forward, hold, inverse and final phases", () => {
   expect(matrixPhaseLabel(0, 1000, true)).toBe("Original basis");

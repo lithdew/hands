@@ -1,7 +1,7 @@
 import React, {useLayoutEffect, useRef, useState} from "react";
 import {AbsoluteFill, Audio, Img, staticFile, useCurrentFrame} from "remotion";
 import type {PreparedScene} from "./storyboard";
-import {assertCaptionHeight, CAPTION_TOP, evidencePhase} from "./layout";
+import {assertCaptionHeight, CAPTION_TOP, evidencePhase, workflowLabelSize} from "./layout";
 import {MathLayout} from "./math-layout";
 
 const INK="#111216", IVORY="#f5f0e6", BLUE="#2545ff";
@@ -49,7 +49,7 @@ function Workflow({scene,frame,color,muted,accent,light}:{scene:PreparedScene;fr
       <circle cx={width/2+(1164-width)*progress} cy={20} r="8" fill={accent}/>
     </svg>
     {nodes.map((node,i)=>{const p=rise(frame,12+i*8),active=Math.round(progress*(nodes.length-1))===i;return <div key={i} style={{position:"absolute",left:58+i*(width+gap),top:274+(1-p)*35,width,opacity:p}}>
-      <div style={{height:125,boxSizing:"border-box",padding:"18px 24px",border:`2px solid ${active?accent:light?"#d2d1ca":"#404148"}`,background:active?BLUE:light?"#fffdf8":INK,color:active?IVORY:color,transition:"none"}}><div style={{fontSize:12,letterSpacing:3,opacity:.7,marginBottom:8}}>0{i+1}</div><Fit width={width-48} height={67} id={`${scene.id}-node-${i}`}><div style={{fontSize:node.label.length>15?30:39,lineHeight:1.1,fontWeight:650,letterSpacing:-1.3}}>{node.label}</div></Fit></div>
+      <div style={{height:125,boxSizing:"border-box",padding:"18px 24px",border:`2px solid ${active?accent:light?"#d2d1ca":"#404148"}`,background:active?BLUE:light?"#fffdf8":INK,color:active?IVORY:color,transition:"none"}}><div style={{fontSize:12,letterSpacing:3,opacity:.7,marginBottom:8}}>0{i+1}</div><Fit width={width-48} height={67} id={`${scene.id}-node-${i}`}><div style={{fontSize:workflowLabelSize(node.label,width-48),lineHeight:1.1,fontWeight:650,letterSpacing:-1.3}}>{node.label}</div></Fit></div>
       {node.detail&&<div style={{fontSize:21,lineHeight:1.3,marginTop:13,color:muted}}><Fit width={width} height={55} id={`${scene.id}-detail-${i}`}>{node.detail}</Fit></div>}
     </div>;})}
     {scene.correction&&<div style={{opacity:rise(frame,60)}}>
