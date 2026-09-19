@@ -194,6 +194,7 @@ type VoiceRuntime = Pick<Awaited<ReturnType<typeof createDesktopAgent>>, "prompt
 export function createVoiceListener(opts: {
   hand: Hand;
   hands?(): Promise<Hand[]>;
+  unavailable?(hand: Hand): boolean;
   runtime(hand: Hand): VoiceRuntime | Promise<VoiceRuntime>;
   ask?: Ask;
   log?(message: string): void;
@@ -206,15 +207,30 @@ export function createVoiceListener(opts: {
     session.cancelled = true;
     session.listener.cancel();
   }
+  function cancelRecording(session = current) {
+    if (!session || session.cancelled || session.closing && !session.finishing) return;
+    session.closing = true;
+    session.listener.cancelUtterance();
+  }
   return {
     begin() {
-      if (busy()) throw new Error("The voice task is still active. Stop it before recording another task.");
-      cancel();
+      if (current && !current.cancelled) {
+        if (!current.closing || current.finishing) throw new Error("The previous recording is still finishing.");
+        if (busy()) {
+          current.text = "";
+          current.closing = false;
+          current.error = null;
+          current.listener.warm();
+          return;
+        }
+        cancel(); // Finished history must not make a fresh request look already covered.
+      }
       let session: Session;
       const listener = createListener({
         ask: opts.ask ?? createJev({ timeout: 5_000 }),
         buildIntent: (request) => ({ goal: TaskTextSchema.parse(request), launcher: "none", url: null, inputs: {}, doneWhen: "The user's request is visibly complete.", avoid: [] }),
         hands: opts.hands ?? (async () => [opts.hand]),
+        unavailable: opts.unavailable,
         log: (message) => opts.log?.(redact(message)),
         async work(hand, job) {
           let runtime: VoiceRuntime | undefined, unsubscribe: (() => void) | undefined;
@@ -229,12 +245,12 @@ export function createVoiceListener(opts: {
               // goal can steer this worker, including when speech finishes.
               if (intent.goal !== assigned) {
                 assigned = intent.goal;
-                worker.refine(assigned, session.text);
+                worker.refine(assigned, job.transcript());
               }
             });
             session.workers.add(worker);
             job.signal.addEventListener("abort", stop, { once: true });
-            await worker.prompt(assigned, [], session.text, { speechEnds: job.speechEnds, transcript: () => session.text });
+            await worker.prompt(assigned, [], job.transcript(), { speechEnds: job.speechEnds, transcript: job.transcript });
             const error = worker.status().error;
             return { status: job.signal.aborted ? "cancelled" : error ? "gave_up" : "done", reason: error ?? "Voice task finished", steps: [] };
           } catch (error) {
@@ -259,17 +275,17 @@ export function createVoiceListener(opts: {
     async finish(text: string, signal?: AbortSignal) {
       const session = current;
       if (!session || session.cancelled) return;
-      const stop = () => cancel(session);
+      const stop = () => cancelRecording(session);
       signal?.addEventListener("abort", stop, { once: true });
       session.closing = session.finishing = true;
       try {
-        if (signal?.aborted || !text.trim()) return cancel(session);
+        if (signal?.aborted || !text.trim()) return cancelRecording(session);
         session.text = TaskTextSchema.parse(text);
         await session.listener.finish(session.text);
       } catch (error) {
         if (!session.cancelled) {
           session.error = redact(error instanceof Error ? error.message : "Could not finish the voice task.");
-          cancel(session);
+          cancelRecording(session);
           throw new Error(session.error);
         }
       } finally {
@@ -278,6 +294,8 @@ export function createVoiceListener(opts: {
       }
     },
     cancel: () => cancel(),
+    cancelRecording: () => cancelRecording(),
+    schedule: async () => { await current?.listener.schedule(); },
     clearError() { if (current) current.error = null; },
     idle: async () => { await current?.listener.idle(); },
     status: () => ({
@@ -599,20 +617,27 @@ export async function servePuk(opts: {
   const voice = createVoiceListener({
     hand: initialHand, runtime: runtimeFor, ask: opts.dependencies?.ask,
     hands: async () => (await availableHands()).sort((a, b) => Number(b.id === selected) - Number(a.id === selected)),
+    unavailable: (hand) => starting.has(hand.id) || Boolean(workers.get(hand.id)?.runtime.status().running),
     log: (message) => debugLog("listener", { message }),
   });
   const app = serveHotkeys({
     port: opts.port ?? Number(process.env.PUK_PORT ?? 7777),
     startRecording: (onDelta) => (opts.dependencies?.record ?? startRecording)({ onDelta }),
     onStart(signal) {
-      const begin = () => {
+      const begin = async () => {
         signal.throwIfAborted();
-        if (busy() || voice.status().busy) throw new Error("The agent is busy. Stop it before recording another task.");
+        if (changingProvider) throw new Error("Wait for the model change before recording another task.");
+        const hands = await availableHands();
+        signal.throwIfAborted();
+        const reserved = new Set(voice.status().tasks.filter((task) => task.status === "running").map((task) => task.hand));
+        if (!hands.some((hand) => !reserved.has(hand.id) && !starting.has(hand.id) && !workers.get(hand.id)?.runtime.status().running)) {
+          throw new Error("All hands are busy. Wait for a free hand or press Stop before recording another task.");
+        }
         voice.begin();
       };
       return stopping ? stopping.then(begin) : begin();
     },
-    onPartial: voice.hear, onCancel: voice.cancel, onTranscript: voice.finish,
+    onPartial: voice.hear, onCancel: voice.cancelRecording, onTranscript: voice.finish,
     extraStatus: () => {
       const all = [...workers.values()].map(({ hand, runtime }) => ({ hand: hand.id, agent: runtime.status() }));
       return {
@@ -677,7 +702,9 @@ export async function servePuk(opts: {
           const task = z.object({ text: TaskTextSchema }).safeParse(body);
           if (!task.success) return Response.json({ error: "Enter a task of at most 16000 characters." }, { status: 400 });
           voice.clearError(); controller.clearError();
-          void active().runtime.prompt(task.data.text);
+          void active().runtime.prompt(task.data.text).finally(() => voice.schedule()).catch((error) => {
+            debugLog("listener", { message: redact(error instanceof Error ? error.message : "Could not schedule the next task.") });
+          });
         }
         return Response.json({ ok: true }, { status: 202 });
       } catch (error) { return Response.json({ error: redact(error instanceof Error ? error.message : "Request failed.") }, { status: 400 }); }
