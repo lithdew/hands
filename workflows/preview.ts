@@ -17,6 +17,8 @@ const MIME: Record<string, string> = {
   ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif", ".ico": "image/x-icon",
   ".mp4": "video/mp4", ".webm": "video/webm", ".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4",
   ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf", ".pdf": "application/pdf", ".vtt": "text/vtt", ".txt": "text/plain", ".md": "text/plain", ".srt": "text/plain",
+  // Data deliverables the specialists link from their pages (flashcard decks, tables, specs): plain text, never executed.
+  ".csv": "text/csv; charset=utf-8", ".tsv": "text/tab-separated-values; charset=utf-8", ".yml": "text/plain; charset=utf-8", ".yaml": "text/plain; charset=utf-8",
 };
 const contained = (directory: string, file: string) => {
   const rel = relative(directory, file);
