@@ -4,10 +4,14 @@
  * The panel's worker (ai.ts) asks a vision model for every step: list apps, open
  * one, screenshot, act, screenshot. Each of those is a model turn of about two
  * seconds, which is what makes a hand feel slow once its tools are fast. This
- * runtime puts jev/cua.ts in front of it: Jev reads the hand's browser as
- * labelled elements (win/observe.ts) and clicks, types and presses keys itself,
- * a few hundred milliseconds a decision. The vision agent is called when
- *   - Jev gives up, runs out of steps, or the work is inside a native app,
+ * runtime puts jev/pilot.ts in front of it:
+ *   - one round of Jev understands the request (an everyday recipe, a learned
+ *     one, or a site to open), and only when none fits does a language model
+ *     write a plan, once, from the words alone;
+ *   - Jev reads the hand's browser as labelled elements (win/observe.ts) and
+ *     does a screen's worth of clicking, typing and dropdowns per request.
+ * The vision agent is called when
+ *   - Jev gives up, runs out of steps, or the request names a native app,
  *   - the speaker wants an answer read off the screen (Jev cannot write one).
  * It then starts from where Jev left the hand, not from nothing.
  *
@@ -16,28 +20,78 @@
  */
 import { askModel, createDesktopAgent, type AgentStatus, type DesktopAgentOptions } from "../ai";
 import { debugLog, redact, type InstalledApp } from "../desktop";
-import { runIntent, type Action, type Deps, type RunResult } from "../jev/cua";
-import { RISK_THRESHOLD } from "../jev/gate";
-import { parseIntent, type Intent } from "../jev/intent";
+import type { RunResult } from "../jev/cua";
 import { choice, createJev, jevApiKey, noul, type Ask } from "../jev/jev";
+import { fileStore, type LearnedStore } from "../jev/learned";
 import { createOpenAI, type Llm } from "../jev/openai";
-import { quickIntent } from "../jev/quick";
-import { browserWindow, capture, connectCua, frontOf, handBrowser, windowsDesktop } from "./desktop";
-import { observeHand, pageSettled } from "./observe";
+import { createPilot, loadContacts, type Understood } from "../jev/pilot";
+import { NotBrowserWork, planTasks } from "../jev/plan";
+import { runScreens } from "../jev/screen";
+import type { Contact } from "../jev/recipes";
+import type { ScreenAction, ScreenDeps } from "../jev/screen";
+import { browserWindow, capture, connectCua, frontOf, handBrowser, handWall, userForeground, windowsDesktop } from "./desktop";
+import { observeHand, pageSettled, selectOption } from "./observe";
+import { wallInTexts } from "./session";
+import { isNative, performNative, releaseNative } from "./uia";
 
-/** jev/listen.ts uses the same bar while the speaker is still talking. */
-const SPEAKING_RISK_THRESHOLD = 0.25;
+/** The hand's browser is at a sign-in page. Nobody here can sign in: not Jev, not the vision agent. The user is told how. */
+export class SignedOut extends Error {}
+
+/** Pure: a window title as the planner may see it. Titles carry the user's address ("Inbox - me@x.com - Gmail"); the site is what matters. */
+export function titleForPlanner(title: string): string {
+  return title.replace(/[^\s@<>()]+@[^\s@<>()]+\.[a-z]{2,}/gi, "[address]").slice(0, 200);
+}
+
 const NO_APP = "none", BROWSER = "browser";
 const DESK = { target: { kind: "desktop", display_id: "primary" }, delivery_mode: "foreground" };
 
 type Runtime = Awaited<ReturnType<typeof createDesktopAgent>>;
 type Speaking = Parameters<Runtime["prompt"]>[3];
-export type JevFirstOptions = DesktopAgentOptions & { jevFirst?: { ask?: Ask; llm?: Llm; agent?: typeof createDesktopAgent } };
+export type JevFirstOptions = DesktopAgentOptions & { jevFirst?: { ask?: Ask; llm?: Llm; agent?: typeof createDesktopAgent; contacts?: Contact[]; store?: LearnedStore } };
 
 /** Pure: what `perform` sends for a key from jev/cua.ts KEYS ("Return", "shift+Tab", "alt+Left"). */
 export function keyCall(combo: string): { name: "press_key" | "hotkey"; args: Record<string, unknown> } {
   const keys = combo.split("+").map((k) => k.trim().toLowerCase());
   return keys.length > 1 ? { name: "hotkey", args: { keys } } : { name: "press_key", args: { key: keys[0] } };
+}
+
+/** What `routeRequest` needs to know, as closed questions. Exported so the routing can be checked against real Jev without a desktop. */
+export function triageQuestions(catalog: Pick<InstalledApp, "id" | "name">[]) {
+  const apps = Object.fromEntries(catalog.filter((a) => !/chrome|edge|browser|firefox|brave/i.test(a.name)).slice(0, 240).map((a) => [a.id, a.name]));
+  return {
+    app: choice("Which installed application does `request` name, or clearly need opened first? Anything on the web, a web site or a search is `browser`.", { ...apps, [BROWSER]: "The web browser: web sites, searching, anything online.", [NO_APP]: "No application needs opening, or it is unclear which." }),
+    creative: noul("`request` asks the worker to make something by eye or by taste: to draw, paint or design something, make a card, edit a picture or a video, write a poem or a story, or play a game.", {
+      true: "Something new is to be drawn, designed or composed, or a game is to be played.", false: "A routine errand with a definite result: opening, searching, booking, sending a message, writing down a note that was dictated, filling in a form, putting on music or a video." }),
+    only_open: noul("`request` asks only to open, start or show an application, and nothing more once it is open."),
+    wants_answer: noul("The speaker expects to be told something: a fact, a number, a summary or an answer read from the screen."),
+  };
+}
+
+export type Triage = { app: string; sure: number; onlyOpen: number; wantsAnswer: number; creative: number };
+export type Route =
+  /** Open this installed application; what comes after is the vision agent's, unless opening was all. */
+  | { to: "native"; app: string }
+  /** Jev's pilot, in the hand's browser. `plan`: tier one did not understand it, so a plan is needed first. */
+  | { to: "browser"; plan: boolean }
+  /** Not for Jev at all. */
+  | { to: "vision"; why: string };
+
+/**
+ * Pure: who does this request? Jev's loop reads controls; it cannot draw, design or write at length, and a
+ * request for an installed application is not a web task however simple it sounds.
+ *   a recipe or a learned recipe      the pilot, whatever else the words suggest
+ *   an installed application, surely  open it (the old behaviour: "open calculator", "draw a cat in paint")
+ *   something made by eye or by taste the vision agent, with the application opened first when one was picked
+ *   a site to open or search, or web  the pilot
+ *   anything else                     the planner decides whether a browser can do it
+ */
+export function routeRequest(kind: Triage | null, understoodBy: "recipe" | "learned" | "quick" | "plan" | null): Route {
+  if (understoodBy === "recipe" || understoodBy === "learned") return { to: "browser", plan: false };
+  const app = kind && kind.sure >= 0.6 && kind.app !== BROWSER && kind.app !== NO_APP ? kind.app : null;
+  if (app) return { to: "native", app };
+  if (kind && kind.creative >= 0.6) return { to: "vision", why: "it is something to make by eye or by taste, which Jev cannot do from a list of controls" };
+  if (understoodBy === "quick") return { to: "browser", plan: false };
+  return { to: "browser", plan: true };
 }
 
 export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtime> {
@@ -57,14 +111,21 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
   let settleApproval: ((ok: boolean) => void) | undefined;
   let settled = Promise.withResolvers<void>();
   settled.resolve();
-  let said = "", intent: Intent | undefined, rebuilding = 0, startedAt = 0;
+  let said = "", current: Understood | undefined, rebuilding = 0, startedAt = 0;
+  /** Where the hand's browser was last sent and has not been touched since, so a link opened early is not loaded twice. */
+  let at: string | null = null;
   const log = (text: string) => { mine.events.push({ time: Date.now(), text: redact(text).slice(0, 1000) }); mine.events = mine.events.slice(-30); debugLog("win.jev", { hand: hand.id, text }); };
 
   let computer: ReturnType<typeof connectCua> | undefined;
   const cua = () => computer ??= connectCua(hand);
 
-  /** jev/cua.ts `perform`, against the hand's front window. */
-  async function perform(_hand: unknown, action: Action): Promise<void> {
+  /** jev/screen.ts actions, against the hand's front window. */
+  async function perform(_hand: unknown, action: ScreenAction): Promise<void> {
+    at = null;
+    // A control of a native window is operated through its UI Automation pattern: no pointer, no focus.
+    if (isNative(action)) { await performNative(hand, action); return void (await Bun.sleep(120)); }
+    // A native dropdown is set in the page itself: no list to open, nothing to aim at.
+    if (action.kind === "select") { await selectOption(hand, action.target.rect, action.option); return void (await pageSettled(hand, 3000)); }
     const input = await cua(), point = (el: { rect: { x: number; y: number; w: number; h: number } }) => ({ x: Math.round(el.rect.x + el.rect.w / 2), y: Math.round(el.rect.y + el.rect.h / 2) });
     if (action.kind === "click") {
       for (let i = 0; i < action.count; i++) await input.call("click", { ...DESK, ...point(action.target), button: action.button });
@@ -87,8 +148,14 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
     await pageSettled(hand, 3000);
   }
 
-  const deps: Deps = {
-    ask, llm, observe: () => observeHand(hand), perform, settleMs: 150, log,
+  async function signedIn(): Promise<void> {
+    const wall = await handWall(hand).catch(() => null);
+    if (wall) throw new SignedOut(wall.how);
+  }
+  const deps: ScreenDeps = {
+    ask, llm, perform, settleMs: 150, log,
+    // The page's own address says when a click has landed on a sign-in page; only then is the page asked again.
+    observe: async () => { const seen = await observeHand(hand); if (wallInTexts(seen.texts, hand.id)) await signedIn(); return seen; },
     screenshot: async () => new Uint8Array(Buffer.from(await capture(hand), "base64")),
     approve: ({ action, risk }) => new Promise<boolean>((resolve) => {
       mine.approval = { id: crypto.randomUUID(), tool: "jev", args: { action }, reason: `${risk.worst} ${risk.level.toFixed(2)}` };
@@ -96,19 +163,23 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
     }),
   };
 
-  async function buildIntent(text: string): Promise<Intent | null> {
-    return await quickIntent(ask, text).catch(() => null) ?? await parseIntent(llm, text).catch(() => null);
+  async function open(_hand: unknown, url: string): Promise<void> {
+    if (url === at) return;
+    const window = await browserWindow(hand);
+    if (!window) throw new Error("The hand's browser is not in front.");
+    log(`Jev goes to ${url}`);
+    await handBrowser(hand).navigate(window, url);
+    await pageSettled(hand);
+    await signedIn();
+    at = url;
   }
+  const onScreen = async () => { const front = await userForeground().catch(() => null); return front ? titleForPlanner(front.title) : null; };
+  const pilot = createPilot({ ...deps, open, onScreen, contacts: opts.jevFirst?.contacts ?? await loadContacts(), store: opts.jevFirst?.store ?? await fileStore() });
 
   /** One Jev request: which app, and what kind of request this is. */
-  async function triage(text: string, catalog: InstalledApp[]) {
-    const apps = Object.fromEntries(catalog.filter((a) => !/chrome|edge|browser|firefox|brave/i.test(a.name)).slice(0, 240).map((a) => [a.id, a.name]));
-    const answers = await ask({ request: text }, {
-      app: choice("Which installed application does `request` name, or clearly need opened first? Anything on the web, a web site or a search is `browser`.", { ...apps, [BROWSER]: "The web browser: web sites, searching, anything online.", [NO_APP]: "No application needs opening, or it is unclear which." }),
-      only_open: noul("`request` asks only to open, start or show an application, and nothing more once it is open."),
-      wants_answer: noul("The speaker expects to be told something: a fact, a number, a summary or an answer read from the screen."),
-    });
-    return { app: answers.app.choice as string, sure: answers.app.confidence, onlyOpen: answers.only_open.noul, wantsAnswer: answers.wants_answer.noul };
+  async function triage(text: string, catalog: InstalledApp[]): Promise<Triage> {
+    const answers = await ask({ request: text }, triageQuestions(catalog));
+    return { app: answers.app.choice as string, sure: answers.app.confidence, onlyOpen: answers.only_open.noul, wantsAnswer: answers.wants_answer.noul, creative: answers.creative.noul };
   }
 
   async function work(text: string, opened: string[], utterance: string | undefined, speaking: Speaking, signal: AbortSignal): Promise<void> {
@@ -122,54 +193,83 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
     };
 
     const catalog = pi.apps();
-    // Both start now, but opening an application does not wait for the intent:
-    // when Jev alone cannot build it, that is a call to an LLM.
-    const building = buildIntent(text);
-    building.catch(() => {});
+    // One round of Jev, two requests side by side: which application, and is this a task Jev can set up alone?
+    const reading = pilot.read(text).catch(() => null);
     const kind = await triage(text, catalog).catch(() => null);
     if (signal.aborted) return;
-    const native = kind && kind.sure >= 0.6 && kind.app !== BROWSER && kind.app !== NO_APP;
-    if (!native) intent = await building ?? undefined;
-    if (signal.aborted) return;
-    const web = !native && (intent?.launcher === "browser" || kind?.app === BROWSER);
+    let understood = await reading;
+    const route = routeRequest(kind, understood?.by ?? null);
+    log(`Jev routes this to ${route.to}${route.to === "native" ? ` (${route.app})` : ""}`);
+    if (route.to === "vision") return handOver(route.why, null);
 
-    if (!web) {
-      const app = kind && kind.sure >= 0.6 ? catalog.find((a) => a.id === kind.app) : undefined;
-      if (!app) return handOver("it is not browser work and names no application", null);
+    if (route.to === "native" && kind) {
+      const app = catalog.find((a) => a.id === route.app);
+      if (!app) return handOver("it names an application that is not installed", null);
       mine.currentTool = `Opening ${app.name}`;
-      log(`Jev opens ${app.name} (${kind!.sure.toFixed(2)})`);
+      log(`Jev opens ${app.name} (${kind.sure.toFixed(2)})`);
       await windowsDesktop.launch(hand, app);
       opened = [...opened, app.name];
       mine.currentTool = null;
       // The words may still be arriving: judge "only open it" on what was finally said.
       await speaking?.speechEnds();
-      const final = said === text ? kind! : await triage(said, catalog).catch(() => kind!);
+      const final = said === text ? kind : await triage(said, catalog).catch(() => kind);
       if (final.onlyOpen >= 0.5) { mine.text = `${app.name} is open in hand ${hand.id}.`; log(mine.text); return; }
-      return handOver(`${app.name} is open; the rest is inside a native app`, null);
+      if (final.creative >= 0.6) return handOver(`${app.name} is open; the rest is made by eye, which Jev cannot do`, null);
+      // Jev drives the application itself when its window can be read (win/uia.ts): one text plan, then a screen's worth of actions per request.
+      const seen = await observeHand(hand).catch(() => null);
+      if (!seen?.elements.length) return handOver(`${app.name} is open; its window cannot be read as text`, null);
+      const planned = await planTasks(llm, said, { today: new Date(), contacts: [], app: app.name }).catch(() => null);
+      if (signal.aborted) return;
+      if (!planned?.length) return handOver(`${app.name} is open; Jev could not plan the rest`, null);
+      mine.currentTool = `Jev is driving ${app.name}`;
+      log(`Jev drives ${app.name}: ${planned[0]!.intent.goal}`);
+      const front = await frontOf(hand), sized = front ? { ...hand, width: front.rect[2], height: front.rect[3] } : hand;
+      const inApp = await runScreens(sized, planned[0]!.intent, deps, { signal, maxSteps: 16, maxPlans: 1 });
+      mine.currentTool = null;
+      log(`Jev: ${inApp.status} (${inApp.reason})`);
+      if (inApp.status === "cancelled" || signal.aborted) return;
+      if (inApp.status === "denied") { mine.text = "Stopped: you declined that action."; return; }
+      if (inApp.status !== "done") return handOver(`${app.name}: ${inApp.status}: ${inApp.reason}`, inApp);
+      mine.text = `Done: ${planned[0]!.intent.goal}`;
+      return;
     }
 
-    // Browser work: Jev drives.
-    intent ??= { goal: text, launcher: "browser", url: null, inputs: {}, doneWhen: `The screen shows that this is done: ${text}`, avoid: [] };
+    const plan = async () => {
+      try { return await pilot.understand(said); }
+      catch (error) { await handOver(error instanceof NotBrowserWork ? "it is not browser work and names no application" : `Jev could not plan it (${redact(error instanceof Error ? error.message : "no plan").slice(0, 120)})`, null); return null; }
+    };
+    if (route.to !== "browser") return;
+    if (understood?.by === "quick" && route.plan) understood = null;
+    // Neither a task Jev knows nor clearly the web: the planner says whether a browser can do it before one is opened.
+    if (!understood && !(kind?.app === BROWSER && kind.sure >= 0.6)) {
+      await speaking?.speechEnds();
+      if (signal.aborted || !(understood = await plan())) return;
+    }
+
+    // Browser work: Jev drives. The site starts loading while the speaker may still be talking;
+    // nothing is typed or clicked until the sentence is over, because the words are the task.
     mine.currentTool = "Opening the browser";
     await windowsDesktop.launch(hand, { id: BROWSER, name: "Web browser" } as unknown as InstalledApp);
-    const window = await browserWindow(hand);
-    if (window && intent.url) { log(`Jev goes to ${intent.url}`); await handBrowser(hand).navigate(window, intent.url); await pageSettled(hand); }
+    if (understood) await open(hand, understood.tasks[0]!.start).catch((error) => { if (error instanceof SignedOut) throw error; });
+    await speaking?.speechEnds();
+    if (signal.aborted) return;
+    // The final words: tier one again if they changed, and only now the plan, which costs an LLM call.
+    if ((!understood || said !== text) && !(understood = await plan())) return;
+    if (signal.aborted) return;
+    current = understood;
     mine.currentTool = "Jev is driving";
     // jev/cua.ts describes where things are ("top right") from the hand's size: here, the window's.
     const front = await frontOf(hand);
     const sized = front ? { ...hand, width: front.rect[2], height: front.rect[3] } : hand;
-    const result = await runIntent(sized, () => intent!, deps, {
-      signal, maxSteps: 16, maxPlans: 2,
-      settles: () => speaking?.speechEnds() ?? null,
-      riskThreshold: () => (speaking?.speechEnds() ? SPEAKING_RISK_THRESHOLD : RISK_THRESHOLD),
-    });
+    const outcome = await pilot.run(sized, said, { signal, maxSteps: 16, maxPlans: 2 }, understood);
+    const result = { status: outcome.status, reason: outcome.reason, steps: outcome.runs.flatMap((r) => r.steps) } satisfies RunResult;
     mine.currentTool = null;
     log(`Jev: ${result.status} (${result.reason})`);
     if (result.status === "cancelled" || signal.aborted) return;
     if (result.status === "denied") { mine.text = "Stopped: you declined that action."; return; }
     if (result.status !== "done") return handOver(`${result.status}: ${result.reason}`, result);
     const final = said === text && kind ? kind : await triage(said, catalog).catch(() => kind);
-    if ((final?.wantsAnswer ?? 0) >= 0.5) {
+    if ((final?.wantsAnswer ?? 0) >= 0.5 || outcome.wantsAnswer) {
       // Jev cannot write. One look by a vision model answers most questions; only
       // when the answer is not on this screen is a whole agent run worth its turns.
       mine.currentTool = "Reading the answer";
@@ -180,7 +280,7 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
       if (reply && !/NOT_VISIBLE/.test(reply.text)) { mine.text = reply.text; log(`Answered by ${reply.model} from one screenshot`); return; }
       return handOver("the page is open; the answer needs more than one look", result);
     }
-    mine.text = `Done: ${intent.goal}`;
+    mine.text = `Done: ${understood.tasks.map((t) => t.intent.goal).join(" ")}`;
   }
 
   return {
@@ -194,7 +294,7 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
     },
     async prompt(text, opened = [], utterance, speaking) {
       if (phase === "jev" || pi.status().running) throw new Error("The agent is busy. Stop it before starting another task.");
-      phase = "jev"; said = text; intent = undefined; startedAt = Date.now();
+      phase = "jev"; said = text; current = undefined; at = null; startedAt = Date.now();
       mine = { task: text, text: "", error: null, currentTool: "Jev is reading the request", approval: null, events: [] };
       abort = new AbortController(); settled = Promise.withResolvers<void>();
       const started = performance.now();
@@ -210,9 +310,10 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
       if (phase === "pi") return pi.refine(text, utterance);
       if (phase !== "jev" || text === said) return;
       said = text; mine.task = text;
-      // jev/cua.ts reads the intent again at every step, so a refined one takes effect on the next.
+      // Before the sentence is over, `work` reads `said` again by itself. Once Jev is driving, a single task is
+      // refined in place: jev/screen.ts reads the intent again at every look.
       const mineIs = ++rebuilding;
-      void buildIntent(text).then((next) => { if (next && mineIs === rebuilding && phase === "jev") intent = next; });
+      void pilot.read(text).then((next) => { if (next?.tasks.length === 1 && current?.tasks.length === 1 && mineIs === rebuilding && phase === "jev") current.tasks[0]!.intent = next.tasks[0]!.intent; }).catch(() => {});
     },
     approve(id, approved) {
       if (mine.approval?.id === id && settleApproval) { settleApproval(approved); return true; }
@@ -224,6 +325,7 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
       abort?.abort(); settleApproval?.(false);
       await settled.promise;
       await pi.close();
+      await releaseNative(hand).catch(() => {}); // applications kept awake while hidden go back to Windows
       // Pi's connection shares this hand's driver and may have closed it already.
       if (computer) await computer.then((c) => c.close()).catch(() => {});
     },

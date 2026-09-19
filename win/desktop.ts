@@ -14,10 +14,16 @@
  * Windows refuses to deliver in the background fails with an explanation. Set
  * PUK_WIN_BORROW=1 to let a hand switch to its desktop for those inputs.
  *
+ * A hand's browser is Puk's own profile, never the user's Chrome, so it knows
+ * only the sign-ins made inside it. `login` opens that profile as an ordinary
+ * window on the user's desktop, once; the hand keeps the sessions from then on.
+ *
  * CLI:
- *   bun win/desktop.ts up [n]     create the hand desktops
+ *   bun win/desktop.ts up [n]            create the hand desktops
  *   bun win/desktop.ts list
- *   bun win/desktop.ts down       remove them (their windows fall back to your desktop)
+ *   bun win/desktop.ts down              remove them (their windows fall back to your desktop)
+ *   bun win/desktop.ts login [n|all]     sign a hand's browser in to your sites, once
+ *   bun win/desktop.ts sessions [n|all]  which sites each hand's browser is signed in to
  */
 import { mkdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -26,6 +32,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { Ajv, AjvJsonSchemaValidator } from "@modelcontextprotocol/client/validators/ajv";
 import { debugLog, redact, subprocessEnv, type CuaConnection, type Hand, type InstalledApp } from "../desktop";
 import { browserInput } from "./browser";
+import { loginPage, loginTargets, parseDevToolsFile, seenByUser, signedInSites, signInWall, type Cookie, type Foreground, type SeenWindow, type Wall } from "./session";
 
 const WSL = process.platform === "linux";
 const ROOT = join(import.meta.dir, "..");
@@ -236,12 +243,16 @@ const refused = (error: unknown) => error instanceof Error && /background[_ ](de
 
 const pages = new Map<number, ReturnType<typeof browserInput>>();
 const relays = new Map<number, Promise<Helper>>();
-/** DevTools access to the hand's browser. One per hand: it remembers whether the address bar was aimed at. */
-export function handBrowser(hand: Hand) {
-  // Its own helper process: a page that stops answering must not hold up window
-  // state, launches or the other hands, which all share the main helper.
+/** The hand's own helper process for DevTools: a page that stops answering must not hold
+ * up window state, launches or the other hands, which all share the main helper. */
+function relayOf(hand: Hand): Promise<Helper> {
   const relay = relays.get(hand.id) ?? ensureHelper().then(createHelper);
   relays.set(hand.id, relay);
+  return relay;
+}
+/** DevTools access to the hand's browser. One per hand: it remembers whether the address bar was aimed at. */
+export function handBrowser(hand: Hand) {
+  const relay = relayOf(hand);
   const page = pages.get(hand.id) ?? browserInput(async (line) => (await relay).ask(line), (reread) => devtoolsPort(hand, reread),
     (where, error) => debugLog("win.devtools", { hand: hand.id, where, error: error instanceof Error ? error.message : String(error) }));
   pages.set(hand.id, page);
@@ -403,24 +414,28 @@ async function devtoolsPort(hand: Hand, reread = false): Promise<number | null> 
   return port;
 }
 
-async function browserCommand(hand: Hand) {
-  const { programs, local } = await windowsFolders();
+let browserExe: Promise<string> | undefined;
+/** Chrome, else Edge. The sign-in window must be the same program as the hand's browser: they share a profile. */
+const browserPath = () => browserExe ??= (async () => {
+  const { programs } = await windowsFolders();
   const candidates = [...programs.map((p) => `${p}\\Google\\Chrome\\Application\\chrome.exe`), ...programs.map((p) => `${p}\\Microsoft\\Edge\\Application\\msedge.exe`)];
-  for (const path of candidates) {
-    if (await Bun.file(await fromWindows(path)).exists()) return {
-      path,
-      // Its own profile keeps the user's browser untouched. A window on another
-      // desktop counts as occluded, and Chromium stops painting those.
-      additional_arguments: [`--user-data-dir=${await profile(hand)}`, "--no-first-run", "--no-default-browser-check", "--hide-crash-restore-bubble",
-        "--disable-features=CalculateNativeWinOcclusion,UseEcoQoSForBackgroundProcess", "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding", "--remote-debugging-port=0", "--force-device-scale-factor=1",
-        // Windows presents no frames for a window on another desktop, and Chrome paces
-        // a page by its frames: measured here, a hidden page got 0 animation frames and
-        // 0 timer ticks a second, and YouTube needed a minute to load. Unpaced: 43 and 99.
-        "--disable-gpu-vsync", "--disable-frame-rate-limit", "--disable-background-timer-throttling",
-        ...(process.env.PUK_WIN_BROWSER_FLAGS?.split(/\s+/).filter(Boolean) ?? []), "--new-window", "about:blank"],
-    };
-  }
+  for (const path of candidates) if (await Bun.file(await fromWindows(path)).exists()) return path;
   throw new Error("No Chrome or Edge installation was found.");
+})();
+
+async function browserCommand(hand: Hand) {
+  return {
+    path: await browserPath(),
+    // Its own profile keeps the user's browser untouched. A window on another
+    // desktop counts as occluded, and Chromium stops painting those.
+    additional_arguments: [`--user-data-dir=${await profile(hand)}`, "--no-first-run", "--no-default-browser-check", "--hide-crash-restore-bubble",
+      "--disable-features=CalculateNativeWinOcclusion,UseEcoQoSForBackgroundProcess", "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding", "--remote-debugging-port=0", "--force-device-scale-factor=1",
+      // Windows presents no frames for a window on another desktop, and Chrome paces
+      // a page by its frames: measured here, a hidden page got 0 animation frames and
+      // 0 timer ticks a second, and YouTube needed a minute to load. Unpaced: 43 and 99.
+      "--disable-gpu-vsync", "--disable-frame-rate-limit", "--disable-background-timer-throttling",
+      ...(process.env.PUK_WIN_BROWSER_FLAGS?.split(/\s+/).filter(Boolean) ?? []), "--new-window", "about:blank"],
+  };
 }
 
 /** Opt a hand's app out of Windows power throttling, which falls on every process
@@ -450,13 +465,27 @@ export async function launchInstalledApp(hand: Hand, app: InstalledApp, warmingU
   return mine;
 }
 
+/** Pure: a window already on the hand's desktop that is this application, the largest if several. Not for the browser, whose window must be the one with this hand's DevTools port. */
+export function adoptable<W extends { app: string; title: string; rect: [number, number, number, number]; iconic?: boolean }>(found: W[], appName: string): W | undefined {
+  const words = appName.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2);
+  if (!words.length) return undefined;
+  // Every word of the name, in the title or the process: "Paint" must not adopt "Paint 3D", nor "Notepad" a "Notepad++".
+  const same = (w: W) => { const text = `${w.title} ${w.app}`.toLowerCase(); return words.every((word) => text.includes(word)) && !/\+\+|\b3d\b/.test(text.replace(appName.toLowerCase(), "")); };
+  return found.filter((w) => !w.iconic && same(w)).toSorted((a, b) => b.rect[2] * b.rect[3] - a.rect[2] * a.rect[3])[0];
+}
+
 async function launchOne(hand: Hand, app: InstalledApp): Promise<number> {
   const mine = opened.get(hand.id) ?? new Map<string, number>();
   opened.set(hand.id, mine);
   // Chrome, Edge or "browser": the hand has one, and it is usually open already.
   const key = BROWSER.test(app.name) ? "browser" : app.id;
-  const existing = (await windows(hand)).find((w) => w.containerId === mine.get(key));
-  if (existing) { active.set(hand.id, existing.containerId); await ask(`raise ${existing.containerId}`); return existing.pid; }
+  // Starting it now would take the profile from under the window the user is signing in to.
+  if (key === "browser" && signingIn.has(hand.id)) throw new Error(`Hand ${hand.id}'s browser is open on your desktop for signing in. Close that window, then ask again.`);
+  const here = await windows(hand);
+  // What this process opened, or, after a restart, what an earlier one left on this hand's desktop: a second
+  // Calculator next to the first is two "focused" candidates for whoever reads the screen next.
+  const existing = here.find((w) => w.containerId === mine.get(key)) ?? (key === "browser" ? undefined : adoptable(here, app.name));
+  if (existing) { active.set(hand.id, existing.containerId); mine.set(key, existing.containerId); await ask(`raise ${existing.containerId}`); return existing.pid; }
 
   const before = new Set((JSON.parse(await ask("state")).windows as RawWindow[]).map((w) => w.containerId));
   const focus = await ask("fg");
@@ -511,6 +540,183 @@ async function launchOne(hand: Hand, app: InstalledApp): Promise<number> {
   return created.pid;
 }
 
+// ---------------------------------------------------------------- signing in
+
+/**
+ * A hand's browser is Puk's own profile, so it is signed in to nothing until the
+ * user signs in inside it. They do that in an ordinary window of the same profile
+ * on their own desktop, started WITHOUT the hand's flags: Google refuses sign-in
+ * ("This browser or app may not be secure") to a browser it takes for automated,
+ * and a DevTools port is one of the things it looks at. The sessions land in the
+ * profile; the hand's browser, DevTools and all, uses them from then on.
+ *
+ * One process per profile: Chrome hands a second launch over to the first. So the
+ * hand's browser is asked to close first, and cannot start while the window is open.
+ */
+export type SignIn = { state: "waiting" | "closing" | "open" | "checking" | "done" | "error"; sites: string[] | null; error?: string };
+const signIns = new Map<number, SignIn>();
+const signingIn = new Map<number, Promise<SignIn>>();
+/** Every sign-in asked for in this process, by hand. */
+export const signInStatus = (): Record<number, SignIn> => Object.fromEntries(signIns);
+/** A hand by number, whether or not its desktop exists: signing in needs only its profile. */
+export const handFor = (id: number): Hand => ({ id, pid: process.pid, display: id === 99 ? "Puk bench" : desktopName(id), ...EMPTY });
+
+/** Chrome keeps `lockfile` for as long as any process has the profile, with or without DevTools. */
+const profileInUse = async (hand: Hand) => Bun.file(await fromWindows(`${await profile(hand)}\\lockfile`)).exists();
+
+/** The hand's browser when it is running with DevTools. `DevToolsActivePort` outlives its
+ * browser, and the port it names may since be another program's: the browser that answers
+ * has to be the one that wrote the file. */
+async function liveBrowser(hand: Hand): Promise<string | null> {
+  const file = Bun.file(await fromWindows(`${await profile(hand)}\\DevToolsActivePort`));
+  const named = await file.exists() ? parseDevToolsFile(await file.text()) : null;
+  if (!named) return null;
+  const version = await (await relayOf(hand)).ask(`http http://127.0.0.1:${named.port}/json/version`).then((body) => JSON.parse(body) as { webSocketDebuggerUrl?: string }, () => null);
+  return version?.webSocketDebuggerUrl?.endsWith(named.browser) ? `ws://127.0.0.1:${named.port}${named.browser}` : null;
+}
+
+let calls = 1_000_000;
+/** One DevTools call to the browser itself, not a page. Replies are never logged: they can hold cookies. */
+async function browserCall(hand: Hand, ws: string, method: string, params: Record<string, unknown> = {}) {
+  const id = calls++;
+  const reply = JSON.parse(await (await relayOf(hand)).ask(`cdp ${ws} ${id} ${JSON.stringify({ id, method, params })}`));
+  if (reply.error) throw new Error(`${method}: ${reply.error.message}`);
+  return reply.result;
+}
+
+const cookieSites = async (hand: Hand, ws: string) =>
+  signedInSites(((await browserCall(hand, ws, "Storage.getCookies")).cookies as Cookie[]).map(({ name, domain, expires }) => ({ name, domain, expires })));
+
+/** The well-known sites this hand's browser is signed in to; null when that cannot be read right now.
+ * A running hand is asked over DevTools. Otherwise the profile is opened by a browser with no
+ * window that loads no page, so nothing is shown and no session is touched. */
+export async function handSessions(hand: Hand): Promise<string[] | null> {
+  const live = await liveBrowser(hand);
+  if (live) return cookieSites(hand, live);
+  if (await profileInUse(hand)) return null; // a window without DevTools has it: someone is signing in
+  const dir = await profile(hand);
+  if (!await Bun.file(await fromWindows(`${dir}\\Local State`)).exists()) return [];
+  await rm(await fromWindows(`${dir}\\DevToolsActivePort`), { force: true });
+  const proc = Bun.spawn([await fromWindows(await browserPath()), "--headless=new", `--user-data-dir=${dir}`, "--remote-debugging-port=0", "--no-first-run", "--no-default-browser-check", "about:blank"],
+    { env: subprocessEnv(), stdin: "ignore", stdout: "ignore", stderr: "ignore" });
+  try {
+    for (let i = 0; i < 40; i++) {
+      await Bun.sleep(500);
+      const ws = await liveBrowser(hand);
+      if (!ws) continue;
+      try { return await cookieSites(hand, ws); }
+      finally { await browserCall(hand, ws, "Browser.close").catch(() => {}); }
+    }
+    return null;
+  } finally {
+    await Promise.race([proc.exited, Bun.sleep(8000)]);
+    for (let i = 0; i < 20 && await profileInUse(hand); i++) await Bun.sleep(250);
+    proc.unref();
+  }
+}
+
+/** Ask the hand's own browser to leave its profile. A clean exit writes its cookies out; a kill may not. */
+async function releaseProfile(hand: Hand): Promise<void> {
+  if (!await profileInUse(hand)) return;
+  const live = await liveBrowser(hand);
+  if (!live) throw new Error(`Hand ${hand.id}'s browser is already open in a window of its own (an earlier sign-in?). Close that window first.`);
+  await browserCall(hand, live, "Browser.close").catch(() => {});
+  opened.get(hand.id)?.delete("browser"); browsers.delete(hand.id); ports.delete(hand.id);
+  for (let i = 0; i < 40 && await profileInUse(hand); i++) await Bun.sleep(250);
+  if (await profileInUse(hand)) throw new Error(`Hand ${hand.id}'s browser did not close.`);
+}
+
+/** The hand's profile as a plain window on the user's desktop. Runs as a launch, so that
+ * another hand starting an app at the same moment does not take this window for its own. */
+async function openSignInWindow(hand: Hand): Promise<void> {
+  if (/^Puk (hand \d+|bench)$/.test(JSON.parse(await ask("where")))) throw new Error("Go back to your own desktop first: the sign-in window opens where you are.");
+  const dir = await profile(hand), page = `${dir.slice(0, dir.lastIndexOf("\\"))}\\login.html`;
+  await mkdir(await fromWindows(dir.slice(0, dir.lastIndexOf("\\"))), { recursive: true });
+  await Bun.write(await fromWindows(page), loginPage(hand.id));
+  const before = new Set((JSON.parse(await ask("state")).windows as RawWindow[]).map((w) => w.containerId));
+  // No DevTools port and none of the hand's switches: to the sites this is the user's ordinary browser.
+  Bun.spawn([await fromWindows(await browserPath()), `--user-data-dir=${dir}`, "--no-first-run", "--no-default-browser-check", "--hide-crash-restore-bubble",
+    ...(process.env.PUK_WIN_LOGIN_FLAGS?.split(/\s+/).filter(Boolean) ?? []), "--new-window", encodeURI(`file:///${page.replaceAll("\\", "/")}`)],
+    { env: subprocessEnv(), stdin: "ignore", stdout: "ignore", stderr: "ignore" }).unref();
+  for (let i = 0; i < 100; i++) {
+    await Bun.sleep(200);
+    const seen = JSON.parse(await ask("state")).windows as RawWindow[];
+    if (seen.some((w) => !before.has(w.containerId) && /chrome|msedge/i.test(w.app) && w.rect[2] > 200 && w.rect[3] > 150)) return;
+  }
+  if (!await profileInUse(hand)) throw new Error("The sign-in window did not open.");
+}
+
+/** Open the hand's browser for the user to sign in, wait until they close it, and say what it is now
+ * signed in to. The one time a hand puts a window on the user's desktop, and only because they asked. */
+export function signIn(hand: Hand): Promise<SignIn> {
+  const running = signingIn.get(hand.id);
+  if (running) return running;
+  const note = (next: SignIn) => { signIns.set(hand.id, next); debugLog("win.login", { hand: hand.id, ...next }); return next; };
+  const mine = (async () => {
+    try {
+      note({ state: "closing", sites: null });
+      await warming.get(hand.id)?.catch(() => {});
+      await releaseProfile(hand);
+      const opening = launches.then(() => openSignInWindow(hand));
+      launches = opening.catch(() => {});
+      await opening;
+      note({ state: "open", sites: null });
+      for (let gone = 0; gone < 2;) { await Bun.sleep(1000); gone = await profileInUse(hand) ? 0 : gone + 1; }
+      note({ state: "checking", sites: null });
+      return note({ state: "done", sites: await handSessions(hand).catch(() => null) });
+    } catch (error) {
+      return note({ state: "error", sites: null, error: redact(error instanceof Error ? error.message : "Signing in failed.").slice(0, 400) });
+    } finally {
+      signingIn.delete(hand.id);
+      // A server had this hand's browser ready before; have it ready again.
+      if (warming.delete(hand.id)) void warmBrowser(hand).catch(() => {});
+    }
+  })();
+  signingIn.set(hand.id, mine);
+  return mine;
+}
+
+/** One hand after another: each window says which hand it is, and one at a time there is no mixing them up. */
+export async function signInAll(hands: Hand[]): Promise<SignIn[]> {
+  for (const hand of hands) if (!signingIn.has(hand.id)) signIns.set(hand.id, { state: "waiting", sites: null });
+  const done: SignIn[] = [];
+  for (const hand of hands) done.push(await signIn(hand));
+  return done;
+}
+
+/** The sign-in wall the hand's browser is standing at, or null. Read twice: a signed-in
+ * browser passes through the same addresses for a moment on its way to the site. */
+export async function handWall(hand: Hand): Promise<Wall | null> {
+  const read = async () => {
+    const window = await browserWindow(hand);
+    if (!window) return null;
+    const raw = await handBrowser(hand).evaluate(window, "JSON.stringify([location.href, document.title])");
+    const [url, title] = typeof raw === "string" ? JSON.parse(raw) as [string, string] : ["", window.title];
+    return signInWall(url, title, hand.id);
+  };
+  const first = await read();
+  if (!first) return null;
+  await Bun.sleep(700);
+  const second = await read();
+  return second?.site === first.site ? second : null;
+}
+
+// ---------------------------------------------------------------- what the user is looking at
+
+/** The window the user has in front of them on their own desktop: what "that email" or "this page"
+ * means. For understanding the request only. A hand never acts on it; it opens the same site in its
+ * own browser. Null when they are looking at a hand, or at nothing but the shell. */
+export const userForeground = async (): Promise<Foreground | null> => (await userWindows(1))[0] ?? null;
+
+/** The same, with what is behind it: the user's windows front to back. The one they mean is not
+ * always in front; a terminal or Puk's own panel may be, with Gmail right behind it. */
+export async function userWindows(limit = 5): Promise<Foreground[]> {
+  try {
+    const where = JSON.parse(await ask("where")) as string, seen = JSON.parse(await ask("state")).windows as SeenWindow[];
+    return seenByUser(seen, new Set([...owned.values()].flatMap((set) => [...set])), where).slice(0, limit);
+  } catch (error) { debugLog("win.foreground", String(error)); return []; }
+}
+
 // ---------------------------------------------------------------- shell
 
 /** Native Windows Bun has no bash; PowerShell takes its place. WSL keeps ai.ts's runBash. */
@@ -527,13 +733,52 @@ export const windowsDesktop = { discover: discoverApps, launch: launchInstalledA
 
 // ---------------------------------------------------------------- cli
 
+/** Pure: what to tell the user when a hand's sign-in changes state; "" when there is nothing new to say. */
+export function signInLine(id: number, now: SignIn): string {
+  if (now.state === "open") return `Hand ${id}: its browser is open on your desktop. Sign in to what this hand should use, then close the window.`;
+  if (now.state === "checking") return `Hand ${id}: window closed, looking at what it is signed in to.`;
+  if (now.state === "error") return `Hand ${id}: ${now.error ?? "signing in failed."}`;
+  if (now.state !== "done") return "";
+  if (!now.sites) return `Hand ${id}: could not read its sign-ins just now. Try: bun win/desktop.ts sessions ${id}`;
+  return now.sites.length ? `Hand ${id} is signed in to: ${now.sites.join(", ")}.` : `Hand ${id}: none of the sign-ins Puk knows how to recognise (Google, Microsoft, GitHub and the like). Others may still be there.`;
+}
+
 if (import.meta.main) {
-  const [command, count] = process.argv.slice(2);
+  const [command, count, ...more] = process.argv.slice(2);
   try {
     if (command === "up") console.log((await startHands(Math.max(1, Math.min(4, Number(count ?? 2) || 2)))).map((h) => h.display).join("\n"));
     else if (command === "down") await stopHands();
     else if (command === "list") console.log((await listHands()).map((h) => h.display).join("\n") || "No hands. Run: bun win/desktop.ts up");
-    else console.log("usage: bun win/desktop.ts up [n] | list | down");
+    else if (command === "login" || command === "sessions") {
+      const ids = loginTargets([count ?? "", ...more], (await listHands()).map((h) => h.id), Math.max(1, Math.min(4, Number(process.env.PUK_HANDS ?? 2) || 2)));
+      if (command === "sessions") {
+        for (const id of ids) console.log(signInLine(id, { state: "done", sites: await handSessions(handFor(id)).catch(() => null) }));
+      } else {
+        // A running Puk owns the hands' browsers: it has to be the one that closes and reopens them.
+        const server = `http://127.0.0.1:${process.env.PUK_PORT ?? 7777}/login`;
+        const read = (init?: RequestInit, query = "") => fetch(server + query, { ...init, signal: AbortSignal.timeout(5000) }).then(async (r) => ({ ok: r.ok, body: await r.json() as { puk?: string; error?: string; hands?: Record<string, SignIn> } }), () => null);
+        const remote = (await read())?.body.puk === "login";
+        if (remote) {
+          const asked = await read({ method: "POST" }, `?hand=${ids.join(",")}`);
+          if (!asked?.ok) throw new Error(asked?.body.error ?? "The running Puk did not take the request.");
+        } else void signInAll(ids.map(handFor));
+        const said = new Map<number, string>();
+        for (let finished = false, silent = 0; !finished;) {
+          await Bun.sleep(remote ? 1000 : 300);
+          const heard = remote ? (await read())?.body.hands : signInStatus();
+          if (!heard && ++silent > 5) throw new Error("The running Puk stopped answering. Any sign-in window that is open still works: finish there and close it.");
+          const hands = heard ?? {};
+          if (heard) silent = 0;
+          for (const id of ids) {
+            const line = hands[id] ? signInLine(id, hands[id]) : "";
+            if (line && said.get(id) !== line) { said.set(id, line); console.log(line); }
+          }
+          finished = ids.every((id) => ["done", "error"].includes(hands[id]?.state ?? ""));
+        }
+      }
+    }
+    else console.log("usage: bun win/desktop.ts up [n] | list | down | login [n|all] | sessions [n|all]");
   } catch (error) { console.error(error instanceof Error ? error.message : error); process.exitCode = 1; }
+  for (const relay of relays.values()) (await relay.catch(() => null))?.close();
   (await helper()).close();
 }

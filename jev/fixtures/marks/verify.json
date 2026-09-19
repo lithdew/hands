@@ -1,0 +1,134 @@
+{
+ "page": "verify",
+ "shot": "verify.png",
+ "inner": [
+  1280,
+  800
+ ],
+ "today": {
+  "url": "https://harness.invalid/verify",
+  "title": "Fieldnotes - Download the report",
+  "ready": "complete",
+  "elements": [
+   {
+    "role": "link",
+    "name": "Reports",
+    "editable": false,
+    "focused": false,
+    "within": "header",
+    "value": "",
+    "x": 1051.046875,
+    "y": 19.5,
+    "w": 50.65625,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Pricing",
+    "editable": false,
+    "focused": false,
+    "within": "header",
+    "value": "",
+    "x": 1125.703125,
+    "y": 19.5,
+    "w": 45.140625,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Sign in",
+    "editable": false,
+    "focused": false,
+    "within": "header",
+    "value": "",
+    "x": 1194.84375,
+    "y": 19.5,
+    "w": 45.15625,
+    "h": 20
+   }
+  ],
+  "texts": [
+   "Annual report 2026",
+   "PDF, 4.2 MB. Before the download starts, please confirm that you are a person."
+  ]
+ },
+ "next": {
+  "url": "https://harness.invalid/verify",
+  "title": "Fieldnotes - Download the report",
+  "ready": "complete",
+  "elements": [
+   {
+    "role": "link",
+    "name": "Reports",
+    "editable": false,
+    "focused": false,
+    "within": "header",
+    "value": "",
+    "x": 1051.046875,
+    "y": 19.5,
+    "w": 50.65625,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Pricing",
+    "editable": false,
+    "focused": false,
+    "within": "header",
+    "value": "",
+    "x": 1125.703125,
+    "y": 19.5,
+    "w": 45.140625,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Sign in",
+    "editable": false,
+    "focused": false,
+    "within": "header",
+    "value": "",
+    "x": 1194.84375,
+    "y": 19.5,
+    "w": 45.15625,
+    "h": 20
+   }
+  ],
+  "texts": [
+   "Annual report 2026",
+   "PDF, 4.2 MB. Before the download starts, please confirm that you are a person."
+  ],
+  "unnamed": [],
+  "opaque": [
+   {
+    "kind": "iframe",
+    "name": "",
+    "x": 423,
+    "y": 290,
+    "w": 320,
+    "h": 86
+   }
+  ]
+ },
+ "gold": {},
+ "controls": [
+  {
+   "x": 1051.046875,
+   "y": 19.5,
+   "w": 50.65625,
+   "h": 20
+  },
+  {
+   "x": 1125.703125,
+   "y": 19.5,
+   "w": 45.140625,
+   "h": 20
+  },
+  {
+   "x": 1194.84375,
+   "y": 19.5,
+   "w": 45.15625,
+   "h": 20
+  }
+ ]
+}

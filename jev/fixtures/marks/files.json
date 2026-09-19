@@ -1,0 +1,1165 @@
+{
+ "page": "files",
+ "shot": "files.png",
+ "inner": [
+  1280,
+  800
+ ],
+ "today": {
+  "url": "https://harness.invalid/files",
+  "title": "Harbor Drive - My files",
+  "ready": "complete",
+  "elements": [
+   {
+    "role": "link",
+    "name": "My files",
+    "editable": false,
+    "focused": false,
+    "within": "nav",
+    "value": "",
+    "x": 12,
+    "y": 60,
+    "w": 195,
+    "h": 37
+   },
+   {
+    "role": "link",
+    "name": "Shared with me",
+    "editable": false,
+    "focused": false,
+    "within": "nav",
+    "value": "",
+    "x": 12,
+    "y": 97,
+    "w": 195,
+    "h": 37
+   },
+   {
+    "role": "link",
+    "name": "Recent",
+    "editable": false,
+    "focused": false,
+    "within": "nav",
+    "value": "",
+    "x": 12,
+    "y": 134,
+    "w": 195,
+    "h": 37
+   },
+   {
+    "role": "link",
+    "name": "Bin",
+    "editable": false,
+    "focused": false,
+    "within": "nav",
+    "value": "",
+    "x": 12,
+    "y": 171,
+    "w": 195,
+    "h": 37
+   },
+   {
+    "role": "text field",
+    "name": "Search files",
+    "editable": true,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 882.109375,
+    "y": 25,
+    "w": 280,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "name": "Upload",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 1174.109375,
+    "y": 25,
+    "w": 73.890625,
+    "h": 34
+   },
+   {
+    "role": "link",
+    "name": "budget-2026.xlsx",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 262,
+    "y": 133,
+    "w": 109.125,
+    "h": 19
+   },
+   {
+    "role": "button",
+    "name": "Open",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 861.84375,
+    "y": 127.5,
+    "w": 60.03125,
+    "h": 30
+   },
+   {
+    "role": "link",
+    "name": "holiday-photos.zip",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 262,
+    "y": 189,
+    "w": 118.609375,
+    "h": 19
+   },
+   {
+    "role": "button",
+    "name": "Open",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 861.84375,
+    "y": 183.5,
+    "w": 60.03125,
+    "h": 30
+   },
+   {
+    "role": "link",
+    "name": "report-q3.pdf",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 262,
+    "y": 245,
+    "w": 86.140625,
+    "h": 19
+   },
+   {
+    "role": "button",
+    "name": "Open",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 861.84375,
+    "y": 239.5,
+    "w": 60.03125,
+    "h": 30
+   },
+   {
+    "role": "link",
+    "name": "invoice-0142.pdf",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 262,
+    "y": 301,
+    "w": 104.8125,
+    "h": 19
+   },
+   {
+    "role": "button",
+    "name": "Open",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 861.84375,
+    "y": 295.5,
+    "w": 60.03125,
+    "h": 30
+   },
+   {
+    "role": "link",
+    "name": "lease-agreement.docx",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 262,
+    "y": 357,
+    "w": 140.015625,
+    "h": 19
+   },
+   {
+    "role": "button",
+    "name": "Open",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 861.84375,
+    "y": 351.5,
+    "w": 60.03125,
+    "h": 30
+   },
+   {
+    "role": "link",
+    "name": "team-offsite-notes.txt",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 262,
+    "y": 413,
+    "w": 138.953125,
+    "h": 19
+   },
+   {
+    "role": "button",
+    "name": "Open",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 861.84375,
+    "y": 407.5,
+    "w": 60.03125,
+    "h": 30
+   },
+   {
+    "role": "link",
+    "name": "logo-final-v3.png",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 262,
+    "y": 469,
+    "w": 110.984375,
+    "h": 19
+   },
+   {
+    "role": "button",
+    "name": "Open",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 861.84375,
+    "y": 463.5,
+    "w": 60.03125,
+    "h": 30
+   }
+  ],
+  "texts": [
+   "My files",
+   "budget-2026.xlsx",
+   "48 KB",
+   "Today",
+   "Open",
+   "holiday-photos.zip",
+   "312 MB",
+   "Yesterday",
+   "Open",
+   "report-q3.pdf",
+   "1.2 MB",
+   "14 Sept",
+   "Open",
+   "invoice-0142.pdf"
+  ]
+ },
+ "next": {
+  "url": "https://harness.invalid/files",
+  "title": "Harbor Drive - My files",
+  "ready": "complete",
+  "elements": [
+   {
+    "role": "link",
+    "name": "My files",
+    "editable": false,
+    "focused": false,
+    "within": "nav",
+    "value": "",
+    "x": 12,
+    "y": 60,
+    "w": 195,
+    "h": 37
+   },
+   {
+    "role": "link",
+    "name": "Shared with me",
+    "editable": false,
+    "focused": false,
+    "within": "nav",
+    "value": "",
+    "x": 12,
+    "y": 97,
+    "w": 195,
+    "h": 37
+   },
+   {
+    "role": "link",
+    "name": "Recent",
+    "editable": false,
+    "focused": false,
+    "within": "nav",
+    "value": "",
+    "x": 12,
+    "y": 134,
+    "w": 195,
+    "h": 37
+   },
+   {
+    "role": "link",
+    "name": "Bin",
+    "editable": false,
+    "focused": false,
+    "within": "nav",
+    "value": "",
+    "x": 12,
+    "y": 171,
+    "w": 195,
+    "h": 37
+   },
+   {
+    "role": "text field",
+    "name": "Search files",
+    "editable": true,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 882.109375,
+    "y": 25,
+    "w": 280,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "name": "Upload",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 1174.109375,
+    "y": 25,
+    "w": 73.890625,
+    "h": 34
+   },
+   {
+    "role": "link",
+    "name": "budget-2026.xlsx",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 262,
+    "y": 133,
+    "w": 109.125,
+    "h": 19
+   },
+   {
+    "role": "button",
+    "name": "Open",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 861.84375,
+    "y": 127.5,
+    "w": 60.03125,
+    "h": 30
+   },
+   {
+    "role": "link",
+    "name": "holiday-photos.zip",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 262,
+    "y": 189,
+    "w": 118.609375,
+    "h": 19
+   },
+   {
+    "role": "button",
+    "name": "Open",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 861.84375,
+    "y": 183.5,
+    "w": 60.03125,
+    "h": 30
+   },
+   {
+    "role": "link",
+    "name": "report-q3.pdf",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 262,
+    "y": 245,
+    "w": 86.140625,
+    "h": 19
+   },
+   {
+    "role": "button",
+    "name": "Open",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 861.84375,
+    "y": 239.5,
+    "w": 60.03125,
+    "h": 30
+   },
+   {
+    "role": "link",
+    "name": "invoice-0142.pdf",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 262,
+    "y": 301,
+    "w": 104.8125,
+    "h": 19
+   },
+   {
+    "role": "button",
+    "name": "Open",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 861.84375,
+    "y": 295.5,
+    "w": 60.03125,
+    "h": 30
+   },
+   {
+    "role": "link",
+    "name": "lease-agreement.docx",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 262,
+    "y": 357,
+    "w": 140.015625,
+    "h": 19
+   },
+   {
+    "role": "button",
+    "name": "Open",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 861.84375,
+    "y": 351.5,
+    "w": 60.03125,
+    "h": 30
+   },
+   {
+    "role": "link",
+    "name": "team-offsite-notes.txt",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 262,
+    "y": 413,
+    "w": 138.953125,
+    "h": 19
+   },
+   {
+    "role": "button",
+    "name": "Open",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 861.84375,
+    "y": 407.5,
+    "w": 60.03125,
+    "h": 30
+   },
+   {
+    "role": "link",
+    "name": "logo-final-v3.png",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 262,
+    "y": 469,
+    "w": 110.984375,
+    "h": 19
+   },
+   {
+    "role": "button",
+    "name": "Open",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 861.84375,
+    "y": 463.5,
+    "w": 60.03125,
+    "h": 30
+   }
+  ],
+  "texts": [
+   "My files",
+   "budget-2026.xlsx",
+   "48 KB",
+   "Today",
+   "Open",
+   "holiday-photos.zip",
+   "312 MB",
+   "Yesterday",
+   "Open",
+   "report-q3.pdf",
+   "1.2 MB",
+   "14 Sept",
+   "Open",
+   "invoice-0142.pdf"
+  ],
+  "unnamed": [
+   {
+    "role": "button",
+    "within": "",
+    "row": "budget-2026.xlsx 48 KB Today Open",
+    "after": 8,
+    "x": 1018.75,
+    "y": 125.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "budget-2026.xlsx 48 KB Today Open",
+    "after": 8,
+    "x": 1052.75,
+    "y": 125.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "budget-2026.xlsx 48 KB Today Open",
+    "after": 8,
+    "x": 1086.75,
+    "y": 125.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "holiday-photos.zip 312 MB Yesterday Open",
+    "after": 10,
+    "x": 1018.75,
+    "y": 181.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "holiday-photos.zip 312 MB Yesterday Open",
+    "after": 10,
+    "x": 1052.75,
+    "y": 181.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "holiday-photos.zip 312 MB Yesterday Open",
+    "after": 10,
+    "x": 1086.75,
+    "y": 181.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "report-q3.pdf 1.2 MB 14 Sept Open",
+    "after": 12,
+    "x": 1018.75,
+    "y": 237.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "report-q3.pdf 1.2 MB 14 Sept Open",
+    "after": 12,
+    "x": 1052.75,
+    "y": 237.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "report-q3.pdf 1.2 MB 14 Sept Open",
+    "after": 12,
+    "x": 1086.75,
+    "y": 237.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "invoice-0142.pdf 88 KB 11 Sept Open",
+    "after": 14,
+    "x": 1018.75,
+    "y": 293.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "invoice-0142.pdf 88 KB 11 Sept Open",
+    "after": 14,
+    "x": 1052.75,
+    "y": 293.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "invoice-0142.pdf 88 KB 11 Sept Open",
+    "after": 14,
+    "x": 1086.75,
+    "y": 293.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "lease-agreement.docx 64 KB 2 Sept Open",
+    "after": 16,
+    "x": 1018.75,
+    "y": 349.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "lease-agreement.docx 64 KB 2 Sept Open",
+    "after": 16,
+    "x": 1052.75,
+    "y": 349.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "lease-agreement.docx 64 KB 2 Sept Open",
+    "after": 16,
+    "x": 1086.75,
+    "y": 349.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "team-offsite-notes.txt 4 KB 29 Aug Open",
+    "after": 18,
+    "x": 1018.75,
+    "y": 405.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "team-offsite-notes.txt 4 KB 29 Aug Open",
+    "after": 18,
+    "x": 1052.75,
+    "y": 405.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "team-offsite-notes.txt 4 KB 29 Aug Open",
+    "after": 18,
+    "x": 1086.75,
+    "y": 405.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "logo-final-v3.png 740 KB 21 Aug Open",
+    "after": 20,
+    "x": 1018.75,
+    "y": 461.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "logo-final-v3.png 740 KB 21 Aug Open",
+    "after": 20,
+    "x": 1052.75,
+    "y": 461.5,
+    "w": 34,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "logo-final-v3.png 740 KB 21 Aug Open",
+    "after": 20,
+    "x": 1086.75,
+    "y": 461.5,
+    "w": 34,
+    "h": 34
+   }
+  ],
+  "opaque": []
+ },
+ "gold": {
+  "open_budget_2026": {
+   "x": 861.84375,
+   "y": 127.5,
+   "w": 60.03125,
+   "h": 30
+  },
+  "download_budget_2026": {
+   "x": 1018.75,
+   "y": 125.5,
+   "w": 34,
+   "h": 34
+  },
+  "share_budget_2026": {
+   "x": 1052.75,
+   "y": 125.5,
+   "w": 34,
+   "h": 34
+  },
+  "trash_budget_2026": {
+   "x": 1086.75,
+   "y": 125.5,
+   "w": 34,
+   "h": 34
+  },
+  "open_holiday_photos": {
+   "x": 861.84375,
+   "y": 183.5,
+   "w": 60.03125,
+   "h": 30
+  },
+  "download_holiday_photos": {
+   "x": 1018.75,
+   "y": 181.5,
+   "w": 34,
+   "h": 34
+  },
+  "share_holiday_photos": {
+   "x": 1052.75,
+   "y": 181.5,
+   "w": 34,
+   "h": 34
+  },
+  "trash_holiday_photos": {
+   "x": 1086.75,
+   "y": 181.5,
+   "w": 34,
+   "h": 34
+  },
+  "open_report_q3": {
+   "x": 861.84375,
+   "y": 239.5,
+   "w": 60.03125,
+   "h": 30
+  },
+  "download_report_q3": {
+   "x": 1018.75,
+   "y": 237.5,
+   "w": 34,
+   "h": 34
+  },
+  "share_report_q3": {
+   "x": 1052.75,
+   "y": 237.5,
+   "w": 34,
+   "h": 34
+  },
+  "trash_report_q3": {
+   "x": 1086.75,
+   "y": 237.5,
+   "w": 34,
+   "h": 34
+  },
+  "open_invoice_0142": {
+   "x": 861.84375,
+   "y": 295.5,
+   "w": 60.03125,
+   "h": 30
+  },
+  "download_invoice_0142": {
+   "x": 1018.75,
+   "y": 293.5,
+   "w": 34,
+   "h": 34
+  },
+  "share_invoice_0142": {
+   "x": 1052.75,
+   "y": 293.5,
+   "w": 34,
+   "h": 34
+  },
+  "trash_invoice_0142": {
+   "x": 1086.75,
+   "y": 293.5,
+   "w": 34,
+   "h": 34
+  },
+  "open_lease_agreement": {
+   "x": 861.84375,
+   "y": 351.5,
+   "w": 60.03125,
+   "h": 30
+  },
+  "download_lease_agreement": {
+   "x": 1018.75,
+   "y": 349.5,
+   "w": 34,
+   "h": 34
+  },
+  "share_lease_agreement": {
+   "x": 1052.75,
+   "y": 349.5,
+   "w": 34,
+   "h": 34
+  },
+  "trash_lease_agreement": {
+   "x": 1086.75,
+   "y": 349.5,
+   "w": 34,
+   "h": 34
+  },
+  "open_team_offsite_notes": {
+   "x": 861.84375,
+   "y": 407.5,
+   "w": 60.03125,
+   "h": 30
+  },
+  "download_team_offsite_notes": {
+   "x": 1018.75,
+   "y": 405.5,
+   "w": 34,
+   "h": 34
+  },
+  "share_team_offsite_notes": {
+   "x": 1052.75,
+   "y": 405.5,
+   "w": 34,
+   "h": 34
+  },
+  "trash_team_offsite_notes": {
+   "x": 1086.75,
+   "y": 405.5,
+   "w": 34,
+   "h": 34
+  },
+  "open_logo_final_v3": {
+   "x": 861.84375,
+   "y": 463.5,
+   "w": 60.03125,
+   "h": 30
+  },
+  "download_logo_final_v3": {
+   "x": 1018.75,
+   "y": 461.5,
+   "w": 34,
+   "h": 34
+  },
+  "share_logo_final_v3": {
+   "x": 1052.75,
+   "y": 461.5,
+   "w": 34,
+   "h": 34
+  },
+  "trash_logo_final_v3": {
+   "x": 1086.75,
+   "y": 461.5,
+   "w": 34,
+   "h": 34
+  }
+ },
+ "controls": [
+  {
+   "x": 12,
+   "y": 60,
+   "w": 195,
+   "h": 37
+  },
+  {
+   "x": 12,
+   "y": 97,
+   "w": 195,
+   "h": 37
+  },
+  {
+   "x": 12,
+   "y": 134,
+   "w": 195,
+   "h": 37
+  },
+  {
+   "x": 12,
+   "y": 171,
+   "w": 195,
+   "h": 37
+  },
+  {
+   "x": 882.109375,
+   "y": 25,
+   "w": 280,
+   "h": 34
+  },
+  {
+   "x": 1174.109375,
+   "y": 25,
+   "w": 73.890625,
+   "h": 34
+  },
+  {
+   "x": 262,
+   "y": 133,
+   "w": 109.125,
+   "h": 19
+  },
+  {
+   "x": 861.84375,
+   "y": 127.5,
+   "w": 60.03125,
+   "h": 30
+  },
+  {
+   "x": 1018.75,
+   "y": 125.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 1052.75,
+   "y": 125.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 1086.75,
+   "y": 125.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 262,
+   "y": 189,
+   "w": 118.609375,
+   "h": 19
+  },
+  {
+   "x": 861.84375,
+   "y": 183.5,
+   "w": 60.03125,
+   "h": 30
+  },
+  {
+   "x": 1018.75,
+   "y": 181.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 1052.75,
+   "y": 181.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 1086.75,
+   "y": 181.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 262,
+   "y": 245,
+   "w": 86.140625,
+   "h": 19
+  },
+  {
+   "x": 861.84375,
+   "y": 239.5,
+   "w": 60.03125,
+   "h": 30
+  },
+  {
+   "x": 1018.75,
+   "y": 237.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 1052.75,
+   "y": 237.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 1086.75,
+   "y": 237.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 262,
+   "y": 301,
+   "w": 104.8125,
+   "h": 19
+  },
+  {
+   "x": 861.84375,
+   "y": 295.5,
+   "w": 60.03125,
+   "h": 30
+  },
+  {
+   "x": 1018.75,
+   "y": 293.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 1052.75,
+   "y": 293.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 1086.75,
+   "y": 293.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 262,
+   "y": 357,
+   "w": 140.015625,
+   "h": 19
+  },
+  {
+   "x": 861.84375,
+   "y": 351.5,
+   "w": 60.03125,
+   "h": 30
+  },
+  {
+   "x": 1018.75,
+   "y": 349.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 1052.75,
+   "y": 349.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 1086.75,
+   "y": 349.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 262,
+   "y": 413,
+   "w": 138.953125,
+   "h": 19
+  },
+  {
+   "x": 861.84375,
+   "y": 407.5,
+   "w": 60.03125,
+   "h": 30
+  },
+  {
+   "x": 1018.75,
+   "y": 405.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 1052.75,
+   "y": 405.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 1086.75,
+   "y": 405.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 262,
+   "y": 469,
+   "w": 110.984375,
+   "h": 19
+  },
+  {
+   "x": 861.84375,
+   "y": 463.5,
+   "w": 60.03125,
+   "h": 30
+  },
+  {
+   "x": 1018.75,
+   "y": 461.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 1052.75,
+   "y": 461.5,
+   "w": 34,
+   "h": 34
+  },
+  {
+   "x": 1086.75,
+   "y": 461.5,
+   "w": 34,
+   "h": 34
+  }
+ ]
+}

@@ -1,0 +1,2287 @@
+{
+ "url": "https://news.ycombinator.com/",
+ "fetched": "2026-09-19T12:53:54.877Z",
+ "title": "Hacker News",
+ "texts": [],
+ "elements": [
+  {
+   "role": "link",
+   "name": "Hacker News",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/news",
+   "icon": false,
+   "row": "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin"
+  },
+  {
+   "role": "link",
+   "name": "new",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/newest",
+   "icon": false,
+   "row": "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin"
+  },
+  {
+   "role": "link",
+   "name": "past",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/front",
+   "icon": false,
+   "row": "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin"
+  },
+  {
+   "role": "link",
+   "name": "comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/newcomments",
+   "icon": false,
+   "row": "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin"
+  },
+  {
+   "role": "link",
+   "name": "ask",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/ask",
+   "icon": false,
+   "row": "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin"
+  },
+  {
+   "role": "link",
+   "name": "show",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/show",
+   "icon": false,
+   "row": "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin"
+  },
+  {
+   "role": "link",
+   "name": "jobs",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/jobs",
+   "icon": false,
+   "row": "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin"
+  },
+  {
+   "role": "link",
+   "name": "submit",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/submit",
+   "icon": false,
+   "row": "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin"
+  },
+  {
+   "role": "link",
+   "name": "login",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/login?goto=news",
+   "icon": false,
+   "row": "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49764791&how=up&goto=news",
+   "icon": true,
+   "row": "1.AI-generated posters don’t have to be horrible (john.hartnup.uk)"
+  },
+  {
+   "role": "link",
+   "name": "AI-generated posters don’t have to be horrible",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://john.hartnup.uk/2026/06/07/ai-event-posters.html",
+   "icon": false,
+   "row": "1.AI-generated posters don’t have to be horrible (john.hartnup.uk)"
+  },
+  {
+   "role": "link",
+   "name": "john.hartnup.uk",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=john.hartnup.uk",
+   "icon": false,
+   "row": "1.AI-generated posters don’t have to be horrible (john.hartnup.uk)"
+  },
+  {
+   "role": "link",
+   "name": "ereiamjh",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=ereiamjh",
+   "icon": false,
+   "row": "352 points by ereiamjh 3 hours ago | hide | 225 comments"
+  },
+  {
+   "role": "link",
+   "name": "3 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49764791",
+   "icon": false,
+   "row": "352 points by ereiamjh 3 hours ago | hide | 225 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49764791&goto=news",
+   "icon": false,
+   "row": "352 points by ereiamjh 3 hours ago | hide | 225 comments"
+  },
+  {
+   "role": "link",
+   "name": "225 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49764791",
+   "icon": false,
+   "row": "352 points by ereiamjh 3 hours ago | hide | 225 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49765348&how=up&goto=news",
+   "icon": true,
+   "row": "2.Laya the open source version of Jev (convaiinnovations.com)"
+  },
+  {
+   "role": "link",
+   "name": "Laya the open source version of Jev",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://laya.convaiinnovations.com/",
+   "icon": false,
+   "row": "2.Laya the open source version of Jev (convaiinnovations.com)"
+  },
+  {
+   "role": "link",
+   "name": "convaiinnovations.com",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=convaiinnovations.com",
+   "icon": false,
+   "row": "2.Laya the open source version of Jev (convaiinnovations.com)"
+  },
+  {
+   "role": "link",
+   "name": "nandakishor_ml",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=nandakishor_ml",
+   "icon": false,
+   "row": "76 points by nandakishor_ml 2 hours ago | hide | 13 comments"
+  },
+  {
+   "role": "link",
+   "name": "2 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49765348",
+   "icon": false,
+   "row": "76 points by nandakishor_ml 2 hours ago | hide | 13 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49765348&goto=news",
+   "icon": false,
+   "row": "76 points by nandakishor_ml 2 hours ago | hide | 13 comments"
+  },
+  {
+   "role": "link",
+   "name": "13 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49765348",
+   "icon": false,
+   "row": "76 points by nandakishor_ml 2 hours ago | hide | 13 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49763697&how=up&goto=news",
+   "icon": true,
+   "row": "3.Human brain is two separate organs, Stanford Medicine-led research finds (stanford.edu)"
+  },
+  {
+   "role": "link",
+   "name": "Human brain is two separate organs, Stanford Medicine-led research finds",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://med.stanford.edu/news/all-news/2026/09/two-separate-brains.html",
+   "icon": false,
+   "row": "3.Human brain is two separate organs, Stanford Medicine-led research finds (stanford.edu)"
+  },
+  {
+   "role": "link",
+   "name": "stanford.edu",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=stanford.edu",
+   "icon": false,
+   "row": "3.Human brain is two separate organs, Stanford Medicine-led research finds (stanford.edu)"
+  },
+  {
+   "role": "link",
+   "name": "emigre",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=emigre",
+   "icon": false,
+   "row": "337 points by emigre 7 hours ago | hide | 125 comments"
+  },
+  {
+   "role": "link",
+   "name": "7 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49763697",
+   "icon": false,
+   "row": "337 points by emigre 7 hours ago | hide | 125 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49763697&goto=news",
+   "icon": false,
+   "row": "337 points by emigre 7 hours ago | hide | 125 comments"
+  },
+  {
+   "role": "link",
+   "name": "125 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49763697",
+   "icon": false,
+   "row": "337 points by emigre 7 hours ago | hide | 125 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49720143&how=up&goto=news",
+   "icon": true,
+   "row": "4.“The Secret Life of Circuits” is here (coredump.cx)"
+  },
+  {
+   "role": "link",
+   "name": "“The Secret Life of Circuits” is here",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://blog.coredump.cx/p/the-secret-life-of-circuits-is-here",
+   "icon": false,
+   "row": "4.“The Secret Life of Circuits” is here (coredump.cx)"
+  },
+  {
+   "role": "link",
+   "name": "coredump.cx",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=coredump.cx",
+   "icon": false,
+   "row": "4.“The Secret Life of Circuits” is here (coredump.cx)"
+  },
+  {
+   "role": "link",
+   "name": "surprisetalk",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=surprisetalk",
+   "icon": false,
+   "row": "102 points by surprisetalk 4 hours ago | hide | 30 comments"
+  },
+  {
+   "role": "link",
+   "name": "4 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49720143",
+   "icon": false,
+   "row": "102 points by surprisetalk 4 hours ago | hide | 30 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49720143&goto=news",
+   "icon": false,
+   "row": "102 points by surprisetalk 4 hours ago | hide | 30 comments"
+  },
+  {
+   "role": "link",
+   "name": "30 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49720143",
+   "icon": false,
+   "row": "102 points by surprisetalk 4 hours ago | hide | 30 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49763928&how=up&goto=news",
+   "icon": true,
+   "row": "5.If math is more than proof, we need to better celebrate the rest of it (terrytao.wordpress.com)"
+  },
+  {
+   "role": "link",
+   "name": "If math is more than proof, we need to better celebrate the rest of it",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://terrytao.wordpress.com/2026/09/18/if-math-is-more-than-proof-we-need-to-better-celebrate-the-rest-of-it/",
+   "icon": false,
+   "row": "5.If math is more than proof, we need to better celebrate the rest of it (terrytao.wordpress.com)"
+  },
+  {
+   "role": "link",
+   "name": "terrytao.wordpress.com",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=terrytao.wordpress.com",
+   "icon": false,
+   "row": "5.If math is more than proof, we need to better celebrate the rest of it (terrytao.wordpress.com)"
+  },
+  {
+   "role": "link",
+   "name": "num42",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=num42",
+   "icon": false,
+   "row": "162 points by num42 6 hours ago | hide | 114 comments"
+  },
+  {
+   "role": "link",
+   "name": "6 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49763928",
+   "icon": false,
+   "row": "162 points by num42 6 hours ago | hide | 114 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49763928&goto=news",
+   "icon": false,
+   "row": "162 points by num42 6 hours ago | hide | 114 comments"
+  },
+  {
+   "role": "link",
+   "name": "114 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49763928",
+   "icon": false,
+   "row": "162 points by num42 6 hours ago | hide | 114 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49763987&how=up&goto=news",
+   "icon": true,
+   "row": "6.GPT-6 Astra Solves a WWI German Radio Cipher (prinzai.com)"
+  },
+  {
+   "role": "link",
+   "name": "GPT-6 Astra Solves a WWI German Radio Cipher",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://www.prinzai.com/p/gpt-6-astra-solves-a-wwi-german-radio",
+   "icon": false,
+   "row": "6.GPT-6 Astra Solves a WWI German Radio Cipher (prinzai.com)"
+  },
+  {
+   "role": "link",
+   "name": "prinzai.com",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=prinzai.com",
+   "icon": false,
+   "row": "6.GPT-6 Astra Solves a WWI German Radio Cipher (prinzai.com)"
+  },
+  {
+   "role": "link",
+   "name": "nsoonhui",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=nsoonhui",
+   "icon": false,
+   "row": "164 points by nsoonhui 6 hours ago | hide | 93 comments"
+  },
+  {
+   "role": "link",
+   "name": "6 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49763987",
+   "icon": false,
+   "row": "164 points by nsoonhui 6 hours ago | hide | 93 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49763987&goto=news",
+   "icon": false,
+   "row": "164 points by nsoonhui 6 hours ago | hide | 93 comments"
+  },
+  {
+   "role": "link",
+   "name": "93 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49763987",
+   "icon": false,
+   "row": "164 points by nsoonhui 6 hours ago | hide | 93 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49758736&how=up&goto=news",
+   "icon": true,
+   "row": "7.Android 17 is the first since 3.x to add new APIs without releasing to the AOSP (grapheneos.social)"
+  },
+  {
+   "role": "link",
+   "name": "Android 17 is the first since 3.x to add new APIs without releasing to the AOSP",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://grapheneos.social/@GrapheneOS/117282080803799576",
+   "icon": false,
+   "row": "7.Android 17 is the first since 3.x to add new APIs without releasing to the AOSP (grapheneos.social)"
+  },
+  {
+   "role": "link",
+   "name": "grapheneos.social",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=grapheneos.social",
+   "icon": false,
+   "row": "7.Android 17 is the first since 3.x to add new APIs without releasing to the AOSP (grapheneos.social)"
+  },
+  {
+   "role": "link",
+   "name": "theanonymousone",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=theanonymousone",
+   "icon": false,
+   "row": "887 points by theanonymousone 17 hours ago | hide | 471 comments"
+  },
+  {
+   "role": "link",
+   "name": "17 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49758736",
+   "icon": false,
+   "row": "887 points by theanonymousone 17 hours ago | hide | 471 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49758736&goto=news",
+   "icon": false,
+   "row": "887 points by theanonymousone 17 hours ago | hide | 471 comments"
+  },
+  {
+   "role": "link",
+   "name": "471 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49758736",
+   "icon": false,
+   "row": "887 points by theanonymousone 17 hours ago | hide | 471 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49763296&how=up&goto=news",
+   "icon": true,
+   "row": "8.San Francisco Onion Futures Company (onionfutures.com)"
+  },
+  {
+   "role": "link",
+   "name": "San Francisco Onion Futures Company",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://onionfutures.com/",
+   "icon": false,
+   "row": "8.San Francisco Onion Futures Company (onionfutures.com)"
+  },
+  {
+   "role": "link",
+   "name": "onionfutures.com",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=onionfutures.com",
+   "icon": false,
+   "row": "8.San Francisco Onion Futures Company (onionfutures.com)"
+  },
+  {
+   "role": "link",
+   "name": "z-mach9",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=z-mach9",
+   "icon": false,
+   "row": "230 points by z-mach9 8 hours ago | hide | 83 comments"
+  },
+  {
+   "role": "link",
+   "name": "8 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49763296",
+   "icon": false,
+   "row": "230 points by z-mach9 8 hours ago | hide | 83 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49763296&goto=news",
+   "icon": false,
+   "row": "230 points by z-mach9 8 hours ago | hide | 83 comments"
+  },
+  {
+   "role": "link",
+   "name": "83 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49763296",
+   "icon": false,
+   "row": "230 points by z-mach9 8 hours ago | hide | 83 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49744174&how=up&goto=news",
+   "icon": true,
+   "row": "9.Show HN: I wrote a custom assembler for CHIP-8 in C++ (github.com/tackx)"
+  },
+  {
+   "role": "link",
+   "name": "Show HN: I wrote a custom assembler for CHIP-8 in C++",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://github.com/Tackx/c8-ass",
+   "icon": false,
+   "row": "9.Show HN: I wrote a custom assembler for CHIP-8 in C++ (github.com/tackx)"
+  },
+  {
+   "role": "link",
+   "name": "github.com/tackx",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=github.com/tackx",
+   "icon": false,
+   "row": "9.Show HN: I wrote a custom assembler for CHIP-8 in C++ (github.com/tackx)"
+  },
+  {
+   "role": "link",
+   "name": "tack1234",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=tack1234",
+   "icon": false,
+   "row": "10 points by tack1234 1 hour ago | hide | discuss"
+  },
+  {
+   "role": "link",
+   "name": "1 hour ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49744174",
+   "icon": false,
+   "row": "10 points by tack1234 1 hour ago | hide | discuss"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49744174&goto=news",
+   "icon": false,
+   "row": "10 points by tack1234 1 hour ago | hide | discuss"
+  },
+  {
+   "role": "link",
+   "name": "discuss",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49744174",
+   "icon": false,
+   "row": "10 points by tack1234 1 hour ago | hide | discuss"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49736823&how=up&goto=news",
+   "icon": true,
+   "row": "10.Communication by means of modulated Johnson noise (pnas.org)"
+  },
+  {
+   "role": "link",
+   "name": "Communication by means of modulated Johnson noise",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://www.pnas.org/doi/10.1073/pnas.2201337119",
+   "icon": false,
+   "row": "10.Communication by means of modulated Johnson noise (pnas.org)"
+  },
+  {
+   "role": "link",
+   "name": "pnas.org",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=pnas.org",
+   "icon": false,
+   "row": "10.Communication by means of modulated Johnson noise (pnas.org)"
+  },
+  {
+   "role": "link",
+   "name": "austinallegro",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=austinallegro",
+   "icon": false,
+   "row": "20 points by austinallegro 3 hours ago | hide | 5 comments"
+  },
+  {
+   "role": "link",
+   "name": "3 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49736823",
+   "icon": false,
+   "row": "20 points by austinallegro 3 hours ago | hide | 5 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49736823&goto=news",
+   "icon": false,
+   "row": "20 points by austinallegro 3 hours ago | hide | 5 comments"
+  },
+  {
+   "role": "link",
+   "name": "5 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49736823",
+   "icon": false,
+   "row": "20 points by austinallegro 3 hours ago | hide | 5 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49754785&how=up&goto=news",
+   "icon": true,
+   "row": "11.Cloudflare Quick Tunnels (cloudflare.com)"
+  },
+  {
+   "role": "link",
+   "name": "Cloudflare Quick Tunnels",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://try.cloudflare.com/",
+   "icon": false,
+   "row": "11.Cloudflare Quick Tunnels (cloudflare.com)"
+  },
+  {
+   "role": "link",
+   "name": "cloudflare.com",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=cloudflare.com",
+   "icon": false,
+   "row": "11.Cloudflare Quick Tunnels (cloudflare.com)"
+  },
+  {
+   "role": "link",
+   "name": "jcbhmr",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=jcbhmr",
+   "icon": false,
+   "row": "739 points by jcbhmr 22 hours ago | hide | 292 comments"
+  },
+  {
+   "role": "link",
+   "name": "22 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49754785",
+   "icon": false,
+   "row": "739 points by jcbhmr 22 hours ago | hide | 292 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49754785&goto=news",
+   "icon": false,
+   "row": "739 points by jcbhmr 22 hours ago | hide | 292 comments"
+  },
+  {
+   "role": "link",
+   "name": "292 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49754785",
+   "icon": false,
+   "row": "739 points by jcbhmr 22 hours ago | hide | 292 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49747070&how=up&goto=news",
+   "icon": true,
+   "row": "12.How to Write with an LLM (sockpuppet.org)"
+  },
+  {
+   "role": "link",
+   "name": "How to Write with an LLM",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://sockpuppet.org/blog/2026/09/17/how-to-write-with-an-llm/",
+   "icon": false,
+   "row": "12.How to Write with an LLM (sockpuppet.org)"
+  },
+  {
+   "role": "link",
+   "name": "sockpuppet.org",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=sockpuppet.org",
+   "icon": false,
+   "row": "12.How to Write with an LLM (sockpuppet.org)"
+  },
+  {
+   "role": "link",
+   "name": "joeriddles",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=joeriddles",
+   "icon": false,
+   "row": "520 points by joeriddles 1 day ago | hide | 344 comments"
+  },
+  {
+   "role": "link",
+   "name": "1 day ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49747070",
+   "icon": false,
+   "row": "520 points by joeriddles 1 day ago | hide | 344 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49747070&goto=news",
+   "icon": false,
+   "row": "520 points by joeriddles 1 day ago | hide | 344 comments"
+  },
+  {
+   "role": "link",
+   "name": "344 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49747070",
+   "icon": false,
+   "row": "520 points by joeriddles 1 day ago | hide | 344 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49730069&how=up&goto=news",
+   "icon": true,
+   "row": "13.You can run Git on object storage if you re-make packfiles (tigrisdata.com)"
+  },
+  {
+   "role": "link",
+   "name": "You can run Git on object storage if you re-make packfiles",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://www.tigrisdata.com/blog/objgit-packfiles/",
+   "icon": false,
+   "row": "13.You can run Git on object storage if you re-make packfiles (tigrisdata.com)"
+  },
+  {
+   "role": "link",
+   "name": "tigrisdata.com",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=tigrisdata.com",
+   "icon": false,
+   "row": "13.You can run Git on object storage if you re-make packfiles (tigrisdata.com)"
+  },
+  {
+   "role": "link",
+   "name": "evacchi",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=evacchi",
+   "icon": false,
+   "row": "68 points by evacchi 8 hours ago | hide | 19 comments"
+  },
+  {
+   "role": "link",
+   "name": "8 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49730069",
+   "icon": false,
+   "row": "68 points by evacchi 8 hours ago | hide | 19 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49730069&goto=news",
+   "icon": false,
+   "row": "68 points by evacchi 8 hours ago | hide | 19 comments"
+  },
+  {
+   "role": "link",
+   "name": "19 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49730069",
+   "icon": false,
+   "row": "68 points by evacchi 8 hours ago | hide | 19 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49762744&how=up&goto=news",
+   "icon": true,
+   "row": "14.SDCC – Small Device C Compiler (sourceforge.net)"
+  },
+  {
+   "role": "link",
+   "name": "SDCC – Small Device C Compiler",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://sdcc.sourceforge.net/",
+   "icon": false,
+   "row": "14.SDCC – Small Device C Compiler (sourceforge.net)"
+  },
+  {
+   "role": "link",
+   "name": "sourceforge.net",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=sourceforge.net",
+   "icon": false,
+   "row": "14.SDCC – Small Device C Compiler (sourceforge.net)"
+  },
+  {
+   "role": "link",
+   "name": "lioeters",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=lioeters",
+   "icon": false,
+   "row": "100 points by lioeters 10 hours ago | hide | 20 comments"
+  },
+  {
+   "role": "link",
+   "name": "10 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49762744",
+   "icon": false,
+   "row": "100 points by lioeters 10 hours ago | hide | 20 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49762744&goto=news",
+   "icon": false,
+   "row": "100 points by lioeters 10 hours ago | hide | 20 comments"
+  },
+  {
+   "role": "link",
+   "name": "20 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49762744",
+   "icon": false,
+   "row": "100 points by lioeters 10 hours ago | hide | 20 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49743490&how=up&goto=news",
+   "icon": true,
+   "row": "15.From Stonemasons to Carpenters (thelastsoftwareengineer.substack.com)"
+  },
+  {
+   "role": "link",
+   "name": "From Stonemasons to Carpenters",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://thelastsoftwareengineer.substack.com/p/from-stonemasons-to-carpenters",
+   "icon": false,
+   "row": "15.From Stonemasons to Carpenters (thelastsoftwareengineer.substack.com)"
+  },
+  {
+   "role": "link",
+   "name": "thelastsoftwareengineer.substack.com",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=thelastsoftwareengineer.substack.com",
+   "icon": false,
+   "row": "15.From Stonemasons to Carpenters (thelastsoftwareengineer.substack.com)"
+  },
+  {
+   "role": "link",
+   "name": "azhenley",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=azhenley",
+   "icon": false,
+   "row": "15 points by azhenley 3 hours ago | hide | 2 comments"
+  },
+  {
+   "role": "link",
+   "name": "3 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49743490",
+   "icon": false,
+   "row": "15 points by azhenley 3 hours ago | hide | 2 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49743490&goto=news",
+   "icon": false,
+   "row": "15 points by azhenley 3 hours ago | hide | 2 comments"
+  },
+  {
+   "role": "link",
+   "name": "2 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49743490",
+   "icon": false,
+   "row": "15 points by azhenley 3 hours ago | hide | 2 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49758580&how=up&goto=news",
+   "icon": true,
+   "row": "16.Saving another 100TB of RAM (cloudflare.com)"
+  },
+  {
+   "role": "link",
+   "name": "Saving another 100TB of RAM",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://blog.cloudflare.com/saving-100-tb-of-ram-with-math/",
+   "icon": false,
+   "row": "16.Saving another 100TB of RAM (cloudflare.com)"
+  },
+  {
+   "role": "link",
+   "name": "f311a",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=f311a",
+   "icon": false,
+   "row": "386 points by f311a 18 hours ago | hide | 84 comments"
+  },
+  {
+   "role": "link",
+   "name": "18 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49758580",
+   "icon": false,
+   "row": "386 points by f311a 18 hours ago | hide | 84 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49758580&goto=news",
+   "icon": false,
+   "row": "386 points by f311a 18 hours ago | hide | 84 comments"
+  },
+  {
+   "role": "link",
+   "name": "84 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49758580",
+   "icon": false,
+   "row": "386 points by f311a 18 hours ago | hide | 84 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49762687&how=up&goto=news",
+   "icon": true,
+   "row": "17.Science Is Open Software (jepedersen.dk)"
+  },
+  {
+   "role": "link",
+   "name": "Science Is Open Software",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://jepedersen.dk/blog/202505_research/",
+   "icon": false,
+   "row": "17.Science Is Open Software (jepedersen.dk)"
+  },
+  {
+   "role": "link",
+   "name": "jepedersen.dk",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=jepedersen.dk",
+   "icon": false,
+   "row": "17.Science Is Open Software (jepedersen.dk)"
+  },
+  {
+   "role": "link",
+   "name": "jegp",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=jegp",
+   "icon": false,
+   "row": "109 points by jegp 10 hours ago | hide | 41 comments"
+  },
+  {
+   "role": "link",
+   "name": "10 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49762687",
+   "icon": false,
+   "row": "109 points by jegp 10 hours ago | hide | 41 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49762687&goto=news",
+   "icon": false,
+   "row": "109 points by jegp 10 hours ago | hide | 41 comments"
+  },
+  {
+   "role": "link",
+   "name": "41 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49762687",
+   "icon": false,
+   "row": "109 points by jegp 10 hours ago | hide | 41 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49734131&how=up&goto=news",
+   "icon": true,
+   "row": "18.Why building a Rust LSP is hard (rust-glancer.github.io)"
+  },
+  {
+   "role": "link",
+   "name": "Why building a Rust LSP is hard",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://rust-glancer.github.io/blog/why-lsp-is-hard/",
+   "icon": false,
+   "row": "18.Why building a Rust LSP is hard (rust-glancer.github.io)"
+  },
+  {
+   "role": "link",
+   "name": "rust-glancer.github.io",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=rust-glancer.github.io",
+   "icon": false,
+   "row": "18.Why building a Rust LSP is hard (rust-glancer.github.io)"
+  },
+  {
+   "role": "link",
+   "name": "agluszak",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=agluszak",
+   "icon": false,
+   "row": "101 points by agluszak 11 hours ago | hide | 37 comments"
+  },
+  {
+   "role": "link",
+   "name": "11 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49734131",
+   "icon": false,
+   "row": "101 points by agluszak 11 hours ago | hide | 37 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49734131&goto=news",
+   "icon": false,
+   "row": "101 points by agluszak 11 hours ago | hide | 37 comments"
+  },
+  {
+   "role": "link",
+   "name": "37 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49734131",
+   "icon": false,
+   "row": "101 points by agluszak 11 hours ago | hide | 37 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49761432&how=up&goto=news",
+   "icon": true,
+   "row": "19.How OpenAI Used Its Own LLMs to Design Its Jalapeño Chip (ieee.org)"
+  },
+  {
+   "role": "link",
+   "name": "How OpenAI Used Its Own LLMs to Design Its Jalapeño Chip",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://spectrum.ieee.org/llms-for-chip-design",
+   "icon": false,
+   "row": "19.How OpenAI Used Its Own LLMs to Design Its Jalapeño Chip (ieee.org)"
+  },
+  {
+   "role": "link",
+   "name": "ieee.org",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=ieee.org",
+   "icon": false,
+   "row": "19.How OpenAI Used Its Own LLMs to Design Its Jalapeño Chip (ieee.org)"
+  },
+  {
+   "role": "link",
+   "name": "maxall4",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=maxall4",
+   "icon": false,
+   "row": "146 points by maxall4 13 hours ago | hide | 98 comments"
+  },
+  {
+   "role": "link",
+   "name": "13 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49761432",
+   "icon": false,
+   "row": "146 points by maxall4 13 hours ago | hide | 98 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49761432&goto=news",
+   "icon": false,
+   "row": "146 points by maxall4 13 hours ago | hide | 98 comments"
+  },
+  {
+   "role": "link",
+   "name": "98 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49761432",
+   "icon": false,
+   "row": "146 points by maxall4 13 hours ago | hide | 98 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49735541&how=up&goto=news",
+   "icon": true,
+   "row": "20.Ctenophores: Wonders of Biology (quantamagazine.org)"
+  },
+  {
+   "role": "link",
+   "name": "Ctenophores: Wonders of Biology",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://www.quantamagazine.org/ctenophores-arent-just-beautiful-theyre-biological-wonders-20260916/",
+   "icon": false,
+   "row": "20.Ctenophores: Wonders of Biology (quantamagazine.org)"
+  },
+  {
+   "role": "link",
+   "name": "quantamagazine.org",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=quantamagazine.org",
+   "icon": false,
+   "row": "20.Ctenophores: Wonders of Biology (quantamagazine.org)"
+  },
+  {
+   "role": "link",
+   "name": "randomImmigrant",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=randomImmigrant",
+   "icon": false,
+   "row": "35 points by randomImmigrant 7 hours ago | hide | 6 comments"
+  },
+  {
+   "role": "link",
+   "name": "7 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49735541",
+   "icon": false,
+   "row": "35 points by randomImmigrant 7 hours ago | hide | 6 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49735541&goto=news",
+   "icon": false,
+   "row": "35 points by randomImmigrant 7 hours ago | hide | 6 comments"
+  },
+  {
+   "role": "link",
+   "name": "6 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49735541",
+   "icon": false,
+   "row": "35 points by randomImmigrant 7 hours ago | hide | 6 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49763379&how=up&goto=news",
+   "icon": true,
+   "row": "21.NASA-IBM Lunar Foundation open-Source Geospatial AI Model (usra.edu)"
+  },
+  {
+   "role": "link",
+   "name": "NASA-IBM Lunar Foundation open-Source Geospatial AI Model",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://newsroom.usra.edu/usra-contributes-planetary-science-expertise-to-nasa-ibm-lunar-foundation-model/",
+   "icon": false,
+   "row": "21.NASA-IBM Lunar Foundation open-Source Geospatial AI Model (usra.edu)"
+  },
+  {
+   "role": "link",
+   "name": "usra.edu",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=usra.edu",
+   "icon": false,
+   "row": "21.NASA-IBM Lunar Foundation open-Source Geospatial AI Model (usra.edu)"
+  },
+  {
+   "role": "link",
+   "name": "noobplus",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=noobplus",
+   "icon": false,
+   "row": "39 points by noobplus 8 hours ago | hide | 4 comments"
+  },
+  {
+   "role": "link",
+   "name": "8 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49763379",
+   "icon": false,
+   "row": "39 points by noobplus 8 hours ago | hide | 4 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49763379&goto=news",
+   "icon": false,
+   "row": "39 points by noobplus 8 hours ago | hide | 4 comments"
+  },
+  {
+   "role": "link",
+   "name": "4 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49763379",
+   "icon": false,
+   "row": "39 points by noobplus 8 hours ago | hide | 4 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49744704&how=up&goto=news",
+   "icon": true,
+   "row": "22.The first new cat species discovered in 100 years (nationalgeographic.com)"
+  },
+  {
+   "role": "link",
+   "name": "The first new cat species discovered in 100 years",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://www.nationalgeographic.com/animals/article/meet-the-first-new-cat-species-discovered-in-100-years",
+   "icon": false,
+   "row": "22.The first new cat species discovered in 100 years (nationalgeographic.com)"
+  },
+  {
+   "role": "link",
+   "name": "nationalgeographic.com",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=nationalgeographic.com",
+   "icon": false,
+   "row": "22.The first new cat species discovered in 100 years (nationalgeographic.com)"
+  },
+  {
+   "role": "link",
+   "name": "ohjeez",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=ohjeez",
+   "icon": false,
+   "row": "290 points by ohjeez 22 hours ago | hide | 108 comments"
+  },
+  {
+   "role": "link",
+   "name": "22 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49744704",
+   "icon": false,
+   "row": "290 points by ohjeez 22 hours ago | hide | 108 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49744704&goto=news",
+   "icon": false,
+   "row": "290 points by ohjeez 22 hours ago | hide | 108 comments"
+  },
+  {
+   "role": "link",
+   "name": "108 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49744704",
+   "icon": false,
+   "row": "290 points by ohjeez 22 hours ago | hide | 108 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49752041&how=up&goto=news",
+   "icon": true,
+   "row": "23.OpenJev (openjev.com)"
+  },
+  {
+   "role": "link",
+   "name": "OpenJev",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://openjev.com/",
+   "icon": false,
+   "row": "23.OpenJev (openjev.com)"
+  },
+  {
+   "role": "link",
+   "name": "openjev.com",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=openjev.com",
+   "icon": false,
+   "row": "23.OpenJev (openjev.com)"
+  },
+  {
+   "role": "link",
+   "name": "ilreb",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=ilreb",
+   "icon": false,
+   "row": "640 points by ilreb 1 day ago | hide | 273 comments"
+  },
+  {
+   "role": "link",
+   "name": "1 day ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49752041",
+   "icon": false,
+   "row": "640 points by ilreb 1 day ago | hide | 273 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49752041&goto=news",
+   "icon": false,
+   "row": "640 points by ilreb 1 day ago | hide | 273 comments"
+  },
+  {
+   "role": "link",
+   "name": "273 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49752041",
+   "icon": false,
+   "row": "640 points by ilreb 1 day ago | hide | 273 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49726773&how=up&goto=news",
+   "icon": true,
+   "row": "24.Goroutine Leak Profiles (go.dev)"
+  },
+  {
+   "role": "link",
+   "name": "Goroutine Leak Profiles",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://go.dev/blog/goroutine-leak-profiles",
+   "icon": false,
+   "row": "24.Goroutine Leak Profiles (go.dev)"
+  },
+  {
+   "role": "link",
+   "name": "go.dev",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=go.dev",
+   "icon": false,
+   "row": "24.Goroutine Leak Profiles (go.dev)"
+  },
+  {
+   "role": "link",
+   "name": "torutofu",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=torutofu",
+   "icon": false,
+   "row": "44 points by torutofu 10 hours ago | hide | 5 comments"
+  },
+  {
+   "role": "link",
+   "name": "10 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49726773",
+   "icon": false,
+   "row": "44 points by torutofu 10 hours ago | hide | 5 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49726773&goto=news",
+   "icon": false,
+   "row": "44 points by torutofu 10 hours ago | hide | 5 comments"
+  },
+  {
+   "role": "link",
+   "name": "5 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49726773",
+   "icon": false,
+   "row": "44 points by torutofu 10 hours ago | hide | 5 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49748553&how=up&goto=news",
+   "icon": true,
+   "row": "25.Show HN: Cactus Needle 3: 8-29MB automation models can match DeepSeek V4 Flash (cactuscompute.com)"
+  },
+  {
+   "role": "link",
+   "name": "Show HN: Cactus Needle 3: 8-29MB automation models can match DeepSeek V4 Flash",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://cactuscompute.com/needle",
+   "icon": false,
+   "row": "25.Show HN: Cactus Needle 3: 8-29MB automation models can match DeepSeek V4 Flash (cactuscompute.com)"
+  },
+  {
+   "role": "link",
+   "name": "cactuscompute.com",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=cactuscompute.com",
+   "icon": false,
+   "row": "25.Show HN: Cactus Needle 3: 8-29MB automation models can match DeepSeek V4 Flash (cactuscompute.com)"
+  },
+  {
+   "role": "link",
+   "name": "HenryNdubuaku",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=HenryNdubuaku",
+   "icon": false,
+   "row": "204 points by HenryNdubuaku 21 hours ago | hide | 89 comments"
+  },
+  {
+   "role": "link",
+   "name": "21 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49748553",
+   "icon": false,
+   "row": "204 points by HenryNdubuaku 21 hours ago | hide | 89 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49748553&goto=news",
+   "icon": false,
+   "row": "204 points by HenryNdubuaku 21 hours ago | hide | 89 comments"
+  },
+  {
+   "role": "link",
+   "name": "89 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49748553",
+   "icon": false,
+   "row": "204 points by HenryNdubuaku 21 hours ago | hide | 89 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49757050&how=up&goto=news",
+   "icon": true,
+   "row": "26.Photon-Emission-Guided Laser Fault Injection Enables RP2350 Secure Debug (ledger.com)"
+  },
+  {
+   "role": "link",
+   "name": "Photon-Emission-Guided Laser Fault Injection Enables RP2350 Secure Debug",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://donjon.ledger.com/blog/rp2350-secure-debug-laser-fault-injection/",
+   "icon": false,
+   "row": "26.Photon-Emission-Guided Laser Fault Injection Enables RP2350 Secure Debug (ledger.com)"
+  },
+  {
+   "role": "link",
+   "name": "ledger.com",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=ledger.com",
+   "icon": false,
+   "row": "26.Photon-Emission-Guided Laser Fault Injection Enables RP2350 Secure Debug (ledger.com)"
+  },
+  {
+   "role": "link",
+   "name": "synack",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=synack",
+   "icon": false,
+   "row": "199 points by synack 19 hours ago | hide | 73 comments"
+  },
+  {
+   "role": "link",
+   "name": "19 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49757050",
+   "icon": false,
+   "row": "199 points by synack 19 hours ago | hide | 73 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49757050&goto=news",
+   "icon": false,
+   "row": "199 points by synack 19 hours ago | hide | 73 comments"
+  },
+  {
+   "role": "link",
+   "name": "73 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49757050",
+   "icon": false,
+   "row": "199 points by synack 19 hours ago | hide | 73 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49728602&how=up&goto=news",
+   "icon": true,
+   "row": "27.Veronese's Dogs (publicdomainreview.org)"
+  },
+  {
+   "role": "link",
+   "name": "Veronese's Dogs",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://publicdomainreview.org/essay/veroneses-dogs",
+   "icon": false,
+   "row": "27.Veronese's Dogs (publicdomainreview.org)"
+  },
+  {
+   "role": "link",
+   "name": "publicdomainreview.org",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=publicdomainreview.org",
+   "icon": false,
+   "row": "27.Veronese's Dogs (publicdomainreview.org)"
+  },
+  {
+   "role": "link",
+   "name": "prismatic",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=prismatic",
+   "icon": false,
+   "row": "17 points by prismatic 6 hours ago | hide | 2 comments"
+  },
+  {
+   "role": "link",
+   "name": "6 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49728602",
+   "icon": false,
+   "row": "17 points by prismatic 6 hours ago | hide | 2 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49728602&goto=news",
+   "icon": false,
+   "row": "17 points by prismatic 6 hours ago | hide | 2 comments"
+  },
+  {
+   "role": "link",
+   "name": "2 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49728602",
+   "icon": false,
+   "row": "17 points by prismatic 6 hours ago | hide | 2 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49749724&how=up&goto=news",
+   "icon": true,
+   "row": "28.Warez: The Infrastructure and Aesthetics of Piracy (2021) (archive.org)"
+  },
+  {
+   "role": "link",
+   "name": "Warez: The Infrastructure and Aesthetics of Piracy (2021)",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://archive.org/details/b904a8eb-9c98-4bb1-bf25-3cb9d075b157",
+   "icon": false,
+   "row": "28.Warez: The Infrastructure and Aesthetics of Piracy (2021) (archive.org)"
+  },
+  {
+   "role": "link",
+   "name": "archive.org",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=archive.org",
+   "icon": false,
+   "row": "28.Warez: The Infrastructure and Aesthetics of Piracy (2021) (archive.org)"
+  },
+  {
+   "role": "link",
+   "name": "succinct_ideas",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=succinct_ideas",
+   "icon": false,
+   "row": "177 points by succinct_ideas 1 day ago | hide | 87 comments"
+  },
+  {
+   "role": "link",
+   "name": "1 day ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49749724",
+   "icon": false,
+   "row": "177 points by succinct_ideas 1 day ago | hide | 87 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49749724&goto=news",
+   "icon": false,
+   "row": "177 points by succinct_ideas 1 day ago | hide | 87 comments"
+  },
+  {
+   "role": "link",
+   "name": "87 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49749724",
+   "icon": false,
+   "row": "177 points by succinct_ideas 1 day ago | hide | 87 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49758615&how=up&goto=news",
+   "icon": true,
+   "row": "29.Cache-to-Cache: Direct Semantic Communication Between LLMs (2025) (arxiv.org)"
+  },
+  {
+   "role": "link",
+   "name": "Cache-to-Cache: Direct Semantic Communication Between LLMs (2025)",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://arxiv.org/abs/2510.03215",
+   "icon": false,
+   "row": "29.Cache-to-Cache: Direct Semantic Communication Between LLMs (2025) (arxiv.org)"
+  },
+  {
+   "role": "link",
+   "name": "arxiv.org",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=arxiv.org",
+   "icon": false,
+   "row": "29.Cache-to-Cache: Direct Semantic Communication Between LLMs (2025) (arxiv.org)"
+  },
+  {
+   "role": "link",
+   "name": "rochansinha",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=rochansinha",
+   "icon": false,
+   "row": "95 points by rochansinha 17 hours ago | hide | 14 comments"
+  },
+  {
+   "role": "link",
+   "name": "17 hours ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49758615",
+   "icon": false,
+   "row": "95 points by rochansinha 17 hours ago | hide | 14 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49758615&goto=news",
+   "icon": false,
+   "row": "95 points by rochansinha 17 hours ago | hide | 14 comments"
+  },
+  {
+   "role": "link",
+   "name": "14 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49758615",
+   "icon": false,
+   "row": "95 points by rochansinha 17 hours ago | hide | 14 comments"
+  },
+  {
+   "role": "link",
+   "name": "upvote",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/vote?id=49750694&how=up&goto=news",
+   "icon": true,
+   "row": "30.Inside ZCode: Silently uploading your Git history to the cloud (ferstar.org)"
+  },
+  {
+   "role": "link",
+   "name": "Inside ZCode: Silently uploading your Git history to the cloud",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://blog.ferstar.org/en/posts/zcode-silent-workspace-snapshot-upload/",
+   "icon": false,
+   "row": "30.Inside ZCode: Silently uploading your Git history to the cloud (ferstar.org)"
+  },
+  {
+   "role": "link",
+   "name": "ferstar.org",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/from?site=ferstar.org",
+   "icon": false,
+   "row": "30.Inside ZCode: Silently uploading your Git history to the cloud (ferstar.org)"
+  },
+  {
+   "role": "link",
+   "name": "csmantle",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/user?id=csmantle",
+   "icon": false,
+   "row": "311 points by csmantle 1 day ago | hide | 105 comments"
+  },
+  {
+   "role": "link",
+   "name": "1 day ago",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49750694",
+   "icon": false,
+   "row": "311 points by csmantle 1 day ago | hide | 105 comments"
+  },
+  {
+   "role": "link",
+   "name": "hide",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/hide?id=49750694&goto=news",
+   "icon": false,
+   "row": "311 points by csmantle 1 day ago | hide | 105 comments"
+  },
+  {
+   "role": "link",
+   "name": "105 comments",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/item?id=49750694",
+   "icon": false,
+   "row": "311 points by csmantle 1 day ago | hide | 105 comments"
+  },
+  {
+   "role": "link",
+   "name": "More",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/?p=2",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Guidelines",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/newsguidelines.html",
+   "icon": false,
+   "row": "Guidelines | FAQ | Lists | API | Security | Legal | Apply to YC | Contact Search:"
+  },
+  {
+   "role": "link",
+   "name": "FAQ",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/newsfaq.html",
+   "icon": false,
+   "row": "Guidelines | FAQ | Lists | API | Security | Legal | Apply to YC | Contact Search:"
+  },
+  {
+   "role": "link",
+   "name": "Lists",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/lists",
+   "icon": false,
+   "row": "Guidelines | FAQ | Lists | API | Security | Legal | Apply to YC | Contact Search:"
+  },
+  {
+   "role": "link",
+   "name": "API",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://github.com/HackerNews/API",
+   "icon": false,
+   "row": "Guidelines | FAQ | Lists | API | Security | Legal | Apply to YC | Contact Search:"
+  },
+  {
+   "role": "link",
+   "name": "Security",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://news.ycombinator.com/security.html",
+   "icon": false,
+   "row": "Guidelines | FAQ | Lists | API | Security | Legal | Apply to YC | Contact Search:"
+  },
+  {
+   "role": "link",
+   "name": "Legal",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://www.ycombinator.com/legal/",
+   "icon": false,
+   "row": "Guidelines | FAQ | Lists | API | Security | Legal | Apply to YC | Contact Search:"
+  },
+  {
+   "role": "link",
+   "name": "Apply to YC",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://www.ycombinator.com/apply/",
+   "icon": false,
+   "row": "Guidelines | FAQ | Lists | API | Security | Legal | Apply to YC | Contact Search:"
+  },
+  {
+   "role": "link",
+   "name": "Contact",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "mailto:hn@ycombinator.com",
+   "icon": false,
+   "row": "Guidelines | FAQ | Lists | API | Security | Legal | Apply to YC | Contact Search:"
+  },
+  {
+   "role": "text field",
+   "name": "q",
+   "value": "",
+   "editable": true,
+   "within": "form",
+   "href": "",
+   "icon": false,
+   "row": "Guidelines | FAQ | Lists | API | Security | Legal | Apply to YC | Contact Search:"
+  }
+ ]
+}

@@ -1,0 +1,613 @@
+{
+ "page": "editor",
+ "shot": "editor.png",
+ "inner": [
+  1280,
+  800
+ ],
+ "today": {
+  "url": "https://harness.invalid/editor",
+  "title": "Quill Notes",
+  "ready": "complete",
+  "elements": [
+   {
+    "role": "text field",
+    "name": "Search notes",
+    "editable": true,
+    "focused": false,
+    "within": "header",
+    "value": "",
+    "x": 144.671875,
+    "y": 10.5,
+    "w": 360,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "name": "Share",
+    "editable": false,
+    "focused": false,
+    "within": "header",
+    "value": "",
+    "x": 1058.421875,
+    "y": 10.5,
+    "w": 67.578125,
+    "h": 34
+   },
+   {
+    "role": "link",
+    "name": "Trip to Lisbon Edited 2 minutes ago",
+    "editable": false,
+    "focused": false,
+    "within": "aside",
+    "value": "",
+    "x": 14,
+    "y": 122,
+    "w": 231,
+    "h": 55
+   },
+   {
+    "role": "link",
+    "name": "Grocery list Yesterday",
+    "editable": false,
+    "focused": false,
+    "within": "aside",
+    "value": "",
+    "x": 14,
+    "y": 177,
+    "w": 231,
+    "h": 55
+   },
+   {
+    "role": "link",
+    "name": "Meeting notes 12 Sept 12 Sept",
+    "editable": false,
+    "focused": false,
+    "within": "aside",
+    "value": "",
+    "x": 14,
+    "y": 232,
+    "w": 231,
+    "h": 55
+   },
+   {
+    "role": "link",
+    "name": "Book recommendations 3 Sept",
+    "editable": false,
+    "focused": false,
+    "within": "aside",
+    "value": "",
+    "x": 14,
+    "y": 287,
+    "w": 231,
+    "h": 55
+   },
+   {
+    "role": "link",
+    "name": "Gift ideas 28 Aug",
+    "editable": false,
+    "focused": false,
+    "within": "aside",
+    "value": "",
+    "x": 14,
+    "y": 342,
+    "w": 231,
+    "h": 55
+   },
+   {
+    "role": "text field",
+    "name": "Title",
+    "editable": true,
+    "focused": false,
+    "within": "",
+    "value": "Trip to Lisbon",
+    "x": 320,
+    "y": 134,
+    "w": 900,
+    "h": 42
+   },
+   {
+    "role": "text field",
+    "name": "Note body",
+    "editable": true,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 320,
+    "y": 212,
+    "w": 900,
+    "h": 520
+   }
+  ],
+  "texts": [
+   "NOTES"
+  ]
+ },
+ "next": {
+  "url": "https://harness.invalid/editor",
+  "title": "Quill Notes",
+  "ready": "complete",
+  "elements": [
+   {
+    "role": "text field",
+    "name": "Search notes",
+    "editable": true,
+    "focused": false,
+    "within": "header",
+    "value": "",
+    "x": 144.671875,
+    "y": 10.5,
+    "w": 360,
+    "h": 34
+   },
+   {
+    "role": "button",
+    "name": "Share",
+    "editable": false,
+    "focused": false,
+    "within": "header",
+    "value": "",
+    "x": 1058.421875,
+    "y": 10.5,
+    "w": 67.578125,
+    "h": 34
+   },
+   {
+    "role": "link",
+    "name": "Trip to Lisbon Edited 2 minutes ago",
+    "editable": false,
+    "focused": false,
+    "within": "aside",
+    "value": "",
+    "x": 14,
+    "y": 122,
+    "w": 231,
+    "h": 55
+   },
+   {
+    "role": "link",
+    "name": "Grocery list Yesterday",
+    "editable": false,
+    "focused": false,
+    "within": "aside",
+    "value": "",
+    "x": 14,
+    "y": 177,
+    "w": 231,
+    "h": 55
+   },
+   {
+    "role": "link",
+    "name": "Meeting notes 12 Sept 12 Sept",
+    "editable": false,
+    "focused": false,
+    "within": "aside",
+    "value": "",
+    "x": 14,
+    "y": 232,
+    "w": 231,
+    "h": 55
+   },
+   {
+    "role": "link",
+    "name": "Book recommendations 3 Sept",
+    "editable": false,
+    "focused": false,
+    "within": "aside",
+    "value": "",
+    "x": 14,
+    "y": 287,
+    "w": 231,
+    "h": 55
+   },
+   {
+    "role": "link",
+    "name": "Gift ideas 28 Aug",
+    "editable": false,
+    "focused": false,
+    "within": "aside",
+    "value": "",
+    "x": 14,
+    "y": 342,
+    "w": 231,
+    "h": 55
+   },
+   {
+    "role": "text field",
+    "name": "Title",
+    "editable": true,
+    "focused": false,
+    "within": "",
+    "value": "Trip to Lisbon",
+    "x": 320,
+    "y": 134,
+    "w": 900,
+    "h": 42
+   },
+   {
+    "role": "text field",
+    "name": "Note body",
+    "editable": true,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 320,
+    "y": 212,
+    "w": 900,
+    "h": 520
+   }
+  ],
+  "texts": [
+   "NOTES"
+  ],
+  "unnamed": [
+   {
+    "role": "button",
+    "within": "header",
+    "row": "",
+    "after": 2,
+    "x": 1136,
+    "y": 9.5,
+    "w": 36,
+    "h": 36
+   },
+   {
+    "role": "button",
+    "within": "header",
+    "row": "",
+    "after": 2,
+    "x": 1182,
+    "y": 9.5,
+    "w": 36,
+    "h": 36
+   },
+   {
+    "role": "button",
+    "within": "header",
+    "row": "",
+    "after": 2,
+    "x": 1228,
+    "y": 9.5,
+    "w": 36,
+    "h": 36
+   },
+   {
+    "role": "button",
+    "within": "aside",
+    "row": "",
+    "after": 2,
+    "x": 209,
+    "y": 76,
+    "w": 36,
+    "h": 36
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "",
+    "after": 7,
+    "x": 320,
+    "y": 63.5,
+    "w": 36,
+    "h": 36
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "",
+    "after": 7,
+    "x": 360,
+    "y": 63.5,
+    "w": 36,
+    "h": 36
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "",
+    "after": 7,
+    "x": 421,
+    "y": 63.5,
+    "w": 36,
+    "h": 36
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "",
+    "after": 7,
+    "x": 461,
+    "y": 63.5,
+    "w": 36,
+    "h": 36
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "",
+    "after": 7,
+    "x": 501,
+    "y": 63.5,
+    "w": 36,
+    "h": 36
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "",
+    "after": 7,
+    "x": 541,
+    "y": 63.5,
+    "w": 36,
+    "h": 36
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "",
+    "after": 7,
+    "x": 602,
+    "y": 63.5,
+    "w": 36,
+    "h": 36
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "",
+    "after": 7,
+    "x": 642,
+    "y": 63.5,
+    "w": 36,
+    "h": 36
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "",
+    "after": 7,
+    "x": 682,
+    "y": 63.5,
+    "w": 36,
+    "h": 36
+   },
+   {
+    "role": "button",
+    "within": "",
+    "row": "",
+    "after": 7,
+    "x": 722,
+    "y": 63.5,
+    "w": 36,
+    "h": 36
+   }
+  ],
+  "opaque": []
+ },
+ "gold": {
+  "notifications": {
+   "x": 1136,
+   "y": 9.5,
+   "w": 36,
+   "h": 36
+  },
+  "settings": {
+   "x": 1182,
+   "y": 9.5,
+   "w": 36,
+   "h": 36
+  },
+  "account": {
+   "x": 1228,
+   "y": 9.5,
+   "w": 36,
+   "h": 36
+  },
+  "new_note": {
+   "x": 209,
+   "y": 76,
+   "w": 36,
+   "h": 36
+  },
+  "undo": {
+   "x": 320,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  "redo": {
+   "x": 360,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  "list": {
+   "x": 421,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  "link": {
+   "x": 461,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  "image": {
+   "x": 501,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  "attach": {
+   "x": 541,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  "star": {
+   "x": 602,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  "print": {
+   "x": 642,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  "download": {
+   "x": 682,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  "delete": {
+   "x": 722,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  }
+ },
+ "controls": [
+  {
+   "x": 144.671875,
+   "y": 10.5,
+   "w": 360,
+   "h": 34
+  },
+  {
+   "x": 1058.421875,
+   "y": 10.5,
+   "w": 67.578125,
+   "h": 34
+  },
+  {
+   "x": 1136,
+   "y": 9.5,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "x": 1182,
+   "y": 9.5,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "x": 1228,
+   "y": 9.5,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "x": 209,
+   "y": 76,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "x": 14,
+   "y": 122,
+   "w": 231,
+   "h": 55
+  },
+  {
+   "x": 14,
+   "y": 177,
+   "w": 231,
+   "h": 55
+  },
+  {
+   "x": 14,
+   "y": 232,
+   "w": 231,
+   "h": 55
+  },
+  {
+   "x": 14,
+   "y": 287,
+   "w": 231,
+   "h": 55
+  },
+  {
+   "x": 14,
+   "y": 342,
+   "w": 231,
+   "h": 55
+  },
+  {
+   "x": 320,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "x": 360,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "x": 421,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "x": 461,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "x": 501,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "x": 541,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "x": 602,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "x": 642,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "x": 682,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "x": 722,
+   "y": 63.5,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "x": 320,
+   "y": 134,
+   "w": 900,
+   "h": 42
+  },
+  {
+   "x": 320,
+   "y": 212,
+   "w": 900,
+   "h": 520
+  }
+ ]
+}

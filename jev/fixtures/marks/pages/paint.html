@@ -1,0 +1,45 @@
+<!doctype html>
+<!-- SYNTHETIC harness page for jev/marks.eval.ts: an app drawn entirely on one <canvas>. The DOM knows two links
+     and nothing else; every tool, swatch and button exists only as pixels. The layout list below is the ground truth. -->
+<html lang="en"><head><meta charset="utf-8"><title>Sketchpad</title>
+<style>
+html,body{margin:0;width:1280px;height:800px;overflow:hidden;font:14px "Segoe UI",Arial,sans-serif;background:#fff}
+header{position:absolute;left:0;top:0;width:1280px;height:44px;box-sizing:border-box;display:flex;align-items:center;gap:20px;padding:0 16px;background:#20242c;color:#fff}
+header b{font-size:16px;flex:1} header a{color:#c9d4ea;text-decoration:none}
+canvas{position:absolute;left:0;top:44px}
+</style></head><body>
+<header><b>Sketchpad</b><a href="#gallery">Gallery</a><a href="#help">Help</a></header>
+<canvas id="app" width="1280" height="756"></canvas>
+<script>
+const TOP = 44, c = document.getElementById("app"), g = c.getContext("2d");
+const items = [];   // { key, kind, x, y, w, h, label?, color? } in canvas pixels
+["New", "Open", "Save", "Export PNG", "Clear canvas"].reduce((x, label) => { const w = 24 + label.length * 9; items.push({ key: "menu_" + label.toLowerCase().replace(/ /g, "_"), kind: "button", x, y: 8, w, h: 30, label }); return x + w + 8; }, 140);
+["Brush", "Eraser", "Fill", "Line", "Text", "Picker"].forEach((label, i) => items.push({ key: "tool_" + label.toLowerCase(), kind: "tool", x: 12, y: 60 + i * 50, w: 104, h: 42, label }));
+[["red", "#e03131"], ["orange", "#f08c00"], ["yellow", "#ffd43b"], ["green", "#2f9e44"], ["blue", "#1c7ed6"], ["purple", "#7048e8"], ["black", "#111111"], ["white", "#ffffff"]]
+  .forEach(([name, color], i) => items.push({ key: "color_" + name, kind: "swatch", x: 16 + (i % 2) * 50, y: 400 + Math.floor(i / 2) * 46, w: 40, h: 38, color }));
+[["small", 4], ["medium", 8], ["large", 13]].forEach(([name, r], i) => items.push({ key: "size_" + name, kind: "size", x: 12 + i * 36, y: 620, w: 32, h: 32, r }));
+
+g.fillStyle = "#e9ebef"; g.fillRect(0, 0, 1280, 756);
+g.fillStyle = "#d5d9e0"; g.fillRect(0, 0, 1280, 46); g.fillRect(0, 46, 128, 710);
+g.fillStyle = "#ffffff"; g.fillRect(148, 66, 1112, 670); g.strokeStyle = "#b8bec9"; g.lineWidth = 1; g.strokeRect(148.5, 66.5, 1112, 670);
+g.font = '600 12px "Segoe UI", Arial'; g.fillStyle = "#5b6472"; g.textBaseline = "middle";
+g.fillText("SKETCHPAD", 16, 23); g.fillText("COLOURS", 16, 386); g.fillText("SIZE", 16, 606);
+for (const it of items) {
+  if (it.kind === "button" || it.kind === "tool") {
+    g.fillStyle = it.key === "tool_brush" ? "#cfe0ff" : "#ffffff"; g.fillRect(it.x, it.y, it.w, it.h);
+    g.strokeStyle = "#9aa3b2"; g.strokeRect(it.x + .5, it.y + .5, it.w - 1, it.h - 1);
+    g.fillStyle = "#1f2430"; g.font = '14px "Segoe UI", Arial'; g.textAlign = "center"; g.fillText(it.label, it.x + it.w / 2, it.y + it.h / 2 + 1); g.textAlign = "left";
+  } else if (it.kind === "swatch") {
+    g.fillStyle = it.color; g.fillRect(it.x, it.y, it.w, it.h); g.strokeStyle = "#6b7280"; g.strokeRect(it.x + .5, it.y + .5, it.w - 1, it.h - 1);
+  } else {
+    g.fillStyle = "#ffffff"; g.fillRect(it.x, it.y, it.w, it.h); g.strokeStyle = "#9aa3b2"; g.strokeRect(it.x + .5, it.y + .5, it.w - 1, it.h - 1);
+    g.fillStyle = "#1f2430"; g.beginPath(); g.arc(it.x + it.w / 2, it.y + it.h / 2, it.r, 0, 7); g.fill();
+  }
+}
+// Something already drawn, so the drawing area is not an empty rectangle.
+g.strokeStyle = "#1c7ed6"; g.lineWidth = 6; g.lineCap = "round"; g.beginPath(); g.moveTo(420, 520); g.bezierCurveTo(520, 300, 700, 640, 860, 380); g.stroke();
+g.strokeStyle = "#e03131"; g.beginPath(); g.arc(980, 250, 70, 0, 7); g.stroke();
+window.__gold = Object.fromEntries(items.map((it) => [it.key, { x: it.x, y: it.y + TOP, w: it.w, h: it.h }]));
+window.__controls = items.map((it) => ({ x: it.x, y: it.y + TOP, w: it.w, h: it.h }));
+</script>
+</body></html>

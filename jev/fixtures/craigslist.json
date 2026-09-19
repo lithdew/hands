@@ -1,0 +1,4010 @@
+{
+ "url": "https://sfbay.craigslist.org/",
+ "fetched": "2026-09-19T12:54:00.027Z",
+ "title": "craigslist: SF bay area jobs, apartments, for sale, services, community, and events",
+ "texts": [
+  "SF bay area",
+  "craigslist",
+  "event calendar",
+  "community",
+  "services",
+  "discussion forums",
+  "housing",
+  "for sale",
+  "jobs",
+  "gigs",
+  "resumes"
+ ],
+ "elements": [
+  {
+   "role": "link",
+   "name": "CL",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://www.craigslist.org/about/sites",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "SF bay area",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://sfbay.craigslist.org/area/sfbay",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "post",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://post.craigslist.org/c/sfo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "account",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://accounts.craigslist.org/login/home",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "favorites",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://sfbay.craigslist.org/#",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "hidden",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://sfbay.craigslist.org/#",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "new posting",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://post.craigslist.org/c/sfo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "my account",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://accounts.craigslist.org/login/home",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "sfc",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://sfbay.craigslist.org/subarea/sfc",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "sby",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://sfbay.craigslist.org/subarea/sby",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "eby",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://sfbay.craigslist.org/subarea/eby",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "pen",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://sfbay.craigslist.org/subarea/pen",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "nby",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://sfbay.craigslist.org/subarea/nby",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "scz",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://sfbay.craigslist.org/subarea/scz",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "post an ad",
+   "value": "",
+   "editable": false,
+   "within": "craigslist",
+   "href": "https://post.craigslist.org/c/sfo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "event calendar",
+   "value": "",
+   "editable": false,
+   "within": "craigslist",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=eee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "19",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-09-19",
+   "icon": false,
+   "row": "13 14 15 16 17 18 19"
+  },
+  {
+   "role": "link",
+   "name": "20",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-09-20",
+   "icon": false,
+   "row": "20 21 22 23 24 25 26"
+  },
+  {
+   "role": "link",
+   "name": "21",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-09-21",
+   "icon": false,
+   "row": "20 21 22 23 24 25 26"
+  },
+  {
+   "role": "link",
+   "name": "22",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-09-22",
+   "icon": false,
+   "row": "20 21 22 23 24 25 26"
+  },
+  {
+   "role": "link",
+   "name": "23",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-09-23",
+   "icon": false,
+   "row": "20 21 22 23 24 25 26"
+  },
+  {
+   "role": "link",
+   "name": "24",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-09-24",
+   "icon": false,
+   "row": "20 21 22 23 24 25 26"
+  },
+  {
+   "role": "link",
+   "name": "25",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-09-25",
+   "icon": false,
+   "row": "20 21 22 23 24 25 26"
+  },
+  {
+   "role": "link",
+   "name": "26",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-09-26",
+   "icon": false,
+   "row": "20 21 22 23 24 25 26"
+  },
+  {
+   "role": "link",
+   "name": "27",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-09-27",
+   "icon": false,
+   "row": "27 28 29 30 1 2 3"
+  },
+  {
+   "role": "link",
+   "name": "28",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-09-28",
+   "icon": false,
+   "row": "27 28 29 30 1 2 3"
+  },
+  {
+   "role": "link",
+   "name": "29",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-09-29",
+   "icon": false,
+   "row": "27 28 29 30 1 2 3"
+  },
+  {
+   "role": "link",
+   "name": "30",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-09-30",
+   "icon": false,
+   "row": "27 28 29 30 1 2 3"
+  },
+  {
+   "role": "link",
+   "name": "1",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-10-01",
+   "icon": false,
+   "row": "27 28 29 30 1 2 3"
+  },
+  {
+   "role": "link",
+   "name": "2",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-10-02",
+   "icon": false,
+   "row": "27 28 29 30 1 2 3"
+  },
+  {
+   "role": "link",
+   "name": "3",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-10-03",
+   "icon": false,
+   "row": "27 28 29 30 1 2 3"
+  },
+  {
+   "role": "link",
+   "name": "4",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-10-04",
+   "icon": false,
+   "row": "4 5 6 7 8 9 10"
+  },
+  {
+   "role": "link",
+   "name": "5",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-10-05",
+   "icon": false,
+   "row": "4 5 6 7 8 9 10"
+  },
+  {
+   "role": "link",
+   "name": "6",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-10-06",
+   "icon": false,
+   "row": "4 5 6 7 8 9 10"
+  },
+  {
+   "role": "link",
+   "name": "7",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-10-07",
+   "icon": false,
+   "row": "4 5 6 7 8 9 10"
+  },
+  {
+   "role": "link",
+   "name": "8",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-10-08",
+   "icon": false,
+   "row": "4 5 6 7 8 9 10"
+  },
+  {
+   "role": "link",
+   "name": "9",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-10-09",
+   "icon": false,
+   "row": "4 5 6 7 8 9 10"
+  },
+  {
+   "role": "link",
+   "name": "10",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/search/area/sfbay?cat=eee&sale_date=2026-10-10",
+   "icon": false,
+   "row": "4 5 6 7 8 9 10"
+  },
+  {
+   "role": "link",
+   "name": "help, faq, abuse, legal",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/about/help/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "avoid scams & fraud",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/about/help/safety/scams",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "personal safety tips",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/about/help/safety",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "about craigslist",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/about/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "best-of-craigslist",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/about/best/all/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "craigslist is hiring",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/about/craigslist_is_hiring",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "what's new",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/about/whats-new",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "system status",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslist.org/about/help/system-status",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "craigslist charitable",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslistfund.org/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "🌎🐮🐷🐔🐟",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://www.craigslistfund.org/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "craig newmarkphilanthropies",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://craignewmarkphilanthropies.org/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "community",
+   "value": "",
+   "editable": false,
+   "within": "event calendar",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=ccc",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "activities",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=act",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "artists",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=ats",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "childcare",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=kid",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "classes",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=cls",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "events",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=eve",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "general",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=com",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "groups",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=grp",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "local news",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=vnn",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "lost+found",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=laf",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "missed connections",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=mis",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "musicians",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=muc",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "pets",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=pet",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "politics",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=pol",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "rants & raves",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=rnr",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "rideshare",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=rid",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "volunteers",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=vol",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "services",
+   "value": "",
+   "editable": false,
+   "within": "community",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=bbb",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "automotive",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=aos",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "beauty",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=bts",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "cell/mobile",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=cms",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "computer",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=cps",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "creative",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=crs",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "cycle",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=cys",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "event",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=evs",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "farm+garden",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=fgs",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "financial",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=fns",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "health/well",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=hws",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "household",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=hss",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "labor/move",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=lbs",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "legal",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=lgs",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "lessons",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=lss",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "marine",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=mas",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "pet",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=pas",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "real estate",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=rts",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "skilled trade",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=sks",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "sm biz ads",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=biz",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "travel/vac",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=trv",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "write/ed/tran",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=wet",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "discussion forums",
+   "value": "",
+   "editable": false,
+   "within": "services",
+   "href": "https://forums.craigslist.org/?areaID=1",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "apple",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=3232",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "arts",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=49",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "atheist",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=78",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "autos",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=5",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "beauty",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=88",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bikes",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=95",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "celebs",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=47",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "comp",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=34",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "cosmos",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=1564",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "diet",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=122",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "divorce",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=76",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "dying",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=130",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "eco",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=99",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "feedbk",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=8",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "film",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=41",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "fixit",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=64",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "food",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=22",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "frugal",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=2007",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "gaming",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=85",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "garden",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=54",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "haiku",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=575",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "help",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=9",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "history",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=81",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "housing",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=6",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "jobs",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=7",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "jokes",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=1257",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "legal",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=73",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "manners",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=79",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "marriage",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=1926",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "money",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=53",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "music",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=24",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "open",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=4",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "parent",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=39",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "pets",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=26",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "philos",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=71",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "photo",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=5500",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "politics",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=20",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "psych",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=29",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "recover",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=12",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "religion",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=59",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "rofo",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=28",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "science",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=96",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "spirit",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=93",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "sports",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=32",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "super",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=2012",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "tax",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=1040",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "travel",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=42",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "tv",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=98",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "vegan",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=2400",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "words",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=7000",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "writing",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://forums.craigslist.org/?areaID=1&forumID=27",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "housing",
+   "value": "",
+   "editable": false,
+   "within": "discussion forums",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=hhh",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "apts / housing",
+   "value": "",
+   "editable": false,
+   "within": "housing",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=apa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "housing swap",
+   "value": "",
+   "editable": false,
+   "within": "housing",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=swp",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "housing wanted",
+   "value": "",
+   "editable": false,
+   "within": "housing",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=hsw",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "office / commercial",
+   "value": "",
+   "editable": false,
+   "within": "housing",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=off",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "parking / storage",
+   "value": "",
+   "editable": false,
+   "within": "housing",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=prk",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "real estate for sale",
+   "value": "",
+   "editable": false,
+   "within": "housing",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=rea",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "rooms / shared",
+   "value": "",
+   "editable": false,
+   "within": "housing",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=roo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "rooms wanted",
+   "value": "",
+   "editable": false,
+   "within": "housing",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=sha",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "sublets / temporary",
+   "value": "",
+   "editable": false,
+   "within": "housing",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=sub",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "vacation rentals",
+   "value": "",
+   "editable": false,
+   "within": "housing",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=vac",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "for sale",
+   "value": "",
+   "editable": false,
+   "within": "housing",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=sss",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "antiques",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=ata",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "appliances",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=ppa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "arts+crafts",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=ara",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "atv/utv/sno",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=sna",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "auto parts",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=pta",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "aviation",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=ava",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "baby+kid",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=baa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "barter",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=bar",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "beauty+hlth",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=haa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bike parts",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=bip",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bikes",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=bia",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "boat parts",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=bpa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "boats",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=boo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "books",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=bka",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "business",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=bfa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "cars+trucks",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=cta",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "cds/dvd/vhs",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=ema",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "cell phones",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=moa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "clothes+acc",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=cla",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "collectibles",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=cba",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "computer parts",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=syp",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "computers",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=sya",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "electronics",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=ela",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "farm+garden",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=gra",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "free",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=zip",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "furniture",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=fua",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "garage sale",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=gms",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "general",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=foa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "heavy equip",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=hva",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "household",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=hsa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "jewelry",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=jwa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "materials",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=maa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "motorcycle parts",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=mpa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "motorcycles",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=mca",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "music instr",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=msa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "photo+video",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=pha",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "rvs+camp",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=rva",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "sporting",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=sga",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "tickets",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=tia",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "tools",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=tla",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "toys+games",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=taa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "trailers",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=tra",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "video gaming",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=vga",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "wanted",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=waa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "wheels+tires",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=wta",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "jobs",
+   "value": "",
+   "editable": false,
+   "within": "for sale",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=jjj",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "accounting+finance",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=acc",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "admin / office",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=ofc",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "arch / engineering",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=egr",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "art / media / design",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=med",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "biotech / science",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=sci",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "business / mgmt",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=bus",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "customer service",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=csr",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "education",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=edu",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "etc / misc",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=etc",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "food / bev / hosp",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=fbh",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "general labor",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=lab",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "government",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=gov",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "human resources",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=hum",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "legal / paralegal",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=lgl",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "manufacturing",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=mnu",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "marketing / pr / ad",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=mar",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "medical / health",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=hea",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "nonprofit sector",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=npo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "real estate",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=rej",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "retail / wholesale",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=ret",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "sales / biz dev",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=sls",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "salon / spa / fitness",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=spa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "security",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=sec",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "skilled trade / craft",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=trd",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "software / qa / dba",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=sof",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "systems / network",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=sad",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "technical support",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=tch",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "transport",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=trp",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "tv / film / video",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=tfr",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "web / info design",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=web",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "writing / editing",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=wri",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "gigs",
+   "value": "",
+   "editable": false,
+   "within": "jobs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=ggg",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "computer",
+   "value": "",
+   "editable": false,
+   "within": "gigs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=cpg",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "creative",
+   "value": "",
+   "editable": false,
+   "within": "gigs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=crg",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "crew",
+   "value": "",
+   "editable": false,
+   "within": "gigs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=cwg",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "domestic",
+   "value": "",
+   "editable": false,
+   "within": "gigs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=dmg",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "event",
+   "value": "",
+   "editable": false,
+   "within": "gigs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=evg",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "labor",
+   "value": "",
+   "editable": false,
+   "within": "gigs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=lbg",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "talent",
+   "value": "",
+   "editable": false,
+   "within": "gigs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=tlg",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "writing",
+   "value": "",
+   "editable": false,
+   "within": "gigs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=wrg",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "resumes",
+   "value": "",
+   "editable": false,
+   "within": "gigs",
+   "href": "https://sfbay.craigslist.org/search/area/sfbay?cat=rrr",
+   "icon": false
+  },
+  {
+   "role": "dropdown",
+   "name": "lang",
+   "value": "english",
+   "editable": false,
+   "within": "resumes",
+   "href": "",
+   "icon": false,
+   "options": [
+    "dansk",
+    "deutsch",
+    "english",
+    "español",
+    "français",
+    "italiano",
+    "português",
+    "suomi",
+    "svenska",
+    "tiếng việt",
+    "türkçe",
+    "русский",
+    "中文",
+    "日本語",
+    "한국말"
+   ]
+  },
+  {
+   "role": "link",
+   "name": "bakersfield",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/bakersfield",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "chico",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/chico",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "fresno",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/fresno",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "gold country",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/goldcountry",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "hanford",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/hanford",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "humboldt",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/humboldt",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "inland empire",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/inlandempire",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "klamath falls",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/klamath",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "las vegas",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/lasvegas",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "los angeles",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/losangeles",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "medford",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/medford",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "mendocino co",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/mendocino",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "merced",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/merced",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "modesto",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/modesto",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "monterey",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/monterey",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "orange co",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/orangecounty",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "palm springs",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/palmsprings",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "redding",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/redding",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "reno",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/reno",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "roseburg",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/roseburg",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "sacramento",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/sacramento",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "san luis obispo",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/slo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "santa barbara",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/santabarbara",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "santa maria",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/santamaria",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "siskiyou co",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/siskiyou",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "stockton",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/stockton",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "susanville",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/susanville",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "ventura",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/ventura",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "visalia-tulare",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/visalia",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "yuba-sutter",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/yubasutter",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "atlanta",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/atlanta",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "austin",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/austin",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "boston",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/boston",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "chicago",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/chicago",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "dallas",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/dallas",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "denver",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/denver",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "detroit",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/detroit",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "houston",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/houston",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "miami",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/miami",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "minneapolis",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/minneapolis",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "new york",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/newyork",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "philadelphia",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/philadelphia",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "phoenix",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/phoenix",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "portland",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/portland",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "raleigh",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/raleigh",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "san diego",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/sandiego",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "seattle",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/seattle",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "sf bayarea",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/sfbay",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "wash dc",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/washingtondc",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "more ...",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "alabama",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/al",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "alaska",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/ak",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "arizona",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/az",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "arkansas",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/ar",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "california",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/ca",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "colorado",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/co",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "connecticut",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/ct",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "dc",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/dc",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "delaware",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/de",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "florida",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/fl",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "georgia",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/ga",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "guam",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/gu",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "hawaii",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/hi",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "idaho",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/id",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "illinois",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/il",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "indiana",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/in",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "iowa",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/ia",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "kansas",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/ks",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "kentucky",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/ky",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "louisiana",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/la",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "maine",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/me",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "maryland",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/md",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "mass",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/ma",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "michigan",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/mi",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "minnesota",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/mn",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "mississippi",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/ms",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "missouri",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/mo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "montana",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/mt",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "n carolina",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/nc",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "nebraska",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/ne",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "nevada",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/nv",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "new jersey",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/nj",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "new mexico",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/nm",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "new york",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/ny",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "n hampshire",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/nh",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "north dakota",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/nd",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "ohio",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/oh",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "oklahoma",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/ok",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "oregon",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/or",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "pennsylvania",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/pa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "puerto rico",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/pr",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "rhode island",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/ri",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "s carolina",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/sc",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "south dakota",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/sd",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "tennessee",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/tn",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "texas",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/tx",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "utah",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/ut",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "vermont",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/vt",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "virginia",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/va",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "washington",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/wa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "west virginia",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/wv",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "wisconsin",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/wi",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "wyoming",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/us/wy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "calgary",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/calgary",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "edmonton",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/edmonton",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "halifax",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/halifax",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "montreal",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/montreal",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "ottawa",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/ottawa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "saskatoon",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/saskatoon",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "toronto",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/toronto",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "vancouver",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/vancouver",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "victoria",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/victoria",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "winnipeg",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/winnipeg",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "more ...",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/ca",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "egypt",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/eg",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "ethiopia",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/et",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "ghana",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/gh",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "kenya",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/ke",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "morocco",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/ma",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "south africa",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/za",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "tunisia",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/tn",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "argentina",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/ar",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bolivia",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/bo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "brazil",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/rio",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "canada",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/about/sites#CA",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "chile",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/cl",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "colombia",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/co",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "costa rica",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/cr",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "dom republic",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/do",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "ecuador",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/ec",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "el salvador",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/sv",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "guatemala",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/gt",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "mexico",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/mexicocity",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "nicaragua",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/ni",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "panama",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/pa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "peru",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/pe",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "united states",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/about/sites#US",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "uruguay",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/uy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "us virgin islands",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/vi",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "venezuela",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/ve",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bangladesh",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/bd",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "china",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/shanghai",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "hong kong",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/hk",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "india",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/bangalore",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "indonesia",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/id",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "iran",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/ir",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "iraq",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/iq",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "israel",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/telaviv",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "japan",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/tokyo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "kuwait",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/kw",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "lebanon",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/lb",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "malaysia",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/my",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "pakistan",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/pk",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "philippines",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/manila",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "russia",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/moscow",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "singapore",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/singapore",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "south korea",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/kr",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "taiwan",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/tw",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "thailand",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/th",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "turkey",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/tr",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "uae",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/ae",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "vietnam",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/vn",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "west bank",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/ps",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "austria",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/at",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "belgium",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/be",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bulgaria",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/bg",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "croatia",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/hr",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "czech republic",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/cz",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "denmark",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/dk",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "finland",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/fi",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "france",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/paris",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "germany",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/berlin",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "greece",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/gr",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "hungary",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/hu",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "iceland",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/is",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "ireland",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/ie",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "italy",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/rome",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "luxembourg",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/lu",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "netherlands",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/nl",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "norway",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/no",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "poland",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/pl",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "portugal",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/pt",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "romania",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/ro",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "spain",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/madrid",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "sweden",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/se",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "switzerland",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/zurich",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "ukraine",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/ua",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "united kingdom",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://geo.craigslist.org/iso/gb",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "australia",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/sydney",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "new zealand",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/area/auckland",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "more...",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://www.craigslist.org/about/sites",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "help",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.craigslist.org/about/help/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "safety",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.craigslist.org/about/help/safety",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "privacy",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.craigslist.org/about/privacy.policy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "terms",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.craigslist.org/about/terms.of.use",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "about",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.craigslist.org/about/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "app",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.craigslist.org/about/craigslist_app",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "sitemap",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.craigslist.org/sitemap/area/sfbay",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "refresh the page.",
+   "value": "",
+   "editable": false,
+   "within": "resumes",
+   "href": "https://sfbay.craigslist.org/#",
+   "icon": false
+  }
+ ]
+}

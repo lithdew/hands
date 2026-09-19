@@ -1,0 +1,44 @@
+<!doctype html>
+<!-- SYNTHETIC harness page for jev/marks.eval.ts: twins. Every row has the same three icon buttons with no
+     accessible name, and the same named "Open" button. `data-gold` is only read by the eval. -->
+<html lang="en"><head><meta charset="utf-8"><title>Harbor Drive - My files</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:1280px;height:800px;overflow:hidden;font:14px "Segoe UI",Arial,sans-serif;color:#1f2430;background:#fff}
+nav{position:absolute;left:0;top:0;width:220px;height:800px;background:#f6f7f9;border-right:1px solid #e1e4e8;padding:18px 12px}
+nav b{display:block;font-size:18px;margin:0 8px 18px}
+nav a{display:block;padding:9px 10px;border-radius:6px;color:#1f2430;text-decoration:none}
+nav a.on{background:#e3ebfd;font-weight:600}
+main{position:absolute;left:220px;top:0;width:1060px;height:800px;padding:20px 32px}
+.top{display:flex;align-items:center;gap:12px;height:44px}
+.top h1{font-size:22px;margin:0;flex:1}
+.top input{width:280px;height:34px;border:1px solid #c9ced6;border-radius:6px;padding:0 12px;font:inherit}
+.top button.new{height:34px;padding:0 14px;border:0;border-radius:6px;background:#2f6fed;color:#fff;font:inherit;font-weight:600}
+table{width:100%;border-collapse:collapse;margin-top:18px}
+th{text-align:left;font-size:12px;color:#6b7280;font-weight:600;padding:8px 10px;border-bottom:1px solid #e1e4e8}
+td{padding:0 10px;height:56px;border-bottom:1px solid #eef0f3}
+td a{color:#1f2430;text-decoration:none;font-weight:600}
+td.dim{color:#6b7280}
+.open{height:30px;padding:0 12px;border:1px solid #c9ced6;border-radius:6px;background:#fff;font:inherit}
+.ib{width:34px;height:34px;border:0;background:transparent;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;padding:0;vertical-align:middle}
+.ib svg{width:19px;height:19px;fill:none;stroke:#3b4252;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+</style></head><body>
+<nav><b>Harbor Drive</b><a class="on" href="#files">My files</a><a href="#shared">Shared with me</a><a href="#recent">Recent</a><a href="#bin">Bin</a></nav>
+<main>
+  <div class="top"><h1>My files</h1><input type="text" placeholder="Search files"><button class="new">Upload</button></div>
+  <table><thead><tr><th>Name</th><th>Size</th><th>Modified</th><th></th><th></th></tr></thead><tbody id="rows"></tbody></table>
+</main>
+<script>
+const ICONS = {
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>',
+  trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
+};
+const FILES = [["budget-2026.xlsx", "48 KB", "Today"], ["holiday-photos.zip", "312 MB", "Yesterday"], ["report-q3.pdf", "1.2 MB", "14 Sept"],
+  ["invoice-0142.pdf", "88 KB", "11 Sept"], ["lease-agreement.docx", "64 KB", "2 Sept"], ["team-offsite-notes.txt", "4 KB", "29 Aug"], ["logo-final-v3.png", "740 KB", "21 Aug"]];
+const key = (name) => name.split(".")[0].replace(/-/g, "_");
+document.getElementById("rows").innerHTML = FILES.map(([name, size, when]) => `<tr><td><a href="#${name}">${name}</a></td><td class="dim">${size}</td><td class="dim">${when}</td>
+  <td><button class="open" data-gold="open_${key(name)}">Open</button></td>
+  <td>${Object.keys(ICONS).map((icon) => `<button class="ib" data-gold="${icon}_${key(name)}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg></button>`).join("")}</td></tr>`).join("");
+</script>
+</body></html>

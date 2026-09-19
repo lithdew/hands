@@ -1,0 +1,58 @@
+<!doctype html>
+<!-- SYNTHETIC harness page for jev/marks.eval.ts: a booking widget inside a sandboxed iframe. The sandbox gives the
+     frame an opaque origin, so to the page (and to win/observe.ts, which reads the top document) it is as unreadable
+     as a third party's embed. The frame reports its own rectangles to the eval by postMessage. -->
+<html lang="en"><head><meta charset="utf-8"><title>Osteria Pellegrino - Reservations</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:1280px;height:800px;overflow:hidden;font:15px "Segoe UI",Arial,sans-serif;color:#2a2320;background:#faf6f0}
+nav{position:absolute;left:0;top:0;width:1280px;height:64px;display:flex;align-items:center;gap:28px;padding:0 40px;background:#3b2a20;color:#fff}
+nav b{font-size:20px;flex:1;font-family:Georgia,serif} nav a{color:#f3e6d6;text-decoration:none}
+.copy{position:absolute;left:40px;top:104px;width:560px}
+.copy h1{font:700 34px Georgia,serif;margin:0 0 14px}
+.copy p{line-height:1.6;margin:0 0 14px}
+.copy a{color:#8a3b12}
+iframe{position:absolute;left:660px;top:104px;width:560px;height:560px;border:1px solid #d9cfc2;border-radius:10px;background:#fff}
+footer{position:absolute;left:0;top:740px;width:1280px;height:60px;display:flex;align-items:center;gap:24px;padding:0 40px;color:#6b5f57;border-top:1px solid #e6dccf}
+footer a{color:#6b5f57}
+</style></head><body>
+<nav><b>Osteria Pellegrino</b><a href="#menu">Menu</a><a href="#gift">Gift cards</a><a href="#events">Private events</a><a href="#contact">Contact</a></nav>
+<div class="copy">
+  <h1>Reserve a table</h1>
+  <p>We take reservations up to sixty days ahead. Tables are held for fifteen minutes. For parties of nine or more, please <a href="#events">ask about private events</a>.</p>
+  <p>Reservations are handled by our booking partner in the panel on the right.</p>
+  <p><a href="#allergy">Allergy information</a> · <a href="#cancel">Cancellation policy</a></p>
+</div>
+<iframe sandbox="allow-scripts" srcdoc='<!doctype html><html><head><style>
+*{box-sizing:border-box} body{margin:0;font:15px "Segoe UI",Arial,sans-serif;color:#1f2430;padding:24px 28px}
+h2{margin:0 0 4px;font-size:20px} .by{color:#6b7280;font-size:12px;margin-bottom:18px}
+label{display:block;font-size:12px;color:#6b7280;margin:14px 0 6px;text-transform:uppercase;letter-spacing:.05em}
+.row{display:flex;gap:10px;align-items:center}
+.step{width:36px;height:36px;border:1px solid #c9ced6;border-radius:18px;background:#fff;font-size:20px;line-height:1;padding:0}
+.n{font-weight:700;font-size:18px;width:90px;text-align:center}
+.slot{height:40px;width:116px;border:1px solid #b5452a;border-radius:6px;background:#fff;color:#b5452a;font:inherit;font-weight:600}
+input{height:40px;width:100%;border:1px solid #c9ced6;border-radius:6px;padding:0 12px;font:inherit}
+.go{margin-top:20px;height:46px;width:100%;border:0;border-radius:6px;background:#b5452a;color:#fff;font:inherit;font-weight:700;font-size:16px}
+.fine{color:#6b7280;font-size:12px;margin-top:12px}
+</style></head><body>
+<h2>Book your table</h2><div class="by">Powered by TableLoop</div>
+<label>Guests</label><div class="row"><button class="step" data-gold="guests_minus">&minus;</button><span class="n">2 guests</span><button class="step" data-gold="guests_plus">+</button></div>
+<label>Thursday 24 September</label><div class="row"><button class="slot" data-gold="slot_630">6:30 PM</button><button class="slot" data-gold="slot_700">7:00 PM</button><button class="slot" data-gold="slot_730">7:30 PM</button><button class="slot" data-gold="slot_815">8:15 PM</button></div>
+<label>Email for confirmation</label><input type="text" placeholder="you@example.com" data-gold="email">
+<label>Special requests</label><input type="text" placeholder="High chair, window seat, allergies" data-gold="requests">
+<button class="go" data-gold="find">Find a table</button>
+<div class="fine">You will not be charged. Free cancellation until two hours before.</div>
+<script>const tell = () => { const r = (el) => { const b = el.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height }; };
+  parent.postMessage({ puk: true, gold: Object.fromEntries([...document.querySelectorAll("[data-gold]")].map((el) => [el.dataset.gold, r(el)])) }, "*"); };
+  tell(); addEventListener("load", tell);</script>
+</body></html>'></iframe>
+<footer><span>Via dei Mille 14</span><a href="#hours">Opening hours</a><a href="#press">Press</a></footer>
+<script>
+addEventListener("message", (event) => {
+  if (!event.data || !event.data.puk) return;
+  const frame = document.querySelector("iframe"), box = frame.getBoundingClientRect(), dx = box.left + frame.clientLeft, dy = box.top + frame.clientTop;
+  window.__gold = Object.fromEntries(Object.entries(event.data.gold).map(([key, r]) => [key, { x: r.x + dx, y: r.y + dy, w: r.w, h: r.h }]));
+  window.__controls = Object.values(window.__gold);
+});
+</script>
+</body></html>

@@ -1,0 +1,4445 @@
+{
+ "url": "https://arxiv.org/list/cs.AI/recent",
+ "fetched": "2026-09-19T12:54:00.257Z",
+ "title": "Artificial Intelligence",
+ "texts": [
+  "Artificial Intelligence",
+  "Authors and titles for recent submissions",
+  "Fri, 18 Sep 2026 (showing first 50 of 215 entries )"
+ ],
+ "elements": [
+  {
+   "role": "link",
+   "name": "Skip to main content",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://arxiv.org/list/cs.AI/recent#content",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "archive home",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://arxiv.org/",
+   "icon": true
+  },
+  {
+   "role": "button",
+   "name": "Open menu",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Search",
+   "value": "",
+   "editable": false,
+   "within": "Main navigation navigation",
+   "href": "https://arxiv.org/search",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Submit",
+   "value": "",
+   "editable": false,
+   "within": "Main navigation navigation",
+   "href": "https://arxiv.org/user/create",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Donate",
+   "value": "",
+   "editable": false,
+   "within": "Main navigation navigation",
+   "href": "https://info.arxiv.org/about/donate.html",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Log in",
+   "value": "",
+   "editable": false,
+   "within": "Main navigation navigation",
+   "href": "https://arxiv.org/login",
+   "icon": false
+  },
+  {
+   "role": "text field",
+   "name": "Search arXiv",
+   "value": "",
+   "editable": true,
+   "within": "form",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Advanced search",
+   "value": "",
+   "editable": false,
+   "within": "search",
+   "href": "https://arxiv.org/search/advanced",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Fri, 18 Sep 2026",
+   "value": "",
+   "editable": false,
+   "within": "Authors and titles for recent submissions",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=0&show=50",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Thu, 17 Sep 2026",
+   "value": "",
+   "editable": false,
+   "within": "Authors and titles for recent submissions",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=215&show=50",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Wed, 16 Sep 2026",
+   "value": "",
+   "editable": false,
+   "within": "Authors and titles for recent submissions",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=419&show=50",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Tue, 15 Sep 2026",
+   "value": "",
+   "editable": false,
+   "within": "Authors and titles for recent submissions",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=614&show=50",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Mon, 14 Sep 2026",
+   "value": "",
+   "editable": false,
+   "within": "Authors and titles for recent submissions",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=1022&show=50",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "new",
+   "value": "",
+   "editable": false,
+   "within": "Authors and titles for recent submissions",
+   "href": "https://arxiv.org/list/cs.AI/new",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "51-100",
+   "value": "",
+   "editable": false,
+   "within": "Authors and titles for recent submissions",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=50&show=50",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "101-150",
+   "value": "",
+   "editable": false,
+   "within": "Authors and titles for recent submissions",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=100&show=50",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "151-200",
+   "value": "",
+   "editable": false,
+   "within": "Authors and titles for recent submissions",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=150&show=50",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "1151-1189",
+   "value": "",
+   "editable": false,
+   "within": "Authors and titles for recent submissions",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=1150&show=50",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "fewer",
+   "value": "",
+   "editable": false,
+   "within": "Authors and titles for recent submissions",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=0&show=25",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "more",
+   "value": "",
+   "editable": false,
+   "within": "Authors and titles for recent submissions",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=0&show=100",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "all",
+   "value": "",
+   "editable": false,
+   "within": "Authors and titles for recent submissions",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=0&show=2000",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20804",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20804",
+   "icon": false,
+   "row": "[1] arXiv:2609.20804 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20804",
+   "icon": false,
+   "row": "[1] arXiv:2609.20804 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20804v1",
+   "icon": false,
+   "row": "[1] arXiv:2609.20804 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20804",
+   "icon": false,
+   "row": "[1] arXiv:2609.20804 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Run-Ze Fan",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Fan,+R",
+   "icon": false,
+   "row": "Title: An Empirical Study of Harness Design for Coding Agents Run-Ze Fan, Zihao Zhang, Simin Ma, Yebowen Hu, Shouju Wang, Kaiqiang Song, Fei Liu, Hamed Zamani, "
+  },
+  {
+   "role": "link",
+   "name": "Zihao Zhang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhang,+Z",
+   "icon": false,
+   "row": "Title: An Empirical Study of Harness Design for Coding Agents Run-Ze Fan, Zihao Zhang, Simin Ma, Yebowen Hu, Shouju Wang, Kaiqiang Song, Fei Liu, Hamed Zamani, "
+  },
+  {
+   "role": "link",
+   "name": "Simin Ma",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Ma,+S",
+   "icon": false,
+   "row": "Title: An Empirical Study of Harness Design for Coding Agents Run-Ze Fan, Zihao Zhang, Simin Ma, Yebowen Hu, Shouju Wang, Kaiqiang Song, Fei Liu, Hamed Zamani, "
+  },
+  {
+   "role": "link",
+   "name": "Yebowen Hu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Hu,+Y",
+   "icon": false,
+   "row": "Title: An Empirical Study of Harness Design for Coding Agents Run-Ze Fan, Zihao Zhang, Simin Ma, Yebowen Hu, Shouju Wang, Kaiqiang Song, Fei Liu, Hamed Zamani, "
+  },
+  {
+   "role": "link",
+   "name": "Shouju Wang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Wang,+S",
+   "icon": false,
+   "row": "Title: An Empirical Study of Harness Design for Coding Agents Run-Ze Fan, Zihao Zhang, Simin Ma, Yebowen Hu, Shouju Wang, Kaiqiang Song, Fei Liu, Hamed Zamani, "
+  },
+  {
+   "role": "link",
+   "name": "Kaiqiang Song",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Song,+K",
+   "icon": false,
+   "row": "Title: An Empirical Study of Harness Design for Coding Agents Run-Ze Fan, Zihao Zhang, Simin Ma, Yebowen Hu, Shouju Wang, Kaiqiang Song, Fei Liu, Hamed Zamani, "
+  },
+  {
+   "role": "link",
+   "name": "Fei Liu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Liu,+F",
+   "icon": false,
+   "row": "Title: An Empirical Study of Harness Design for Coding Agents Run-Ze Fan, Zihao Zhang, Simin Ma, Yebowen Hu, Shouju Wang, Kaiqiang Song, Fei Liu, Hamed Zamani, "
+  },
+  {
+   "role": "link",
+   "name": "Hamed Zamani",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zamani,+H",
+   "icon": false,
+   "row": "Title: An Empirical Study of Harness Design for Coding Agents Run-Ze Fan, Zihao Zhang, Simin Ma, Yebowen Hu, Shouju Wang, Kaiqiang Song, Fei Liu, Hamed Zamani, "
+  },
+  {
+   "role": "link",
+   "name": "Xiaoyang Wang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Wang,+X",
+   "icon": false,
+   "row": "Title: An Empirical Study of Harness Design for Coding Agents Run-Ze Fan, Zihao Zhang, Simin Ma, Yebowen Hu, Shouju Wang, Kaiqiang Song, Fei Liu, Hamed Zamani, "
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20754",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20754",
+   "icon": false,
+   "row": "[2] arXiv:2609.20754 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20754",
+   "icon": false,
+   "row": "[2] arXiv:2609.20754 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20754v1",
+   "icon": false,
+   "row": "[2] arXiv:2609.20754 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20754",
+   "icon": false,
+   "row": "[2] arXiv:2609.20754 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Mingxuan Zhang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhang,+M",
+   "icon": false,
+   "row": "Title: RAFT: A Stateful Retrieval-Augmented Framework for Troubleshooting Agents Mingxuan Zhang, Xiaowen Wang, Anupma Sharan, Zhengyi Chen, Chenyu Diana Zhang, "
+  },
+  {
+   "role": "link",
+   "name": "Xiaowen Wang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Wang,+X",
+   "icon": false,
+   "row": "Title: RAFT: A Stateful Retrieval-Augmented Framework for Troubleshooting Agents Mingxuan Zhang, Xiaowen Wang, Anupma Sharan, Zhengyi Chen, Chenyu Diana Zhang, "
+  },
+  {
+   "role": "link",
+   "name": "Anupma Sharan",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Sharan,+A",
+   "icon": false,
+   "row": "Title: RAFT: A Stateful Retrieval-Augmented Framework for Troubleshooting Agents Mingxuan Zhang, Xiaowen Wang, Anupma Sharan, Zhengyi Chen, Chenyu Diana Zhang, "
+  },
+  {
+   "role": "link",
+   "name": "Zhengyi Chen",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Chen,+Z",
+   "icon": false,
+   "row": "Title: RAFT: A Stateful Retrieval-Augmented Framework for Troubleshooting Agents Mingxuan Zhang, Xiaowen Wang, Anupma Sharan, Zhengyi Chen, Chenyu Diana Zhang, "
+  },
+  {
+   "role": "link",
+   "name": "Chenyu Diana Zhang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhang,+C+D",
+   "icon": false,
+   "row": "Title: RAFT: A Stateful Retrieval-Augmented Framework for Troubleshooting Agents Mingxuan Zhang, Xiaowen Wang, Anupma Sharan, Zhengyi Chen, Chenyu Diana Zhang, "
+  },
+  {
+   "role": "link",
+   "name": "Shanshan Yang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Yang,+S",
+   "icon": false,
+   "row": "Title: RAFT: A Stateful Retrieval-Augmented Framework for Troubleshooting Agents Mingxuan Zhang, Xiaowen Wang, Anupma Sharan, Zhengyi Chen, Chenyu Diana Zhang, "
+  },
+  {
+   "role": "link",
+   "name": "Chittibabu Pacharu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Pacharu,+C",
+   "icon": false,
+   "row": "Title: RAFT: A Stateful Retrieval-Augmented Framework for Troubleshooting Agents Mingxuan Zhang, Xiaowen Wang, Anupma Sharan, Zhengyi Chen, Chenyu Diana Zhang, "
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20732",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20732",
+   "icon": false,
+   "row": "[3] arXiv:2609.20732 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20732",
+   "icon": false,
+   "row": "[3] arXiv:2609.20732 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20732v1",
+   "icon": false,
+   "row": "[3] arXiv:2609.20732 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20732",
+   "icon": false,
+   "row": "[3] arXiv:2609.20732 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Zofia Smoleń",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Smole%C5%84,+Z",
+   "icon": false,
+   "row": "Title: Q&A on Any Spreadsheet Requires Interpreting Its Grid Structure Zofia Smoleń Subjects: Artificial Intelligence (cs.AI); Software Engineering (cs.SE)"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20722",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20722",
+   "icon": false,
+   "row": "[4] arXiv:2609.20722 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20722",
+   "icon": false,
+   "row": "[4] arXiv:2609.20722 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20722v1",
+   "icon": false,
+   "row": "[4] arXiv:2609.20722 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20722",
+   "icon": false,
+   "row": "[4] arXiv:2609.20722 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Frank E. Bobe III",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Bobe,+F+E",
+   "icon": false,
+   "row": "Title: Deep Noir: Autonomous Steering Discovery via Architectural Chronometry in Transformer Models Frank E. Bobe III, Gregory D. Vetaw, Darshan W. Bryner, Matt"
+  },
+  {
+   "role": "link",
+   "name": "Gregory D. Vetaw",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Vetaw,+G+D",
+   "icon": false,
+   "row": "Title: Deep Noir: Autonomous Steering Discovery via Architectural Chronometry in Transformer Models Frank E. Bobe III, Gregory D. Vetaw, Darshan W. Bryner, Matt"
+  },
+  {
+   "role": "link",
+   "name": "Darshan W. Bryner",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Bryner,+D+W",
+   "icon": false,
+   "row": "Title: Deep Noir: Autonomous Steering Discovery via Architectural Chronometry in Transformer Models Frank E. Bobe III, Gregory D. Vetaw, Darshan W. Bryner, Matt"
+  },
+  {
+   "role": "link",
+   "name": "Matthew G. Cook",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Cook,+M+G",
+   "icon": false,
+   "row": "Title: Deep Noir: Autonomous Steering Discovery via Architectural Chronometry in Transformer Models Frank E. Bobe III, Gregory D. Vetaw, Darshan W. Bryner, Matt"
+  },
+  {
+   "role": "link",
+   "name": "Jose L. Salas-Vernis",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Salas-Vernis,+J+L",
+   "icon": false,
+   "row": "Title: Deep Noir: Autonomous Steering Discovery via Architectural Chronometry in Transformer Models Frank E. Bobe III, Gregory D. Vetaw, Darshan W. Bryner, Matt"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20658",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20658",
+   "icon": false,
+   "row": "[5] arXiv:2609.20658 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20658",
+   "icon": false,
+   "row": "[5] arXiv:2609.20658 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20658v1",
+   "icon": false,
+   "row": "[5] arXiv:2609.20658 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20658",
+   "icon": false,
+   "row": "[5] arXiv:2609.20658 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Megan Wei",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Wei,+M",
+   "icon": false,
+   "row": "Title: Ownership in AI-Assisted Everyday Tasks Megan Wei, Melanie Subbiah, Audrey Lee, Annya Dahmani, Dave Edwards, Helen Edwards, Ellie Pavlick Subjects: Artif"
+  },
+  {
+   "role": "link",
+   "name": "Melanie Subbiah",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Subbiah,+M",
+   "icon": false,
+   "row": "Title: Ownership in AI-Assisted Everyday Tasks Megan Wei, Melanie Subbiah, Audrey Lee, Annya Dahmani, Dave Edwards, Helen Edwards, Ellie Pavlick Subjects: Artif"
+  },
+  {
+   "role": "link",
+   "name": "Audrey Lee",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Lee,+A",
+   "icon": false,
+   "row": "Title: Ownership in AI-Assisted Everyday Tasks Megan Wei, Melanie Subbiah, Audrey Lee, Annya Dahmani, Dave Edwards, Helen Edwards, Ellie Pavlick Subjects: Artif"
+  },
+  {
+   "role": "link",
+   "name": "Annya Dahmani",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Dahmani,+A",
+   "icon": false,
+   "row": "Title: Ownership in AI-Assisted Everyday Tasks Megan Wei, Melanie Subbiah, Audrey Lee, Annya Dahmani, Dave Edwards, Helen Edwards, Ellie Pavlick Subjects: Artif"
+  },
+  {
+   "role": "link",
+   "name": "Dave Edwards",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Edwards,+D",
+   "icon": false,
+   "row": "Title: Ownership in AI-Assisted Everyday Tasks Megan Wei, Melanie Subbiah, Audrey Lee, Annya Dahmani, Dave Edwards, Helen Edwards, Ellie Pavlick Subjects: Artif"
+  },
+  {
+   "role": "link",
+   "name": "Helen Edwards",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Edwards,+H",
+   "icon": false,
+   "row": "Title: Ownership in AI-Assisted Everyday Tasks Megan Wei, Melanie Subbiah, Audrey Lee, Annya Dahmani, Dave Edwards, Helen Edwards, Ellie Pavlick Subjects: Artif"
+  },
+  {
+   "role": "link",
+   "name": "Ellie Pavlick",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Pavlick,+E",
+   "icon": false,
+   "row": "Title: Ownership in AI-Assisted Everyday Tasks Megan Wei, Melanie Subbiah, Audrey Lee, Annya Dahmani, Dave Edwards, Helen Edwards, Ellie Pavlick Subjects: Artif"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20634",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20634",
+   "icon": false,
+   "row": "[6] arXiv:2609.20634 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20634",
+   "icon": false,
+   "row": "[6] arXiv:2609.20634 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20634v1",
+   "icon": false,
+   "row": "[6] arXiv:2609.20634 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20634",
+   "icon": false,
+   "row": "[6] arXiv:2609.20634 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Julian Eggert",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Eggert,+J",
+   "icon": false,
+   "row": "Title: PAA: The Probabilistic Allen Algebra: A Generative and Complete Probabilistic Extension of Allen's Interval Relations Julian Eggert (Honda Research Insti"
+  },
+  {
+   "role": "link",
+   "name": "this https URL",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://github.com/HRI-EU/probabilistic-allen-algebra",
+   "icon": false,
+   "row": "Title: PAA: The Probabilistic Allen Algebra: A Generative and Complete Probabilistic Extension of Allen's Interval Relations Julian Eggert (Honda Research Insti"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20581",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20581",
+   "icon": false,
+   "row": "[7] arXiv:2609.20581 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20581",
+   "icon": false,
+   "row": "[7] arXiv:2609.20581 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20581v1",
+   "icon": false,
+   "row": "[7] arXiv:2609.20581 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20581",
+   "icon": false,
+   "row": "[7] arXiv:2609.20581 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Russ Webb",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Webb,+R",
+   "icon": false,
+   "row": "Title: Limits of Confidence in Diffusion Russ Webb, Amitis Shidani, Alice Bizeul, Dan Busbridge Subjects: Artificial Intelligence (cs.AI)"
+  },
+  {
+   "role": "link",
+   "name": "Amitis Shidani",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Shidani,+A",
+   "icon": false,
+   "row": "Title: Limits of Confidence in Diffusion Russ Webb, Amitis Shidani, Alice Bizeul, Dan Busbridge Subjects: Artificial Intelligence (cs.AI)"
+  },
+  {
+   "role": "link",
+   "name": "Alice Bizeul",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Bizeul,+A",
+   "icon": false,
+   "row": "Title: Limits of Confidence in Diffusion Russ Webb, Amitis Shidani, Alice Bizeul, Dan Busbridge Subjects: Artificial Intelligence (cs.AI)"
+  },
+  {
+   "role": "link",
+   "name": "Dan Busbridge",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Busbridge,+D",
+   "icon": false,
+   "row": "Title: Limits of Confidence in Diffusion Russ Webb, Amitis Shidani, Alice Bizeul, Dan Busbridge Subjects: Artificial Intelligence (cs.AI)"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20543",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20543",
+   "icon": false,
+   "row": "[8] arXiv:2609.20543 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20543",
+   "icon": false,
+   "row": "[8] arXiv:2609.20543 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20543",
+   "icon": false,
+   "row": "[8] arXiv:2609.20543 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "Tengfei Shao",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Shao,+T",
+   "icon": false,
+   "row": "Title: Language-model groups overstate consensus when replaying human deliberation on a reasoning task Tengfei Shao Comments: 37 pages, 4 figures. Preregistrati"
+  },
+  {
+   "role": "link",
+   "name": "this https URL",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://osf.io/5jp7s",
+   "icon": false,
+   "row": "Title: Language-model groups overstate consensus when replaying human deliberation on a reasoning task Tengfei Shao Comments: 37 pages, 4 figures. Preregistrati"
+  },
+  {
+   "role": "link",
+   "name": "this https URL",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://doi.org/10.5281/zenodo.21318346",
+   "icon": false,
+   "row": "Title: Language-model groups overstate consensus when replaying human deliberation on a reasoning task Tengfei Shao Comments: 37 pages, 4 figures. Preregistrati"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20538",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20538",
+   "icon": false,
+   "row": "[9] arXiv:2609.20538 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20538",
+   "icon": false,
+   "row": "[9] arXiv:2609.20538 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20538v1",
+   "icon": false,
+   "row": "[9] arXiv:2609.20538 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20538",
+   "icon": false,
+   "row": "[9] arXiv:2609.20538 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Peiying Zhu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhu,+P",
+   "icon": false,
+   "row": "Title: Refuse, Decompose, Refresh: A Claim-Safe Protocol for Closed-Loop AI Evaluation Peiying Zhu, Sidi Chang Comments: 8 pages, 0 figures, 3 tables. The repro"
+  },
+  {
+   "role": "link",
+   "name": "Sidi Chang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Chang,+S",
+   "icon": false,
+   "row": "Title: Refuse, Decompose, Refresh: A Claim-Safe Protocol for Closed-Loop AI Evaluation Peiying Zhu, Sidi Chang Comments: 8 pages, 0 figures, 3 tables. The repro"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20535",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20535",
+   "icon": false,
+   "row": "[10] arXiv:2609.20535 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20535",
+   "icon": false,
+   "row": "[10] arXiv:2609.20535 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20535v1",
+   "icon": false,
+   "row": "[10] arXiv:2609.20535 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20535",
+   "icon": false,
+   "row": "[10] arXiv:2609.20535 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Zaynab Raounak",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Raounak,+Z",
+   "icon": false,
+   "row": "Title: FreqCondNorm: Towards Cross-domain Predictive Maintenance through a Frequency-Conditioned Transformer Foundation Model Zaynab Raounak, Camille LHermine, "
+  },
+  {
+   "role": "link",
+   "name": "Camille LHermine",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=LHermine,+C",
+   "icon": false,
+   "row": "Title: FreqCondNorm: Towards Cross-domain Predictive Maintenance through a Frequency-Conditioned Transformer Foundation Model Zaynab Raounak, Camille LHermine, "
+  },
+  {
+   "role": "link",
+   "name": "Zhiguo Zeng",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zeng,+Z",
+   "icon": false,
+   "row": "Title: FreqCondNorm: Towards Cross-domain Predictive Maintenance through a Frequency-Conditioned Transformer Foundation Model Zaynab Raounak, Camille LHermine, "
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20519",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20519",
+   "icon": false,
+   "row": "[11] arXiv:2609.20519 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20519",
+   "icon": false,
+   "row": "[11] arXiv:2609.20519 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20519v1",
+   "icon": false,
+   "row": "[11] arXiv:2609.20519 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20519",
+   "icon": false,
+   "row": "[11] arXiv:2609.20519 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Haozhe Liu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Liu,+H",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Tian Ye",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Ye,+T",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Sensen Gao",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Gao,+S",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Qihang Cao",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Cao,+Q",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Yitong Li",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Li,+Y",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Mingchen Zhuge",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhuge,+M",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Duomin Wang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Wang,+D",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Ruihua Zhang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhang,+R",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Ping Luo",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Luo,+P",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Jiawang Bian",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Bian,+J",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Lei Zhu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhu,+L",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Ligeng Zhu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhu,+L",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Enze Xie",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Xie,+E",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Song Han",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Han,+S",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "this https URL",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://github.com/NVlabs/SoL-Pi",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "this https URL",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://nvlabs.github.io/SoL-Pi/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20474",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20474",
+   "icon": false,
+   "row": "[12] arXiv:2609.20474 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20474",
+   "icon": false,
+   "row": "[12] arXiv:2609.20474 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20474v1",
+   "icon": false,
+   "row": "[12] arXiv:2609.20474 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20474",
+   "icon": false,
+   "row": "[12] arXiv:2609.20474 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Yukun Zhang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhang,+Y",
+   "icon": false,
+   "row": "Title: How Do Agent Harnesses Create Value? Planning Information and Release Control in Stateful LLM Agents Yukun Zhang, Kemu Xu, Yishen Chen Subjects: Artifici"
+  },
+  {
+   "role": "link",
+   "name": "Kemu Xu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Xu,+K",
+   "icon": false,
+   "row": "Title: How Do Agent Harnesses Create Value? Planning Information and Release Control in Stateful LLM Agents Yukun Zhang, Kemu Xu, Yishen Chen Subjects: Artifici"
+  },
+  {
+   "role": "link",
+   "name": "Yishen Chen",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Chen,+Y",
+   "icon": false,
+   "row": "Title: How Do Agent Harnesses Create Value? Planning Information and Release Control in Stateful LLM Agents Yukun Zhang, Kemu Xu, Yishen Chen Subjects: Artifici"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20455",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20455",
+   "icon": false,
+   "row": "[13] arXiv:2609.20455 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20455",
+   "icon": false,
+   "row": "[13] arXiv:2609.20455 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20455v1",
+   "icon": false,
+   "row": "[13] arXiv:2609.20455 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20455",
+   "icon": false,
+   "row": "[13] arXiv:2609.20455 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Ziqiao Shang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Shang,+Z",
+   "icon": false,
+   "row": "Title: SkillAA: Attribution-Guided Skill-Graph Updating with Targeted Validation and Rollback Ziqiao Shang, Ling-Yue Ge, Lan-Zhe Guo Subjects: Artificial Intell"
+  },
+  {
+   "role": "link",
+   "name": "Ling-Yue Ge",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Ge,+L",
+   "icon": false,
+   "row": "Title: SkillAA: Attribution-Guided Skill-Graph Updating with Targeted Validation and Rollback Ziqiao Shang, Ling-Yue Ge, Lan-Zhe Guo Subjects: Artificial Intell"
+  },
+  {
+   "role": "link",
+   "name": "Lan-Zhe Guo",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Guo,+L",
+   "icon": false,
+   "row": "Title: SkillAA: Attribution-Guided Skill-Graph Updating with Targeted Validation and Rollback Ziqiao Shang, Ling-Yue Ge, Lan-Zhe Guo Subjects: Artificial Intell"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20449",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20449",
+   "icon": false,
+   "row": "[14] arXiv:2609.20449 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20449",
+   "icon": false,
+   "row": "[14] arXiv:2609.20449 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20449v1",
+   "icon": false,
+   "row": "[14] arXiv:2609.20449 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20449",
+   "icon": false,
+   "row": "[14] arXiv:2609.20449 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20358",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20358",
+   "icon": false,
+   "row": "[15] arXiv:2609.20358 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20358",
+   "icon": false,
+   "row": "[15] arXiv:2609.20358 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20358",
+   "icon": false,
+   "row": "[15] arXiv:2609.20358 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "Ali Aouf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Aouf,+A",
+   "icon": false,
+   "row": "Title: Generating Heterogeneous 3D Geological Microstructures from 2D Images via a Stable Diffusion-Adversarial Model Ali Aouf, Eric Laloy, Bart Rogiers, Christ"
+  },
+  {
+   "role": "link",
+   "name": "Eric Laloy",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Laloy,+E",
+   "icon": false,
+   "row": "Title: Generating Heterogeneous 3D Geological Microstructures from 2D Images via a Stable Diffusion-Adversarial Model Ali Aouf, Eric Laloy, Bart Rogiers, Christ"
+  },
+  {
+   "role": "link",
+   "name": "Bart Rogiers",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Rogiers,+B",
+   "icon": false,
+   "row": "Title: Generating Heterogeneous 3D Geological Microstructures from 2D Images via a Stable Diffusion-Adversarial Model Ali Aouf, Eric Laloy, Bart Rogiers, Christ"
+  },
+  {
+   "role": "link",
+   "name": "Christophe De Vleeschouwer",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=De+Vleeschouwer,+C",
+   "icon": false,
+   "row": "Title: Generating Heterogeneous 3D Geological Microstructures from 2D Images via a Stable Diffusion-Adversarial Model Ali Aouf, Eric Laloy, Bart Rogiers, Christ"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20349",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20349",
+   "icon": false,
+   "row": "[16] arXiv:2609.20349 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20349",
+   "icon": false,
+   "row": "[16] arXiv:2609.20349 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20349v1",
+   "icon": false,
+   "row": "[16] arXiv:2609.20349 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20349",
+   "icon": false,
+   "row": "[16] arXiv:2609.20349 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Abhishek Jaiswal",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Jaiswal,+A",
+   "icon": false,
+   "row": "Title: A Qualitative Model for Reasoning about Path and Support Abhishek Jaiswal, Zoe Falomir Comments: Workshop on Qualitative Reasoning 2026 at IJCAI (35th In"
+  },
+  {
+   "role": "link",
+   "name": "Zoe Falomir",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Falomir,+Z",
+   "icon": false,
+   "row": "Title: A Qualitative Model for Reasoning about Path and Support Abhishek Jaiswal, Zoe Falomir Comments: Workshop on Qualitative Reasoning 2026 at IJCAI (35th In"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20334",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20334",
+   "icon": false,
+   "row": "[17] arXiv:2609.20334 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20334",
+   "icon": false,
+   "row": "[17] arXiv:2609.20334 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20334v1",
+   "icon": false,
+   "row": "[17] arXiv:2609.20334 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20334",
+   "icon": false,
+   "row": "[17] arXiv:2609.20334 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "May Myo Zin",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zin,+M+M",
+   "icon": false,
+   "row": "Title: Structured Four-Stage Legal Translation: From Natural-Language Traffic Rules to PROLOG May Myo Zin, Wachara Fungwacharakorn, Ken Satoh, Katsumi Nitta Com"
+  },
+  {
+   "role": "link",
+   "name": "Wachara Fungwacharakorn",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Fungwacharakorn,+W",
+   "icon": false,
+   "row": "Title: Structured Four-Stage Legal Translation: From Natural-Language Traffic Rules to PROLOG May Myo Zin, Wachara Fungwacharakorn, Ken Satoh, Katsumi Nitta Com"
+  },
+  {
+   "role": "link",
+   "name": "Ken Satoh",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Satoh,+K",
+   "icon": false,
+   "row": "Title: Structured Four-Stage Legal Translation: From Natural-Language Traffic Rules to PROLOG May Myo Zin, Wachara Fungwacharakorn, Ken Satoh, Katsumi Nitta Com"
+  },
+  {
+   "role": "link",
+   "name": "Katsumi Nitta",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Nitta,+K",
+   "icon": false,
+   "row": "Title: Structured Four-Stage Legal Translation: From Natural-Language Traffic Rules to PROLOG May Myo Zin, Wachara Fungwacharakorn, Ken Satoh, Katsumi Nitta Com"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20323",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20323",
+   "icon": false,
+   "row": "[18] arXiv:2609.20323 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20323",
+   "icon": false,
+   "row": "[18] arXiv:2609.20323 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20323v1",
+   "icon": false,
+   "row": "[18] arXiv:2609.20323 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20323",
+   "icon": false,
+   "row": "[18] arXiv:2609.20323 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Qingde Li",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Li,+Q",
+   "icon": false,
+   "row": "Title: NeuSOGA3D: A Neuro-Symbolic Framework for Explainable 3D Geometric Reconstruction Qingde Li, Qingqi Hong, Zihan Li, Jie Tian Comments: Preprint. Communit"
+  },
+  {
+   "role": "link",
+   "name": "Qingqi Hong",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Hong,+Q",
+   "icon": false,
+   "row": "Title: NeuSOGA3D: A Neuro-Symbolic Framework for Explainable 3D Geometric Reconstruction Qingde Li, Qingqi Hong, Zihan Li, Jie Tian Comments: Preprint. Communit"
+  },
+  {
+   "role": "link",
+   "name": "Zihan Li",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Li,+Z",
+   "icon": false,
+   "row": "Title: NeuSOGA3D: A Neuro-Symbolic Framework for Explainable 3D Geometric Reconstruction Qingde Li, Qingqi Hong, Zihan Li, Jie Tian Comments: Preprint. Communit"
+  },
+  {
+   "role": "link",
+   "name": "Jie Tian",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Tian,+J",
+   "icon": false,
+   "row": "Title: NeuSOGA3D: A Neuro-Symbolic Framework for Explainable 3D Geometric Reconstruction Qingde Li, Qingqi Hong, Zihan Li, Jie Tian Comments: Preprint. Communit"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20304",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20304",
+   "icon": false,
+   "row": "[19] arXiv:2609.20304 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20304",
+   "icon": false,
+   "row": "[19] arXiv:2609.20304 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20304v1",
+   "icon": false,
+   "row": "[19] arXiv:2609.20304 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20304",
+   "icon": false,
+   "row": "[19] arXiv:2609.20304 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Nguyen Viet Tuan Kiet",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Kiet,+N+V+T",
+   "icon": false,
+   "row": "Title: Diagnose, Recover, Certify: Task Readiness under Hidden Dynamics Changes Nguyen Viet Tuan Kiet, Huynh Thi Thanh Binh Subjects: Artificial Intelligence (c"
+  },
+  {
+   "role": "link",
+   "name": "Huynh Thi Thanh Binh",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Binh,+H+T+T",
+   "icon": false,
+   "row": "Title: Diagnose, Recover, Certify: Task Readiness under Hidden Dynamics Changes Nguyen Viet Tuan Kiet, Huynh Thi Thanh Binh Subjects: Artificial Intelligence (c"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20301",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20301",
+   "icon": false,
+   "row": "[20] arXiv:2609.20301 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20301",
+   "icon": false,
+   "row": "[20] arXiv:2609.20301 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20301v1",
+   "icon": false,
+   "row": "[20] arXiv:2609.20301 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20301",
+   "icon": false,
+   "row": "[20] arXiv:2609.20301 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Yusheng Zheng",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zheng,+Y",
+   "icon": false,
+   "row": "Title: AgentPProf: Semantic Profiler for Long Horizon AI Agents Yusheng Zheng, Chaokun Chang, Yu Mao, Tianyuan Wu, Yuxi Huang, Tao Ma, Wenan Mao, Shuyi Cheng, A"
+  },
+  {
+   "role": "link",
+   "name": "Chaokun Chang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Chang,+C",
+   "icon": false,
+   "row": "Title: AgentPProf: Semantic Profiler for Long Horizon AI Agents Yusheng Zheng, Chaokun Chang, Yu Mao, Tianyuan Wu, Yuxi Huang, Tao Ma, Wenan Mao, Shuyi Cheng, A"
+  },
+  {
+   "role": "link",
+   "name": "Yu Mao",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Mao,+Y",
+   "icon": false,
+   "row": "Title: AgentPProf: Semantic Profiler for Long Horizon AI Agents Yusheng Zheng, Chaokun Chang, Yu Mao, Tianyuan Wu, Yuxi Huang, Tao Ma, Wenan Mao, Shuyi Cheng, A"
+  },
+  {
+   "role": "link",
+   "name": "Tianyuan Wu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Wu,+T",
+   "icon": false,
+   "row": "Title: AgentPProf: Semantic Profiler for Long Horizon AI Agents Yusheng Zheng, Chaokun Chang, Yu Mao, Tianyuan Wu, Yuxi Huang, Tao Ma, Wenan Mao, Shuyi Cheng, A"
+  },
+  {
+   "role": "link",
+   "name": "Yuxi Huang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Huang,+Y",
+   "icon": false,
+   "row": "Title: AgentPProf: Semantic Profiler for Long Horizon AI Agents Yusheng Zheng, Chaokun Chang, Yu Mao, Tianyuan Wu, Yuxi Huang, Tao Ma, Wenan Mao, Shuyi Cheng, A"
+  },
+  {
+   "role": "link",
+   "name": "Tao Ma",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Ma,+T",
+   "icon": false,
+   "row": "Title: AgentPProf: Semantic Profiler for Long Horizon AI Agents Yusheng Zheng, Chaokun Chang, Yu Mao, Tianyuan Wu, Yuxi Huang, Tao Ma, Wenan Mao, Shuyi Cheng, A"
+  },
+  {
+   "role": "link",
+   "name": "Wenan Mao",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Mao,+W",
+   "icon": false,
+   "row": "Title: AgentPProf: Semantic Profiler for Long Horizon AI Agents Yusheng Zheng, Chaokun Chang, Yu Mao, Tianyuan Wu, Yuxi Huang, Tao Ma, Wenan Mao, Shuyi Cheng, A"
+  },
+  {
+   "role": "link",
+   "name": "Shuyi Cheng",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Cheng,+S",
+   "icon": false,
+   "row": "Title: AgentPProf: Semantic Profiler for Long Horizon AI Agents Yusheng Zheng, Chaokun Chang, Yu Mao, Tianyuan Wu, Yuxi Huang, Tao Ma, Wenan Mao, Shuyi Cheng, A"
+  },
+  {
+   "role": "link",
+   "name": "Andi Quinn",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Quinn,+A",
+   "icon": false,
+   "row": "Title: AgentPProf: Semantic Profiler for Long Horizon AI Agents Yusheng Zheng, Chaokun Chang, Yu Mao, Tianyuan Wu, Yuxi Huang, Tao Ma, Wenan Mao, Shuyi Cheng, A"
+  },
+  {
+   "role": "link",
+   "name": "Wei Wang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Wang,+W",
+   "icon": false,
+   "row": "Title: AgentPProf: Semantic Profiler for Long Horizon AI Agents Yusheng Zheng, Chaokun Chang, Yu Mao, Tianyuan Wu, Yuxi Huang, Tao Ma, Wenan Mao, Shuyi Cheng, A"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20277",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20277",
+   "icon": false,
+   "row": "[21] arXiv:2609.20277 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20277",
+   "icon": false,
+   "row": "[21] arXiv:2609.20277 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20277v1",
+   "icon": false,
+   "row": "[21] arXiv:2609.20277 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20277",
+   "icon": false,
+   "row": "[21] arXiv:2609.20277 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Tianbin Liu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Liu,+T",
+   "icon": false,
+   "row": "Title: JEPA-WAM: Connecting Generated Visual Instructions to World Action Models through JEPA Latent Representations Tianbin Liu, Jian Zhu, Taiyi Su, Jianjun Zh"
+  },
+  {
+   "role": "link",
+   "name": "Jian Zhu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhu,+J",
+   "icon": false,
+   "row": "Title: JEPA-WAM: Connecting Generated Visual Instructions to World Action Models through JEPA Latent Representations Tianbin Liu, Jian Zhu, Taiyi Su, Jianjun Zh"
+  },
+  {
+   "role": "link",
+   "name": "Taiyi Su",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Su,+T",
+   "icon": false,
+   "row": "Title: JEPA-WAM: Connecting Generated Visual Instructions to World Action Models through JEPA Latent Representations Tianbin Liu, Jian Zhu, Taiyi Su, Jianjun Zh"
+  },
+  {
+   "role": "link",
+   "name": "Jianjun Zhang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhang,+J",
+   "icon": false,
+   "row": "Title: JEPA-WAM: Connecting Generated Visual Instructions to World Action Models through JEPA Latent Representations Tianbin Liu, Jian Zhu, Taiyi Su, Jianjun Zh"
+  },
+  {
+   "role": "link",
+   "name": "Chong Ma",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Ma,+C",
+   "icon": false,
+   "row": "Title: JEPA-WAM: Connecting Generated Visual Instructions to World Action Models through JEPA Latent Representations Tianbin Liu, Jian Zhu, Taiyi Su, Jianjun Zh"
+  },
+  {
+   "role": "link",
+   "name": "Zitai Huang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Huang,+Z",
+   "icon": false,
+   "row": "Title: JEPA-WAM: Connecting Generated Visual Instructions to World Action Models through JEPA Latent Representations Tianbin Liu, Jian Zhu, Taiyi Su, Jianjun Zh"
+  },
+  {
+   "role": "link",
+   "name": "Yi Xu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Xu,+Y",
+   "icon": false,
+   "row": "Title: JEPA-WAM: Connecting Generated Visual Instructions to World Action Models through JEPA Latent Representations Tianbin Liu, Jian Zhu, Taiyi Su, Jianjun Zh"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20271",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20271",
+   "icon": false,
+   "row": "[22] arXiv:2609.20271 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20271",
+   "icon": false,
+   "row": "[22] arXiv:2609.20271 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20271v1",
+   "icon": false,
+   "row": "[22] arXiv:2609.20271 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20271",
+   "icon": false,
+   "row": "[22] arXiv:2609.20271 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Giambattista Amati",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Amati,+G",
+   "icon": false,
+   "row": "Title: AI-Driven Real-Time Relay Optimisation in Smart Urban NR-V2X Networks via Learning-to-Optimise Graph Neural Networks Giambattista Amati, Federica Mangiat"
+  },
+  {
+   "role": "link",
+   "name": "Federica Mangiatordi",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Mangiatordi,+F",
+   "icon": false,
+   "row": "Title: AI-Driven Real-Time Relay Optimisation in Smart Urban NR-V2X Networks via Learning-to-Optimise Graph Neural Networks Giambattista Amati, Federica Mangiat"
+  },
+  {
+   "role": "link",
+   "name": "Emiliano Pallotti",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Pallotti,+E",
+   "icon": false,
+   "row": "Title: AI-Driven Real-Time Relay Optimisation in Smart Urban NR-V2X Networks via Learning-to-Optimise Graph Neural Networks Giambattista Amati, Federica Mangiat"
+  },
+  {
+   "role": "link",
+   "name": "Simone Angelini",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Angelini,+S",
+   "icon": false,
+   "row": "Title: AI-Driven Real-Time Relay Optimisation in Smart Urban NR-V2X Networks via Learning-to-Optimise Graph Neural Networks Giambattista Amati, Federica Mangiat"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20261",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20261",
+   "icon": false,
+   "row": "[23] arXiv:2609.20261 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20261",
+   "icon": false,
+   "row": "[23] arXiv:2609.20261 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20261v1",
+   "icon": false,
+   "row": "[23] arXiv:2609.20261 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20261",
+   "icon": false,
+   "row": "[23] arXiv:2609.20261 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Jun He",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=He,+J",
+   "icon": false,
+   "row": "Title: When AI Agents Commit: Cognitive Serializability Across Data, Evidence, Policy, and Authority Jun He, Deying Yu Comments: 22 pages, 3 figures, 4 tables S"
+  },
+  {
+   "role": "link",
+   "name": "Deying Yu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Yu,+D",
+   "icon": false,
+   "row": "Title: When AI Agents Commit: Cognitive Serializability Across Data, Evidence, Policy, and Authority Jun He, Deying Yu Comments: 22 pages, 3 figures, 4 tables S"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20200",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20200",
+   "icon": false,
+   "row": "[24] arXiv:2609.20200 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20200",
+   "icon": false,
+   "row": "[24] arXiv:2609.20200 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20200v1",
+   "icon": false,
+   "row": "[24] arXiv:2609.20200 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20200",
+   "icon": false,
+   "row": "[24] arXiv:2609.20200 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Kun Zhao",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhao,+K",
+   "icon": false,
+   "row": "Title: JointMatch: A Unified Heterogeneous Graph Neural Solver for Large-Scale Ride-Sharing Matching Kun Zhao, Xu Chen Subjects: Artificial Intelligence (cs.AI)"
+  },
+  {
+   "role": "link",
+   "name": "Xu Chen",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Chen,+X",
+   "icon": false,
+   "row": "Title: JointMatch: A Unified Heterogeneous Graph Neural Solver for Large-Scale Ride-Sharing Matching Kun Zhao, Xu Chen Subjects: Artificial Intelligence (cs.AI)"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20179",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20179",
+   "icon": false,
+   "row": "[25] arXiv:2609.20179 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20179",
+   "icon": false,
+   "row": "[25] arXiv:2609.20179 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20179v1",
+   "icon": false,
+   "row": "[25] arXiv:2609.20179 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20179",
+   "icon": false,
+   "row": "[25] arXiv:2609.20179 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Kun Sun",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Sun,+K",
+   "icon": false,
+   "row": "Title: Sequential Contextual Fit Predicts Human Behavioural and Neural Dynamics Across Domains Kun Sun, Rong Wang Subjects: Artificial Intelligence (cs.AI); Mac"
+  },
+  {
+   "role": "link",
+   "name": "Rong Wang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Wang,+R",
+   "icon": false,
+   "row": "Title: Sequential Contextual Fit Predicts Human Behavioural and Neural Dynamics Across Domains Kun Sun, Rong Wang Subjects: Artificial Intelligence (cs.AI); Mac"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20177",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20177",
+   "icon": false,
+   "row": "[26] arXiv:2609.20177 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20177",
+   "icon": false,
+   "row": "[26] arXiv:2609.20177 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20177v1",
+   "icon": false,
+   "row": "[26] arXiv:2609.20177 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20177",
+   "icon": false,
+   "row": "[26] arXiv:2609.20177 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Wonho Song",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Song,+W",
+   "icon": false,
+   "row": "Title: PaGNet: A Panel-Aware GBDT--Neural Network for Multi-Target Corporate Tax Avoidance Proxy Forecasting Wonho Song, Hyungjoon Kim Comments: 32 pages, 1 fig"
+  },
+  {
+   "role": "link",
+   "name": "Hyungjoon Kim",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Kim,+H",
+   "icon": false,
+   "row": "Title: PaGNet: A Panel-Aware GBDT--Neural Network for Multi-Target Corporate Tax Avoidance Proxy Forecasting Wonho Song, Hyungjoon Kim Comments: 32 pages, 1 fig"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20152",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20152",
+   "icon": false,
+   "row": "[27] arXiv:2609.20152 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20152",
+   "icon": false,
+   "row": "[27] arXiv:2609.20152 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20152v1",
+   "icon": false,
+   "row": "[27] arXiv:2609.20152 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20152",
+   "icon": false,
+   "row": "[27] arXiv:2609.20152 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Pritish Mishra",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Mishra,+P",
+   "icon": false,
+   "row": "Title: MTVA-Bench: Evaluating the Language Model Inside Cascaded Voice Agents Pritish Mishra, Ishaan Kumar, Akshat Mandoli, Sudarshan Kamath Subjects: Artificia"
+  },
+  {
+   "role": "link",
+   "name": "Ishaan Kumar",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Kumar,+I",
+   "icon": false,
+   "row": "Title: MTVA-Bench: Evaluating the Language Model Inside Cascaded Voice Agents Pritish Mishra, Ishaan Kumar, Akshat Mandoli, Sudarshan Kamath Subjects: Artificia"
+  },
+  {
+   "role": "link",
+   "name": "Akshat Mandoli",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Mandoli,+A",
+   "icon": false,
+   "row": "Title: MTVA-Bench: Evaluating the Language Model Inside Cascaded Voice Agents Pritish Mishra, Ishaan Kumar, Akshat Mandoli, Sudarshan Kamath Subjects: Artificia"
+  },
+  {
+   "role": "link",
+   "name": "Sudarshan Kamath",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Kamath,+S",
+   "icon": false,
+   "row": "Title: MTVA-Bench: Evaluating the Language Model Inside Cascaded Voice Agents Pritish Mishra, Ishaan Kumar, Akshat Mandoli, Sudarshan Kamath Subjects: Artificia"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20110",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20110",
+   "icon": false,
+   "row": "[28] arXiv:2609.20110 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20110",
+   "icon": false,
+   "row": "[28] arXiv:2609.20110 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20110v1",
+   "icon": false,
+   "row": "[28] arXiv:2609.20110 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20110",
+   "icon": false,
+   "row": "[28] arXiv:2609.20110 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Yichao Jin",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Jin,+Y",
+   "icon": false,
+   "row": "Title: Perception, Layout, and Validation: Calibrated Confidence for Reliable Straight-Through Processing of Financial Documents Yichao Jin, Yushuo Wang, Yuxuan"
+  },
+  {
+   "role": "link",
+   "name": "Yushuo Wang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Wang,+Y",
+   "icon": false,
+   "row": "Title: Perception, Layout, and Validation: Calibrated Confidence for Reliable Straight-Through Processing of Financial Documents Yichao Jin, Yushuo Wang, Yuxuan"
+  },
+  {
+   "role": "link",
+   "name": "Yuxuan Han",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Han,+Y",
+   "icon": false,
+   "row": "Title: Perception, Layout, and Validation: Calibrated Confidence for Reliable Straight-Through Processing of Financial Documents Yichao Jin, Yushuo Wang, Yuxuan"
+  },
+  {
+   "role": "link",
+   "name": "Kwan Ching Yee Sonia",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Sonia,+K+C+Y",
+   "icon": false,
+   "row": "Title: Perception, Layout, and Validation: Calibrated Confidence for Reliable Straight-Through Processing of Financial Documents Yichao Jin, Yushuo Wang, Yuxuan"
+  },
+  {
+   "role": "link",
+   "name": "Weiyang Song",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Song,+W",
+   "icon": false,
+   "row": "Title: Perception, Layout, and Validation: Calibrated Confidence for Reliable Straight-Through Processing of Financial Documents Yichao Jin, Yushuo Wang, Yuxuan"
+  },
+  {
+   "role": "link",
+   "name": "Chiu Jin-Chun Kent",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Kent,+C+J",
+   "icon": false,
+   "row": "Title: Perception, Layout, and Validation: Calibrated Confidence for Reliable Straight-Through Processing of Financial Documents Yichao Jin, Yushuo Wang, Yuxuan"
+  },
+  {
+   "role": "link",
+   "name": "Wong Chong Hwee",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Hwee,+W+C",
+   "icon": false,
+   "row": "Title: Perception, Layout, and Validation: Calibrated Confidence for Reliable Straight-Through Processing of Financial Documents Yichao Jin, Yushuo Wang, Yuxuan"
+  },
+  {
+   "role": "link",
+   "name": "Wong Tiong Kiat",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Kiat,+W+T",
+   "icon": false,
+   "row": "Title: Perception, Layout, and Validation: Calibrated Confidence for Reliable Straight-Through Processing of Financial Documents Yichao Jin, Yushuo Wang, Yuxuan"
+  },
+  {
+   "role": "link",
+   "name": "Kenneth Zhu Ke",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Ke,+K+Z",
+   "icon": false,
+   "row": "Title: Perception, Layout, and Validation: Calibrated Confidence for Reliable Straight-Through Processing of Financial Documents Yichao Jin, Yushuo Wang, Yuxuan"
+  },
+  {
+   "role": "link",
+   "name": "Jingyuan Zhao",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhao,+J",
+   "icon": false,
+   "row": "Title: Perception, Layout, and Validation: Calibrated Confidence for Reliable Straight-Through Processing of Financial Documents Yichao Jin, Yushuo Wang, Yuxuan"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20091",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20091",
+   "icon": false,
+   "row": "[29] arXiv:2609.20091 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20091",
+   "icon": false,
+   "row": "[29] arXiv:2609.20091 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20091v1",
+   "icon": false,
+   "row": "[29] arXiv:2609.20091 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20091",
+   "icon": false,
+   "row": "[29] arXiv:2609.20091 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Hieu Truong Xuan",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Xuan,+H+T",
+   "icon": false,
+   "row": "Title: Solving Minimum Span Antibandwidth and Cyclic Antibandwidth Labeling Problems Hieu Truong Xuan, Khanh To Van Subjects: Artificial Intelligence (cs.AI)"
+  },
+  {
+   "role": "link",
+   "name": "Khanh To Van",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Van,+K+T",
+   "icon": false,
+   "row": "Title: Solving Minimum Span Antibandwidth and Cyclic Antibandwidth Labeling Problems Hieu Truong Xuan, Khanh To Van Subjects: Artificial Intelligence (cs.AI)"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20089",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20089",
+   "icon": false,
+   "row": "[30] arXiv:2609.20089 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20089",
+   "icon": false,
+   "row": "[30] arXiv:2609.20089 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20089v1",
+   "icon": false,
+   "row": "[30] arXiv:2609.20089 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20089",
+   "icon": false,
+   "row": "[30] arXiv:2609.20089 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Wenjie Liao",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Liao,+W",
+   "icon": false,
+   "row": "Title: UnifiedPlayers: Enhance Tool-Integrated Reasoning in Agentic Reinforcement Learning Wenjie Liao, Liangjie Zhao, Zehong Cao Subjects: Artificial Intellige"
+  },
+  {
+   "role": "link",
+   "name": "Liangjie Zhao",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhao,+L",
+   "icon": false,
+   "row": "Title: UnifiedPlayers: Enhance Tool-Integrated Reasoning in Agentic Reinforcement Learning Wenjie Liao, Liangjie Zhao, Zehong Cao Subjects: Artificial Intellige"
+  },
+  {
+   "role": "link",
+   "name": "Zehong Cao",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Cao,+Z",
+   "icon": false,
+   "row": "Title: UnifiedPlayers: Enhance Tool-Integrated Reasoning in Agentic Reinforcement Learning Wenjie Liao, Liangjie Zhao, Zehong Cao Subjects: Artificial Intellige"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20080",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20080",
+   "icon": false,
+   "row": "[31] arXiv:2609.20080 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20080",
+   "icon": false,
+   "row": "[31] arXiv:2609.20080 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20080v1",
+   "icon": false,
+   "row": "[31] arXiv:2609.20080 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20080",
+   "icon": false,
+   "row": "[31] arXiv:2609.20080 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Gioliano de Oliveira Braga",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=de+Oliveira+Braga,+G",
+   "icon": false,
+   "row": "Title: A Proposal for an Agentic AI Architecture to Support Multi-Domain Decision-Making in the Brazilian Armed Forces Gioliano de Oliveira Braga, Sidnei Barbie"
+  },
+  {
+   "role": "link",
+   "name": "Sidnei Barbieri",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Barbieri,+S",
+   "icon": false,
+   "row": "Title: A Proposal for an Agentic AI Architecture to Support Multi-Domain Decision-Making in the Brazilian Armed Forces Gioliano de Oliveira Braga, Sidnei Barbie"
+  },
+  {
+   "role": "link",
+   "name": "Ágney Lopes Roth Ferraz",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Ferraz,+%C3%81+L+R",
+   "icon": false,
+   "row": "Title: A Proposal for an Agentic AI Architecture to Support Multi-Domain Decision-Making in the Brazilian Armed Forces Gioliano de Oliveira Braga, Sidnei Barbie"
+  },
+  {
+   "role": "link",
+   "name": "Wagner Comin Sonaglio",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Sonaglio,+W+C",
+   "icon": false,
+   "row": "Title: A Proposal for an Agentic AI Architecture to Support Multi-Domain Decision-Making in the Brazilian Armed Forces Gioliano de Oliveira Braga, Sidnei Barbie"
+  },
+  {
+   "role": "link",
+   "name": "Henrique Curi de Miranda e Lourenço Alves Pereira Jr",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=de+Miranda+e+Louren%C3%A7o+Alves+Pereira,+H+C",
+   "icon": false,
+   "row": "Title: A Proposal for an Agentic AI Architecture to Support Multi-Domain Decision-Making in the Brazilian Armed Forces Gioliano de Oliveira Braga, Sidnei Barbie"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20077",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20077",
+   "icon": false,
+   "row": "[32] arXiv:2609.20077 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20077",
+   "icon": false,
+   "row": "[32] arXiv:2609.20077 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20077v1",
+   "icon": false,
+   "row": "[32] arXiv:2609.20077 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20077",
+   "icon": false,
+   "row": "[32] arXiv:2609.20077 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Canfer Akbulut",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Akbulut,+C",
+   "icon": false,
+   "row": "Title: Tailored to you: longitudinal effects of personalising language models Canfer Akbulut, Justine Breuch, Arianna Manzini, Lujain Ibrahim, Matija Franklin, "
+  },
+  {
+   "role": "link",
+   "name": "Justine Breuch",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Breuch,+J",
+   "icon": false,
+   "row": "Title: Tailored to you: longitudinal effects of personalising language models Canfer Akbulut, Justine Breuch, Arianna Manzini, Lujain Ibrahim, Matija Franklin, "
+  },
+  {
+   "role": "link",
+   "name": "Arianna Manzini",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Manzini,+A",
+   "icon": false,
+   "row": "Title: Tailored to you: longitudinal effects of personalising language models Canfer Akbulut, Justine Breuch, Arianna Manzini, Lujain Ibrahim, Matija Franklin, "
+  },
+  {
+   "role": "link",
+   "name": "Lujain Ibrahim",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Ibrahim,+L",
+   "icon": false,
+   "row": "Title: Tailored to you: longitudinal effects of personalising language models Canfer Akbulut, Justine Breuch, Arianna Manzini, Lujain Ibrahim, Matija Franklin, "
+  },
+  {
+   "role": "link",
+   "name": "Matija Franklin",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Franklin,+M",
+   "icon": false,
+   "row": "Title: Tailored to you: longitudinal effects of personalising language models Canfer Akbulut, Justine Breuch, Arianna Manzini, Lujain Ibrahim, Matija Franklin, "
+  },
+  {
+   "role": "link",
+   "name": "Roma Patel",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Patel,+R",
+   "icon": false,
+   "row": "Title: Tailored to you: longitudinal effects of personalising language models Canfer Akbulut, Justine Breuch, Arianna Manzini, Lujain Ibrahim, Matija Franklin, "
+  },
+  {
+   "role": "link",
+   "name": "Iason Gabriel",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Gabriel,+I",
+   "icon": false,
+   "row": "Title: Tailored to you: longitudinal effects of personalising language models Canfer Akbulut, Justine Breuch, Arianna Manzini, Lujain Ibrahim, Matija Franklin, "
+  },
+  {
+   "role": "link",
+   "name": "Kristian Lum",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Lum,+K",
+   "icon": false,
+   "row": "Title: Tailored to you: longitudinal effects of personalising language models Canfer Akbulut, Justine Breuch, Arianna Manzini, Lujain Ibrahim, Matija Franklin, "
+  },
+  {
+   "role": "link",
+   "name": "Laura Weidinger",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Weidinger,+L",
+   "icon": false,
+   "row": "Title: Tailored to you: longitudinal effects of personalising language models Canfer Akbulut, Justine Breuch, Arianna Manzini, Lujain Ibrahim, Matija Franklin, "
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20068",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20068",
+   "icon": false,
+   "row": "[33] arXiv:2609.20068 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20068",
+   "icon": false,
+   "row": "[33] arXiv:2609.20068 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20068",
+   "icon": false,
+   "row": "[33] arXiv:2609.20068 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "Caroline Gans Combe",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Combe,+C+G",
+   "icon": false,
+   "row": "Title: Marginal utility, matrix factorization, and the Key-Value (KV) cache: a unified information-economic framework for sovereign geo-mining inference Carolin"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20067",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20067",
+   "icon": false,
+   "row": "[34] arXiv:2609.20067 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20067",
+   "icon": false,
+   "row": "[34] arXiv:2609.20067 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20067",
+   "icon": false,
+   "row": "[34] arXiv:2609.20067 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "Abdullahi Isa",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Isa,+A",
+   "icon": false,
+   "row": "Title: FCA-Guided Counterfactual Explanations for Multi-Modal Breast Cancer Diagnosis: A Framework Achieving Perfect Validity with Emergent Sparsity Abdullahi I"
+  },
+  {
+   "role": "link",
+   "name": "Souley Boukari",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Boukari,+S",
+   "icon": false,
+   "row": "Title: FCA-Guided Counterfactual Explanations for Multi-Modal Breast Cancer Diagnosis: A Framework Achieving Perfect Validity with Emergent Sparsity Abdullahi I"
+  },
+  {
+   "role": "link",
+   "name": "Muhammad Aliyu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Aliyu,+M",
+   "icon": false,
+   "row": "Title: FCA-Guided Counterfactual Explanations for Multi-Modal Breast Cancer Diagnosis: A Framework Achieving Perfect Validity with Emergent Sparsity Abdullahi I"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20057",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20057",
+   "icon": false,
+   "row": "[35] arXiv:2609.20057 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20057",
+   "icon": false,
+   "row": "[35] arXiv:2609.20057 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20057",
+   "icon": false,
+   "row": "[35] arXiv:2609.20057 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "Yiwen Peng",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Peng,+Y",
+   "icon": false,
+   "row": "Title: WiCleanData: Guaranteeing the Type Consistency of Wikidata by Taxonomy Refinement and Constraint Enforcement Yiwen Peng (IP Paris), Marc Jeanmougin (IP P"
+  },
+  {
+   "role": "link",
+   "name": "Marc Jeanmougin",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Jeanmougin,+M",
+   "icon": false,
+   "row": "Title: WiCleanData: Guaranteeing the Type Consistency of Wikidata by Taxonomy Refinement and Constraint Enforcement Yiwen Peng (IP Paris), Marc Jeanmougin (IP P"
+  },
+  {
+   "role": "link",
+   "name": "Thomas Bonald",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Bonald,+T",
+   "icon": false,
+   "row": "Title: WiCleanData: Guaranteeing the Type Consistency of Wikidata by Taxonomy Refinement and Constraint Enforcement Yiwen Peng (IP Paris), Marc Jeanmougin (IP P"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20056",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20056",
+   "icon": false,
+   "row": "[36] arXiv:2609.20056 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20056",
+   "icon": false,
+   "row": "[36] arXiv:2609.20056 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20056",
+   "icon": false,
+   "row": "[36] arXiv:2609.20056 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "Loan Bernat",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Bernat,+L",
+   "icon": false,
+   "row": "Title: MAGMA-GEN: Validated Recovery Supervision from Ambiguous Failures via Counterfactual Re-Execution Loan Bernat (LAAS-GEPETTO), Matthieu Grard, Ariane Herb"
+  },
+  {
+   "role": "link",
+   "name": "Matthieu Grard",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Grard,+M",
+   "icon": false,
+   "row": "Title: MAGMA-GEN: Validated Recovery Supervision from Ambiguous Failures via Counterfactual Re-Execution Loan Bernat (LAAS-GEPETTO), Matthieu Grard, Ariane Herb"
+  },
+  {
+   "role": "link",
+   "name": "Ariane Herbulot",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Herbulot,+A",
+   "icon": false,
+   "row": "Title: MAGMA-GEN: Validated Recovery Supervision from Ambiguous Failures via Counterfactual Re-Execution Loan Bernat (LAAS-GEPETTO), Matthieu Grard, Ariane Herb"
+  },
+  {
+   "role": "link",
+   "name": "Florent Lamiraux",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Lamiraux,+F",
+   "icon": false,
+   "row": "Title: MAGMA-GEN: Validated Recovery Supervision from Ambiguous Failures via Counterfactual Re-Execution Loan Bernat (LAAS-GEPETTO), Matthieu Grard, Ariane Herb"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20051",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20051",
+   "icon": false,
+   "row": "[37] arXiv:2609.20051 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20051",
+   "icon": false,
+   "row": "[37] arXiv:2609.20051 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20051v1",
+   "icon": false,
+   "row": "[37] arXiv:2609.20051 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20051",
+   "icon": false,
+   "row": "[37] arXiv:2609.20051 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Shihong Li",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Li,+S",
+   "icon": false,
+   "row": "Title: DART: Distillation-Aware Reparameterization for Training-Free LoRA Reuse in Few-Step Video Diffusion Models Shihong Li, Juntao Xu, JinCao, Maowen Tang, J"
+  },
+  {
+   "role": "link",
+   "name": "Juntao Xu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Xu,+J",
+   "icon": false,
+   "row": "Title: DART: Distillation-Aware Reparameterization for Training-Free LoRA Reuse in Few-Step Video Diffusion Models Shihong Li, Juntao Xu, JinCao, Maowen Tang, J"
+  },
+  {
+   "role": "link",
+   "name": "JinCao",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=JinCao",
+   "icon": false,
+   "row": "Title: DART: Distillation-Aware Reparameterization for Training-Free LoRA Reuse in Few-Step Video Diffusion Models Shihong Li, Juntao Xu, JinCao, Maowen Tang, J"
+  },
+  {
+   "role": "link",
+   "name": "Maowen Tang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Tang,+M",
+   "icon": false,
+   "row": "Title: DART: Distillation-Aware Reparameterization for Training-Free LoRA Reuse in Few-Step Video Diffusion Models Shihong Li, Juntao Xu, JinCao, Maowen Tang, J"
+  },
+  {
+   "role": "link",
+   "name": "Jun Huang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Huang,+J",
+   "icon": false,
+   "row": "Title: DART: Distillation-Aware Reparameterization for Training-Free LoRA Reuse in Few-Step Video Diffusion Models Shihong Li, Juntao Xu, JinCao, Maowen Tang, J"
+  },
+  {
+   "role": "link",
+   "name": "Jintao Li",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Li,+J",
+   "icon": false,
+   "row": "Title: DART: Distillation-Aware Reparameterization for Training-Free LoRA Reuse in Few-Step Video Diffusion Models Shihong Li, Juntao Xu, JinCao, Maowen Tang, J"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20027",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20027",
+   "icon": false,
+   "row": "[38] arXiv:2609.20027 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20027",
+   "icon": false,
+   "row": "[38] arXiv:2609.20027 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20027v1",
+   "icon": false,
+   "row": "[38] arXiv:2609.20027 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20027",
+   "icon": false,
+   "row": "[38] arXiv:2609.20027 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Moritz Weckbecker",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Weckbecker,+M",
+   "icon": false,
+   "row": "Title: Can Data Attribution Filter Out Subliminal Learning? Not Reliably Moritz Weckbecker, Sweta Jena, Jonas Müller, Ponnurangam Kumaraguru, Sebastian Lapuschk"
+  },
+  {
+   "role": "link",
+   "name": "Sweta Jena",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Jena,+S",
+   "icon": false,
+   "row": "Title: Can Data Attribution Filter Out Subliminal Learning? Not Reliably Moritz Weckbecker, Sweta Jena, Jonas Müller, Ponnurangam Kumaraguru, Sebastian Lapuschk"
+  },
+  {
+   "role": "link",
+   "name": "Jonas Müller",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=M%C3%BCller,+J",
+   "icon": false,
+   "row": "Title: Can Data Attribution Filter Out Subliminal Learning? Not Reliably Moritz Weckbecker, Sweta Jena, Jonas Müller, Ponnurangam Kumaraguru, Sebastian Lapuschk"
+  },
+  {
+   "role": "link",
+   "name": "Ponnurangam Kumaraguru",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Kumaraguru,+P",
+   "icon": false,
+   "row": "Title: Can Data Attribution Filter Out Subliminal Learning? Not Reliably Moritz Weckbecker, Sweta Jena, Jonas Müller, Ponnurangam Kumaraguru, Sebastian Lapuschk"
+  },
+  {
+   "role": "link",
+   "name": "Sebastian Lapuschkin",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Lapuschkin,+S",
+   "icon": false,
+   "row": "Title: Can Data Attribution Filter Out Subliminal Learning? Not Reliably Moritz Weckbecker, Sweta Jena, Jonas Müller, Ponnurangam Kumaraguru, Sebastian Lapuschk"
+  },
+  {
+   "role": "link",
+   "name": "Wojciech Samek",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Samek,+W",
+   "icon": false,
+   "row": "Title: Can Data Attribution Filter Out Subliminal Learning? Not Reliably Moritz Weckbecker, Sweta Jena, Jonas Müller, Ponnurangam Kumaraguru, Sebastian Lapuschk"
+  },
+  {
+   "role": "link",
+   "name": "Louis Jaburi",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Jaburi,+L",
+   "icon": false,
+   "row": "Title: Can Data Attribution Filter Out Subliminal Learning? Not Reliably Moritz Weckbecker, Sweta Jena, Jonas Müller, Ponnurangam Kumaraguru, Sebastian Lapuschk"
+  },
+  {
+   "role": "link",
+   "name": "Gonçalo Paulo",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Paulo,+G",
+   "icon": false,
+   "row": "Title: Can Data Attribution Filter Out Subliminal Learning? Not Reliably Moritz Weckbecker, Sweta Jena, Jonas Müller, Ponnurangam Kumaraguru, Sebastian Lapuschk"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20026",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20026",
+   "icon": false,
+   "row": "[39] arXiv:2609.20026 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20026",
+   "icon": false,
+   "row": "[39] arXiv:2609.20026 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20026v1",
+   "icon": false,
+   "row": "[39] arXiv:2609.20026 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20026",
+   "icon": false,
+   "row": "[39] arXiv:2609.20026 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Fermin Orozco",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Orozco,+F",
+   "icon": false,
+   "row": "Title: FedeRICo: Federated Region-Influenced Coupling for Traffic Flow Prediction Fermin Orozco, Man Luo, Johan Wahlström Subjects: Artificial Intelligence (cs."
+  },
+  {
+   "role": "link",
+   "name": "Man Luo",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Luo,+M",
+   "icon": false,
+   "row": "Title: FedeRICo: Federated Region-Influenced Coupling for Traffic Flow Prediction Fermin Orozco, Man Luo, Johan Wahlström Subjects: Artificial Intelligence (cs."
+  },
+  {
+   "role": "link",
+   "name": "Johan Wahlström",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Wahlstr%C3%B6m,+J",
+   "icon": false,
+   "row": "Title: FedeRICo: Federated Region-Influenced Coupling for Traffic Flow Prediction Fermin Orozco, Man Luo, Johan Wahlström Subjects: Artificial Intelligence (cs."
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20005",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20005",
+   "icon": false,
+   "row": "[40] arXiv:2609.20005 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20005",
+   "icon": false,
+   "row": "[40] arXiv:2609.20005 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20005",
+   "icon": false,
+   "row": "[40] arXiv:2609.20005 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "Maxim Chupilkin",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Chupilkin,+M",
+   "icon": false,
+   "row": "Title: Geopolitical Divisions Across Languages in Large Language Models Maxim Chupilkin Subjects: Artificial Intelligence (cs.AI); Computation and Language (cs."
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.20001",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.20001",
+   "icon": false,
+   "row": "[41] arXiv:2609.20001 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.20001",
+   "icon": false,
+   "row": "[41] arXiv:2609.20001 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.20001v1",
+   "icon": false,
+   "row": "[41] arXiv:2609.20001 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.20001",
+   "icon": false,
+   "row": "[41] arXiv:2609.20001 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Haoshen Wang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Wang,+H",
+   "icon": false,
+   "row": "Title: E-AVI: Evidence-Grounded Multimodal Assessment for Automated Video Interviews Haoshen Wang, Dongbo Che, Zeyi Xie, Yuanjie Du, Shicheng Hua, Xingyu Wang S"
+  },
+  {
+   "role": "link",
+   "name": "Dongbo Che",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Che,+D",
+   "icon": false,
+   "row": "Title: E-AVI: Evidence-Grounded Multimodal Assessment for Automated Video Interviews Haoshen Wang, Dongbo Che, Zeyi Xie, Yuanjie Du, Shicheng Hua, Xingyu Wang S"
+  },
+  {
+   "role": "link",
+   "name": "Zeyi Xie",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Xie,+Z",
+   "icon": false,
+   "row": "Title: E-AVI: Evidence-Grounded Multimodal Assessment for Automated Video Interviews Haoshen Wang, Dongbo Che, Zeyi Xie, Yuanjie Du, Shicheng Hua, Xingyu Wang S"
+  },
+  {
+   "role": "link",
+   "name": "Yuanjie Du",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Du,+Y",
+   "icon": false,
+   "row": "Title: E-AVI: Evidence-Grounded Multimodal Assessment for Automated Video Interviews Haoshen Wang, Dongbo Che, Zeyi Xie, Yuanjie Du, Shicheng Hua, Xingyu Wang S"
+  },
+  {
+   "role": "link",
+   "name": "Shicheng Hua",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Hua,+S",
+   "icon": false,
+   "row": "Title: E-AVI: Evidence-Grounded Multimodal Assessment for Automated Video Interviews Haoshen Wang, Dongbo Che, Zeyi Xie, Yuanjie Du, Shicheng Hua, Xingyu Wang S"
+  },
+  {
+   "role": "link",
+   "name": "Xingyu Wang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Wang,+X",
+   "icon": false,
+   "row": "Title: E-AVI: Evidence-Grounded Multimodal Assessment for Automated Video Interviews Haoshen Wang, Dongbo Che, Zeyi Xie, Yuanjie Du, Shicheng Hua, Xingyu Wang S"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.19996",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.19996",
+   "icon": false,
+   "row": "[42] arXiv:2609.19996 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.19996",
+   "icon": false,
+   "row": "[42] arXiv:2609.19996 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.19996v1",
+   "icon": false,
+   "row": "[42] arXiv:2609.19996 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.19996",
+   "icon": false,
+   "row": "[42] arXiv:2609.19996 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Rui Zhao",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhao,+R",
+   "icon": false,
+   "row": "Title: Customizable and Jointly Optimized Route Planning: A Deep Architecture Enabling Differentiable Shortest-Path Search Rui Zhao, Chao Chen, Longfei Xu, Chen"
+  },
+  {
+   "role": "link",
+   "name": "Chao Chen",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Chen,+C",
+   "icon": false,
+   "row": "Title: Customizable and Jointly Optimized Route Planning: A Deep Architecture Enabling Differentiable Shortest-Path Search Rui Zhao, Chao Chen, Longfei Xu, Chen"
+  },
+  {
+   "role": "link",
+   "name": "Longfei Xu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Xu,+L",
+   "icon": false,
+   "row": "Title: Customizable and Jointly Optimized Route Planning: A Deep Architecture Enabling Differentiable Shortest-Path Search Rui Zhao, Chao Chen, Longfei Xu, Chen"
+  },
+  {
+   "role": "link",
+   "name": "Chenguang Ji",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Ji,+C",
+   "icon": false,
+   "row": "Title: Customizable and Jointly Optimized Route Planning: A Deep Architecture Enabling Differentiable Shortest-Path Search Rui Zhao, Chao Chen, Longfei Xu, Chen"
+  },
+  {
+   "role": "link",
+   "name": "Hengbin Cui",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Cui,+H",
+   "icon": false,
+   "row": "Title: Customizable and Jointly Optimized Route Planning: A Deep Architecture Enabling Differentiable Shortest-Path Search Rui Zhao, Chao Chen, Longfei Xu, Chen"
+  },
+  {
+   "role": "link",
+   "name": "Kaikui Liu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Liu,+K",
+   "icon": false,
+   "row": "Title: Customizable and Jointly Optimized Route Planning: A Deep Architecture Enabling Differentiable Shortest-Path Search Rui Zhao, Chao Chen, Longfei Xu, Chen"
+  },
+  {
+   "role": "link",
+   "name": "Xiaolong Li",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Li,+X",
+   "icon": false,
+   "row": "Title: Customizable and Jointly Optimized Route Planning: A Deep Architecture Enabling Differentiable Shortest-Path Search Rui Zhao, Chao Chen, Longfei Xu, Chen"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.19961",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.19961",
+   "icon": false,
+   "row": "[43] arXiv:2609.19961 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.19961",
+   "icon": false,
+   "row": "[43] arXiv:2609.19961 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.19961v1",
+   "icon": false,
+   "row": "[43] arXiv:2609.19961 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.19961",
+   "icon": false,
+   "row": "[43] arXiv:2609.19961 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Yuqi Ping",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Ping,+Y",
+   "icon": false,
+   "row": "Title: Neuro-Symbolic Agentic AI for Networked Low-Altitude UAVs Yuqi Ping, Tianhao Liang, Nanchi Su, Guangyu Lei, Junwei Wu, Qinyu Zhang, Tingting Zhang Commen"
+  },
+  {
+   "role": "link",
+   "name": "Tianhao Liang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Liang,+T",
+   "icon": false,
+   "row": "Title: Neuro-Symbolic Agentic AI for Networked Low-Altitude UAVs Yuqi Ping, Tianhao Liang, Nanchi Su, Guangyu Lei, Junwei Wu, Qinyu Zhang, Tingting Zhang Commen"
+  },
+  {
+   "role": "link",
+   "name": "Nanchi Su",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Su,+N",
+   "icon": false,
+   "row": "Title: Neuro-Symbolic Agentic AI for Networked Low-Altitude UAVs Yuqi Ping, Tianhao Liang, Nanchi Su, Guangyu Lei, Junwei Wu, Qinyu Zhang, Tingting Zhang Commen"
+  },
+  {
+   "role": "link",
+   "name": "Guangyu Lei",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Lei,+G",
+   "icon": false,
+   "row": "Title: Neuro-Symbolic Agentic AI for Networked Low-Altitude UAVs Yuqi Ping, Tianhao Liang, Nanchi Su, Guangyu Lei, Junwei Wu, Qinyu Zhang, Tingting Zhang Commen"
+  },
+  {
+   "role": "link",
+   "name": "Junwei Wu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Wu,+J",
+   "icon": false,
+   "row": "Title: Neuro-Symbolic Agentic AI for Networked Low-Altitude UAVs Yuqi Ping, Tianhao Liang, Nanchi Su, Guangyu Lei, Junwei Wu, Qinyu Zhang, Tingting Zhang Commen"
+  },
+  {
+   "role": "link",
+   "name": "Qinyu Zhang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhang,+Q",
+   "icon": false,
+   "row": "Title: Neuro-Symbolic Agentic AI for Networked Low-Altitude UAVs Yuqi Ping, Tianhao Liang, Nanchi Su, Guangyu Lei, Junwei Wu, Qinyu Zhang, Tingting Zhang Commen"
+  },
+  {
+   "role": "link",
+   "name": "Tingting Zhang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Zhang,+T",
+   "icon": false,
+   "row": "Title: Neuro-Symbolic Agentic AI for Networked Low-Altitude UAVs Yuqi Ping, Tianhao Liang, Nanchi Su, Guangyu Lei, Junwei Wu, Qinyu Zhang, Tingting Zhang Commen"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.19947",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.19947",
+   "icon": false,
+   "row": "[44] arXiv:2609.19947 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.19947",
+   "icon": false,
+   "row": "[44] arXiv:2609.19947 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.19947v1",
+   "icon": false,
+   "row": "[44] arXiv:2609.19947 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.19947",
+   "icon": false,
+   "row": "[44] arXiv:2609.19947 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Wonmi Choi",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Choi,+W",
+   "icon": false,
+   "row": "Title: Not All AI Agents Are Equal: Characterizing Resource and Performance Dynamics Wonmi Choi, Minuk Park, Zhixiong Niu, Yongqiang Xiong, Chuck Yoo, Gyeongsik"
+  },
+  {
+   "role": "link",
+   "name": "Minuk Park",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Park,+M",
+   "icon": false,
+   "row": "Title: Not All AI Agents Are Equal: Characterizing Resource and Performance Dynamics Wonmi Choi, Minuk Park, Zhixiong Niu, Yongqiang Xiong, Chuck Yoo, Gyeongsik"
+  },
+  {
+   "role": "link",
+   "name": "Zhixiong Niu",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Niu,+Z",
+   "icon": false,
+   "row": "Title: Not All AI Agents Are Equal: Characterizing Resource and Performance Dynamics Wonmi Choi, Minuk Park, Zhixiong Niu, Yongqiang Xiong, Chuck Yoo, Gyeongsik"
+  },
+  {
+   "role": "link",
+   "name": "Yongqiang Xiong",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Xiong,+Y",
+   "icon": false,
+   "row": "Title: Not All AI Agents Are Equal: Characterizing Resource and Performance Dynamics Wonmi Choi, Minuk Park, Zhixiong Niu, Yongqiang Xiong, Chuck Yoo, Gyeongsik"
+  },
+  {
+   "role": "link",
+   "name": "Chuck Yoo",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Yoo,+C",
+   "icon": false,
+   "row": "Title: Not All AI Agents Are Equal: Characterizing Resource and Performance Dynamics Wonmi Choi, Minuk Park, Zhixiong Niu, Yongqiang Xiong, Chuck Yoo, Gyeongsik"
+  },
+  {
+   "role": "link",
+   "name": "Gyeongsik Yang",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Yang,+G",
+   "icon": false,
+   "row": "Title: Not All AI Agents Are Equal: Characterizing Resource and Performance Dynamics Wonmi Choi, Minuk Park, Zhixiong Niu, Yongqiang Xiong, Chuck Yoo, Gyeongsik"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.19944",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.19944",
+   "icon": false,
+   "row": "[45] arXiv:2609.19944 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.19944",
+   "icon": false,
+   "row": "[45] arXiv:2609.19944 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.19944v1",
+   "icon": false,
+   "row": "[45] arXiv:2609.19944 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.19944",
+   "icon": false,
+   "row": "[45] arXiv:2609.19944 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Yudai Nakada",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Nakada,+Y",
+   "icon": false,
+   "row": "Title: MaSCoD: A Multi-Agent Framework for Structural-Context-Guided Candidate Causal Graph Generation Yudai Nakada, Yuichiro Nishiura, Jin Michael Splichal Com"
+  },
+  {
+   "role": "link",
+   "name": "Yuichiro Nishiura",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Nishiura,+Y",
+   "icon": false,
+   "row": "Title: MaSCoD: A Multi-Agent Framework for Structural-Context-Guided Candidate Causal Graph Generation Yudai Nakada, Yuichiro Nishiura, Jin Michael Splichal Com"
+  },
+  {
+   "role": "link",
+   "name": "Jin Michael Splichal",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Splichal,+J+M",
+   "icon": false,
+   "row": "Title: MaSCoD: A Multi-Agent Framework for Structural-Context-Guided Candidate Causal Graph Generation Yudai Nakada, Yuichiro Nishiura, Jin Michael Splichal Com"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.19934",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.19934",
+   "icon": false,
+   "row": "[46] arXiv:2609.19934 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.19934",
+   "icon": false,
+   "row": "[46] arXiv:2609.19934 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.19934v1",
+   "icon": false,
+   "row": "[46] arXiv:2609.19934 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.19934",
+   "icon": false,
+   "row": "[46] arXiv:2609.19934 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Ha Van Dau",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Van+Dau,+H",
+   "icon": false,
+   "row": "Title: Beyond Depth Truncation: Controlled Evaluation of Depth Utilization in Recursive Language Models Ha Van Dau, Thanh Tung Khuat, Nguyen Thanh Dung Subjects"
+  },
+  {
+   "role": "link",
+   "name": "Thanh Tung Khuat",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Khuat,+T+T",
+   "icon": false,
+   "row": "Title: Beyond Depth Truncation: Controlled Evaluation of Depth Utilization in Recursive Language Models Ha Van Dau, Thanh Tung Khuat, Nguyen Thanh Dung Subjects"
+  },
+  {
+   "role": "link",
+   "name": "Nguyen Thanh Dung",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Dung,+N+T",
+   "icon": false,
+   "row": "Title: Beyond Depth Truncation: Controlled Evaluation of Depth Utilization in Recursive Language Models Ha Van Dau, Thanh Tung Khuat, Nguyen Thanh Dung Subjects"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.19928",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.19928",
+   "icon": false,
+   "row": "[47] arXiv:2609.19928 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.19928",
+   "icon": false,
+   "row": "[47] arXiv:2609.19928 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.19928v1",
+   "icon": false,
+   "row": "[47] arXiv:2609.19928 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.19928",
+   "icon": false,
+   "row": "[47] arXiv:2609.19928 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Ryota Mitsuhashi",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Mitsuhashi,+R",
+   "icon": false,
+   "row": "Title: From \"Who Is This User?\" to \"What Does This Purchase Mean?\": A Deployed Pipeline for Semantic User Profiling at Bank Scale Ryota Mitsuhashi, Tetsuro Mori"
+  },
+  {
+   "role": "link",
+   "name": "Tetsuro Morimura",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Morimura,+T",
+   "icon": false,
+   "row": "Title: From \"Who Is This User?\" to \"What Does This Purchase Mean?\": A Deployed Pipeline for Semantic User Profiling at Bank Scale Ryota Mitsuhashi, Tetsuro Mori"
+  },
+  {
+   "role": "link",
+   "name": "Hirotake Ito",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Ito,+H",
+   "icon": false,
+   "row": "Title: From \"Who Is This User?\" to \"What Does This Purchase Mean?\": A Deployed Pipeline for Semantic User Profiling at Bank Scale Ryota Mitsuhashi, Tetsuro Mori"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.19897",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.19897",
+   "icon": false,
+   "row": "[48] arXiv:2609.19897 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.19897",
+   "icon": false,
+   "row": "[48] arXiv:2609.19897 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "html",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/html/2609.19897v1",
+   "icon": false,
+   "row": "[48] arXiv:2609.19897 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.19897",
+   "icon": false,
+   "row": "[48] arXiv:2609.19897 [pdf, html, other]"
+  },
+  {
+   "role": "link",
+   "name": "Donghan Bian",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Bian,+D",
+   "icon": false,
+   "row": "Title: TRACE: Accountable Agentic Retrieval for Source Discovery in Digital Archives Donghan Bian (ENC, LRE), Marie Puren (LRE, ENC), Florian Cafiero (LRE, ENC)"
+  },
+  {
+   "role": "link",
+   "name": "Marie Puren",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Puren,+M",
+   "icon": false,
+   "row": "Title: TRACE: Accountable Agentic Retrieval for Source Discovery in Digital Archives Donghan Bian (ENC, LRE), Marie Puren (LRE, ENC), Florian Cafiero (LRE, ENC)"
+  },
+  {
+   "role": "link",
+   "name": "Florian Cafiero",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Cafiero,+F",
+   "icon": false,
+   "row": "Title: TRACE: Accountable Agentic Retrieval for Source Discovery in Digital Archives Donghan Bian (ENC, LRE), Marie Puren (LRE, ENC), Florian Cafiero (LRE, ENC)"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.19871",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.19871",
+   "icon": false,
+   "row": "[49] arXiv:2609.19871 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.19871",
+   "icon": false,
+   "row": "[49] arXiv:2609.19871 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.19871",
+   "icon": false,
+   "row": "[49] arXiv:2609.19871 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "Etienne Lehembre",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Lehembre,+E",
+   "icon": false,
+   "row": "Title: Physical knowledge on historical data matters more than enforcing physical constraints on the forecast Etienne Lehembre (CA, LIFO), Pascal Audigane (BRGM"
+  },
+  {
+   "role": "link",
+   "name": "Pascal Audigane",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Audigane,+P",
+   "icon": false,
+   "row": "Title: Physical knowledge on historical data matters more than enforcing physical constraints on the forecast Etienne Lehembre (CA, LIFO), Pascal Audigane (BRGM"
+  },
+  {
+   "role": "link",
+   "name": "Vincent Nguyen",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Nguyen,+V",
+   "icon": false,
+   "row": "Title: Physical knowledge on historical data matters more than enforcing physical constraints on the forecast Etienne Lehembre (CA, LIFO), Pascal Audigane (BRGM"
+  },
+  {
+   "role": "link",
+   "name": "Christel Vrain",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Vrain,+C",
+   "icon": false,
+   "row": "Title: Physical knowledge on historical data matters more than enforcing physical constraints on the forecast Etienne Lehembre (CA, LIFO), Pascal Audigane (BRGM"
+  },
+  {
+   "role": "link",
+   "name": "Thi-Bich-Hanh Dao",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Dao,+T",
+   "icon": false,
+   "row": "Title: Physical knowledge on historical data matters more than enforcing physical constraints on the forecast Etienne Lehembre (CA, LIFO), Pascal Audigane (BRGM"
+  },
+  {
+   "role": "link",
+   "name": "arXiv:2609.19866",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/abs/2609.19866",
+   "icon": false,
+   "row": "[50] arXiv:2609.19866 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "pdf",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/pdf/2609.19866",
+   "icon": false,
+   "row": "[50] arXiv:2609.19866 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "other",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/format/2609.19866",
+   "icon": false,
+   "row": "[50] arXiv:2609.19866 [pdf, other]"
+  },
+  {
+   "role": "link",
+   "name": "Veronika Batzdorfer",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Batzdorfer,+V",
+   "icon": false,
+   "row": "Title: Reproducibility is not construct validity: LLM measurement of institutionally situated communication Veronika Batzdorfer (KIT), Carlo Romano Marcello Ale"
+  },
+  {
+   "role": "link",
+   "name": "Carlo Romano Marcello Alessandro Santagiustina",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/search/cs?searchtype=author&query=Santagiustina,+C+R+M+A",
+   "icon": false,
+   "row": "Title: Reproducibility is not construct validity: LLM measurement of institutionally situated communication Veronika Batzdorfer (KIT), Carlo Romano Marcello Ale"
+  },
+  {
+   "role": "link",
+   "name": "51-100",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=50&show=50",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "101-150",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=100&show=50",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "151-200",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=150&show=50",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "1151-1189",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=1150&show=50",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "fewer",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=0&show=25",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "more",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=0&show=100",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "all",
+   "value": "",
+   "editable": false,
+   "within": "Fri, 18 Sep 2026 (showing first 50 of 215 entries )",
+   "href": "https://arxiv.org/list/cs.AI/recent?skip=0&show=2000",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "member institutions",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://info.arxiv.org/about/ourmembers.html",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "About",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation navigation",
+   "href": "https://info.arxiv.org/about",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Help",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation navigation",
+   "href": "https://info.arxiv.org/help",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Contact",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation navigation",
+   "href": "https://info.arxiv.org/help/contact.html",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Subscribe",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation navigation",
+   "href": "https://info.arxiv.org/help/subscribe",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Copyright",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation navigation",
+   "href": "https://info.arxiv.org/help/license/index.html",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Privacy",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation navigation",
+   "href": "https://info.arxiv.org/help/policies/privacy_policy.html",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Accessibility",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation navigation",
+   "href": "https://info.arxiv.org/help/web_accessibility.html",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Operational Status (opens in new tab)",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation navigation",
+   "href": "https://status.arxiv.org/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Simons Foundation",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.simonsfoundation.org/",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Simons Foundation International",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.sfi.org.bm/",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Schmidt Sciences",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.schmidtsciences.org/",
+   "icon": true
+  }
+ ]
+}

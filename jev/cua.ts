@@ -317,7 +317,7 @@ export function isLooping(history: string[]): boolean {
 }
 
 /** The action for `move`, from answers `decide` already has. Only newly written text costs another call. */
-async function argumentsFor(
+export async function argumentsFor(
   move: Exclude<keyof typeof MOVES, "done" | "ask_planner">,
   deps: Pick<Deps, "ask" | "llm">,
   intent: Intent,

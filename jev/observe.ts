@@ -40,6 +40,8 @@ export type UiElement = {
   frame: string;
   /** Position on the hand's screen, in pixels. */
   rect: Rect;
+  /** A native dropdown's choices, when the observer can read them. screen.ts sets one without opening it. */
+  options?: string[];
 };
 
 export type Observation = {

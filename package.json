@@ -20,6 +20,7 @@
     "@earendil-works/pi-agent-core": "0.85.1",
     "@earendil-works/pi-ai": "0.85.1",
     "@modelcontextprotocol/client": "2.0.0",
+    "@trycua/cua-driver": "^0.28.2",
     "@typesafe-ai/sdk": "^0.6.0",
     "zod": "4.6.5"
   }

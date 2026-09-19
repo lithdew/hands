@@ -1,0 +1,1651 @@
+{
+ "url": "https://www.bbc.com/news",
+ "fetched": "2026-09-19T12:53:56.372Z",
+ "title": "BBC News - Breaking news, video and the latest top stories from the U.S. and around the world",
+ "texts": [
+  "News",
+  "US and Denmark reach deal over Greenland after Trump annexation threats",
+  "Google's Gemini AI hacked three companies in security test",
+  "Millions without power as Cuba hit by latest major blackout",
+  "Trump says he is banning CNN and Politico from White House",
+  "'How many more bodies?' Grief and fear in South Africa as nine women found dead in two months",
+  "'Enough is enough': Women protest after string of murders near Johannesburg",
+  "'I'm telling the truth': Princess Diana's brother defends claims he makes about King Charles in new book",
+  "Shark attack prompts rare kill order in Western Australia as victim named",
+  "Boardroom revolt at Tata sets stage for period of prolonged upheaval",
+  "Billionaire Man United owner says he has lost confidence in the UK",
+  "Saudi Arabia issues first air raid alerts for Riyadh since Houthis escalated attacks",
+  "Russian hybrid attacks against Europe intensifying, says Macron",
+  "Would Australians support a smart glasses ban?",
+  "More to explore",
+  "Bitter row over Diana book brings back unhappy times for royals",
+  "When a beloved tree began withering away, locals suspected a killer in their midst",
+  "Daisy Edgar-Jones: I try and bury my emotion when it comes to love",
+  "I found love at an Irish matchmaking festival - and I want others to do the same",
+  "Could AI wipe out humans and how might it do it?",
+  "Everything we know about the Ed Sheeran and Macklemore controversy",
+  "A four-minute warning isn't enough: Russia's new relentless missile tactics exhaust Kyiv residents",
+  "Also in news",
+  "We've been transatlantic pen pals for 70 years and are now more like sisters",
+  "Trump signs sweeping Russia sanctions bill",
+  "At least 21 killed after vehicle loaded with explosives rams Pakistan mosque",
+  "Ireland's relationship with UK under Burnham off to 'very good start'",
+  "Apology after North Korean anthem played for South Korea at Asian Games",
+  "Dozens of suspected illegal miners die in Nigerian custody",
+  "Watch: Aztec codex on display in Mexico for first time in 186 years",
+  "Most watched",
+  "Watch: Diana's brother says Charles 'went ballistic' in phone call after her death",
+  "Kerry Kennedy: 'It would be a tragedy' if Kennedy Center is demolished",
+  "Most read",
+  "Grim discoveries of murdered women spark fear in South Africa",
+  "'I'm telling the truth': Earl Spencer defends Diana book claims about Charles in BBC interview",
+  "Man pronounced dead made noise after hour of CPR",
+  "Oh what a beauty! How the mangelwurzel is making a comeback",
+  "Sport",
+  "Premier League: Spurs still search for first league goal as they trail Villa"
+ ],
+ "elements": [
+  {
+   "role": "link",
+   "name": "Skip to content",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://www.bbc.com/news#bbc-main",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Open menu",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "British Broadcasting Corporation",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://www.bbc.com/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Home",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "News",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/news",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Sport",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/sport",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Business",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/business",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Technology",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/technology",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Health",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/health",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Culture",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/culture",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Arts",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/arts",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Travel",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/travel",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Earth",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/future-planet",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Audio",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/audio",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Video",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/video",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Live",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/live",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "US & Canada",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/news/us-canada",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "UK",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/news/uk",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Africa",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/news/world/africa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Asia",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/news/world/asia",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Australia",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/news/world/australia",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Europe",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/news/world/europe",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Latin America",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/news/world/latin_america",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Middle East",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/news/world/middle_east",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "In Pictures",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/news/in_pictures",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC InDepth",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/news/bbcindepth",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC Verify",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/news/bbcverify",
+   "icon": false
+  },
+  {
+   "role": "text field",
+   "name": "Site search",
+   "value": "",
+   "editable": true,
+   "within": "",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Search",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "button",
+   "name": "Home",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "News",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Sport",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Business",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Technology",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Health",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Culture",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Arts",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Travel",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Earth",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Audio",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Video",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Live",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Weather",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Newsletters",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "People bear Greenlandic flags as they gather in front of the US consulate in Nuuk, Greenland, in a protest against Presi",
+   "value": "",
+   "editable": false,
+   "within": "News",
+   "href": "https://www.bbc.com/news/articles/c63d7lexyym1o",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "US and Denmark reach deal over Greenland after Trump annexation threatsDenmark and Greenland have welcomed the deal, whi",
+   "value": "",
+   "editable": false,
+   "within": "US and Denmark reach deal over Greenland after Trump annexation threats",
+   "href": "https://www.bbc.com/news/articles/c63d7lexyym1o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Google's Gemini AI hacked three companies in security testThe AI model accessed the internet and guessed credentials to ",
+   "value": "",
+   "editable": false,
+   "within": "Google's Gemini AI hacked three companies in security test",
+   "href": "https://www.bbc.com/news/articles/c607l0k72rlvo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Millions without power as Cuba hit by latest major blackoutWidespread power outages have become increasingly common due ",
+   "value": "",
+   "editable": false,
+   "within": "Millions without power as Cuba hit by latest major blackout",
+   "href": "https://www.bbc.com/news/articles/c6j9x4387lzxo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Trump says he is banning CNN and Politico from White HouseThe US president has had a tense and fiery relationship with t",
+   "value": "",
+   "editable": false,
+   "within": "Trump says he is banning CNN and Politico from White House",
+   "href": "https://www.bbc.com/news/articles/c6e30580jqjpo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "'How many more bodies?' Grief and fear in South Africa as nine women found dead in two monthsDineo Motapane is one of ni",
+   "value": "",
+   "editable": false,
+   "within": "'How many more bodies?' Grief and fear in South Africa as nine women found dead ",
+   "href": "https://www.bbc.com/news/articles/cjkg71e67k17o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "'Enough is enough': Women protest after string of murders near JohannesburgThe police have since set up a task team to i",
+   "value": "",
+   "editable": false,
+   "within": "'Enough is enough': Women protest after string of murders near Johannesburg",
+   "href": "https://www.bbc.com/news/videos/cm4gjxq1dx2eo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "'I'm telling the truth': Princess Diana's brother defends claims he makes about King Charles in new bookPrincess Diana's",
+   "value": "",
+   "editable": false,
+   "within": "'I'm telling the truth': Princess Diana's brother defends claims he makes about ",
+   "href": "https://www.bbc.com/news/articles/cmqxvd1drd35o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Shark attack prompts rare kill order in Western Australia as victim namedGreg O'Neill \"loved the ocean\", his family say,",
+   "value": "",
+   "editable": false,
+   "within": "Shark attack prompts rare kill order in Western Australia as victim named",
+   "href": "https://www.bbc.com/news/articles/cqwyzdnk442lo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Boardroom revolt at Tata sets stage for period of prolonged upheaval",
+   "value": "",
+   "editable": false,
+   "within": "Boardroom revolt at Tata sets stage for period of prolonged upheaval",
+   "href": "https://www.bbc.com/news/articles/c670lkvdzkn2o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Billionaire Man United owner says he has lost confidence in the UK",
+   "value": "",
+   "editable": false,
+   "within": "Billionaire Man United owner says he has lost confidence in the UK",
+   "href": "https://www.bbc.com/news/articles/cm0463619r1no",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Saudi Arabia issues first air raid alerts for Riyadh since Houthis escalated attacks",
+   "value": "",
+   "editable": false,
+   "within": "Saudi Arabia issues first air raid alerts for Riyadh since Houthis escalated att",
+   "href": "https://www.bbc.com/news/articles/cmed7el18dxpo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Russian hybrid attacks against Europe intensifying, says Macron",
+   "value": "",
+   "editable": false,
+   "within": "Russian hybrid attacks against Europe intensifying, says Macron",
+   "href": "https://www.bbc.com/news/articles/cm2dw1w9d3yjo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Would Australians support a smart glasses ban?",
+   "value": "",
+   "editable": false,
+   "within": "Would Australians support a smart glasses ban?",
+   "href": "https://www.bbc.com/news/videos/cm9w4nenzv4no",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Princess Diana, wearing a light blue dress and hat, sits in between a young Prince William on the left (holding his hand",
+   "value": "",
+   "editable": false,
+   "within": "More to explore",
+   "href": "https://www.bbc.com/news/articles/cr86xyne8xp2o",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Bitter row over Diana book brings back unhappy times for royalsMany of the Royal Family's current troubles can be traced",
+   "value": "",
+   "editable": false,
+   "within": "Bitter row over Diana book brings back unhappy times for royals",
+   "href": "https://www.bbc.com/news/articles/cr86xyne8xp2o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "When a beloved tree began withering away, locals suspected a killer in their midstA neighbourhood’s fight to save a cher",
+   "value": "",
+   "editable": false,
+   "within": "When a beloved tree began withering away, locals suspected a killer in their mid",
+   "href": "https://www.bbc.com/news/articles/cw5yl228lvzlo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Daisy Edgar-Jones: I try and bury my emotion when it comes to loveIn real life the actress says she is just like the cha",
+   "value": "",
+   "editable": false,
+   "within": "Daisy Edgar-Jones: I try and bury my emotion when it comes to love",
+   "href": "https://www.bbc.com/news/articles/cqkgvlkg0z3xo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "I found love at an Irish matchmaking festival - and I want others to do the sameMary Timby flew to Ireland on a whim las",
+   "value": "",
+   "editable": false,
+   "within": "I found love at an Irish matchmaking festival - and I want others to do the same",
+   "href": "https://www.bbc.com/news/articles/cw5y4jz6k2p3o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Could AI wipe out humans and how might it do it?Cyber Correspondent Joe Tidy looks at some of the scenarios being imagin",
+   "value": "",
+   "editable": false,
+   "within": "Could AI wipe out humans and how might it do it?",
+   "href": "https://www.bbc.com/news/videos/c8p3020ge51ko",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Everything we know about the Ed Sheeran and Macklemore controversyEd Sheeran will be back on stage in Philadelphia later",
+   "value": "",
+   "editable": false,
+   "within": "Everything we know about the Ed Sheeran and Macklemore controversy",
+   "href": "https://www.bbc.com/news/articles/c64gvqg0k27po",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "A four-minute warning isn't enough: Russia's new relentless missile tactics exhaust Kyiv residentsIncreasingly frequent ",
+   "value": "",
+   "editable": false,
+   "within": "A four-minute warning isn't enough: Russia's new relentless missile tactics exha",
+   "href": "https://www.bbc.com/news/articles/cwp93k9gpnv1o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Kathleen Wilson and Shirley Yaeger are standing together and smiling at the camera. Kathleen has short, grey hair and bl",
+   "value": "",
+   "editable": false,
+   "within": "Also in news",
+   "href": "https://www.bbc.com/news/articles/c6jrxq7vej3qo",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "We've been transatlantic pen pals for 70 years and are now more like sistersKathleen Bonthron and Shirley Hedtke were ag",
+   "value": "",
+   "editable": false,
+   "within": "We've been transatlantic pen pals for 70 years and are now more like sisters",
+   "href": "https://www.bbc.com/news/articles/c6jrxq7vej3qo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Trump signs sweeping Russia sanctions bill The bill is named after the late Senator Lindsey Graham, a staunch advocate o",
+   "value": "",
+   "editable": false,
+   "within": "Trump signs sweeping Russia sanctions bill",
+   "href": "https://www.bbc.com/news/articles/cqvgy34ndj4eo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "At least 21 killed after vehicle loaded with explosives rams Pakistan mosqueA four-year-old child is among those killed ",
+   "value": "",
+   "editable": false,
+   "within": "At least 21 killed after vehicle loaded with explosives rams Pakistan mosque",
+   "href": "https://www.bbc.com/news/articles/ckn9wenz8wjwo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Ireland's relationship with UK under Burnham off to 'very good start'The visit came days after US President Donald Trump",
+   "value": "",
+   "editable": false,
+   "within": "Ireland's relationship with UK under Burnham off to 'very good start'",
+   "href": "https://www.bbc.com/news/articles/cked7zjq57n5o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Apology after North Korean anthem played for South Korea at Asian GamesOrganisers have apologised for playing the North ",
+   "value": "",
+   "editable": false,
+   "within": "Apology after North Korean anthem played for South Korea at Asian Games",
+   "href": "https://www.bbc.com/sport/hockey/articles/cmx2zg85gq03o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Dozens of suspected illegal miners die in Nigerian custodyAuthorities linked the deaths to disease, but this has been di",
+   "value": "",
+   "editable": false,
+   "within": "Dozens of suspected illegal miners die in Nigerian custody",
+   "href": "https://www.bbc.com/news/articles/cw980qp2n3p4o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Watch: Aztec codex on display in Mexico for first time in 186 yearsMexicans celebrate the return of a centuries-old docu",
+   "value": "",
+   "editable": false,
+   "within": "Watch: Aztec codex on display in Mexico for first time in 186 years",
+   "href": "https://www.bbc.com/news/videos/cjn5dg5ww7pdo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "1'Enough is enough': Women protest after string of murders near Johannesburg",
+   "value": "",
+   "editable": false,
+   "within": "'Enough is enough': Women protest after string of murders near Johannesburg",
+   "href": "https://www.bbc.com/news/videos/cm4gjxq1dx2eo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "2Could AI wipe out humans and how might it do it?",
+   "value": "",
+   "editable": false,
+   "within": "Could AI wipe out humans and how might it do it?",
+   "href": "https://www.bbc.com/news/videos/c8p3020ge51ko",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "3Watch: Diana's brother says Charles 'went ballistic' in phone call after her death",
+   "value": "",
+   "editable": false,
+   "within": "Watch: Diana's brother says Charles 'went ballistic' in phone call after her dea",
+   "href": "https://www.bbc.com/news/videos/c317j8k4lvy9o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "4Kerry Kennedy: 'It would be a tragedy' if Kennedy Center is demolished",
+   "value": "",
+   "editable": false,
+   "within": "Kerry Kennedy: 'It would be a tragedy' if Kennedy Center is demolished",
+   "href": "https://www.bbc.com/news/videos/cv8e3jw1kr4lo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "5Would Australians support a smart glasses ban?",
+   "value": "",
+   "editable": false,
+   "within": "Would Australians support a smart glasses ban?",
+   "href": "https://www.bbc.com/news/videos/cm9w4nenzv4no",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "1US and Denmark reach deal over Greenland after Trump annexation threats",
+   "value": "",
+   "editable": false,
+   "within": "US and Denmark reach deal over Greenland after Trump annexation threats",
+   "href": "https://www.bbc.com/news/articles/c63d7lexyym1o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "2Grim discoveries of murdered women spark fear in South Africa",
+   "value": "",
+   "editable": false,
+   "within": "Grim discoveries of murdered women spark fear in South Africa",
+   "href": "https://www.bbc.com/news/articles/cjkg71e67k17o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "3Google's Gemini AI hacked three companies in security test",
+   "value": "",
+   "editable": false,
+   "within": "Google's Gemini AI hacked three companies in security test",
+   "href": "https://www.bbc.com/news/articles/c607l0k72rlvo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "4Shark attack prompts rare kill order in Western Australia as victim named",
+   "value": "",
+   "editable": false,
+   "within": "Shark attack prompts rare kill order in Western Australia as victim named",
+   "href": "https://www.bbc.com/news/articles/cqwyzdnk442lo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "5Billionaire Man United owner says he has lost confidence in the UK",
+   "value": "",
+   "editable": false,
+   "within": "Billionaire Man United owner says he has lost confidence in the UK",
+   "href": "https://www.bbc.com/news/articles/cm0463619r1no",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "6Saudi Arabia issues first air raid alerts for Riyadh since Houthis escalated attacks",
+   "value": "",
+   "editable": false,
+   "within": "Saudi Arabia issues first air raid alerts for Riyadh since Houthis escalated att",
+   "href": "https://www.bbc.com/news/articles/cmed7el18dxpo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "7'I'm telling the truth': Earl Spencer defends Diana book claims about Charles in BBC interview",
+   "value": "",
+   "editable": false,
+   "within": "'I'm telling the truth': Earl Spencer defends Diana book claims about Charles in",
+   "href": "https://www.bbc.com/news/articles/cmqxvd1drd35o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "8Bitter row over Diana book brings back unhappy times for royals",
+   "value": "",
+   "editable": false,
+   "within": "Bitter row over Diana book brings back unhappy times for royals",
+   "href": "https://www.bbc.com/news/articles/cr86xyne8xp2o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "9Man pronounced dead made noise after hour of CPR",
+   "value": "",
+   "editable": false,
+   "within": "Man pronounced dead made noise after hour of CPR",
+   "href": "https://www.bbc.com/news/articles/cm9w4n0wvg7vo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "10Oh what a beauty! How the mangelwurzel is making a comeback",
+   "value": "",
+   "editable": false,
+   "within": "Oh what a beauty! How the mangelwurzel is making a comeback",
+   "href": "https://www.bbc.com/news/articles/crwyzvx93q0jo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Johan Manzambi scores for Aston Villa",
+   "value": "",
+   "editable": false,
+   "within": "Sport",
+   "href": "https://www.bbc.com/sport/football/live/c2elng94nz2t",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "LIVEPremier League: Spurs still search for first league goal as they trail VillaFollow BBC Radio 5 Live, Final Score and",
+   "value": "",
+   "editable": false,
+   "within": "Premier League: Spurs still search for first league goal as they trail Villa",
+   "href": "https://www.bbc.com/sport/football/live/c2elng94nz2t",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Hodgkinson powers to Athlos win in speed suitKeely Hodgkinson powers to victory in a full-body speed suit before being p",
+   "value": "",
+   "editable": false,
+   "within": "Hodgkinson powers to Athlos win in speed suit",
+   "href": "https://www.bbc.com/sport/athletics/articles/cwx2z4ervr6jo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Kane passes Bundesliga century in record time as Bayern hit sevenHarry Kane scores his 100th Bundesliga goal in record t",
+   "value": "",
+   "editable": false,
+   "within": "Kane passes Bundesliga century in record time as Bayern hit seven",
+   "href": "https://www.bbc.com/sport/football/live/cx305jmen55rt",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "LIVEWomen's One-Day Cup final: Blaze bowlers finishing strongly as Hampshire lose eighth wicketListen to live BBC Radio ",
+   "value": "",
+   "editable": false,
+   "within": "Women's One-Day Cup final: Blaze bowlers finishing strongly as Hampshire lose ei",
+   "href": "https://www.bbc.com/sport/live/cqkgv2y3rldzt",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "LIVEWSL: Watch as London City on top against CharltonWatch TV coverage and follow live text commentary as Charlton Athle",
+   "value": "",
+   "editable": false,
+   "within": "WSL: Watch as London City on top against Charlton",
+   "href": "https://www.bbc.com/sport/football/live/c674ek3nppwet",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "LIVEChampionship: Millwall two up against West Ham, Phillips gives Sheff Utd lead at StokeFollow live text commentary an",
+   "value": "",
+   "editable": false,
+   "within": "Championship: Millwall two up against West Ham, Phillips gives Sheff Utd lead at",
+   "href": "https://www.bbc.com/sport/football/live/ck0e3grerlyjt",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Littler survives scare to progress at World Series FinalsWorld number one Luke Littler survives a first-round scare to o",
+   "value": "",
+   "editable": false,
+   "within": "Littler survives scare to progress at World Series Finals",
+   "href": "https://www.bbc.com/sport/darts/articles/c62l8wnd45xpo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "British Broadcasting Corporation",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Home",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation navigation",
+   "href": "https://www.bbc.com/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "News",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation navigation",
+   "href": "https://www.bbc.com/news",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Sport",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation navigation",
+   "href": "https://www.bbc.com/sport",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Business",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation navigation",
+   "href": "https://www.bbc.com/business",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Technology",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation navigation",
+   "href": "https://www.bbc.com/technology",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Health",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation navigation",
+   "href": "https://www.bbc.com/health",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Culture",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation navigation",
+   "href": "https://www.bbc.com/culture",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Arts",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation navigation",
+   "href": "https://www.bbc.com/arts",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Travel",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation navigation",
+   "href": "https://www.bbc.com/travel",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Earth",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation navigation",
+   "href": "https://www.bbc.com/future-planet",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Audio",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation navigation",
+   "href": "https://www.bbc.com/audio",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Video",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation navigation",
+   "href": "https://www.bbc.com/video",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Live",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation navigation",
+   "href": "https://www.bbc.com/live",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Weather",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation navigation",
+   "href": "https://www.bbc.com/weather",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC Shop",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation navigation",
+   "href": "https://shop.bbc.com/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BritBox",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation navigation",
+   "href": "https://www.britbox.com/?utm_source=bbc.com&utm_medium=referral&utm_campaign=footer",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "BBC in other languages",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Brasil",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/portuguese",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Mundo (Spanish)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/mundo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News မြန်မာ (Burmese)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/burmese",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News 中文 (Chinese)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/zhongwen/simp",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Indonesia",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/indonesia",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News 코리아 (Korean)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/korean",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News ไทย (Thai)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/thai",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Tiếng Việt (Vietnamese)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/vietnamese",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Azərbaycanca (Azeri)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/azeri",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Magyarul (Hungarian)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/magyarul",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Кыргыз Кызматы (Kyrgyz)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/kyrgyz",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Polska (Polish)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/polska",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News România (Romanian)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/romania",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Русская служба (Russian)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/russian",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News na srpskom (Serbian)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/serbian/lat",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Україна (Ukrainian)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/ukrainian",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News O'zbek (Uzbek)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/uzbek",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News عربي (Arabic)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/arabic",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News فارسی (Persian)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/persian",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Türkçe (Turkish)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/turkce",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News বাংলা (Bengali)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/bengali",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News دری (Dari)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/dari",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News ગુજરાતી (Gujarati)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/gujarati",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News हिन्दी (Hindi)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/hindi",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News मराठी (Marathi)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/marathi",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News नेपाली (Nepali)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/nepali",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News සිංහල (Sinhala)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/sinhala",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News ਪੰਜਾਬੀ (Punjabi)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/punjabi",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Afaan Oromoo",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/afaanoromoo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News አማርኛ (Amharic)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/amharic",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Afrique (French)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/afrique",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Hausa",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/hausa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Gaelic NAIDHEACHDAN",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/naidheachdan",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Ìgbò",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/igbo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Japanese 日本語",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/japanese",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Gahuza",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/gahuza",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Pidgin",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/pidgin",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Somali",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/somali",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Swahili",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/swahili",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News தமிழ் (Tamil)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/tamil",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News తెలుగు (Telugu)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/telugu",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News ትግርኛ (Tigrinya)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/tigrinya",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News اردو (Urdu)",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/urdu",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News Yorùbá",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/yoruba",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC News World Service",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/ws/languages",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Follow BBC on x",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "button",
+   "name": "Follow BBC on facebook",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "button",
+   "name": "Follow BBC on instagram",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "button",
+   "name": "Follow BBC on tiktok",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "button",
+   "name": "Follow BBC on linkedin",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "button",
+   "name": "Follow BBC on youtube",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Terms of Use",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/pages/terms-of-use",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "About the BBC",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.co.uk/aboutthebbc",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Privacy Policy",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/pages/privacy-policy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cookies",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/usingthebbc/cookies/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Accessibility Help",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.co.uk/accessibility/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Contact the BBC",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.co.uk/contact",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Advertise with us",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://advertising.bbcstudios.com/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Do not share or sell my info",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/usingthebbc/cookies/how-can-i-change-my-bbc-cookie-settings/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BBC.com Help & FAQs",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://help.bbc.com/hc/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Content Index",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/pages/content-index",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Set Preferred Source",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://www.bbc.com/future/article/20260128-how-to-make-google-put-trusted-sources-up-top-when-you-search",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Read about our approach to external linking.",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.bbc.com/editorialguidelines/guidance/links-and-feeds",
+   "icon": false
+  }
+ ]
+}

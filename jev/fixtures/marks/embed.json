@@ -1,0 +1,427 @@
+{
+ "page": "embed",
+ "shot": "embed.png",
+ "inner": [
+  1280,
+  800
+ ],
+ "today": {
+  "url": "https://harness.invalid/embed",
+  "title": "Osteria Pellegrino - Reservations",
+  "ready": "complete",
+  "elements": [
+   {
+    "role": "link",
+    "name": "Menu",
+    "editable": false,
+    "focused": false,
+    "within": "nav",
+    "value": "",
+    "x": 911.6875,
+    "y": 22,
+    "w": 38.296875,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Gift cards",
+    "editable": false,
+    "focused": false,
+    "within": "nav",
+    "value": "",
+    "x": 977.984375,
+    "y": 22,
+    "w": 62.796875,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Private events",
+    "editable": false,
+    "focused": false,
+    "within": "nav",
+    "value": "",
+    "x": 1068.78125,
+    "y": 22,
+    "w": 91.921875,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Contact",
+    "editable": false,
+    "focused": false,
+    "within": "nav",
+    "value": "",
+    "x": 1188.703125,
+    "y": 22,
+    "w": 51.296875,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "ask about private events",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 245.34375,
+    "y": 182,
+    "w": 160.8125,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Allergy information",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 40,
+    "y": 258,
+    "w": 127.578125,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Cancellation policy",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 179.0625,
+    "y": 258,
+    "w": 124.25,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Opening hours",
+    "editable": false,
+    "focused": false,
+    "within": "footer",
+    "value": "",
+    "x": 165.609375,
+    "y": 760.5,
+    "w": 98.875,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Press",
+    "editable": false,
+    "focused": false,
+    "within": "footer",
+    "value": "",
+    "x": 288.484375,
+    "y": 760.5,
+    "w": 34.203125,
+    "h": 20
+   }
+  ],
+  "texts": [
+   "Reserve a table",
+   "We take reservations up to sixty days ahead. Tables are held for fifteen minutes. For parties of nine or more, please ask about private events.",
+   "Reservations are handled by our booking partner in the panel on the right.",
+   "Allergy information · Cancellation policy"
+  ]
+ },
+ "next": {
+  "url": "https://harness.invalid/embed",
+  "title": "Osteria Pellegrino - Reservations",
+  "ready": "complete",
+  "elements": [
+   {
+    "role": "link",
+    "name": "Menu",
+    "editable": false,
+    "focused": false,
+    "within": "nav",
+    "value": "",
+    "x": 911.6875,
+    "y": 22,
+    "w": 38.296875,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Gift cards",
+    "editable": false,
+    "focused": false,
+    "within": "nav",
+    "value": "",
+    "x": 977.984375,
+    "y": 22,
+    "w": 62.796875,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Private events",
+    "editable": false,
+    "focused": false,
+    "within": "nav",
+    "value": "",
+    "x": 1068.78125,
+    "y": 22,
+    "w": 91.921875,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Contact",
+    "editable": false,
+    "focused": false,
+    "within": "nav",
+    "value": "",
+    "x": 1188.703125,
+    "y": 22,
+    "w": 51.296875,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "ask about private events",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 245.34375,
+    "y": 182,
+    "w": 160.8125,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Allergy information",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 40,
+    "y": 258,
+    "w": 127.578125,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Cancellation policy",
+    "editable": false,
+    "focused": false,
+    "within": "",
+    "value": "",
+    "x": 179.0625,
+    "y": 258,
+    "w": 124.25,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Opening hours",
+    "editable": false,
+    "focused": false,
+    "within": "footer",
+    "value": "",
+    "x": 165.609375,
+    "y": 760.5,
+    "w": 98.875,
+    "h": 20
+   },
+   {
+    "role": "link",
+    "name": "Press",
+    "editable": false,
+    "focused": false,
+    "within": "footer",
+    "value": "",
+    "x": 288.484375,
+    "y": 760.5,
+    "w": 34.203125,
+    "h": 20
+   }
+  ],
+  "texts": [
+   "Reserve a table",
+   "We take reservations up to sixty days ahead. Tables are held for fifteen minutes. For parties of nine or more, please ask about private events.",
+   "Reservations are handled by our booking partner in the panel on the right.",
+   "Allergy information · Cancellation policy"
+  ],
+  "unnamed": [],
+  "opaque": [
+   {
+    "kind": "iframe",
+    "name": "",
+    "x": 661,
+    "y": 105,
+    "w": 558,
+    "h": 558
+   }
+  ]
+ },
+ "gold": {
+  "guests_minus": {
+   "x": 689,
+   "y": 216,
+   "w": 36,
+   "h": 36
+  },
+  "guests_plus": {
+   "x": 835,
+   "y": 216,
+   "w": 36,
+   "h": 36
+  },
+  "slot_630": {
+   "x": 689,
+   "y": 288,
+   "w": 116,
+   "h": 40
+  },
+  "slot_700": {
+   "x": 815,
+   "y": 288,
+   "w": 116,
+   "h": 40
+  },
+  "slot_730": {
+   "x": 941,
+   "y": 288,
+   "w": 116,
+   "h": 40
+  },
+  "slot_815": {
+   "x": 1067,
+   "y": 288,
+   "w": 116,
+   "h": 40
+  },
+  "email": {
+   "x": 689,
+   "y": 364,
+   "w": 502,
+   "h": 40
+  },
+  "requests": {
+   "x": 689,
+   "y": 440,
+   "w": 502,
+   "h": 40
+  },
+  "find": {
+   "x": 689,
+   "y": 500,
+   "w": 502,
+   "h": 46
+  }
+ },
+ "controls": [
+  {
+   "x": 689,
+   "y": 216,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "x": 835,
+   "y": 216,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "x": 689,
+   "y": 288,
+   "w": 116,
+   "h": 40
+  },
+  {
+   "x": 815,
+   "y": 288,
+   "w": 116,
+   "h": 40
+  },
+  {
+   "x": 941,
+   "y": 288,
+   "w": 116,
+   "h": 40
+  },
+  {
+   "x": 1067,
+   "y": 288,
+   "w": 116,
+   "h": 40
+  },
+  {
+   "x": 689,
+   "y": 364,
+   "w": 502,
+   "h": 40
+  },
+  {
+   "x": 689,
+   "y": 440,
+   "w": 502,
+   "h": 40
+  },
+  {
+   "x": 689,
+   "y": 500,
+   "w": 502,
+   "h": 46
+  },
+  {
+   "x": 911.6875,
+   "y": 22,
+   "w": 38.296875,
+   "h": 20
+  },
+  {
+   "x": 977.984375,
+   "y": 22,
+   "w": 62.796875,
+   "h": 20
+  },
+  {
+   "x": 1068.78125,
+   "y": 22,
+   "w": 91.921875,
+   "h": 20
+  },
+  {
+   "x": 1188.703125,
+   "y": 22,
+   "w": 51.296875,
+   "h": 20
+  },
+  {
+   "x": 245.34375,
+   "y": 182,
+   "w": 160.8125,
+   "h": 20
+  },
+  {
+   "x": 40,
+   "y": 258,
+   "w": 127.578125,
+   "h": 20
+  },
+  {
+   "x": 179.0625,
+   "y": 258,
+   "w": 124.25,
+   "h": 20
+  },
+  {
+   "x": 165.609375,
+   "y": 760.5,
+   "w": 98.875,
+   "h": 20
+  },
+  {
+   "x": 288.484375,
+   "y": 760.5,
+   "w": 34.203125,
+   "h": 20
+  }
+ ]
+}

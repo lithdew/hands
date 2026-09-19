@@ -1,0 +1,6552 @@
+{
+ "url": "https://en.wikipedia.org/wiki/Moka_pot",
+ "fetched": "2026-09-19T12:54:00.573Z",
+ "title": "Moka pot - Wikipedia",
+ "texts": [
+  "Contents",
+  "Moka pot",
+  "Use",
+  "Preparation",
+  "Brewing",
+  "Moka coffee characteristics",
+  "Maintenance",
+  "Aluminium migration",
+  "History and variants",
+  "Pot sizes",
+  "See also",
+  "References",
+  "Further reading",
+  "External links"
+ ],
+ "elements": [
+  {
+   "role": "link",
+   "name": "Jump to content",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#bodyContent",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Main menu",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "checkbox",
+   "name": "Main menu",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Move Main menu to sidebar",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Hide Main menu",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Main page",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation",
+   "href": "https://en.wikipedia.org/wiki/Main_Page",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Contents",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation",
+   "href": "https://en.wikipedia.org/wiki/Wikipedia:Contents",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Current events",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation",
+   "href": "https://en.wikipedia.org/wiki/Portal:Current_events",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Random article",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation",
+   "href": "https://en.wikipedia.org/wiki/Special:Random",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "About Wikipedia",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation",
+   "href": "https://en.wikipedia.org/wiki/Wikipedia:About",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Contact us",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation",
+   "href": "https://en.wikipedia.org/wiki/Wikipedia:Contact_us",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Help",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation",
+   "href": "https://en.wikipedia.org/wiki/Help:Contents",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Learn to edit",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation",
+   "href": "https://en.wikipedia.org/wiki/Help:Introduction",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Community portal",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation",
+   "href": "https://en.wikipedia.org/wiki/Wikipedia:Community_portal",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Recent changes",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation",
+   "href": "https://en.wikipedia.org/wiki/Special:RecentChanges",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Upload file",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation",
+   "href": "https://en.wikipedia.org/wiki/Wikipedia:File_upload_wizard",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Special pages",
+   "value": "",
+   "editable": false,
+   "within": "Site navigation",
+   "href": "https://en.wikipedia.org/wiki/Special:SpecialPages",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Wikipedia",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://en.wikipedia.org/wiki/Main_Page",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Search",
+   "value": "",
+   "editable": false,
+   "within": "search",
+   "href": "https://en.wikipedia.org/wiki/Special:Search",
+   "icon": false
+  },
+  {
+   "role": "search field",
+   "name": "Search Wikipedia",
+   "value": "",
+   "editable": true,
+   "within": "form searchform",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Search",
+   "value": "",
+   "editable": false,
+   "within": "form searchform",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Appearance",
+   "value": "",
+   "editable": false,
+   "within": "Appearance navigation",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "checkbox",
+   "name": "Appearance",
+   "value": "",
+   "editable": false,
+   "within": "Appearance navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Donate",
+   "value": "",
+   "editable": false,
+   "within": "Personal tools navigation",
+   "href": "https://donate.wikimedia.org/?wmf_source=donate&wmf_medium=sidebar&wmf_campaign=en.wikipedia.org&uselang=en",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Create account",
+   "value": "",
+   "editable": false,
+   "within": "Personal tools navigation",
+   "href": "https://en.wikipedia.org/w/index.php?title=Special:CreateAccount&returnto=Moka+pot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Log in",
+   "value": "",
+   "editable": false,
+   "within": "Personal tools navigation",
+   "href": "https://en.wikipedia.org/w/index.php?title=Special:UserLogin&returnto=Moka+pot",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Personal tools",
+   "value": "",
+   "editable": false,
+   "within": "Personal tools navigation",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "checkbox",
+   "name": "Personal tools",
+   "value": "",
+   "editable": false,
+   "within": "Personal tools navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Move Contents to sidebar",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Hide Contents",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "(Top)",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "1 Use",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#Use",
+   "icon": false,
+   "row": "1 Use Toggle Use subsection"
+  },
+  {
+   "role": "button",
+   "name": "Toggle Use subsection",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "",
+   "icon": false,
+   "row": "1 Use Toggle Use subsection"
+  },
+  {
+   "role": "link",
+   "name": "1.1 Preparation",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#Preparation",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "1.2 Brewing",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#Brewing",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "1.3 Moka coffee characteristics",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#Moka_coffee_characteristics",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "2 Maintenance",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#Maintenance",
+   "icon": false,
+   "row": "2 Maintenance Toggle Maintenance subsection"
+  },
+  {
+   "role": "button",
+   "name": "Toggle Maintenance subsection",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "",
+   "icon": false,
+   "row": "2 Maintenance Toggle Maintenance subsection"
+  },
+  {
+   "role": "link",
+   "name": "2.1 Aluminium migration",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#Aluminium_migration",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "3 History and variants",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#History_and_variants",
+   "icon": false,
+   "row": "3 History and variants Toggle History and variants subsection"
+  },
+  {
+   "role": "button",
+   "name": "Toggle History and variants subsection",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "",
+   "icon": false,
+   "row": "3 History and variants Toggle History and variants subsection"
+  },
+  {
+   "role": "link",
+   "name": "3.1 Pot sizes",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#Pot_sizes",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "4 See also",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#See_also",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "5 References",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#References",
+   "icon": false,
+   "row": "5 References Toggle References subsection"
+  },
+  {
+   "role": "button",
+   "name": "Toggle References subsection",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "",
+   "icon": false,
+   "row": "5 References Toggle References subsection"
+  },
+  {
+   "role": "link",
+   "name": "5.1 Further reading",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#Further_reading",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "6 External links",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#External_links",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Toggle the table of contents",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "checkbox",
+   "name": "Toggle the table of contents",
+   "value": "",
+   "editable": false,
+   "within": "Contents navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "33 languages",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "checkbox",
+   "name": "33 languages",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "العربية",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://ar.wikipedia.org/wiki/%D8%A5%D8%A8%D8%B1%D9%8A%D9%82_%D8%A7%D9%84%D9%85%D9%88%D9%83%D8%A7",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Azərbaycanca",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://az.wikipedia.org/wiki/Moka_(q%C9%99hv%C9%99dan)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Български",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://bg.wikipedia.org/wiki/%D0%9A%D0%B0%D1%84%D0%B5%D0%B2%D0%B0%D1%80%D0%BA%D0%B0",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Català",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://ca.wikipedia.org/wiki/Cafetera_moka",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Čeština",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://cs.wikipedia.org/wiki/Moka",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cymraeg",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://cy.wikipedia.org/wiki/Tebot_moka",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Dansk",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://da.wikipedia.org/wiki/Mokkabrygger",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Deutsch",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://de.wikipedia.org/wiki/Espressokanne",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Esperanto",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://eo.wikipedia.org/wiki/Espreskru%C4%89o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Español",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://es.wikipedia.org/wiki/Cafetera_moka",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Euskara",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://eu.wikipedia.org/wiki/Italiar_kafegailu",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "فارسی",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://fa.wikipedia.org/wiki/%D9%82%D9%88%D8%B1%DB%8C_%D9%85%D9%88%DA%A9%D8%A7",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Suomi",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://fi.wikipedia.org/wiki/Mokkapannu",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Français",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://fr.wikipedia.org/wiki/Moka_(cafeti%C3%A8re)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "עברית",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://he.wikipedia.org/wiki/%D7%9E%D7%A7%D7%99%D7%A0%D7%98%D7%94",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bahasa Indonesia",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://id.wikipedia.org/wiki/Moka_pot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Italiano",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://it.wikipedia.org/wiki/Moka",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "日本語",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://ja.wikipedia.org/wiki/%E3%83%A2%E3%82%AB%E3%82%A8%E3%82%AD%E3%82%B9%E3%83%97%E3%83%AC%E3%82%B9",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "한국어",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://ko.wikipedia.org/wiki/%EB%AA%A8%EC%B9%B4_%ED%8F%AC%ED%8A%B8",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Lombard",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://lmo.wikipedia.org/wiki/Moka",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bahasa Melayu",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://ms.wikipedia.org/wiki/Teko_Moka",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Napulitano",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://nap.wikipedia.org/wiki/Moka",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Nederlands",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://nl.wikipedia.org/wiki/Mokkapot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Polski",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://pl.wikipedia.org/wiki/Makinetka",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Português",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://pt.wikipedia.org/wiki/Cafeteira_moka",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Русский",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://ru.wikipedia.org/wiki/%D0%93%D0%B5%D0%B9%D0%B7%D0%B5%D1%80%D0%BD%D0%B0%D1%8F_%D0%BA%D0%BE%D1%84%D0%B5%D0%B2%D0%B0%D1%80%D0%BA%D0%B0",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Slovenčina",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://sk.wikipedia.org/wiki/Moka",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Српски / srpski",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://sr.wikipedia.org/wiki/%D0%9C%D0%BE%D0%BA%D0%B0_%D0%BB%D0%BE%D0%BD%D0%B0%D1%86",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Svenska",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://sv.wikipedia.org/wiki/Mokabryggare",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Татарча / tatarça",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://tt.wikipedia.org/wiki/Moka_(q%C3%A4hw%C3%A4qaynatq%C4%B1%C3%A7)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Українська",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://uk.wikipedia.org/wiki/%D0%9C%D0%BE%D0%BA%D0%B0_(%D0%BA%D0%B0%D0%B2%D0%BE%D0%B2%D0%B0%D1%80%D0%BA%D0%B0)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Vèneto",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://vec.wikipedia.org/wiki/C%C3%B3goma",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "中文",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://zh.wikipedia.org/wiki/%E6%91%A9%E5%8D%A1%E5%A3%B6",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Edit links",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://www.wikidata.org/wiki/Special:EntityPage/Q1054566#sitelinks-wikipedia",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Article",
+   "value": "",
+   "editable": false,
+   "within": "Namespaces navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Talk",
+   "value": "",
+   "editable": false,
+   "within": "Namespaces navigation",
+   "href": "https://en.wikipedia.org/wiki/Talk:Moka_pot",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Change language variant",
+   "value": "",
+   "editable": false,
+   "within": "Namespaces navigation",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "checkbox",
+   "name": "English",
+   "value": "",
+   "editable": false,
+   "within": "Namespaces navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Read",
+   "value": "",
+   "editable": false,
+   "within": "Views navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Edit",
+   "value": "",
+   "editable": false,
+   "within": "Views navigation",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=edit",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "View history",
+   "value": "",
+   "editable": false,
+   "within": "Views navigation",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=history",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Tools",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "checkbox",
+   "name": "Tools",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Move Tools to sidebar",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Hide Tools",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Read",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Edit",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=edit",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "View history",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=history",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "What links here",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "https://en.wikipedia.org/wiki/Special:WhatLinksHere/Moka_pot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Related changes",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "https://en.wikipedia.org/wiki/Special:RecentChangesLinked/Moka_pot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Upload file",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "https://en.wikipedia.org/wiki/Wikipedia:File_Upload_Wizard",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Permanent link",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&oldid=1374890081",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Page information",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=info",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cite this page",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "https://en.wikipedia.org/w/index.php?title=Special:CiteThisPage&page=Moka_pot&id=1374890081&wpFormIdentifier=titleform",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Get shortened URL",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "https://en.wikipedia.org/w/index.php?title=Special:UrlShortener&url=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FMoka_pot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Switch to legacy parser",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&useparsoid=0",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Download as PDF",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "https://en.wikipedia.org/w/index.php?title=Special:DownloadAsPdf&page=Moka_pot&action=show-download-screen",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Printable version",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&printable=yes",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Wikimedia Commons",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "https://commons.wikimedia.org/wiki/Category:Moka_pot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Wikidata item",
+   "value": "",
+   "editable": false,
+   "within": "Page tools navigation",
+   "href": "https://www.wikidata.org/wiki/Special:EntityPage/Q1054566",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Move Appearance to sidebar",
+   "value": "",
+   "editable": false,
+   "within": "Appearance navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Hide Appearance",
+   "value": "",
+   "editable": false,
+   "within": "Appearance navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè mocha",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_mocha",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Mocha coffee bean",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Mocha_coffee_bean",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Photograph of classic Bialetti Moka Express coffee maker.",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/File:Moka_Express_Bialetti.png",
+   "icon": true,
+   "row": "Bialetti Moka Express"
+  },
+  {
+   "role": "link",
+   "name": "Coffee in Italy",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Coffee_in_Italy",
+   "icon": false,
+   "row": "IndustryCoffee in Italy"
+  },
+  {
+   "role": "link",
+   "name": "Coffee preparation",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Coffee_preparation",
+   "icon": false,
+   "row": "ApplicationCoffee preparation"
+  },
+  {
+   "role": "link",
+   "name": "Alfonso Bialetti",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Alfonso_Bialetti",
+   "icon": false,
+   "row": "Alfonso Bialetti (c. 1933)"
+  },
+  {
+   "role": "link",
+   "name": "Alessi",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Alessi_(Italian_company)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bialetti",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Bialetti",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "De' Longhi",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/De'_Longhi",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[1]",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-1",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[2]",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-2",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "coffee maker",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Coffee_maker",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "heat-driven gas expansion",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Charles's_law",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "coffee",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Yemeni",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Yemen",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Mokha",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Mokha",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Italian",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Italian_people",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[3]",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-QZ-2016-3",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[4]",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-4",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[5]",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-5",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Italian culture",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Culture_of_Italy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bialetti Industries",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Bialetti",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Europe",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Europe",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Latin America",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Latin_America",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Australia",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Australia",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "industrial art",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Industrial_art",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "design museums",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Design_museum",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Wolfsonian-FIU",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Wolfsonian-FIU",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cooper–Hewitt, National Design Museum",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Cooper%E2%80%93Hewitt,_National_Design_Museum",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Design Museum",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Design_Museum",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[6]",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-HILARY_GREENBAUM-6",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "London Science Museum",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Science_Museum_(London)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "The Smithsonian",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Smithsonian_Institution",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Museum of Modern Art",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Museum_of_Modern_Art",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[7]",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-:0-7",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[8]",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-8",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[9]",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-9",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "aluminium",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Aluminium",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bakelite",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Bakelite",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "stainless steel",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Stainless_steel",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "heat-resistant glass",
+   "value": "",
+   "editable": false,
+   "within": "Moka pot",
+   "href": "https://en.wikipedia.org/wiki/Heat-resistant_glass",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "edit",
+   "value": "",
+   "editable": false,
+   "within": "Use",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=edit&section=1",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "induction cooking",
+   "value": "",
+   "editable": false,
+   "within": "Use",
+   "href": "https://en.wikipedia.org/wiki/Induction_cooking",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "safety valve",
+   "value": "",
+   "editable": false,
+   "within": "Use",
+   "href": "https://en.wikipedia.org/wiki/Safety_valve",
+   "icon": false,
+   "row": "The lower chamber or lower vessel, also known as the boiler, which is fitted with a safety valve to prevent over-pressurization"
+  },
+  {
+   "role": "link",
+   "name": "gasket",
+   "value": "",
+   "editable": false,
+   "within": "Use",
+   "href": "https://en.wikipedia.org/wiki/Gasket",
+   "icon": false,
+   "row": "The filter funnel or basket, which compresses an annular rubber gasket when the moka pot is assembled and seals against an upper filter disc"
+  },
+  {
+   "role": "link",
+   "name": "circlip",
+   "value": "",
+   "editable": false,
+   "within": "Use",
+   "href": "https://en.wikipedia.org/wiki/Circlip",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "edit",
+   "value": "",
+   "editable": false,
+   "within": "Preparation",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=edit&section=2",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[10]",
+   "value": "",
+   "editable": false,
+   "within": "Preparation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-10",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[11]",
+   "value": "",
+   "editable": false,
+   "within": "Preparation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-11",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "funnel",
+   "value": "",
+   "editable": false,
+   "within": "Preparation",
+   "href": "https://en.wikipedia.org/wiki/Funnel",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[12]",
+   "value": "",
+   "editable": false,
+   "within": "Preparation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-NavariniEtal-12",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Funnel with ground coffee",
+   "value": "",
+   "editable": false,
+   "within": "Preparation",
+   "href": "https://en.wikipedia.org/wiki/File:Coffee_f3327912.jpg",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Mid-brew, showing brewed coffee in the process of being transported through the spout",
+   "value": "",
+   "editable": false,
+   "within": "Preparation",
+   "href": "https://en.wikipedia.org/wiki/File:Moka_brewing.jpg",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Layer of crema developing",
+   "value": "",
+   "editable": false,
+   "within": "Preparation",
+   "href": "https://en.wikipedia.org/wiki/File:Moka_crema1.JPG",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "crema",
+   "value": "",
+   "editable": false,
+   "within": "Preparation",
+   "href": "https://en.wikipedia.org/wiki/Crema_(coffee)",
+   "icon": false,
+   "row": "Layer of crema developing"
+  },
+  {
+   "role": "link",
+   "name": "edit",
+   "value": "",
+   "editable": false,
+   "within": "Brewing",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=edit&section=3",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "X-ray",
+   "value": "",
+   "editable": false,
+   "within": "Brewing",
+   "href": "https://en.wikipedia.org/wiki/X-ray",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "vapor pressure",
+   "value": "",
+   "editable": false,
+   "within": "Brewing",
+   "href": "https://en.wikipedia.org/wiki/Vapor_pressure",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "strombolian",
+   "value": "",
+   "editable": false,
+   "within": "Brewing",
+   "href": "https://en.wikipedia.org/wiki/Strombolian_eruption",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[12]",
+   "value": "",
+   "editable": false,
+   "within": "Brewing",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-NavariniEtal-12",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "percolator",
+   "value": "",
+   "editable": false,
+   "within": "Brewing",
+   "href": "https://en.wikipedia.org/wiki/Coffee_percolator",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "ideal gas",
+   "value": "",
+   "editable": false,
+   "within": "Brewing",
+   "href": "https://en.wikipedia.org/wiki/Ideal_gas_law",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Darcy's",
+   "value": "",
+   "editable": false,
+   "within": "Brewing",
+   "href": "https://en.wikipedia.org/wiki/Darcy's_law",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "vapor pressure",
+   "value": "",
+   "editable": false,
+   "within": "Brewing",
+   "href": "https://en.wikipedia.org/wiki/Vapor_pressure_of_water",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[13]",
+   "value": "",
+   "editable": false,
+   "within": "Brewing",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-13",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "edit",
+   "value": "",
+   "editable": false,
+   "within": "Moka coffee characteristics",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=edit&section=4",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[12]",
+   "value": "",
+   "editable": false,
+   "within": "Moka coffee characteristics",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-NavariniEtal-12",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[14]",
+   "value": "",
+   "editable": false,
+   "within": "Moka coffee characteristics",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-14",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[15]",
+   "value": "",
+   "editable": false,
+   "within": "Moka coffee characteristics",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-15",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[16]",
+   "value": "",
+   "editable": false,
+   "within": "Moka coffee characteristics",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-16",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[17]",
+   "value": "",
+   "editable": false,
+   "within": "Moka coffee characteristics",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-17",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "edit",
+   "value": "",
+   "editable": false,
+   "within": "Maintenance",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=edit&section=5",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[18]",
+   "value": "",
+   "editable": false,
+   "within": "Maintenance",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-18",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[19]",
+   "value": "",
+   "editable": false,
+   "within": "Maintenance",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-19",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[20]",
+   "value": "",
+   "editable": false,
+   "within": "Maintenance",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-20",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "edit",
+   "value": "",
+   "editable": false,
+   "within": "Aluminium migration",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=edit&section=6",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[21]",
+   "value": "",
+   "editable": false,
+   "within": "Aluminium migration",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-21",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "edit",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=edit&section=7",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Steam pressure-driven coffee machine (1868)",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/File:Katholieke_Illustratie_1867-1868_-_nr_38_p_304_-_Nieuwe_koffij-machine.jpg",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Coffee machine c. 1900 similar to Parker's Steam Fountain",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/File:020220819_Kaffitraktar_tidleg_p%C3%A5_1900-talet,_Galizia.jpg",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Several models of Bialetti moka pot",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/File:2015_0826_Bialettis_Boon_Den_Haag.jpg",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Moka 2 Cup Coffee Fountain",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/File:Coffee_pot_fountain.jpg",
+   "icon": true,
+   "row": "Moka 2 Cup Coffee Fountain[22]"
+  },
+  {
+   "role": "link",
+   "name": "[22]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-caffesanteustachio-22",
+   "icon": false,
+   "row": "Moka 2 Cup Coffee Fountain[22]"
+  },
+  {
+   "role": "link",
+   "name": "Alessi 9090 coffee maker designed by Richard Sapper (1978)",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/File:Richard_sapper_per_alessi_spa.,_caffettiera_modello_gogo,_1978-79.jpg",
+   "icon": true,
+   "row": "Alessi 9090 coffee maker designed by Richard Sapper (1978)[23]"
+  },
+  {
+   "role": "link",
+   "name": "Richard Sapper",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Richard_Sapper",
+   "icon": false,
+   "row": "Alessi 9090 coffee maker designed by Richard Sapper (1978)[23]"
+  },
+  {
+   "role": "link",
+   "name": "[23]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-23",
+   "icon": false,
+   "row": "Alessi 9090 coffee maker designed by Richard Sapper (1978)[23]"
+  },
+  {
+   "role": "link",
+   "name": "[24]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-BHustle22-24",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "French Academy of Sciences",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/French_Academy_of_Sciences",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[25]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-25",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "coffee percolator",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Coffee_percolator",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[26]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-26",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[27]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-SteamPressure-27",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[28]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-28",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[3]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-QZ-2016-3",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[29]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-29",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[30]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-30",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[31]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-31",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[32]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-32",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[33]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-33",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "pressure regulator",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Pressure_regulator",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "pressure cooker",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Pressure_cooker",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "espresso",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Espresso",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "crema",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Crema_(coffee)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[34]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-34",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[35]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-35",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[36]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-36",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[37]",
+   "value": "",
+   "editable": false,
+   "within": "History and variants",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-37",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "edit",
+   "value": "",
+   "editable": false,
+   "within": "Pot sizes",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=edit&section=8",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "demitasse",
+   "value": "",
+   "editable": false,
+   "within": "Pot sizes",
+   "href": "https://en.wikipedia.org/wiki/Demitasse",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "[38]",
+   "value": "",
+   "editable": false,
+   "within": "Pot sizes",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-38",
+   "icon": false,
+   "row": "Cup size Aluminum (\"Moka Express\"[38] / Moka Induction[a] / Brikka[b] / Dama / Mini Express[c] / Break) Stainless steel (\"Venus\"[42] / \"Musa\" / \"Kitty\")"
+  },
+  {
+   "role": "link",
+   "name": "[a]",
+   "value": "",
+   "editable": false,
+   "within": "Pot sizes",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-40",
+   "icon": false,
+   "row": "Cup size Aluminum (\"Moka Express\"[38] / Moka Induction[a] / Brikka[b] / Dama / Mini Express[c] / Break) Stainless steel (\"Venus\"[42] / \"Musa\" / \"Kitty\")"
+  },
+  {
+   "role": "link",
+   "name": "[b]",
+   "value": "",
+   "editable": false,
+   "within": "Pot sizes",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-42",
+   "icon": false,
+   "row": "Cup size Aluminum (\"Moka Express\"[38] / Moka Induction[a] / Brikka[b] / Dama / Mini Express[c] / Break) Stainless steel (\"Venus\"[42] / \"Musa\" / \"Kitty\")"
+  },
+  {
+   "role": "link",
+   "name": "[c]",
+   "value": "",
+   "editable": false,
+   "within": "Pot sizes",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-44",
+   "icon": false,
+   "row": "Cup size Aluminum (\"Moka Express\"[38] / Moka Induction[a] / Brikka[b] / Dama / Mini Express[c] / Break) Stainless steel (\"Venus\"[42] / \"Musa\" / \"Kitty\")"
+  },
+  {
+   "role": "link",
+   "name": "[42]",
+   "value": "",
+   "editable": false,
+   "within": "Pot sizes",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-45",
+   "icon": false,
+   "row": "Cup size Aluminum (\"Moka Express\"[38] / Moka Induction[a] / Brikka[b] / Dama / Mini Express[c] / Break) Stainless steel (\"Venus\"[42] / \"Musa\" / \"Kitty\")"
+  },
+  {
+   "role": "link",
+   "name": "[43]",
+   "value": "",
+   "editable": false,
+   "within": "Pot sizes",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-46",
+   "icon": false,
+   "row": "volumeheightbasegasket[43] volumeheightbasegasket[44]"
+  },
+  {
+   "role": "link",
+   "name": "[44]",
+   "value": "",
+   "editable": false,
+   "within": "Pot sizes",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-47",
+   "icon": false,
+   "row": "volumeheightbasegasket[43] volumeheightbasegasket[44]"
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "Pot sizes",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-40",
+   "icon": false,
+   "row": "↑ Moka Induction models include an aluminum boiler base clad in stainless steel for compatibility with induction hobs. Available in 2-, 4-, and 6-cup sizes.[39]"
+  },
+  {
+   "role": "link",
+   "name": "[39]",
+   "value": "",
+   "editable": false,
+   "within": "Pot sizes",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-39",
+   "icon": false,
+   "row": "↑ Moka Induction models include an aluminum boiler base clad in stainless steel for compatibility with induction hobs. Available in 2-, 4-, and 6-cup sizes.[39]"
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "Pot sizes",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-42",
+   "icon": false,
+   "row": "↑ 2- or 4-cup sizes.[40] Brikka 2-cup size uses Moka Express 3-cup size gasket and filter, and Brikka 4-cup size uses Moka Express 6-cup size gasket and filter."
+  },
+  {
+   "role": "link",
+   "name": "[40]",
+   "value": "",
+   "editable": false,
+   "within": "Pot sizes",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-41",
+   "icon": false,
+   "row": "↑ 2- or 4-cup sizes.[40] Brikka 2-cup size uses Moka Express 3-cup size gasket and filter, and Brikka 4-cup size uses Moka Express 6-cup size gasket and filter."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "Pot sizes",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-44",
+   "icon": false,
+   "row": "↑ 2-cup size only.[41] Shares base with Moka Express 2-cup."
+  },
+  {
+   "role": "link",
+   "name": "[41]",
+   "value": "",
+   "editable": false,
+   "within": "Pot sizes",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_note-43",
+   "icon": false,
+   "row": "↑ 2-cup size only.[41] Shares base with Moka Express 2-cup."
+  },
+  {
+   "role": "link",
+   "name": "edit",
+   "value": "",
+   "editable": false,
+   "within": "See also",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=edit&section=9",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "icon",
+   "value": "",
+   "editable": false,
+   "within": "Portals navigation",
+   "href": "https://en.wikipedia.org/wiki/File:Emblem-relax.svg",
+   "icon": true,
+   "row": "Coffee portal"
+  },
+  {
+   "role": "link",
+   "name": "Coffee portal",
+   "value": "",
+   "editable": false,
+   "within": "Portals navigation",
+   "href": "https://en.wikipedia.org/wiki/Portal:Coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Coffee in Italy",
+   "value": "",
+   "editable": false,
+   "within": "See also",
+   "href": "https://en.wikipedia.org/wiki/Coffee_in_Italy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Coffee percolator",
+   "value": "",
+   "editable": false,
+   "within": "See also",
+   "href": "https://en.wikipedia.org/wiki/Coffee_percolator",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Vacuum coffee maker",
+   "value": "",
+   "editable": false,
+   "within": "See also",
+   "href": "https://en.wikipedia.org/wiki/Vacuum_coffee_maker",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Neapolitan flip coffee pot",
+   "value": "",
+   "editable": false,
+   "within": "See also",
+   "href": "https://en.wikipedia.org/wiki/Neapolitan_flip_coffee_pot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Indian filter coffee",
+   "value": "",
+   "editable": false,
+   "within": "See also",
+   "href": "https://en.wikipedia.org/wiki/Indian_filter_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Coffee filter",
+   "value": "",
+   "editable": false,
+   "within": "See also",
+   "href": "https://en.wikipedia.org/wiki/Coffee_filter",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "French press",
+   "value": "",
+   "editable": false,
+   "within": "See also",
+   "href": "https://en.wikipedia.org/wiki/French_press",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Pirouette: Turning Points in Design",
+   "value": "",
+   "editable": false,
+   "within": "See also",
+   "href": "https://en.wikipedia.org/wiki/Pirouette:_Turning_Points_in_Design",
+   "icon": false,
+   "row": "Pirouette: Turning Points in Design – 2025 exhibition at the Museum of Modern Art"
+  },
+  {
+   "role": "link",
+   "name": "List of works in the Museum of Modern Art",
+   "value": "",
+   "editable": false,
+   "within": "See also",
+   "href": "https://en.wikipedia.org/wiki/List_of_works_in_the_Museum_of_Modern_Art#Department_of_Architecture_and_Design",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "edit",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=edit&section=10",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-1",
+   "icon": false,
+   "row": "↑ .mw-parser-output cite.citation{font-style:inherit;word-wrap:break-word}.mw-parser-output .citation q{quotes:\"\\\"\"\"\\\"\"\"'\"\"'\"}.mw-parser-output .citation:target"
+  },
+  {
+   "role": "link",
+   "name": "\"Why We Love the Bialetti Moka Pot\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.nytimes.com/wirecutter/reviews/bialetti-moka-pot-review/",
+   "icon": false,
+   "row": "↑ .mw-parser-output cite.citation{font-style:inherit;word-wrap:break-word}.mw-parser-output .citation q{quotes:\"\\\"\"\"\\\"\"\"'\"\"'\"}.mw-parser-output .citation:target"
+  },
+  {
+   "role": "link",
+   "name": "Archived",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20230622041322/https://www.nytimes.com/wirecutter/reviews/bialetti-moka-pot-review/",
+   "icon": false,
+   "row": "↑ .mw-parser-output cite.citation{font-style:inherit;word-wrap:break-word}.mw-parser-output .citation q{quotes:\"\\\"\"\"\\\"\"\"'\"\"'\"}.mw-parser-output .citation:target"
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-2",
+   "icon": false,
+   "row": "↑ \"Bialetti Brikka vs. Bialetti Moka Express\". 101 Coffee Machines .info. Archived from the original on 22 June 2023. Retrieved 22 June 2023."
+  },
+  {
+   "role": "link",
+   "name": "\"Bialetti Brikka vs. Bialetti Moka Express\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://101coffeemachines.info/moka/brikka-vs-moka-express/",
+   "icon": false,
+   "row": "↑ \"Bialetti Brikka vs. Bialetti Moka Express\". 101 Coffee Machines .info. Archived from the original on 22 June 2023. Retrieved 22 June 2023."
+  },
+  {
+   "role": "link",
+   "name": "Archived",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20230622041324/https://101coffeemachines.info/moka/brikka-vs-moka-express/",
+   "icon": false,
+   "row": "↑ \"Bialetti Brikka vs. Bialetti Moka Express\". 101 Coffee Machines .info. Archived from the original on 22 June 2023. Retrieved 22 June 2023."
+  },
+  {
+   "role": "link",
+   "name": "1",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-QZ-2016_3-0",
+   "icon": false,
+   "row": "1 2 Purtill, Corinne (18 February 2016). \"Italy's coffee pot king was buried in the appliance that made him famous\". qz.com. Archived from the original on 9 Oct"
+  },
+  {
+   "role": "link",
+   "name": "2",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-QZ-2016_3-1",
+   "icon": false,
+   "row": "1 2 Purtill, Corinne (18 February 2016). \"Italy's coffee pot king was buried in the appliance that made him famous\". qz.com. Archived from the original on 9 Oct"
+  },
+  {
+   "role": "link",
+   "name": "\"Italy's coffee pot king was buried in the appliance that made him famous\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://qz.com/618734/italys-coffee-pot-king-was-buried-in-the-appliance-that-made-him-famous",
+   "icon": false,
+   "row": "1 2 Purtill, Corinne (18 February 2016). \"Italy's coffee pot king was buried in the appliance that made him famous\". qz.com. Archived from the original on 9 Oct"
+  },
+  {
+   "role": "link",
+   "name": "Archived",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20241009142540/https://qz.com/618734/italys-coffee-pot-king-was-buried-in-the-appliance-that-made-him-famous",
+   "icon": false,
+   "row": "1 2 Purtill, Corinne (18 February 2016). \"Italy's coffee pot king was buried in the appliance that made him famous\". qz.com. Archived from the original on 9 Oct"
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-4",
+   "icon": false,
+   "row": "↑ \"Bialetti Technical Description\". fmartinezport.commons.gc.cuny.edu. Archived from the original on 9 October 2024. Retrieved 14 May 2023."
+  },
+  {
+   "role": "link",
+   "name": "\"Bialetti Technical Description\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://fmartinezport.commons.gc.cuny.edu/bialetti-technical-description/",
+   "icon": false,
+   "row": "↑ \"Bialetti Technical Description\". fmartinezport.commons.gc.cuny.edu. Archived from the original on 9 October 2024. Retrieved 14 May 2023."
+  },
+  {
+   "role": "link",
+   "name": "Archived",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20241009142543/https://fmartinezport.commons.gc.cuny.edu/bialetti-technical-description/",
+   "icon": false,
+   "row": "↑ \"Bialetti Technical Description\". fmartinezport.commons.gc.cuny.edu. Archived from the original on 9 October 2024. Retrieved 14 May 2023."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-5",
+   "icon": false,
+   "row": "↑ \"Who Made That Moka Express\". The New York Times. Archived from the original on 9 October 2024. Retrieved 14 May 2023."
+  },
+  {
+   "role": "link",
+   "name": "\"Who Made That Moka Express\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://archive.nytimes.com/6thfloor.blogs.nytimes.com/2011/09/01/who-made-that-moka-express/",
+   "icon": false,
+   "row": "↑ \"Who Made That Moka Express\". The New York Times. Archived from the original on 9 October 2024. Retrieved 14 May 2023."
+  },
+  {
+   "role": "link",
+   "name": "The New York Times",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/The_New_York_Times",
+   "icon": false,
+   "row": "↑ \"Who Made That Moka Express\". The New York Times. Archived from the original on 9 October 2024. Retrieved 14 May 2023."
+  },
+  {
+   "role": "link",
+   "name": "Archived",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20241009142541/https://archive.nytimes.com/6thfloor.blogs.nytimes.com/2011/09/01/who-made-that-moka-express/",
+   "icon": false,
+   "row": "↑ \"Who Made That Moka Express\". The New York Times. Archived from the original on 9 October 2024. Retrieved 14 May 2023."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-HILARY_GREENBAUM_6-0",
+   "icon": false,
+   "row": "↑ Greenbaum, Hilary (1 September 2011). \"Who Made That Moka Express?\". The 6th Floor Blog. Archived from the original on 7 August 2021. Retrieved 7 August 2021."
+  },
+  {
+   "role": "link",
+   "name": "\"Who Made That Moka Express?\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://6thfloor.blogs.nytimes.com/2011/09/01/who-made-that-moka-express/",
+   "icon": false,
+   "row": "↑ Greenbaum, Hilary (1 September 2011). \"Who Made That Moka Express?\". The 6th Floor Blog. Archived from the original on 7 August 2021. Retrieved 7 August 2021."
+  },
+  {
+   "role": "link",
+   "name": "Archived",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20210807144737/https://6thfloor.blogs.nytimes.com/2011/09/01/who-made-that-moka-express/",
+   "icon": false,
+   "row": "↑ Greenbaum, Hilary (1 September 2011). \"Who Made That Moka Express?\". The 6th Floor Blog. Archived from the original on 7 August 2021. Retrieved 7 August 2021."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-:0_7-0",
+   "icon": false,
+   "row": "↑ Wilson, Mark (9 April 2019). \"The world's most famous coffee pot gets a redesign\". Fast Company. Archived from the original on 23 October 2022. Retrieved 10 O"
+  },
+  {
+   "role": "link",
+   "name": "\"The world's most famous coffee pot gets a redesign\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.fastcompany.com/90330599/the-worlds-most-famous-coffee-pot-gets-a-redesign",
+   "icon": false,
+   "row": "↑ Wilson, Mark (9 April 2019). \"The world's most famous coffee pot gets a redesign\". Fast Company. Archived from the original on 23 October 2022. Retrieved 10 O"
+  },
+  {
+   "role": "link",
+   "name": "Archived",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20221023055852/https://www.fastcompany.com/90330599/the-worlds-most-famous-coffee-pot-gets-a-redesign",
+   "icon": false,
+   "row": "↑ Wilson, Mark (9 April 2019). \"The world's most famous coffee pot gets a redesign\". Fast Company. Archived from the original on 23 October 2022. Retrieved 10 O"
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-8",
+   "icon": false,
+   "row": "↑ \"Alfonso Bialetti. Moka Express. Designed 1933 (this example 2008)\". The Museum of Modern Art. Retrieved 2 May 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"Alfonso Bialetti. Moka Express. Designed 1933 (this example 2008)\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.moma.org/collection/works/118645",
+   "icon": false,
+   "row": "↑ \"Alfonso Bialetti. Moka Express. Designed 1933 (this example 2008)\". The Museum of Modern Art. Retrieved 2 May 2025."
+  },
+  {
+   "role": "link",
+   "name": "The Museum of Modern Art",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/The_Museum_of_Modern_Art",
+   "icon": false,
+   "row": "↑ \"Alfonso Bialetti. Moka Express. Designed 1933 (this example 2008)\". The Museum of Modern Art. Retrieved 2 May 2025."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-9",
+   "icon": false,
+   "row": "↑ \"Moka Express factsheet\" (PDF). Bialetti. Archived from the original (PDF) on 14 December 2010. Retrieved 1 March 2009."
+  },
+  {
+   "role": "link",
+   "name": "\"Moka Express factsheet\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20101214144806/http://www.bialetti.it/files/catalogue/attachments/moka%20italia.pdf",
+   "icon": false,
+   "row": "↑ \"Moka Express factsheet\" (PDF). Bialetti. Archived from the original (PDF) on 14 December 2010. Retrieved 1 March 2009."
+  },
+  {
+   "role": "link",
+   "name": "the original",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "http://www.bialetti.it/files/catalogue/attachments/moka%20italia.pdf",
+   "icon": false,
+   "row": "↑ \"Moka Express factsheet\" (PDF). Bialetti. Archived from the original (PDF) on 14 December 2010. Retrieved 1 March 2009."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-10",
+   "icon": false,
+   "row": "↑ Hoffmann, James (2020). The World Atlas of Coffee. Firefly Books. p. 91. ISBN 978-0-2281-0094-2."
+  },
+  {
+   "role": "link",
+   "name": "Hoffmann, James",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/James_Hoffmann",
+   "icon": false,
+   "row": "↑ Hoffmann, James (2020). The World Atlas of Coffee. Firefly Books. p. 91. ISBN 978-0-2281-0094-2."
+  },
+  {
+   "role": "link",
+   "name": "ISBN",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/ISBN_(identifier)",
+   "icon": false,
+   "row": "↑ Hoffmann, James (2020). The World Atlas of Coffee. Firefly Books. p. 91. ISBN 978-0-2281-0094-2."
+  },
+  {
+   "role": "link",
+   "name": "978-0-2281-0094-2",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Special:BookSources/978-0-2281-0094-2",
+   "icon": false,
+   "row": "↑ Hoffmann, James (2020). The World Atlas of Coffee. Firefly Books. p. 91. ISBN 978-0-2281-0094-2."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-11",
+   "icon": false,
+   "row": "↑ Stephenson, Tristan (2019). The Curious Barista's Guide to Coffee. New York: Ryland Peters & Small. p. 132. ISBN 978-1-78879-083-3."
+  },
+  {
+   "role": "link",
+   "name": "Stephenson, Tristan",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Tristan_Stephenson",
+   "icon": false,
+   "row": "↑ Stephenson, Tristan (2019). The Curious Barista's Guide to Coffee. New York: Ryland Peters & Small. p. 132. ISBN 978-1-78879-083-3."
+  },
+  {
+   "role": "link",
+   "name": "978-1-78879-083-3",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Special:BookSources/978-1-78879-083-3",
+   "icon": false,
+   "row": "↑ Stephenson, Tristan (2019). The Curious Barista's Guide to Coffee. New York: Ryland Peters & Small. p. 132. ISBN 978-1-78879-083-3."
+  },
+  {
+   "role": "link",
+   "name": "1",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-NavariniEtal_12-0",
+   "icon": false,
+   "row": "1 2 3 Navarini, L.; Nobile, E.; Pinto, F.; Scheri, A.; Suggi-Liverani, F. (April 2009). \"Experimental investigation of steam pressure coffee extraction in a sto"
+  },
+  {
+   "role": "link",
+   "name": "2",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-NavariniEtal_12-1",
+   "icon": false,
+   "row": "1 2 3 Navarini, L.; Nobile, E.; Pinto, F.; Scheri, A.; Suggi-Liverani, F. (April 2009). \"Experimental investigation of steam pressure coffee extraction in a sto"
+  },
+  {
+   "role": "link",
+   "name": "3",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-NavariniEtal_12-2",
+   "icon": false,
+   "row": "1 2 3 Navarini, L.; Nobile, E.; Pinto, F.; Scheri, A.; Suggi-Liverani, F. (April 2009). \"Experimental investigation of steam pressure coffee extraction in a sto"
+  },
+  {
+   "role": "link",
+   "name": "\"Experimental investigation of steam pressure coffee extraction in a stove-top coffee maker\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://hal.archives-ouvertes.fr/hal-00618977/file/PEER_stage2_10.1016%252Fj.applthermaleng.2008.05.014.pdf",
+   "icon": false,
+   "row": "1 2 3 Navarini, L.; Nobile, E.; Pinto, F.; Scheri, A.; Suggi-Liverani, F. (April 2009). \"Experimental investigation of steam pressure coffee extraction in a sto"
+  },
+  {
+   "role": "link",
+   "name": "doi",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Doi_(identifier)",
+   "icon": false,
+   "row": "1 2 3 Navarini, L.; Nobile, E.; Pinto, F.; Scheri, A.; Suggi-Liverani, F. (April 2009). \"Experimental investigation of steam pressure coffee extraction in a sto"
+  },
+  {
+   "role": "link",
+   "name": "10.1016/j.applthermaleng.2008.05.014",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://doi.org/10.1016%2Fj.applthermaleng.2008.05.014",
+   "icon": false,
+   "row": "1 2 3 Navarini, L.; Nobile, E.; Pinto, F.; Scheri, A.; Suggi-Liverani, F. (April 2009). \"Experimental investigation of steam pressure coffee extraction in a sto"
+  },
+  {
+   "role": "link",
+   "name": "S2CID",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/S2CID_(identifier)",
+   "icon": false,
+   "row": "1 2 3 Navarini, L.; Nobile, E.; Pinto, F.; Scheri, A.; Suggi-Liverani, F. (April 2009). \"Experimental investigation of steam pressure coffee extraction in a sto"
+  },
+  {
+   "role": "link",
+   "name": "110656959",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://api.semanticscholar.org/CorpusID:110656959",
+   "icon": false,
+   "row": "1 2 3 Navarini, L.; Nobile, E.; Pinto, F.; Scheri, A.; Suggi-Liverani, F. (April 2009). \"Experimental investigation of steam pressure coffee extraction in a sto"
+  },
+  {
+   "role": "link",
+   "name": "Archived",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20241009142545/https://hal.archives-ouvertes.fr/hal-00618977/file/PEER_stage2_10.1016%252Fj.applthermaleng.2008.05.014.pdf",
+   "icon": false,
+   "row": "1 2 3 Navarini, L.; Nobile, E.; Pinto, F.; Scheri, A.; Suggi-Liverani, F. (April 2009). \"Experimental investigation of steam pressure coffee extraction in a sto"
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-13",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "La fisica di un buon caffè",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.ilnuovosaggiatore.sif.it/download/49",
+   "icon": false,
+   "row": "A. Varlamov and G. Balestrino, La fisica di un buon caffè Archived 9 October 2024 at the Wayback Machine, Il Nuovo Saggiatore: Bollettino della Società Italiana"
+  },
+  {
+   "role": "link",
+   "name": "Archived",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20241009142638/https://www.ilnuovosaggiatore.sif.it/download/49",
+   "icon": false,
+   "row": "A. Varlamov and G. Balestrino, La fisica di un buon caffè Archived 9 October 2024 at the Wayback Machine, Il Nuovo Saggiatore: Bollettino della Società Italiana"
+  },
+  {
+   "role": "link",
+   "name": "Wayback Machine",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Wayback_Machine",
+   "icon": false,
+   "row": "A. Varlamov and G. Balestrino, La fisica di un buon caffè Archived 9 October 2024 at the Wayback Machine, Il Nuovo Saggiatore: Bollettino della Società Italiana"
+  },
+  {
+   "role": "link",
+   "name": "17(3-4)",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.ilnuovosaggiatore.sif.it/issue/49",
+   "icon": false,
+   "row": "A. Varlamov and G. Balestrino, La fisica di un buon caffè Archived 9 October 2024 at the Wayback Machine, Il Nuovo Saggiatore: Bollettino della Società Italiana"
+  },
+  {
+   "role": "link",
+   "name": "Archived",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20230323102616/https://www.ilnuovosaggiatore.sif.it/issue/49",
+   "icon": false,
+   "row": "A. Varlamov and G. Balestrino, La fisica di un buon caffè Archived 9 October 2024 at the Wayback Machine, Il Nuovo Saggiatore: Bollettino della Società Italiana"
+  },
+  {
+   "role": "link",
+   "name": "\"fisica del buon caffè all'italiana : Magico caleidoscopio della fisica - Fisica in cucina\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20210107104036/http://www.moebiusonline.eu/fuorionda/Caleidoscopio_fisica.shtml",
+   "icon": false,
+   "row": "\"fisica del buon caffè all'italiana : Magico caleidoscopio della fisica - Fisica in cucina\". Moebius on line. Archived from the original on 7 January 2021. Retr"
+  },
+  {
+   "role": "link",
+   "name": "the original",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "http://www.moebiusonline.eu/fuorionda/Caleidoscopio_fisica.shtml",
+   "icon": false,
+   "row": "\"fisica del buon caffè all'italiana : Magico caleidoscopio della fisica - Fisica in cucina\". Moebius on line. Archived from the original on 7 January 2021. Retr"
+  },
+  {
+   "role": "link",
+   "name": "\"Experimental analysis of the Italian coffee pot 'moka'\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.researchgate.net/publication/243492775",
+   "icon": false,
+   "row": "Gianino, Concetto (January 2007). \"Experimental analysis of the Italian coffee pot 'moka'\". American Journal of Physics. 75 (1): 43–47. Bibcode:2007AmJPh..75..."
+  },
+  {
+   "role": "link",
+   "name": "Bibcode",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Bibcode_(identifier)",
+   "icon": false,
+   "row": "Gianino, Concetto (January 2007). \"Experimental analysis of the Italian coffee pot 'moka'\". American Journal of Physics. 75 (1): 43–47. Bibcode:2007AmJPh..75..."
+  },
+  {
+   "role": "link",
+   "name": "2007AmJPh..75...43G",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://ui.adsabs.harvard.edu/abs/2007AmJPh..75...43G",
+   "icon": false,
+   "row": "Gianino, Concetto (January 2007). \"Experimental analysis of the Italian coffee pot 'moka'\". American Journal of Physics. 75 (1): 43–47. Bibcode:2007AmJPh..75..."
+  },
+  {
+   "role": "link",
+   "name": "10.1119/1.2358157",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://doi.org/10.1119%2F1.2358157",
+   "icon": false,
+   "row": "Gianino, Concetto (January 2007). \"Experimental analysis of the Italian coffee pot 'moka'\". American Journal of Physics. 75 (1): 43–47. Bibcode:2007AmJPh..75..."
+  },
+  {
+   "role": "link",
+   "name": "2008AmJPh..76..558K",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://ui.adsabs.harvard.edu/abs/2008AmJPh..76..558K",
+   "icon": false,
+   "row": "King, Warren D (2008). \"The physics of a stove-top espresso machine\". American Journal of Physics. 76 (6): 558–565. Bibcode:2008AmJPh..76..558K. doi:10.1119/1.2"
+  },
+  {
+   "role": "link",
+   "name": "10.1119/1.2870524",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://doi.org/10.1119%2F1.2870524",
+   "icon": false,
+   "row": "King, Warren D (2008). \"The physics of a stove-top espresso machine\". American Journal of Physics. 76 (6): 558–565. Bibcode:2008AmJPh..76..558K. doi:10.1119/1.2"
+  },
+  {
+   "role": "link",
+   "name": "Archived",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20210920225832/https://hal.archives-ouvertes.fr/hal-00618977/file/PEER_stage2_10.1016%2Fj.applthermaleng.2008.05.014.pdf",
+   "icon": false,
+   "row": "Navarini, L.; Nobile, E.; Pinto, F.; Scheri, A.; Suggi-Liverani, F. (April 2009). \"Experimental investigation of steam pressure coffee extraction in a stove-top"
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-14",
+   "icon": false,
+   "row": "↑ \"Espresso Italiano Certificato\" (PDF). Istituto Nazionale Espresso Italiano. Archived from the original (PDF) on 26 July 2011. Retrieved 30 January 2011."
+  },
+  {
+   "role": "link",
+   "name": "\"Espresso Italiano Certificato\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20110726034847/http://espressoitaliano.org/doc/EIC%20-%20Eng%20-%20LQ.pdf",
+   "icon": false,
+   "row": "↑ \"Espresso Italiano Certificato\" (PDF). Istituto Nazionale Espresso Italiano. Archived from the original (PDF) on 26 July 2011. Retrieved 30 January 2011."
+  },
+  {
+   "role": "link",
+   "name": "the original",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "http://espressoitaliano.org/doc/EIC%20-%20Eng%20-%20LQ.pdf",
+   "icon": false,
+   "row": "↑ \"Espresso Italiano Certificato\" (PDF). Istituto Nazionale Espresso Italiano. Archived from the original (PDF) on 26 July 2011. Retrieved 30 January 2011."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-15",
+   "icon": false,
+   "row": "↑ \"Espresso and classic drink Wiki\". Archived from the original on 7 July 2011. Retrieved 30 January 2011."
+  },
+  {
+   "role": "link",
+   "name": "\"Espresso and classic drink Wiki\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "http://www.baristaexchange.com/forum/topics/espresso-and-classic-drink?xg_source=activity",
+   "icon": false,
+   "row": "↑ \"Espresso and classic drink Wiki\". Archived from the original on 7 July 2011. Retrieved 30 January 2011."
+  },
+  {
+   "role": "link",
+   "name": "Archived",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20110707212505/http://www.baristaexchange.com/forum/topics/espresso-and-classic-drink?xg_source=activity",
+   "icon": false,
+   "row": "↑ \"Espresso and classic drink Wiki\". Archived from the original on 7 July 2011. Retrieved 30 January 2011."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-16",
+   "icon": false,
+   "row": "↑ Raub, Jesse (30 January 2025). \"I Tested 11 Moka Pots—the Best Were From the Same Iconic Brand\". Serious Eats. Retrieved 26 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"I Tested 11 Moka Pots—the Best Were From the Same Iconic Brand\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.seriouseats.com/best-moka-pots-7570691",
+   "icon": false,
+   "row": "↑ Raub, Jesse (30 January 2025). \"I Tested 11 Moka Pots—the Best Were From the Same Iconic Brand\". Serious Eats. Retrieved 26 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-17",
+   "icon": false,
+   "row": "↑ Mystkowska, Iwona; Dmitrowicz, Aleksandra; Sijko-Szpańska, Monika (6 December 2024). \"Quantitative Analysis of Caffeine in Roasted Coffee: A Comparison of Bre"
+  },
+  {
+   "role": "link",
+   "name": "\"Quantitative Analysis of Caffeine in Roasted Coffee: A Comparison of Brewing Methods\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.mdpi.com/2076-3417/14/23/11395",
+   "icon": false,
+   "row": "↑ Mystkowska, Iwona; Dmitrowicz, Aleksandra; Sijko-Szpańska, Monika (6 December 2024). \"Quantitative Analysis of Caffeine in Roasted Coffee: A Comparison of Bre"
+  },
+  {
+   "role": "link",
+   "name": "cite web",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Template:Cite_web",
+   "icon": false,
+   "row": "↑ Mystkowska, Iwona; Dmitrowicz, Aleksandra; Sijko-Szpańska, Monika (6 December 2024). \"Quantitative Analysis of Caffeine in Roasted Coffee: A Comparison of Bre"
+  },
+  {
+   "role": "link",
+   "name": "link",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Category:CS1_maint:_url-status",
+   "icon": false,
+   "row": "↑ Mystkowska, Iwona; Dmitrowicz, Aleksandra; Sijko-Szpańska, Monika (6 December 2024). \"Quantitative Analysis of Caffeine in Roasted Coffee: A Comparison of Bre"
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-18",
+   "icon": false,
+   "row": "↑ \"Tips and Care\". Archived from the original on 9 October 2024. Retrieved 27 November 2020. bialetti.co.nz"
+  },
+  {
+   "role": "link",
+   "name": "\"Tips and Care\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.bialetti.co.nz/blogs/making-great-coffee/tips-and-care",
+   "icon": false,
+   "row": "↑ \"Tips and Care\". Archived from the original on 9 October 2024. Retrieved 27 November 2020. bialetti.co.nz"
+  },
+  {
+   "role": "link",
+   "name": "Archived",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20241009142547/https://www.bialetti.co.nz/blogs/making-great-coffee/tips-and-care",
+   "icon": false,
+   "row": "↑ \"Tips and Care\". Archived from the original on 9 October 2024. Retrieved 27 November 2020. bialetti.co.nz"
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-19",
+   "icon": false,
+   "row": "↑ \"How to Clean a Moka Pot\". thekitchn.com Running the pot through the dishwasher generally results in corrosion and oxidation of the protective oxidized layer "
+  },
+  {
+   "role": "link",
+   "name": "\"How to Clean a Moka Pot\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.thekitchn.com/how-to-clean-a-moka-pot-252252",
+   "icon": false,
+   "row": "↑ \"How to Clean a Moka Pot\". thekitchn.com Running the pot through the dishwasher generally results in corrosion and oxidation of the protective oxidized layer "
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-20",
+   "icon": false,
+   "row": "↑ Stahl, Thorsten; et al. (12 April 2017). \"Migration of aluminum from food contact materials to food—a health risk for consumers?\". Environmental Sciences Euro"
+  },
+  {
+   "role": "link",
+   "name": "\"Migration of aluminum from food contact materials to food—a health risk for consumers?\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5388725",
+   "icon": false,
+   "row": "↑ Stahl, Thorsten; et al. (12 April 2017). \"Migration of aluminum from food contact materials to food—a health risk for consumers?\". Environmental Sciences Euro"
+  },
+  {
+   "role": "link",
+   "name": "10.1186/s12302-017-0118-9",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://doi.org/10.1186%2Fs12302-017-0118-9",
+   "icon": false,
+   "row": "↑ Stahl, Thorsten; et al. (12 April 2017). \"Migration of aluminum from food contact materials to food—a health risk for consumers?\". Environmental Sciences Euro"
+  },
+  {
+   "role": "link",
+   "name": "PMC",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/PMC_(identifier)",
+   "icon": false,
+   "row": "↑ Stahl, Thorsten; et al. (12 April 2017). \"Migration of aluminum from food contact materials to food—a health risk for consumers?\". Environmental Sciences Euro"
+  },
+  {
+   "role": "link",
+   "name": "5388725",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5388725",
+   "icon": false,
+   "row": "↑ Stahl, Thorsten; et al. (12 April 2017). \"Migration of aluminum from food contact materials to food—a health risk for consumers?\". Environmental Sciences Euro"
+  },
+  {
+   "role": "link",
+   "name": "PMID",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/PMID_(identifier)",
+   "icon": false,
+   "row": "↑ Stahl, Thorsten; et al. (12 April 2017). \"Migration of aluminum from food contact materials to food—a health risk for consumers?\". Environmental Sciences Euro"
+  },
+  {
+   "role": "link",
+   "name": "28458988",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://pubmed.ncbi.nlm.nih.gov/28458988",
+   "icon": false,
+   "row": "↑ Stahl, Thorsten; et al. (12 April 2017). \"Migration of aluminum from food contact materials to food—a health risk for consumers?\". Environmental Sciences Euro"
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-21",
+   "icon": false,
+   "row": "↑ Stahl, Thorsten; et al. (12 April 2017). \"Migration of aluminum from food contact materials to food—a health risk for consumers?\". Environmental Sciences Euro"
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-caffesanteustachio_22-0",
+   "icon": false,
+   "row": "↑ \"Fontanella Argento per una tazzina\". Sant'Eustachio il Caffè (in Italian). Archived from the original on 9 October 2024. Retrieved 22 June 2023."
+  },
+  {
+   "role": "link",
+   "name": "\"Fontanella Argento per una tazzina\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://caffesanteustachio.com/prodotto/silver-fountain-moka-pot-for-two-cups/",
+   "icon": false,
+   "row": "↑ \"Fontanella Argento per una tazzina\". Sant'Eustachio il Caffè (in Italian). Archived from the original on 9 October 2024. Retrieved 22 June 2023."
+  },
+  {
+   "role": "link",
+   "name": "Archived",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20241009144214/https://caffesanteustachio.com/prodotto/silver-fountain-moka-pot-for-one-cups/?lang=en",
+   "icon": false,
+   "row": "↑ \"Fontanella Argento per una tazzina\". Sant'Eustachio il Caffè (in Italian). Archived from the original on 9 October 2024. Retrieved 22 June 2023."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-23",
+   "icon": false,
+   "row": "↑ Sapper, Richard. \"Espresso Coffee Maker (model 9090). 1978\". Museum of Modern Art. Retrieved 14 November 2025."
+  },
+  {
+   "role": "link",
+   "name": "Sapper, Richard",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Richard_Sapper",
+   "icon": false,
+   "row": "↑ Sapper, Richard. \"Espresso Coffee Maker (model 9090). 1978\". Museum of Modern Art. Retrieved 14 November 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"Espresso Coffee Maker (model 9090). 1978\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.moma.org/collection/works/3123",
+   "icon": false,
+   "row": "↑ Sapper, Richard. \"Espresso Coffee Maker (model 9090). 1978\". Museum of Modern Art. Retrieved 14 November 2025."
+  },
+  {
+   "role": "link",
+   "name": "Museum of Modern Art",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Museum_of_Modern_Art",
+   "icon": false,
+   "row": "↑ Sapper, Richard. \"Espresso Coffee Maker (model 9090). 1978\". Museum of Modern Art. Retrieved 14 November 2025."
+  },
+  {
+   "role": "link",
+   "name": "1",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-BHustle22_24-0",
+   "icon": false,
+   "row": "1 2 Delprat, Sebastien (27 October 2022). \"Part 1 – Who really invented the first espresso machine?\". Barista Hustle. Retrieved 26 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "2",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-BHustle22_24-1",
+   "icon": false,
+   "row": "1 2 Delprat, Sebastien (27 October 2022). \"Part 1 – Who really invented the first espresso machine?\". Barista Hustle. Retrieved 26 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"Part 1 – Who really invented the first espresso machine?\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.baristahustle.com/research-papers/part-1-who-really-invented-the-first-espresso-machine/",
+   "icon": false,
+   "row": "1 2 Delprat, Sebastien (27 October 2022). \"Part 1 – Who really invented the first espresso machine?\". Barista Hustle. Retrieved 26 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-25",
+   "icon": false,
+   "row": "↑ Prikhodko, Anastasia (3 June 2021). \"A History of the Espresso Machine\". Coffee Magazine. Retrieved 26 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"A History of the Espresso Machine\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://magazine.coffee/blog/1/6164/a-history-of-the-espresso-machine",
+   "icon": false,
+   "row": "↑ Prikhodko, Anastasia (3 June 2021). \"A History of the Espresso Machine\". Coffee Magazine. Retrieved 26 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-26",
+   "icon": false,
+   "row": "↑ Titles of Patents of Invention, Chronologically Arranged From March 2, 1617 (14 James I.) to October 1, 1852 (16 Victoria), Part II: Nos. 4801 to 14,359, page"
+  },
+  {
+   "role": "link",
+   "name": "Titles of Patents of Invention, Chronologically Arranged From March 2, 1617 (14 James I.) to October 1, 1852 (16 Victori",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://archive.org/details/chronologicalind1617grea/page/930/mode/2up",
+   "icon": false,
+   "row": "↑ Titles of Patents of Invention, Chronologically Arranged From March 2, 1617 (14 James I.) to October 1, 1852 (16 Victoria), Part II: Nos. 4801 to 14,359, page"
+  },
+  {
+   "role": "link",
+   "name": "1",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-SteamPressure_27-0",
+   "icon": false,
+   "row": "1 2 \"Steam Pressure ('long' espresso)\". Espresso made in Italy. Retrieved 26 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "2",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-SteamPressure_27-1",
+   "icon": false,
+   "row": "1 2 \"Steam Pressure ('long' espresso)\". Espresso made in Italy. Retrieved 26 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"Steam Pressure ('long' espresso)\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.espressomadeinitaly.com/en/history-gallery-steam-pressure.php",
+   "icon": false,
+   "row": "1 2 \"Steam Pressure ('long' espresso)\". Espresso made in Italy. Retrieved 26 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-28",
+   "icon": false,
+   "row": "↑ Stephenson, Tristan (2015). \"Other Brewing Methods: The Moka Pot\". The Curious Barista's Guide to Coffee. Photographs by Addie Chinn. Ryland Peters & Small. p"
+  },
+  {
+   "role": "link",
+   "name": "\"Other Brewing Methods: The Moka Pot\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://archive.org/details/curiousbaristasg0000tris/page/116/mode/2up",
+   "icon": false,
+   "row": "↑ Stephenson, Tristan (2015). \"Other Brewing Methods: The Moka Pot\". The Curious Barista's Guide to Coffee. Photographs by Addie Chinn. Ryland Peters & Small. p"
+  },
+  {
+   "role": "link",
+   "name": "The Curious Barista's Guide to Coffee",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://archive.org/details/curiousbaristasg0000tris/",
+   "icon": false,
+   "row": "↑ Stephenson, Tristan (2015). \"Other Brewing Methods: The Moka Pot\". The Curious Barista's Guide to Coffee. Photographs by Addie Chinn. Ryland Peters & Small. p"
+  },
+  {
+   "role": "link",
+   "name": "978-1-84975-563-4",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Special:BookSources/978-1-84975-563-4",
+   "icon": false,
+   "row": "↑ Stephenson, Tristan (2015). \"Other Brewing Methods: The Moka Pot\". The Curious Barista's Guide to Coffee. Photographs by Addie Chinn. Ryland Peters & Small. p"
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-29",
+   "icon": false,
+   "row": "↑ Cannell, Michael (July–August 2007). \"Kitchens 101\". Dwell. pp. 206–223. Retrieved 24 March 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"Kitchens 101\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://books.google.com/books?id=GsYDAAAAMBAJ&pg=PA220",
+   "icon": false,
+   "row": "↑ Cannell, Michael (July–August 2007). \"Kitchens 101\". Dwell. pp. 206–223. Retrieved 24 March 2025."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-30",
+   "icon": false,
+   "row": "↑ .mw-parser-output .citation{word-wrap:break-word}.mw-parser-output .citation:target{background-color:rgba(0,127,255,0.133)}GB Patent 616773A, Soc. An. Fratell"
+  },
+  {
+   "role": "link",
+   "name": "GB Patent 616773A",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://worldwide.espacenet.com/textdoc?DB=EPODOC&IDX=GB616773A",
+   "icon": false,
+   "row": "↑ .mw-parser-output .citation{word-wrap:break-word}.mw-parser-output .citation:target{background-color:rgba(0,127,255,0.133)}GB Patent 616773A, Soc. An. Fratell"
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-31",
+   "icon": false,
+   "row": "↑ Preuss, Arne. Nicholas Marshall (ed.). \"The Moka Pot Review: A Stovetop Portafilter?\". Coffeeness. Retrieved 26 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"The Moka Pot Review: A Stovetop Portafilter?\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.coffeeness.de/en/moka-pot/",
+   "icon": false,
+   "row": "↑ Preuss, Arne. Nicholas Marshall (ed.). \"The Moka Pot Review: A Stovetop Portafilter?\". Coffeeness. Retrieved 26 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-32",
+   "icon": false,
+   "row": "↑ IT Patent 1171070B, Luigi de Ponti, \"Apparecchio e procedimento per la preparazione di una bevanda calda di latte e infuso di caffe' con strato di shiuma (cap"
+  },
+  {
+   "role": "link",
+   "name": "IT Patent 1171070B",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://worldwide.espacenet.com/textdoc?DB=EPODOC&IDX=IT1171070B",
+   "icon": false,
+   "row": "↑ IT Patent 1171070B, Luigi de Ponti, \"Apparecchio e procedimento per la preparazione di una bevanda calda di latte e infuso di caffe' con strato di shiuma (cap"
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-33",
+   "icon": false,
+   "row": "↑ DE Patent 3404320A1, Luigi de Ponti, \"Für den Gebrauch im Haushalt bestimmte Vorrichtung für die Herstellung von warmen Getränken und entsprechenden Kaffee-ma"
+  },
+  {
+   "role": "link",
+   "name": "DE Patent 3404320A1",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://worldwide.espacenet.com/textdoc?DB=EPODOC&IDX=DE3404320A1",
+   "icon": false,
+   "row": "↑ DE Patent 3404320A1, Luigi de Ponti, \"Für den Gebrauch im Haushalt bestimmte Vorrichtung für die Herstellung von warmen Getränken und entsprechenden Kaffee-ma"
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-34",
+   "icon": false,
+   "row": "↑ Bien, Heather (21 October 2022). \"Bialetti Brikka Review: Does the Brikka Produce Crema?\". C'est Bien. Retrieved 26 February 2025. So, Does the Brikka Produce"
+  },
+  {
+   "role": "link",
+   "name": "\"Bialetti Brikka Review: Does the Brikka Produce Crema?\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.heatherbien.com/2022/10/bialetti-brikka-review-does-the-brikka-produce-crema.html",
+   "icon": false,
+   "row": "↑ Bien, Heather (21 October 2022). \"Bialetti Brikka Review: Does the Brikka Produce Crema?\". C'est Bien. Retrieved 26 February 2025. So, Does the Brikka Produce"
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-35",
+   "icon": false,
+   "row": "↑ \"In the Modern World\". Dwell. April–May 2005. pp. 42–58. Retrieved 24 March 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"In the Modern World\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://books.google.com/books?id=KcUDAAAAMBAJ&pg=PA56",
+   "icon": false,
+   "row": "↑ \"In the Modern World\". Dwell. April–May 2005. pp. 42–58. Retrieved 24 March 2025."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-36",
+   "icon": false,
+   "row": "↑ \"5 things to ask about espresso makers\". Kiplinger's Personal Finance. May 2006. p. 111. Retrieved 24 March 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"5 things to ask about espresso makers\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://books.google.com/books?id=agUEAAAAMBAJ&pg=PA111",
+   "icon": false,
+   "row": "↑ \"5 things to ask about espresso makers\". Kiplinger's Personal Finance. May 2006. p. 111. Retrieved 24 March 2025."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-37",
+   "icon": false,
+   "row": "↑ How to Use the Bialetti Mukka Express. Alternative Brewing. Archived from the original on 27 February 2023. Retrieved 8 July 2024 – via YouTube."
+  },
+  {
+   "role": "link",
+   "name": "How to Use the Bialetti Mukka Express",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.youtube.com/watch?v=4WgzKFJ6klE",
+   "icon": false,
+   "row": "↑ How to Use the Bialetti Mukka Express. Alternative Brewing. Archived from the original on 27 February 2023. Retrieved 8 July 2024 – via YouTube."
+  },
+  {
+   "role": "link",
+   "name": "Archived",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://web.archive.org/web/20230227144710/https://www.youtube.com/watch?v=4WgzKFJ6klE",
+   "icon": false,
+   "row": "↑ How to Use the Bialetti Mukka Express. Alternative Brewing. Archived from the original on 27 February 2023. Retrieved 8 July 2024 – via YouTube."
+  },
+  {
+   "role": "link",
+   "name": "YouTube",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/YouTube",
+   "icon": false,
+   "row": "↑ How to Use the Bialetti Mukka Express. Alternative Brewing. Archived from the original on 27 February 2023. Retrieved 8 July 2024 – via YouTube."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-38",
+   "icon": false,
+   "row": "↑ \"Bialetti Moka Express\". Bialetti New Zealand. Retrieved 25 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"Bialetti Moka Express\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.bialetti.co.nz/products/moka-express",
+   "icon": false,
+   "row": "↑ \"Bialetti Moka Express\". Bialetti New Zealand. Retrieved 25 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-39",
+   "icon": false,
+   "row": "↑ \"Bialetti Moka Induction Bi-Layer Black\". Bialetti New Zealand. Retrieved 25 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"Bialetti Moka Induction Bi-Layer Black\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.bialetti.co.nz/collections/stainless-stovetop/products/bialetti-moka-induction-bi-layer-black",
+   "icon": false,
+   "row": "↑ \"Bialetti Moka Induction Bi-Layer Black\". Bialetti New Zealand. Retrieved 25 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-41",
+   "icon": false,
+   "row": "↑ \"Bialetti Brikka\". Bialetti New Zealand. Retrieved 25 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"Bialetti Brikka\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.bialetti.co.nz/collections/aluminium-stovetop/products/copy-of-bialetti-brikka",
+   "icon": false,
+   "row": "↑ \"Bialetti Brikka\". Bialetti New Zealand. Retrieved 25 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-43",
+   "icon": false,
+   "row": "↑ \"Bialetti Mini Express Black 2 Cup\". Bialetti New Zealand. Retrieved 25 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"Bialetti Mini Express Black 2 Cup\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.bialetti.co.nz/collections/aluminium-stovetop/products/bialetti-mini-express-black",
+   "icon": false,
+   "row": "↑ \"Bialetti Mini Express Black 2 Cup\". Bialetti New Zealand. Retrieved 25 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-45",
+   "icon": false,
+   "row": "↑ \"Bialetti Venus\". Bialetti New Zealand. Retrieved 25 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"Bialetti Venus\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.bialetti.co.nz/collections/stainless-stovetop/products/copy-of-bialetti-venus",
+   "icon": false,
+   "row": "↑ \"Bialetti Venus\". Bialetti New Zealand. Retrieved 25 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-46",
+   "icon": false,
+   "row": "↑ \"Ring & Filter Pack - Moka Express, Moka Induction, Brikka*, Dama, Mini Express, Break\". Bialetti New Zealand. Retrieved 25 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"Ring & Filter Pack - Moka Express, Moka Induction, Brikka*, Dama, Mini Express, Break\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.bialetti.co.nz/products/moka-express-dama-mini-express-break-ring-filter-pack",
+   "icon": false,
+   "row": "↑ \"Ring & Filter Pack - Moka Express, Moka Induction, Brikka*, Dama, Mini Express, Break\". Bialetti New Zealand. Retrieved 25 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "↑",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#cite_ref-47",
+   "icon": false,
+   "row": "↑ \"Ring & Filter Pack - Venus, Musa, Kitty\". Bialetti New Zealand. Retrieved 25 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "\"Ring & Filter Pack - Venus, Musa, Kitty\"",
+   "value": "",
+   "editable": false,
+   "within": "References",
+   "href": "https://www.bialetti.co.nz/products/musa-venus-kitty-ring-and-filter-packs",
+   "icon": false,
+   "row": "↑ \"Ring & Filter Pack - Venus, Musa, Kitty\". Bialetti New Zealand. Retrieved 25 February 2025."
+  },
+  {
+   "role": "link",
+   "name": "edit",
+   "value": "",
+   "editable": false,
+   "within": "Further reading",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=edit&section=11",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "\"Coffee, Tea & Hot Chocolate\"",
+   "value": "",
+   "editable": false,
+   "within": "Further reading",
+   "href": "https://archive.org/details/joyofcookingrom00romb/page/28/mode/2up",
+   "icon": false,
+   "row": "Rombauer, Irma S.; Marion Rombauer Becker; Ethan Becker (August 1997). \"Coffee, Tea & Hot Chocolate\". The Joy of Cooking. Illustrated by Laura Hartman Maestro. "
+  },
+  {
+   "role": "link",
+   "name": "The Joy of Cooking",
+   "value": "",
+   "editable": false,
+   "within": "Further reading",
+   "href": "https://archive.org/details/joyofcookingrom00romb/",
+   "icon": false,
+   "row": "Rombauer, Irma S.; Marion Rombauer Becker; Ethan Becker (August 1997). \"Coffee, Tea & Hot Chocolate\". The Joy of Cooking. Illustrated by Laura Hartman Maestro. "
+  },
+  {
+   "role": "link",
+   "name": "Scribner",
+   "value": "",
+   "editable": false,
+   "within": "Further reading",
+   "href": "https://en.wikipedia.org/wiki/Charles_Scribner's_Sons",
+   "icon": false,
+   "row": "Rombauer, Irma S.; Marion Rombauer Becker; Ethan Becker (August 1997). \"Coffee, Tea & Hot Chocolate\". The Joy of Cooking. Illustrated by Laura Hartman Maestro. "
+  },
+  {
+   "role": "link",
+   "name": "ISBN",
+   "value": "",
+   "editable": false,
+   "within": "Further reading",
+   "href": "https://en.wikipedia.org/wiki/ISBN_(identifier)",
+   "icon": false,
+   "row": "Rombauer, Irma S.; Marion Rombauer Becker; Ethan Becker (August 1997). \"Coffee, Tea & Hot Chocolate\". The Joy of Cooking. Illustrated by Laura Hartman Maestro. "
+  },
+  {
+   "role": "link",
+   "name": "0-684-81870-1",
+   "value": "",
+   "editable": false,
+   "within": "Further reading",
+   "href": "https://en.wikipedia.org/wiki/Special:BookSources/0-684-81870-1",
+   "icon": false,
+   "row": "Rombauer, Irma S.; Marion Rombauer Becker; Ethan Becker (August 1997). \"Coffee, Tea & Hot Chocolate\". The Joy of Cooking. Illustrated by Laura Hartman Maestro. "
+  },
+  {
+   "role": "link",
+   "name": "\"The Romance of Aluminum and Caffeine\"",
+   "value": "",
+   "editable": false,
+   "within": "Further reading",
+   "href": "https://archive.org/details/things0000unse_m3i9/page/304/mode/2up",
+   "icon": false,
+   "row": "Schnapp, Jeffrey T. (2004). \"The Romance of Aluminum and Caffeine\". In Brown, Bill (ed.). Things. Chicago: University of Chicago Press. pp. 209–239. ISBN 0-226-"
+  },
+  {
+   "role": "link",
+   "name": "Things",
+   "value": "",
+   "editable": false,
+   "within": "Further reading",
+   "href": "https://archive.org/details/things0000unse_m3i9",
+   "icon": false,
+   "row": "Schnapp, Jeffrey T. (2004). \"The Romance of Aluminum and Caffeine\". In Brown, Bill (ed.). Things. Chicago: University of Chicago Press. pp. 209–239. ISBN 0-226-"
+  },
+  {
+   "role": "link",
+   "name": "0-226-07611-3",
+   "value": "",
+   "editable": false,
+   "within": "Further reading",
+   "href": "https://en.wikipedia.org/wiki/Special:BookSources/0-226-07611-3",
+   "icon": false,
+   "row": "Schnapp, Jeffrey T. (2004). \"The Romance of Aluminum and Caffeine\". In Brown, Bill (ed.). Things. Chicago: University of Chicago Press. pp. 209–239. ISBN 0-226-"
+  },
+  {
+   "role": "link",
+   "name": "edit",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&action=edit&section=12",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Wikimedia Commons logo",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/File:Commons-logo.svg",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Moka pot",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://commons.wikimedia.org/wiki/Category:Moka%20pot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "v",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Template:Coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "t",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Template_talk:Coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "e",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Special:EditPage/Template:Coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Coffee",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee",
+   "icon": false,
+   "row": ".mw-parser-output .navbar{display:inline;font-size:88%;font-weight:normal}.mw-parser-output .navbar-collapse{float:left;text-align:left}.mw-parser-output .navba"
+  },
+  {
+   "role": "link",
+   "name": "Economics",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Economics_of_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Health effects",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Health_effects_of_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "History",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/History_of_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Production",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_production",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Organic",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Organic_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Single-origin",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Single-origin_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Shade-grown",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Shade-grown_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Sustainable",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Sustainable_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Decaffeination",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Decaffeination",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Fair trade",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Fair_trade_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Home roasting",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Home_roasting_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "List of countries",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/List_of_countries",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Roasting",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_roasting",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Wastewater",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_wastewater",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Species",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffea",
+   "icon": false,
+   "row": "Species and varieties"
+  },
+  {
+   "role": "link",
+   "name": "varieties",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/List_of_coffee_varieties",
+   "icon": false,
+   "row": "Species and varieties"
+  },
+  {
+   "role": "link",
+   "name": "Arabica",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffea_arabica",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Benguet",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Benguet_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Blue Mountain",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Jamaican_Blue_Mountain_Coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bonifieur",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Guadeloupe_Bonifieur",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bourbon",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Bourbon_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Geisha",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Geisha_(coffee)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Kona",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Kona_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Maracaturra",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Maracaturra_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Maragogipe",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Maragogipe_Coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Molokai",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Molokai_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "S795",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/S795_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Sagada",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Sagada_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Charrieriana",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffea_charrieriana",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Liberica",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffea_liberica",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Barako",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Kapeng_barako",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Racemosa",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffea_racemosa",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Robusta",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffea_canephora",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Sulu",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Kahawa_Sug",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Stenophylla",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffea_stenophylla",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cafestol",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Cafestol",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffeic acid",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caffeic_acid",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffeine",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caffeine",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Coffee bean",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_bean",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Furan-2-ylmethanethiol",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Furan-2-ylmethanethiol",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Kahweol",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Kahweol",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Preparation",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_preparation",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "AeroPress",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/AeroPress",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cezve",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Cezve",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Chemex",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Chemex_Coffeemaker",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Chorreador",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Chorreador",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Coffeemaker",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffeemaker",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Espresso machine",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Espresso_machine",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "French drip",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/French_drip",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Karlsbad coffee maker",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Karlsbad_coffee_maker",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "French press",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/French_press",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Jebena",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Jebena",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Moka pot",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Percolator",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_percolator",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Reversible pot",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Reversible_coffee_pot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Single-serve container",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Single-serve_coffee_container",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Vacuum maker",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Vacuum_coffee_maker",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Arabic",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Arabic_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Espresso",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Espresso",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "doppio",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Doppio",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "lungo",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Lungo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "ristretto",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Ristretto",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Instant",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Instant_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Net-filter",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Net-filter_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cold brew",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Cold_brew_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "nitro",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Nitro_cold_brew_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Drip",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Drip_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Third-wave",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Third-wave_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Yazdi",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Yazdi_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Coffee drinks",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/List_of_coffee_drinks",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Milk",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Milk_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Affogato",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Affogato",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bicerin",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Bicerin",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Vietnamese",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Vietnamese_iced_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "au Lait",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caf%C3%A9_au_lait",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "con Leche",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caf%C3%A9_con_leche",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Macchiato",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_macchiato",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Mocha",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_mocha",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cappuccino",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Cappuccino",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cabinet",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_cabinet",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Coffee milk",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_milk",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Dalgona",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Dalgona_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Egg",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Egg_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Einspänner",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Einsp%C3%A4nner",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Es yen",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Es_yen",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Flat white",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Flat_white",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Frappé",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Frapp%C3%A9_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Galão",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Gal%C3%A3o",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Indian filter",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Indian_filter_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Ipoh white",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Ipoh_white_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Latte",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Latte",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Pumpkin spice",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Pumpkin_spice_latte",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Macchiato",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Latte_macchiato",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Marocchino",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Marocchino",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Melange",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Wiener_Melange",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Mustang",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Mustang_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Raf",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Raf_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "White",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/White_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Viennois",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Espresso_con_panna",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Yuenyeung",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Yuenyeung",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Hard",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Liqueur_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Asiático",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Asi%C3%A1tico",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "B-52",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/B-52_(cocktail)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Black Russian",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Black_Russian",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "com Cheirinho",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caf%C3%A9_com_cheirinho",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Corretto",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_corretto",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Carajillo",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Carajillo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cremat",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Cremat",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Espresso martini",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Espresso_martini",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Irish",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Irish_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Karsk",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Karsk",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Moretta",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Moretta_(coffee)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Piscoffee",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Piscoffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Rüdesheimer",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/R%C3%BCdesheimer_Kaffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "White Russian",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/White_Russian_(cocktail)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Americano",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_americano",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Beaten",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Beaten_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bica",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Bica_(coffee)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "de Olla",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caf%C3%A9_de_olla",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Touba",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caf%C3%A9_Touba",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Tropeiro",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caf%C3%A9_tropeiro",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Crema",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_crema",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cortado",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Cortado",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cubano",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Cuban_espresso",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Espresso tonic",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Espresso_tonic",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Flat red",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Flat_red",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Gazzosa",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Gazzosa_al_caff%C3%A8",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Ginseng",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Ginseng_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Iced",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Iced_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Kopi",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Kopi_(drink)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Luwak",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Kopi_luwak",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Tubruk",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Kopi_tubruk",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Joss",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Kopi_joss",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Kurdish",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Kurdish_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Long black",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Long_black",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Mazagran",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Mazagran_(drink)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Murra",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/M%C4%B1rra",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Oliang",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Oliang",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Shakerato",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_shakerato",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Tenom",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Tenom_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Turkish",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Turkish_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bakery cafés",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/List_of_bakery_caf%C3%A9s",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Coffee companies",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/List_of_coffee_companies",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Coffeehouse chains",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/List_of_coffeehouse_chains",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Barista",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Barista",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bikini",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Bikini_barista",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè sospeso",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_sospeso",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Break",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Break_(work)#Coffee_break",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Habesha ceremony",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_ceremony_of_Ethiopia_and_Eritrea",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Culture",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_culture",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Australia",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_culture_in_Australia",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Former Yugoslavia",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_culture_in_the_former_Yugoslavia",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cupping",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_cupping",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Palace",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_palace",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Service",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_service",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "CoffeeCon",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/CoffeeCon",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Coffeehouse",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffeehouse",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Historical",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/English_coffeehouses_in_the_17th_and_18th_centuries",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Viennese",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Viennese_coffee_house_culture",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Kopitiam",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Kopitiam",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Latte art",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Latte_art",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Substitutes",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_substitute",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Barley tea",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Barley_tea",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Barleycup",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Barleycup",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè d'orzo",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_d'orzo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caro",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caro_(drink)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cereal coffee",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Cereal_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Chicory",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Chicory",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Dandelion coffee",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Dandelion_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Inka",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Inka_(drink)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Maya nut",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Brosimum_alicastrum",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Postum",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Postum",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Qishr",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Qishr",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Can",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Canned_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Coffee cup",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_cup",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "sleeve",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_cup_sleeve",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Demitasse",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Demitasse",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "spoon",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Demitasse_spoon",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Tasse à café",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Tasse_%C3%A0_caf%C3%A9",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Zarf",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Zarf",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "United States Barista Championship",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/United_States_Barista_Championship",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "World Barista Championship",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/World_Barista_Championship",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "World Brewers Cup",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/World_Brewers_Cup",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffeine withdrawal",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caffeine_withdrawal",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "& Donuts",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_and_doughnuts",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bag",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_bag",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Leaf rust (Hemileia vastatrix)",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Hemileia_vastatrix",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Vending machine",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_vending_machine",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Wars",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_wars",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Gustav III experiment",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Gustav_III_of_Sweden's_coffee_experiment",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Day",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/International_Coffee_Day",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "International Coffee Organization",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/International_Coffee_Organization",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Low-acid",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Low-acid_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Specialty",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Specialty_coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Used grounds",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Used_coffee_grounds",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "icon",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/File:Emblem-relax.svg",
+   "icon": true,
+   "row": "Coffee portal"
+  },
+  {
+   "role": "link",
+   "name": "Coffee portal",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Portal:Coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Category: Coffee",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Category:Coffee",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "v",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Template:Coffee_in_Italy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "t",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Template_talk:Coffee_in_Italy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "e",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Special:EditPage/Template:Coffee_in_Italy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Coffee in Italy",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_in_Italy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Roasters",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffee_roasting",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "illy",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Illy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Lavazza",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Lavazza",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Massimo Zanetti Beverage Group",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Massimo_Zanetti_Beverage_Group",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè Pascucci",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_Pascucci",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè del Doge",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_del_Doge",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Guglielmo Caffè",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Guglielmo_Caff%C3%A8",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "coffeehouses",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Coffeehouse",
+   "icon": false,
+   "row": "Historicalcoffeehouses"
+  },
+  {
+   "role": "link",
+   "name": "Antico Caffè Greco",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Antico_Caff%C3%A8_Greco",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè Bardi",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_Bardi",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè-Pasticceria Cova",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8-Pasticceria_Cova",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè Florian",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_Florian",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè Giubbe Rosse",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_Giubbe_Rosse",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè Lavena",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_Lavena",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè Michelangiolo",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_Michelangiolo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè Quadri",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_Quadri",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè San Marco",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_San_Marco",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè Fiorio",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_Fiorio",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè Gambrinus",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_Gambrinus",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Gran Caffè Doney",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Gran_Caff%C3%A8_Doney",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Palazzina Majani, Bologna",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Palazzina_Majani,_Bologna",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Pedrocchi Café",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Pedrocchi_Caf%C3%A9",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Antico Caffè Spinnato",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Antico_Caff%C3%A8_Spinnato?action=edit&redlink=1",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Alfonso Bialetti",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Alfonso_Bialetti",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Francesco Illy",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Francesco_Illy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Luigi Lavazza",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Luigi_Lavazza",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Angelo Moriondo",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Angelo_Moriondo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bialetti",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Bialetti",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffitaly",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caffitaly",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cimbali",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Cimbali?action=edit&redlink=1",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "FrancisFrancis",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/FrancisFrancis",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "De' Longhi",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/De'_Longhi",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Elektra",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Elektra_(espresso_machines)?action=edit&redlink=1",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Faema",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Faema",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Gaggia",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Gaggia",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "La Marzocco",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/La_Marzocco",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "La Pavoni",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/La_Pavoni",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Lelit",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Lelit",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Rancilio",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Rancilio",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Saeco",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Saeco",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Smeg",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Smeg_(appliances)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Barbajada",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Barbajada",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bombardino",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Bombardino",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè corretto",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_corretto",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè crema",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_crema",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Caffè macchiato",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Caff%C3%A8_macchiato",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Espressino",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Espressino",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Lungo",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Lungo",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Ristretto",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Ristretto",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Doppio",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Doppio",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Latte macchiato",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Latte_macchiato",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Mocaccino",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Mocaccino",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Shakerato",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Shakerato",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Gassosa al caffè",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Gassosa_al_caff%C3%A8",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Easy Serving Espresso Pod",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Easy_Serving_Espresso_Pod",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "IperEspresso",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/IperEspresso",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "ISSpresso",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/ISSpresso",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Lavazza A Modo Mio",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Lavazza_A_Modo_Mio",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Neapolitan flip coffee pot",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Neapolitan_flip_coffee_pot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Italy portal",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://en.wikipedia.org/wiki/Portal:Italy",
+   "icon": false,
+   "row": "Coffee portal Italy portal"
+  },
+  {
+   "role": "link",
+   "name": "https://en.wikipedia.org/w/index.php?title=Moka_pot&oldid=1374890081",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&oldid=1374890081",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Categories",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/Help:Category",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Italian brands",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/Category:Italian_brands",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Italian inventions",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/Category:Italian_inventions",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Coffee preparation",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/Category:Coffee_preparation",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bialetti",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/Category:Bialetti",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Coffee in Italy",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/Category:Coffee_in_Italy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Italian design",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/Category:Italian_design",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Collection of the Museum of Modern Art (New York City)",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/Category:Collection_of_the_Museum_of_Modern_Art_(New_York_City)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Articles with short description",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/Category:Articles_with_short_description",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Short description is different from Wikidata",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/Category:Short_description_is_different_from_Wikidata",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Webarchive template wayback links",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/Category:Webarchive_template_wayback_links",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "CS1 maint: url-status",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/Category:CS1_maint:_url-status",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "CS1 Italian-language sources (it)",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/Category:CS1_Italian-language_sources_(it)",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Commons category link from Wikidata",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/Category:Commons_category_link_from_Wikidata",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Use dmy dates from August 2018",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/Category:Use_dmy_dates_from_August_2018",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Parsoid",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.mediawiki.org/wiki/Special:MyLanguage/Parsoid",
+   "icon": false,
+   "row": "Page was rendered with Parsoid."
+  },
+  {
+   "role": "link",
+   "name": "Creative Commons Attribution-ShareAlike 4.0 License",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://en.wikipedia.org/wiki/Wikipedia:Text_of_the_Creative_Commons_Attribution-ShareAlike_4.0_International_License",
+   "icon": false,
+   "row": "Text is available under the Creative Commons Attribution-ShareAlike 4.0 License; additional terms may apply. By using this site, you agree to the Terms of Use a"
+  },
+  {
+   "role": "link",
+   "name": "Terms of Use",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://foundation.wikimedia.org/wiki/Special:MyLanguage/Policy:Terms_of_Use",
+   "icon": false,
+   "row": "Text is available under the Creative Commons Attribution-ShareAlike 4.0 License; additional terms may apply. By using this site, you agree to the Terms of Use a"
+  },
+  {
+   "role": "link",
+   "name": "Privacy Policy",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://foundation.wikimedia.org/wiki/Special:MyLanguage/Policy:Privacy_policy",
+   "icon": false,
+   "row": "Text is available under the Creative Commons Attribution-ShareAlike 4.0 License; additional terms may apply. By using this site, you agree to the Terms of Use a"
+  },
+  {
+   "role": "link",
+   "name": "Wikimedia Foundation, Inc.",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://wikimediafoundation.org/",
+   "icon": false,
+   "row": "Text is available under the Creative Commons Attribution-ShareAlike 4.0 License; additional terms may apply. By using this site, you agree to the Terms of Use a"
+  },
+  {
+   "role": "link",
+   "name": "Privacy policy",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://foundation.wikimedia.org/wiki/Special:MyLanguage/Policy:Privacy_policy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "About Wikipedia",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://en.wikipedia.org/wiki/Wikipedia:About",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Disclaimers",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://en.wikipedia.org/wiki/Wikipedia:General_disclaimer",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Contact Wikipedia",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://en.wikipedia.org/wiki/Wikipedia:Contact_us",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Legal & safety contacts",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://foundation.wikimedia.org/wiki/Special:MyLanguage/Legal:Wikimedia_Foundation_Legal_and_Safety_Contact_Information",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Code of Conduct",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://foundation.wikimedia.org/wiki/Special:MyLanguage/Policy:Universal_Code_of_Conduct",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Developers",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.wikimedia.org/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Statistics",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://stats.wikimedia.org/#/en.wikipedia.org",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cookie statement",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://foundation.wikimedia.org/wiki/Special:MyLanguage/Policy:Cookie_statement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Mobile view",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://en.wikipedia.org/w/index.php?title=Moka_pot&mobileaction=toggle_view_mobile",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Wikimedia Foundation",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.wikimedia.org/",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Powered by MediaWiki",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.mediawiki.org/",
+   "icon": true
+  },
+  {
+   "role": "button",
+   "name": "Search",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "search field",
+   "name": "Search Wikipedia",
+   "value": "",
+   "editable": true,
+   "within": "form vector-sticky-search-form",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Search",
+   "value": "",
+   "editable": false,
+   "within": "form vector-sticky-search-form",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "33 languages",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Add topic",
+   "value": "",
+   "editable": false,
+   "within": "External links",
+   "href": "https://en.wikipedia.org/wiki/Moka_pot#",
+   "icon": false
+  }
+ ]
+}

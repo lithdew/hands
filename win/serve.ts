@@ -10,12 +10,18 @@
  * those routes are not injectable. So the panel server listens on a private
  * port and this file fronts it: the three desktop routes are answered here,
  * everything else is handed to it in-process.
+ *
+ * /login is answered here too: GET says how each hand's sign-in stands, POST
+ * /login?hand=1 (or 1,2 or all) opens that hand's browser on the user's desktop
+ * for them to sign in (win/desktop.ts `signIn`). `bun win/desktop.ts login`
+ * calls it when this server is running, because the server owns those browsers.
  */
 import { debugLog, subprocessEnv, type Hand } from "../desktop";
 import { isLocalRequest, servePuk, startRecording } from "../hotkey";
 import type { HandState } from "../pip";
 import { createJevFirstAgent } from "./jev";
-import { capture, driver, ensureHelper, getHand, helper, listHands, startHands, warmBrowser, windowsDesktop } from "./desktop";
+import { capture, driver, ensureHelper, getHand, handFor, helper, listHands, signInAll, signInStatus, startHands, warmBrowser, windowsDesktop } from "./desktop";
+import { loginTargets } from "./session";
 
 /** F1..F24, or a Windows virtual-key number. */
 export function virtualKey(name = "F8"): number {
@@ -116,6 +122,18 @@ if (import.meta.main) {
             else if (path === "/desktop/back") await leave();
             return Response.json({ ok: true });
           } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "Desktop switch failed." }, { status: 400 }); }
+        }
+        if (path === "/login" && (request.method === "GET" || request.method === "POST")) {
+          if (request.method === "GET") return Response.json({ puk: "login", hands: signInStatus() });
+          try {
+            const ids = loginTargets([new URL(request.url).searchParams.get("hand") ?? "all"], hands.map((h) => h.id));
+            // Its browser is about to be closed: not under a task that is using it.
+            const { workers } = (await (await local("/status")).json()) as { workers: Worker[] };
+            const busy = ids.filter((id) => workers.some((w) => w.hand === id && (w.agent.running || w.agent.approval)));
+            if (busy.length) return Response.json({ error: `Hand ${busy.join(" and ")} is working. Stop it or let it finish, then sign in.` }, { status: 409 });
+            void signInAll(ids.map(handFor));
+            return Response.json({ puk: "login", hands: signInStatus() });
+          } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "Signing in could not start." }, { status: 400 }); }
         }
         return inner.server.fetch(request);
       },

@@ -6,6 +6,187 @@ on 2026-09-19. The panel uses `listen.ts` as its live coordinator: accepted task
 The rest of this document describes the standalone Jev/AT-SPI loop and its
 original measurements. It is not the external CUA SDK.
 
+## Finishing tasks in fewer looks (evals, 2026-09-19)
+
+Question: why is our Jev loop slow at everyday tasks (book a table, make a note,
+email a friend, answer a text), and what should we ask Jev instead?
+
+**What a request costs.** From this machine a warm request is about 330 ms, of
+which the server is 90 to 160 ms (`x-envoy-upstream-service-time`). That did not
+move between 300 and 8,700 input tokens, 1 and 20 questions, or a choice over 10
+and 200 labels, and three requests at once took as long as one. The rest is
+distance (the API is in AWS us-west-2). So tokens and questions are close to
+free, and **what costs is every request that has to wait for the one before it**,
+plus every LLM call (about 2 s) and vision plan (4 to 10 s).
+
+**The eval.** `bun jev/tasks.eval.ts --rounds=2`: nine spoken tasks, real Jev and
+real OpenAI calls, against simulated Gmail, OpenTable, Keep and Messages
+(`sim.ts`: 25 to 55 elements a screen, with navigation, promotions, twin buttons,
+contact suggestions, a custom date picker, a promoted decoy restaurant, and deep
+links that work like the real ones). Actions and page loads cost nothing there,
+so the time is model time. The vision planner is an oracle charged 4 s.
+
+| strategy | solved | Jev round trips | LLM calls | vision | model time | at 100 ms a round |
+| --- | --- | --- | --- | --- | --- | --- |
+| `today`: `quick.ts`, else the LLM intent; `cua.ts`, one action per look | 3/18 | 20.4 | 0.7 | 0.8 | 11.8 s | 6.6 s |
+| `intent`: `recipes.ts` builds the intent; the loop is still `cua.ts` | 16/18 | 10.6 | 0.1 | 0.1 | 4.1 s | 1.4 s |
+| `screens`: the same intent; `screen.ts`, one request per screen | 18/18 | 7.3 | 0.1 | 0 | 2.9 s | 0.9 s |
+| `recipes`: the same, started from the recipe's deep link | 18/18 | 5.6 | 0.1 | 0 | 2.1 s | 0.7 s |
+
+`today` is scored too low by the simulator: some of its wrong turns end in places
+the simulator does not model ("Google apps" opens nothing). Compare the other
+three with each other, and read `today` for *why* it took the wrong turn:
+
+- **The intent was the bottleneck, not the clicking.** `quick.ts` claimed six of
+  the nine tasks although it can only express "open a site and search it": an
+  email became `{search_query: "Sam"}`, a text became
+  `{search_query: "I'll be there at six"}` with nothing to open. The LLM intent
+  knows no notes or texting app (`launcher: "none"`, `"terminal"`). One run
+  *emailed* Alex the text message and reported done. The body and the subject
+  then each cost a `composeText` call in the middle of the loop.
+- **`recipes.ts` replaces the intent LLM with one Jev request.** The task is a
+  choice over recipes; the person is a choice over contacts; party size, day and
+  time are choices (the date is computed in code); the words to type are a
+  literal run of what was said, marked by two choices, "which word is the first
+  of that part" and "which is the last". All of it goes out in one request for
+  every recipe at once, and code reads the answers of the recipe Jev chose.
+  `bun jev/recipes.eval.ts`: 33 of 34 phrasings right at the first attempt (25 of
+  them never seen while the questions were written), 351 ms, and the one miss
+  declined, which falls back to the old path. None of the eight requests that
+  are not recipes (two tasks in one sentence, a web search, a question) was built.
+- **One request per screen.** `screen.ts` asks one question per text field
+  ("which prepared text belongs in THIS field, or keep it"), one per readable
+  dropdown, which button moves on once the fields are right, and everything
+  `decide` asks. Code builds the batch, sends every action's gate request at the
+  same time (each action still has a gate request to itself), performs them in
+  order, and stops the batch the moment the screen grows or loses elements. An
+  email went from 12 round trips to 6; a booking form is filled in one look
+  (text, two dropdowns, the button).
+- **Deep links skip the form.** Gmail's `?view=cm&to=&su=&body=` and OpenTable's
+  `/s?term=&covers=&dateTime=` arrive filled in. Code sees the fields already
+  hold their text and only the button is left: an email is 4 round trips (the
+  recipe, one look, its gate, the look that reads "Message sent").
+- **Ask about every value before moving on.** Both one-action loops booked a
+  table for the wrong day or party size and said done: nothing ever asked. A
+  control that shows a value but cannot be set directly (a custom date picker)
+  now gets a Noul of its own, "it shows X; that is what `goal` asks for there",
+  and nothing advances while one is wrong. This is what took `screens` from 7/9
+  to 9/9.
+- **What still needs an LLM:** text that was not said ("answer Alex's text").
+  It is one compose call, and it is the only one left in these nine tasks.
+
+What Jev needed to be told, because it reads literally: that "Sam" is enough for
+"Sam Rivera" (without it: `not_in_list`, 0.50); that a span edge torn between
+"the" and "meeting" is not an unsure edge (`edgeConfidence` adds the neighbours);
+that an open calendar or suggestion list has to be answered before anything is
+typed elsewhere.
+
+### How the screen is shown to Jev (`ground.eval.ts`)
+
+`bun jev/ground.eval.ts`: 141 single decisions with gold answers, 66 on the
+simulated apps and 75 on eight real pages fetched once (Hacker News, a GitHub
+repo, MDN, BBC, Brave search, craigslist, an arXiv listing, Wikipedia; 93 to 704
+elements; no layout, so regions there are by document order). About 4,900 real
+Jev requests. Every variant is one round trip.
+
+| how the elements are offered | all | real pages | over 250 elements | target absent: says none |
+| --- | --- | --- | --- | --- |
+| `decide` in `cua.ts`: described in `state` and again as the labels, cap of 150 | 78% | 63% | 54% | 88% |
+| described as the labels only | 90% | 87% | 84% | 88% |
+| once in `state` with ids, in reading order; bare ids as labels | 95% | 92% | 91% | 84% |
+| **the same, with a question that says what a match is** | **98%** | 97% | 98% | 100% |
+| a cheap prefilter to 30, described labels | 87% | 81% | 77% | 94% |
+| one Noul per element | 68% | 58% | 49% | 75% |
+| a Choice per container plus a Choice over containers | 75% | 68% | 72% | 100% |
+
+- A label's description is read on its own, so the label closest to the goal
+  wins, and that is the row's link, not the "7:00 PM" button beside it. One
+  ordered list in `state` lets Jev read a twin next to its row. `within` matters
+  (95% to 90% without it); the region words and the role do not.
+- Most of what `decide` got wrong on real pages it never saw: the right element
+  was past the cap in 54 of 276 decisions. A page over 250 elements is several
+  Choices in the same request; 704 elements took about 540 ms.
+- The question that won: "Which one element does the worker have to click now to
+  carry out `goal`? The right element has the name, or sits in the container,
+  that `goal` talks about. Choose none_of_these when what `goal` talks about is
+  not listed." with none described as "An element that only has a similar name
+  is not it." With it, no wrong pick on a screen where the target was absent.
+- Act on a click at confidence 0.5 and on a field at 0.3 (right field picks often
+  sit at 0.3 to 0.7); about 1% wrong clicks are left, and the one that survives
+  any threshold is an adjacent twin at 0.92, which is what the gate is for.
+- Re-ranking with Nouls, grouping, and chunks as separate requests all lost.
+- **No segmentation or labelling model is needed where a DOM or accessibility
+  tree exists.** Stripped to what OCR gives (visible text and position) Jev
+  falls to 85% (icons 2 of 10, fields 76%); with a caption for icons, the
+  container, and whether a thing is a field, it is back at 96%. So for a canvas,
+  a game or an app with an empty tree, a vision labeller would have to give, in
+  this order: a caption for every textless control, the row or container each
+  element is in, whether it is editable and what it holds, and last its role.
+  Boxes without captions are of no use to Jev.
+
+`screen.ts` shows the screen this way. `win/observe.ts` now keeps reading order
+(it sorted fields first) and offers 300 elements instead of 80.
+
+### The pilot: recipes first, one plan when they do not fit (`pilot.ts`)
+
+Four recipes are not an assistant. `pilot.ts` asks the slowest model last:
+
+1. **Understand**, one round of Jev, three requests side by side: a recipe
+   (`recipes.ts`), a learned recipe (`learned.ts`), or a site to open
+   (`quick.ts`, trusted only when Jev says the request is nothing more than
+   that). A recipe does not swallow what it cannot carry: one plain Noul per way
+   of overflowing (two tasks, two recipients, an attachment, a wish about the
+   table, a title for the note) sends the request on. A single "anything but
+   these" Noul over-fired on four of six notes and missed "Sam and Dana".
+   `recipes.eval.ts`: 40 of 40, nothing wrong built (the last wording was tuned
+   on this set; 37 of 40 before it).
+2. **Plan**, only then: one text call to a language model (`plan.ts`, 2 to 4 s)
+   for everything Jev cannot do. The deep link, every text to type, the facts
+   the result must have, short literal steps. Several tasks when the request is
+   several things. Contacts go by name; the model writes `{email:Full Name}` and
+   code fills in the address. The deeper model took 5 to 8 s and planned nothing
+   the quick one did not.
+3. **Drive** with `runScreens`. The steps sit where a vision plan would.
+4. **Learn**: after a plan has worked, the model rewrites it with `{title}`
+   where the title was (in the background, after the user has their result).
+   Next time Jev picks the shape and marks each part in what was said. Kept only
+   when every text was a literal run of the request (a string comparison, not
+   the model's word) and the template holds no date, time, unknown placeholder
+   or other site.
+
+`facts` are the values a task stands or falls with ("party size: 4 people").
+Jev is asked on every look whether the screen shows another value, and nothing
+the gate flags is done while it does: the run gives up instead of booking the
+wrong day. Live: silent on a right booking across date formats, caught a wrong
+day and a wrong party size on both the results and the booking page.
+
+`bun jev/tasks.eval.ts --only=email,table,note,text,beyond --strategy=pilot`:
+
+| tasks | solved | Jev round trips | LLM calls on the path | model time |
+| --- | --- | --- | --- | --- |
+| the nine everyday tasks | 9/9 | 5.6 | 0.1 | 2.3 s |
+| five beyond the recipes (an occasion and a seating wish, two recipients, a titled note, the same kind of note again, two apps in one sentence) | 5/5 | 7.4 | 0.8 | 5.7 s |
+
+The second titled note ran from the learned recipe: no LLM, 2.6 s against 4.0 s.
+Recipes alone solved none of the five. One of two runs of the anniversary
+booking needed one vision consult; plans are worded differently each time.
+
+Wired into `win/jev.ts`: the triage and the pilot's first tier go out together; a
+native app is opened only when the speaker named one ("open Notepad", not "make
+a note"); the site is opened while the speaker may still be talking and nothing
+is clicked or typed until the sentence is over; `select` sets a native dropdown
+in the page (`win/observe.ts` reads a `<select>`'s options and shown text).
+Contacts come from `contacts.json` (`PUK_CONTACTS`), learned recipes live in
+`out/jev-learned.json` (`PUK_LEARNED`). **None of the wiring has run against a
+real page**: the unit tests cover the pure parts and the page scripts parse and
+run against a fake DOM.
+
+Known gaps: the simulator's pages are mine; a custom widget on a real page may
+not expose its value the way the simulated date picker does (that is why `facts`
+exist); a modal dialog is only handled because `win/observe.ts` hit-tests every
+element; learned recipes take literal spans only, so nothing with a date is
+ever learned; the hand's browser has its own profile and must be signed in.
+
 ## What it does
 
 A small LLM turns what the user said into an **Intent**. **Jev** (TypeSafe's
@@ -113,6 +294,13 @@ transcript so far on each line, and an empty line as the end of the utterance.
 | `gate.ts` | Five risk Nouls in one request, approval callback | **Run live.** |
 | `listen.ts` | Per-word triage, task list, dispatch to free hands, refine / restart / cancel | **Run live** in `--dry` mode (real Jev and OpenAI, no hand). Unit tested. |
 | `quick.ts` | Jev builds a simple intent with no LLM | **Run live.** Unit tested. |
+| `pilot.ts` | `createPilot`: understand (recipes, learned, quick) in one Jev round, else one LLM plan; drive; learn | **Run live** on the simulated apps (14/14). Unit tested. Wired into `win/jev.ts`, never run on a real page. |
+| `recipes.ts` | Jev builds the whole intent for email, table, note and text tasks: closed-set slots, literal spans, deep links, overflow guards | **Run live** (`recipes.eval.ts`, 40/40). Unit tested. |
+| `plan.ts`, `learned.ts` | One text plan from an LLM before the first look; a plan that worked becomes a recipe Jev fills in alone | **Run live** through the pilot eval. Unit tested. |
+| `screen.ts` | `decideScreen`, `runScreens`: a screen's worth of actions per request, gates in parallel, per-control and per-fact checks | **Run live** on the simulated apps only. Unit tested. |
+| `ground.ts`, `ground.eval.ts`, `fixtures/` | Every way of offering a screen to Jev that was tried, and the eval that ranked them | **Run live**, about 4,900 requests. No unit tests. |
+| `sim.ts` | Simulated Gmail, OpenTable, Keep, Messages and Google as `Observation`s, for evals and tests | Used by the evals and `screen.test.ts`. |
+| `tasks.eval.ts`, `recipes.eval.ts` | The task and intent evals above. Results in `out/jev-tasks-eval.json` | Real Jev and OpenAI calls; no desktop. |
 | `cua.ts` | `decide`, `perform`, `runIntent`, CLI | `decide` **run live** on synthetic screens. `perform` and the loop tested with a scripted Jev, asserting the exact `wlrctl`/`wtype` argv. |
 
 103 tests here (125 with the existing 22), all seams faked, same idiom as

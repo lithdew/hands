@@ -1,0 +1,4858 @@
+{
+ "url": "https://github.com/oven-sh/bun",
+ "fetched": "2026-09-19T12:53:55.821Z",
+ "title": "GitHub - oven-sh/bun: Incredibly fast JavaScript runtime, bundler, test runner, and package manager – all in one · GitHub",
+ "texts": [
+  "Navigation Menu",
+  "Latest commit",
+  "History",
+  "Folders and files",
+  "Repository files navigation",
+  "Bun",
+  "Read the docs →",
+  "What is Bun?",
+  "Install",
+  "Upgrade",
+  "Quick links",
+  "Guides",
+  "Contributing",
+  "License",
+  "About",
+  "Topics",
+  "Resources",
+  "Code of conduct",
+  "Security policy",
+  "Stars",
+  "Watchers",
+  "Forks",
+  "Releases",
+  "Used by",
+  "Contributors",
+  "Languages",
+  "Footer",
+  "Footer navigation"
+ ],
+ "elements": [
+  {
+   "role": "link",
+   "name": "Skip to content",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://github.com/oven-sh/bun#start-of-content",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Close navigation menu",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "button",
+   "name": "Toggle navigation",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Homepage",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://github.com/",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Sign in",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://github.com/login?return_to=https%3A%2F%2Fgithub.com%2Foven-sh%2Fbun",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Platform",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "",
+   "icon": false,
+   "row": "PlatformView all features"
+  },
+  {
+   "role": "link",
+   "name": "GitHub CopilotWrite better code with AI",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/features/copilot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "GitHub Copilot appDirect agents from issue to merge",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/features/ai/github-app",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "MCP RegistryIntegrate external tools",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/mcp",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "ActionsAutomate any workflow",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/features/actions",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "CodespacesInstant dev environments",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/features/codespaces",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "IssuesPlan and track work",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/features/issues",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Code ReviewManage code changes",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/features/code-review",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Code QualityEnforce quality at merge",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/features/code-quality",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "GitHub Advanced SecurityFind and fix vulnerabilities",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/security/advanced-security",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Code securitySecure your code as you build",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/security/advanced-security/code-security",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Secret protectionStop leaks before they start",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/security/advanced-security/secret-protection",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Why GitHub",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/why-github",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Documentation",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://docs.github.com/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Blog",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.blog/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Changelog",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.blog/changelog",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Marketplace",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/marketplace",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "View all features",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/features",
+   "icon": false,
+   "row": "PlatformView all features"
+  },
+  {
+   "role": "button",
+   "name": "Solutions",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "",
+   "icon": false,
+   "row": "SolutionsView all solutions"
+  },
+  {
+   "role": "link",
+   "name": "Enterprises",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/enterprise",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Small and medium teams",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/team",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Startups",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/enterprise/startups",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Nonprofits",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/solutions/industry/nonprofits",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "App Modernization",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/solutions/use-case/app-modernization",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "DevSecOps",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/solutions/use-case/devsecops",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "DevOps",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/solutions/use-case/devops",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "CI/CD",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/solutions/use-case/ci-cd",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "View all use cases",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/solutions/use-case",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Healthcare",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/solutions/industry/healthcare",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Financial services",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/solutions/industry/financial-services",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Manufacturing",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/solutions/industry/manufacturing",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Government",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/solutions/industry/government",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "View all industries",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/solutions/industry",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "View all solutions",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/solutions",
+   "icon": false,
+   "row": "SolutionsView all solutions"
+  },
+  {
+   "role": "button",
+   "name": "Resources",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "",
+   "icon": false,
+   "row": "ResourcesView all resources"
+  },
+  {
+   "role": "link",
+   "name": "AI",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/resources/articles?topic=ai",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Software Development",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/resources/articles?topic=software-development",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "DevOps",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/resources/articles?topic=devops",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Security",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/resources/articles?topic=security",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "View all topics",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/resources/articles",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Customer stories",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/customer-stories",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Events & webinars",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/resources/events",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Ebooks & reports",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/resources/whitepapers",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Business insights",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/solutions/executive-insights",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "GitHub Skills",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://skills.github.com/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Customer support",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://support.github.com/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Community forum",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/orgs/community/discussions",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Trust center",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/trust-center",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Partners",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/partners",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "View all resources",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/resources",
+   "icon": false,
+   "row": "ResourcesView all resources"
+  },
+  {
+   "role": "button",
+   "name": "Open Source",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "GitHub SponsorsFund open source developers",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/open-source/sponsors",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Security Lab",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://securitylab.github.com/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Maintainer Community",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://maintainers.github.com/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "GitHub Stars",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://stars.github.com/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Archive Program",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://archiveprogram.github.com/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Topics",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/topics",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Trending",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/trending",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Collections",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/collections",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Enterprise",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Enterprise platformAI-powered developer platform",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/enterprise",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "GitHub Advanced SecurityEnterprise-grade security features",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/security/advanced-security",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Copilot for BusinessEnterprise-grade AI features",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/features/copilot/copilot-business",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Premium SupportEnterprise-grade 24/7 support",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/enterprise/premium-support",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Pricing",
+   "value": "",
+   "editable": false,
+   "within": "Global navigation",
+   "href": "https://github.com/pricing",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Search or jump to, type / to search",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Sign up",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://github.com/signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2F%3Cuser-name%3E%2F%3Crepo-name%3E&source=header-repo&source_repo=oven-sh%2Fbun",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Reload",
+   "value": "",
+   "editable": false,
+   "within": "Navigation Menu",
+   "href": "https://github.com/oven-sh/bun",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Dismiss this message",
+   "value": "",
+   "editable": false,
+   "within": "Navigation Menu",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "oven-sh",
+   "value": "",
+   "editable": false,
+   "within": "Navigation Menu",
+   "href": "https://github.com/oven-sh",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun",
+   "value": "",
+   "editable": false,
+   "within": "Navigation Menu",
+   "href": "https://github.com/oven-sh/bun",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "You must be signed in to change notification settings",
+   "value": "",
+   "editable": false,
+   "within": "Navigation Menu",
+   "href": "https://github.com/login?return_to=%2Foven-sh%2Fbun",
+   "icon": false,
+   "row": "Notifications You must be signed in to change notification settings"
+  },
+  {
+   "role": "link",
+   "name": "Fork 5k",
+   "value": "",
+   "editable": false,
+   "within": "Navigation Menu",
+   "href": "https://github.com/login?return_to=%2Foven-sh%2Fbun",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "You must be signed in to star a repository",
+   "value": "",
+   "editable": false,
+   "within": "Navigation Menu",
+   "href": "https://github.com/login?return_to=%2Foven-sh%2Fbun",
+   "icon": false,
+   "row": "Star 96k"
+  },
+  {
+   "role": "link",
+   "name": "Code",
+   "value": "",
+   "editable": false,
+   "within": "Repository navigation",
+   "href": "https://github.com/oven-sh/bun",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Issues 3.5k",
+   "value": "",
+   "editable": false,
+   "within": "Repository navigation",
+   "href": "https://github.com/oven-sh/bun/issues",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Pull requests 5k+",
+   "value": "",
+   "editable": false,
+   "within": "Repository navigation",
+   "href": "https://github.com/oven-sh/bun/pulls",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Discussions",
+   "value": "",
+   "editable": false,
+   "within": "Repository navigation",
+   "href": "https://github.com/oven-sh/bun/discussions",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Actions",
+   "value": "",
+   "editable": false,
+   "within": "Repository navigation",
+   "href": "https://github.com/oven-sh/bun/actions",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Security and quality 0",
+   "value": "",
+   "editable": false,
+   "within": "Repository navigation",
+   "href": "https://github.com/oven-sh/bun/security",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Insights",
+   "value": "",
+   "editable": false,
+   "within": "Repository navigation",
+   "href": "https://github.com/oven-sh/bun/pulse",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Issues",
+   "value": "",
+   "editable": false,
+   "within": "Repository navigation",
+   "href": "https://github.com/oven-sh/bun/issues",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Pull requests",
+   "value": "",
+   "editable": false,
+   "within": "Repository navigation",
+   "href": "https://github.com/oven-sh/bun/pulls",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Security and quality",
+   "value": "",
+   "editable": false,
+   "within": "Repository navigation",
+   "href": "https://github.com/oven-sh/bun/security",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "main branch",
+   "value": "",
+   "editable": false,
+   "within": "Navigation Menu",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Branches",
+   "value": "",
+   "editable": false,
+   "within": "Navigation Menu",
+   "href": "https://github.com/oven-sh/bun/branches",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Tags",
+   "value": "",
+   "editable": false,
+   "within": "Navigation Menu",
+   "href": "https://github.com/oven-sh/bun/tags",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Go to Branches page",
+   "value": "",
+   "editable": false,
+   "within": "Navigation Menu",
+   "href": "https://github.com/oven-sh/bun/branches",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Go to Tags page",
+   "value": "",
+   "editable": false,
+   "within": "Navigation Menu",
+   "href": "https://github.com/oven-sh/bun/tags",
+   "icon": true
+  },
+  {
+   "role": "text field",
+   "name": "Go to file",
+   "value": "",
+   "editable": true,
+   "within": "Navigation Menu",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Go to file",
+   "value": "",
+   "editable": false,
+   "within": "Navigation Menu",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Code",
+   "value": "",
+   "editable": false,
+   "within": "Navigation Menu",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "18,153 Commits",
+   "value": "",
+   "editable": false,
+   "within": "History",
+   "href": "https://github.com/oven-sh/bun/commits/main/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "View commit history for this file.",
+   "value": "",
+   "editable": false,
+   "within": "History",
+   "href": "https://github.com/oven-sh/bun/commits/main/",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": ".buildkite, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/.buildkite",
+   "icon": false,
+   "row": ".buildkite.buildkite"
+  },
+  {
+   "role": "link",
+   "name": ".cargo, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/.cargo",
+   "icon": false,
+   "row": ".cargo.cargo"
+  },
+  {
+   "role": "link",
+   "name": ".claude, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/.claude",
+   "icon": false,
+   "row": ".claude.claude"
+  },
+  {
+   "role": "link",
+   "name": ".cursor, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/.cursor",
+   "icon": false,
+   "row": ".cursor.cursor"
+  },
+  {
+   "role": "link",
+   "name": ".github, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/.github",
+   "icon": false,
+   "row": ".github.github"
+  },
+  {
+   "role": "link",
+   "name": ".vscode, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/.vscode",
+   "icon": false,
+   "row": ".vscode.vscode"
+  },
+  {
+   "role": "link",
+   "name": "bench, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/bench",
+   "icon": false,
+   "row": "benchbench"
+  },
+  {
+   "role": "link",
+   "name": "completions, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/completions",
+   "icon": false,
+   "row": "completionscompletions"
+  },
+  {
+   "role": "link",
+   "name": "dockerhub, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/dockerhub",
+   "icon": false,
+   "row": "dockerhubdockerhub"
+  },
+  {
+   "role": "link",
+   "name": "docs, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/docs",
+   "icon": false,
+   "row": "docsdocs"
+  },
+  {
+   "role": "link",
+   "name": "misctools, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/misctools",
+   "icon": false,
+   "row": "misctoolsmisctools"
+  },
+  {
+   "role": "link",
+   "name": "packages, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/packages",
+   "icon": false,
+   "row": "packagespackages"
+  },
+  {
+   "role": "link",
+   "name": "patches, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/patches",
+   "icon": false,
+   "row": "patchespatches"
+  },
+  {
+   "role": "link",
+   "name": "scripts, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/scripts",
+   "icon": false,
+   "row": "scriptsscripts"
+  },
+  {
+   "role": "link",
+   "name": "src, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/src",
+   "icon": false,
+   "row": "srcsrc"
+  },
+  {
+   "role": "link",
+   "name": "test, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/test",
+   "icon": false,
+   "row": "testtest"
+  },
+  {
+   "role": "link",
+   "name": "tools/hawk, (Directory)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/tree/main/tools/hawk",
+   "icon": false,
+   "row": "tools/hawktools/hawk"
+  },
+  {
+   "role": "link",
+   "name": ".aikido, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/.aikido",
+   "icon": false,
+   "row": ".aikido.aikido"
+  },
+  {
+   "role": "link",
+   "name": ".bk.yaml, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/.bk.yaml",
+   "icon": false,
+   "row": ".bk.yaml.bk.yaml"
+  },
+  {
+   "role": "link",
+   "name": ".clang-tidy, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/.clang-tidy",
+   "icon": false,
+   "row": ".clang-tidy.clang-tidy"
+  },
+  {
+   "role": "link",
+   "name": ".clangd, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/.clangd",
+   "icon": false,
+   "row": ".clangd.clangd"
+  },
+  {
+   "role": "link",
+   "name": ".coderabbit.yaml, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/.coderabbit.yaml",
+   "icon": false,
+   "row": ".coderabbit.yaml.coderabbit.yaml"
+  },
+  {
+   "role": "link",
+   "name": ".cursorignore, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/.cursorignore",
+   "icon": false,
+   "row": ".cursorignore.cursorignore"
+  },
+  {
+   "role": "link",
+   "name": ".dockerignore, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/.dockerignore",
+   "icon": false,
+   "row": ".dockerignore.dockerignore"
+  },
+  {
+   "role": "link",
+   "name": ".editorconfig, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/.editorconfig",
+   "icon": false,
+   "row": ".editorconfig.editorconfig"
+  },
+  {
+   "role": "link",
+   "name": ".git-blame-ignore-revs, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/.git-blame-ignore-revs",
+   "icon": false,
+   "row": ".git-blame-ignore-revs.git-blame-ignore-revs"
+  },
+  {
+   "role": "link",
+   "name": ".gitattributes, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/.gitattributes",
+   "icon": false,
+   "row": ".gitattributes.gitattributes"
+  },
+  {
+   "role": "link",
+   "name": ".gitignore, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/.gitignore",
+   "icon": false,
+   "row": ".gitignore.gitignore"
+  },
+  {
+   "role": "link",
+   "name": ".lldbinit, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/.lldbinit",
+   "icon": false,
+   "row": ".lldbinit.lldbinit"
+  },
+  {
+   "role": "link",
+   "name": ".mailmap, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/.mailmap",
+   "icon": false,
+   "row": ".mailmap.mailmap"
+  },
+  {
+   "role": "link",
+   "name": ".prettierignore, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/.prettierignore",
+   "icon": false,
+   "row": ".prettierignore.prettierignore"
+  },
+  {
+   "role": "link",
+   "name": ".prettierrc, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/.prettierrc",
+   "icon": false,
+   "row": ".prettierrc.prettierrc"
+  },
+  {
+   "role": "link",
+   "name": "AGENTS.md, (Symlink to file)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/AGENTS.md",
+   "icon": false,
+   "row": "AGENTS.mdAGENTS.md"
+  },
+  {
+   "role": "link",
+   "name": "CLAUDE.md, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/CLAUDE.md",
+   "icon": false,
+   "row": "CLAUDE.mdCLAUDE.md"
+  },
+  {
+   "role": "link",
+   "name": "CODE_OF_CONDUCT.md, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/CODE_OF_CONDUCT.md",
+   "icon": false,
+   "row": "CODE_OF_CONDUCT.mdCODE_OF_CONDUCT.md"
+  },
+  {
+   "role": "link",
+   "name": "CONTRIBUTING.md, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/CONTRIBUTING.md",
+   "icon": false,
+   "row": "CONTRIBUTING.mdCONTRIBUTING.md"
+  },
+  {
+   "role": "link",
+   "name": "Cargo.lock, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/Cargo.lock",
+   "icon": false,
+   "row": "Cargo.lockCargo.lock"
+  },
+  {
+   "role": "link",
+   "name": "Cargo.toml, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/Cargo.toml",
+   "icon": false,
+   "row": "Cargo.tomlCargo.toml"
+  },
+  {
+   "role": "link",
+   "name": "LATEST, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/LATEST",
+   "icon": false,
+   "row": "LATESTLATEST"
+  },
+  {
+   "role": "link",
+   "name": "LICENSE.md, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/LICENSE.md",
+   "icon": false,
+   "row": "LICENSE.mdLICENSE.md"
+  },
+  {
+   "role": "link",
+   "name": "README.md, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/README.md",
+   "icon": false,
+   "row": "README.mdREADME.md"
+  },
+  {
+   "role": "link",
+   "name": "REVIEW.md, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/REVIEW.md",
+   "icon": false,
+   "row": "REVIEW.mdREVIEW.md"
+  },
+  {
+   "role": "link",
+   "name": "SECURITY.md, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/SECURITY.md",
+   "icon": false,
+   "row": "SECURITY.mdSECURITY.md"
+  },
+  {
+   "role": "link",
+   "name": "bun.lock, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/bun.lock",
+   "icon": false,
+   "row": "bun.lockbun.lock"
+  },
+  {
+   "role": "link",
+   "name": "bunfig.node-test.toml, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/bunfig.node-test.toml",
+   "icon": false,
+   "row": "bunfig.node-test.tomlbunfig.node-test.toml"
+  },
+  {
+   "role": "link",
+   "name": "bunfig.toml, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/bunfig.toml",
+   "icon": false,
+   "row": "bunfig.tomlbunfig.toml"
+  },
+  {
+   "role": "link",
+   "name": "clippy.toml, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/clippy.toml",
+   "icon": false,
+   "row": "clippy.tomlclippy.toml"
+  },
+  {
+   "role": "link",
+   "name": "dylint.toml, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/dylint.toml",
+   "icon": false,
+   "row": "dylint.tomldylint.toml"
+  },
+  {
+   "role": "link",
+   "name": "entitlements.debug.plist, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/entitlements.debug.plist",
+   "icon": false,
+   "row": "entitlements.debug.plistentitlements.debug.plist"
+  },
+  {
+   "role": "link",
+   "name": "entitlements.plist, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/entitlements.plist",
+   "icon": false,
+   "row": "entitlements.plistentitlements.plist"
+  },
+  {
+   "role": "link",
+   "name": "flake.lock, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/flake.lock",
+   "icon": false,
+   "row": "flake.lockflake.lock"
+  },
+  {
+   "role": "link",
+   "name": "flake.nix, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/flake.nix",
+   "icon": false,
+   "row": "flake.nixflake.nix"
+  },
+  {
+   "role": "link",
+   "name": "hawk.toml, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/hawk.toml",
+   "icon": false,
+   "row": "hawk.tomlhawk.toml"
+  },
+  {
+   "role": "link",
+   "name": "mordant-baseline.toml, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/mordant-baseline.toml",
+   "icon": false,
+   "row": "mordant-baseline.tomlmordant-baseline.toml"
+  },
+  {
+   "role": "link",
+   "name": "oxlint.json, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/oxlint.json",
+   "icon": false,
+   "row": "oxlint.jsonoxlint.json"
+  },
+  {
+   "role": "link",
+   "name": "package.json, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/package.json",
+   "icon": false,
+   "row": "package.jsonpackage.json"
+  },
+  {
+   "role": "link",
+   "name": "rust-toolchain.toml, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/rust-toolchain.toml",
+   "icon": false,
+   "row": "rust-toolchain.tomlrust-toolchain.toml"
+  },
+  {
+   "role": "link",
+   "name": "rustfmt.toml, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/rustfmt.toml",
+   "icon": false,
+   "row": "rustfmt.tomlrustfmt.toml"
+  },
+  {
+   "role": "link",
+   "name": "shell.nix, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/shell.nix",
+   "icon": false,
+   "row": "shell.nixshell.nix"
+  },
+  {
+   "role": "link",
+   "name": "tsconfig.base.json, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/tsconfig.base.json",
+   "icon": false,
+   "row": "tsconfig.base.jsontsconfig.base.json"
+  },
+  {
+   "role": "link",
+   "name": "tsconfig.json, (File)",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "https://github.com/oven-sh/bun/blob/main/tsconfig.json",
+   "icon": false,
+   "row": "tsconfig.jsontsconfig.json"
+  },
+  {
+   "role": "button",
+   "name": "View all files",
+   "value": "",
+   "editable": false,
+   "within": "Folders and files",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "README",
+   "value": "",
+   "editable": false,
+   "within": "Repository files navigation",
+   "href": "https://github.com/oven-sh/bun#",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Code of conduct",
+   "value": "",
+   "editable": false,
+   "within": "Repository files navigation",
+   "href": "https://github.com/oven-sh/bun#",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Contributing",
+   "value": "",
+   "editable": false,
+   "within": "Repository files navigation",
+   "href": "https://github.com/oven-sh/bun#",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "License",
+   "value": "",
+   "editable": false,
+   "within": "Repository files navigation",
+   "href": "https://github.com/oven-sh/bun#",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Security",
+   "value": "",
+   "editable": false,
+   "within": "Repository files navigation",
+   "href": "https://github.com/oven-sh/bun#",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "More items",
+   "value": "",
+   "editable": false,
+   "within": "Repository files navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Outline",
+   "value": "",
+   "editable": false,
+   "within": "Repository files navigation",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Logo",
+   "value": "",
+   "editable": false,
+   "within": "Repository files navigation",
+   "href": "https://bun.com/",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Permalink: Bun",
+   "value": "",
+   "editable": false,
+   "within": "Bun",
+   "href": "https://github.com/oven-sh/bun#bun",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "stars",
+   "value": "",
+   "editable": false,
+   "within": "Bun",
+   "href": "https://camo.githubusercontent.com/961ec2d48f1e50a726a067aed3bb303fdc452d00fffd5348fd88bfec17e809aa/68747470733a2f2f696d672e736869656c64732e696f2f6769746875622f73746172732f6f76656e2d73682f62756e",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Bun speed",
+   "value": "",
+   "editable": false,
+   "within": "Bun",
+   "href": "https://twitter.com/jarredsumner/status/1542824445810642946",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Documentation",
+   "value": "",
+   "editable": false,
+   "within": "Bun",
+   "href": "https://bun.com/docs",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Discord",
+   "value": "",
+   "editable": false,
+   "within": "Bun",
+   "href": "https://bun.com/discord",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Issues",
+   "value": "",
+   "editable": false,
+   "within": "Bun",
+   "href": "https://github.com/oven-sh/bun/issues/new",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Roadmap",
+   "value": "",
+   "editable": false,
+   "within": "Bun",
+   "href": "https://github.com/oven-sh/bun/issues/159",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Read the docs →",
+   "value": "",
+   "editable": false,
+   "within": "Bun",
+   "href": "https://bun.com/docs",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Permalink: Read the docs →",
+   "value": "",
+   "editable": false,
+   "within": "Read the docs →",
+   "href": "https://github.com/oven-sh/bun#read-the-docs-",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Permalink: What is Bun?",
+   "value": "",
+   "editable": false,
+   "within": "What is Bun?",
+   "href": "https://github.com/oven-sh/bun#what-is-bun",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Permalink: Install",
+   "value": "",
+   "editable": false,
+   "within": "Install",
+   "href": "https://github.com/oven-sh/bun#install",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "CPU requirements",
+   "value": "",
+   "editable": false,
+   "within": "Install",
+   "href": "https://bun.com/docs/installation#cpu-requirements",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Permalink: Upgrade",
+   "value": "",
+   "editable": false,
+   "within": "Upgrade",
+   "href": "https://github.com/oven-sh/bun#upgrade",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "View canary build",
+   "value": "",
+   "editable": false,
+   "within": "Upgrade",
+   "href": "https://github.com/oven-sh/bun/releases/tag/canary",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Permalink: Quick links",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://github.com/oven-sh/bun#quick-links",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "What is Bun?",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/index",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Installation",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/installation",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Quickstart",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/quickstart",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "TypeScript",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/typescript",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "TypeScript 6",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/typescript-6",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun init",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/templating/init",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun create",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/templating/create",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun run",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/index",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "File types (Loaders)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/file-types",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "JSX",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/jsx",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Environment variables",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/environment-variables",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bun APIs",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/bun-apis",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Web APIs",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/web-apis",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Node.js compatibility",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/nodejs-compat",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Plugins",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/plugins",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Watch mode / Hot Reloading",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/watch-mode",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Module resolution",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/module-resolution",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Auto-install",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/auto-install",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bunfig.toml",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/bunfig",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Debugger",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/debugger",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "REPL",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/repl",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "$ Shell",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/shell",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun install",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/cli/install",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun add",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/cli/add",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun remove",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/cli/remove",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun update",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/cli/update",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun link",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/cli/link",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun pm",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/cli/pm",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun outdated",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/cli/outdated",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun publish",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/cli/publish",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun patch",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/cli/patch",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun why",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/cli/why",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun audit",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/cli/audit",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun info",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/cli/info",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Global cache",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/global-cache",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Global store",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/global-store",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Isolated installs",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/isolated-installs",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Workspaces",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/workspaces",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Catalogs",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/catalogs",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Lifecycle scripts",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/lifecycle",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Filter",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/filter",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Lockfile",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/lockfile",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Scopes and registries",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/scopes-registries",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Overrides and resolutions",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/overrides",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Security scanner API",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/security-scanner-api",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": ".npmrc",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/npmrc",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bun.build",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/bundler/index",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Loaders",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/bundler/loaders",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Plugins",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/bundler/plugins",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Macros",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/bundler/macros",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "vs esbuild",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/bundler/esbuild",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Single-file executable",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/bundler/executables",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "CSS",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/bundler/css",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTML & static sites",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/bundler/html-static",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Hot Module Replacement (HMR)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/bundler/hot-reloading",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Full-stack with HTML imports",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/bundler/fullstack",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Standalone HTML",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/bundler/standalone-html",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bytecode caching",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/bundler/bytecode",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Minifier",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/bundler/minifier",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun test",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/test/index",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Writing tests",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/test/writing-tests",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Lifecycle hooks",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/test/lifecycle",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Mocks",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/test/mocks",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Snapshots",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/test/snapshots",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Dates and times",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/test/dates-times",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "DOM testing",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/test/dom",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Code coverage",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/test/code-coverage",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Configuration",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/test/configuration",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Discovery",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/test/discovery",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Reporters",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/test/reporters",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Runtime Behavior",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/test/runtime-behavior",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bunx",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/pm/bunx",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTTP server (Bun.serve)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/http/server",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTTP routing",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/http/routing",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTTP error handling",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/http/error-handling",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTTP metrics",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/http/metrics",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "WebSockets",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/http/websockets",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Workers",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/workers",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Binary data",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/binary-data",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Streams",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/streams",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "File I/O (Bun.file)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/file-io",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Archive (tar)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/archive",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "SQLite (bun:sqlite)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/sqlite",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "PostgreSQL (Bun.sql)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/sql",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Redis (Bun.redis)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/redis",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "S3 Client (Bun.s3)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/s3",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "FileSystemRouter",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/file-system-router",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "TCP sockets",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/networking/tcp",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "UDP sockets",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/networking/udp",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Globals",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/globals",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Child processes (spawn)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/child-process",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cron (Bun.cron)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/cron",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "WebView",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/webview",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Transpiler (Bun.Transpiler)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/transpiler",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Hashing",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/hashing",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Colors (Bun.color)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/color",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Console",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/console",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "FFI (bun:ffi)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/ffi",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "C Compiler (bun:ffi cc)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/c-compiler",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLRewriter",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/html-rewriter",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Cookies (Bun.Cookie)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/cookies",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "CSRF (Bun.CSRF)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/csrf",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Secrets (Bun.secrets)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/secrets",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "YAML (Bun.YAML)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/yaml",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "TOML (Bun.TOML)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/toml",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "JSON5",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/json5",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "JSONL",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/jsonl",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Markdown",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/markdown",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Image processing",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/image",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Utils",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/utils",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Node-API",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/node-api",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Glob (Bun.Glob)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/glob",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Semver (Bun.semver)",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/semver",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "DNS",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/networking/dns",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "fetch API extensions",
+   "value": "",
+   "editable": false,
+   "within": "Quick links",
+   "href": "https://bun.com/docs/runtime/networking/fetch",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Permalink: Guides",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://github.com/oven-sh/bun#guides",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Deploy to Vercel",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/deployment/vercel",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Deploy to Railway",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/deployment/railway",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Deploy to Render",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/deployment/render",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Deploy to AWS Lambda",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/deployment/aws-lambda",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Deploy to DigitalOcean",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/deployment/digital-ocean",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Deploy to Google Cloud Run",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/deployment/google-cloud-run",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Blob to a string",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/blob-to-string",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Buffer to a blob",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/buffer-to-blob",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Blob to a DataView",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/blob-to-dataview",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Buffer to a string",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/buffer-to-string",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Blob to a ReadableStream",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/blob-to-stream",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Blob to a Uint8Array",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/blob-to-typedarray",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a DataView to a string",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/dataview-to-string",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Uint8Array to a Blob",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/typedarray-to-blob",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Blob to an ArrayBuffer",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/blob-to-arraybuffer",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert an ArrayBuffer to a Blob",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/arraybuffer-to-blob",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Buffer to a Uint8Array",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/buffer-to-typedarray",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Uint8Array to a Buffer",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/typedarray-to-buffer",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Uint8Array to a string",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/typedarray-to-string",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Buffer to an ArrayBuffer",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/buffer-to-arraybuffer",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert an ArrayBuffer to a Buffer",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/arraybuffer-to-buffer",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert an ArrayBuffer to a string",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/arraybuffer-to-string",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Uint8Array to a DataView",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/typedarray-to-dataview",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Buffer to a ReadableStream",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/buffer-to-readablestream",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Uint8Array to an ArrayBuffer",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/typedarray-to-arraybuffer",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert an ArrayBuffer to a Uint8Array",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/arraybuffer-to-typedarray",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert an ArrayBuffer to an array of numbers",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/arraybuffer-to-array",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Uint8Array to a ReadableStream",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/binary/typedarray-to-readablestream",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Use React and JSX",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/react",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Use Gel with Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/gel",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Use Prisma with Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/prisma",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Use Prisma Postgres with Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/prisma-postgres",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Add Sentry to a Bun app",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/sentry",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Create a Discord bot",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/discordjs",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Run Bun as a daemon with PM2",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/pm2",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Use Drizzle ORM with Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/drizzle",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Use Upstash Redis with Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/upstash",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Build an app with Nuxt and Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/nuxt",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Build an app with Qwik and Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/qwik",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Build an app with Astro and Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/astro",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Build an app with Remix and Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/remix",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Build a frontend using Vite and Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/vite",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Build an app with Next.js and Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/nextjs",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Run Bun as a daemon with systemd",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/systemd",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Build an HTTP server using Hono and Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/hono",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Build an app with SvelteKit and Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/sveltekit",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Build an app with SolidStart and Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/solidstart",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Build an app with TanStack Start and Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/tanstack-start",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Build an HTTP server using Elysia and Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/elysia",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Build an HTTP server using StricJS and Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/stric",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Containerize a Bun application with Docker",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/docker",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Build an HTTP server using Express and Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/express",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Use Neon Postgres through Drizzle ORM",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/neon-drizzle",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Server-side render (SSR) a React component",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/ssr-react",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Read and write data to MongoDB using Mongoose and Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/mongoose",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Use Neon's Serverless Postgres with Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/ecosystem/neon-serverless-postgres",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Extract links from a webpage using HTMLRewriter",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/html-rewriter/extract-links",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Extract social share images and Open Graph tags",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/html-rewriter/extract-social-meta",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Hot reload an HTTP server",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/http/hot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Common HTTP server usage",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/http/server",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Write a simple HTTP server",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/http/simple",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Configure TLS on an HTTP server",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/http/tls",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Send an HTTP request using fetch",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/http/fetch",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Proxy HTTP requests using fetch()",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/http/proxy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Start a cluster of HTTP servers",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/http/cluster",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Stream a file as an HTTP Response",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/http/stream-file",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "fetch with unix domain sockets in Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/http/fetch-unix",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Upload files via HTTP using FormData",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/http/file-uploads",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Streaming HTTP Server with Async Iterators",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/http/stream-iterator",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Streaming HTTP Server with Node.js Streams",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/http/stream-node-streams-in-bun",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Server-Sent Events (SSE) with Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/http/sse",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Add a dependency",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/add",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Add a Git dependency",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/add-git",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Add a peer dependency",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/add-peer",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Add a trusted dependency",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/trusted",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Add a development dependency",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/add-dev",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Add a tarball dependency",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/add-tarball",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Add an optional dependency",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/add-optional",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Generate a yarn-compatible lockfile",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/yarnlock",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Configuring a monorepo using workspaces",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/workspaces",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Install a package under a different name",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/npm-alias",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Install dependencies with Bun in GitHub Actions",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/cicd",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Using bun install with Artifactory",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/jfrog-artifactory",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Configure git to diff Bun's lockb lockfile",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/git-diff-bun-lockfile",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Override the default npm registry for bun install",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/custom-registry",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Using bun install with an Azure Artifacts npm registry",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/azure-artifacts",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Migrate from npm install to bun install",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/from-npm-install-to-bun-install",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Configure a private registry for an organization scope with bun install",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/install/registry-scope",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Read from stdin",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/process/stdin",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Listen for CTRL+C",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/process/ctrl-c",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Spawn a child process",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/process/spawn",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Listen to OS signals",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/process/os-signals",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Parse command-line arguments",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/process/argv",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Read stderr from a child process",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/process/spawn-stderr",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Read stdout from a child process",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/process/spawn-stdout",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Get the process uptime in nanoseconds",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/process/nanoseconds",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Spawn a child process and communicate using IPC",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/process/ipc",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Read a JSON file",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/read-file/json",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Check if a file exists",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/read-file/exists",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Read a file as a string",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/read-file/string",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Read a file to a Buffer",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/read-file/buffer",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Get the MIME type of a file",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/read-file/mime",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Watch a directory for changes",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/read-file/watch",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Read a file as a ReadableStream",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/read-file/stream",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Read a file to a Uint8Array",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/read-file/uint8array",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Read a file to an ArrayBuffer",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/read-file/arraybuffer",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Delete files",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/delete-file",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Run a Shell Command",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/shell",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Import a JSON file",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/import-json",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Import a TOML file",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/import-toml",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Import a YAML file",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/import-yaml",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Import a JSON5 file",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/import-json5",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Set a time zone in Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/timezone",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Set environment variables",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/set-env",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Re-map import paths",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/tsconfig-paths",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Delete directories",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/delete-directory",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Read environment variables",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/read-env",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Import a HTML file as text",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/import-html",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Install and run Bun in GitHub Actions",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/cicd",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Debugging Bun with the web debugger",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/web-debugger",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Install TypeScript declarations for Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/typescript",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Debugging Bun with the VS Code extension",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/vscode-debugger",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Inspect memory usage using V8 heap snapshots",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/heap-snapshot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Define and replace static globals & constants",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/define-constant",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Build-time constants with --define",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/build-time-constants",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Codesign a single-file JavaScript executable on macOS",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/runtime/codesign-macos-executable",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a ReadableStream to JSON",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/streams/to-json",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a ReadableStream to a Blob",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/streams/to-blob",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a ReadableStream to a Buffer",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/streams/to-buffer",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a ReadableStream to a string",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/streams/to-string",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a ReadableStream to a Uint8Array",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/streams/to-typedarray",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a ReadableStream to an array of chunks",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/streams/to-array",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Node.js Readable to JSON",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/streams/node-readable-to-json",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a ReadableStream to an ArrayBuffer",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/streams/to-arraybuffer",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Node.js Readable to a Blob",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/streams/node-readable-to-blob",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Node.js Readable to a string",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/streams/node-readable-to-string",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Node.js Readable to an Uint8Array",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/streams/node-readable-to-uint8array",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a Node.js Readable to an ArrayBuffer",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/streams/node-readable-to-arraybuffer",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Spy on methods in bun test",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/spy-on",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Bail early with the Bun test runner",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/bail",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Mock functions in bun test",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/mock-functions",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Run tests in watch mode with Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/watch-mode",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Use snapshot testing in bun test",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/snapshot",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Skip tests with the Bun test runner",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/skip-tests",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Using Testing Library with Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/testing-library",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Update snapshots in bun test",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/update-snapshots",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Run your tests with the Bun test runner",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/run-tests",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Set the system time in Bun's test runner",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/mock-clock",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Set a per-test timeout with the Bun test runner",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/timeout",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Migrate from Jest to Bun's test runner",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/migrate-from-jest",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Write browser DOM tests with Bun and happy-dom",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/happy-dom",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Mark a test as a \"todo\" with the Bun test runner",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/todo-tests",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Re-run tests multiple times with the Bun test runner",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/rerun-each",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Generate code coverage reports with the Bun test runner",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/coverage",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "import, require, and test Svelte components with bun test",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/svelte-test",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Set a code coverage threshold with the Bun test runner",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/coverage-threshold",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Selectively run tests concurrently with glob patterns",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/test/concurrent-test-glob",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Generate a UUID",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/javascript-uuid",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Hash a password",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/hash-a-password",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Escape an HTML string",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/escape-html",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Get the current Bun version",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/version",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Upgrade Bun to the latest version",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/upgrade",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Encode and decode base64 strings",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/base64",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Compress and decompress data with gzip",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/gzip",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Sleep for a fixed number of milliseconds",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/sleep",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Detect when code is executed with Bun",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/detect-bun",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Check if two objects are deeply equal",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/deep-equals",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Compress and decompress data with DEFLATE",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/deflate",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Get the absolute path to the current entrypoint",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/main",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Get the directory of the current file",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/import-meta-dir",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Check if the current file is the entrypoint",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/entrypoint",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Get the file name of the current file",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/import-meta-file",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert a file URL to an absolute path",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/file-url-to-path",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Convert an absolute path to a file URL",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/path-to-file-url",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Get the absolute path of the current file",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/import-meta-path",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Get the path to an executable bin file",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/util/which-path-to-executable-bin",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Build a publish-subscribe WebSocket server",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/websocket/pubsub",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Build a simple WebSocket server",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/websocket/simple",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Enable compression for WebSocket messages",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/websocket/compression",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Set per-socket contextual data on a WebSocket",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/websocket/context",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Delete a file",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/write-file/unlink",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Write to stdout",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/write-file/stdout",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Write a file to stdout",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/write-file/cat",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Write a Blob to a file",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/write-file/blob",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Write a string to a file",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/write-file/basic",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Append content to a file",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/write-file/append",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Write a file incrementally",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/write-file/filesink",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Write a Response to a file",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/write-file/response",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Copy a file to another location",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/write-file/file-cp",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Write a ReadableStream to a file",
+   "value": "",
+   "editable": false,
+   "within": "Guides",
+   "href": "https://bun.com/guides/write-file/stream",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Permalink: Contributing",
+   "value": "",
+   "editable": false,
+   "within": "Contributing",
+   "href": "https://github.com/oven-sh/bun#contributing",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Project > Contributing",
+   "value": "",
+   "editable": false,
+   "within": "Contributing",
+   "href": "https://bun.com/docs/project/contributing",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Permalink: License",
+   "value": "",
+   "editable": false,
+   "within": "License",
+   "href": "https://github.com/oven-sh/bun#license",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Project > License",
+   "value": "",
+   "editable": false,
+   "within": "License",
+   "href": "https://bun.com/docs/project/license",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun.com",
+   "value": "",
+   "editable": false,
+   "within": "About",
+   "href": "https://bun.com/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bun",
+   "value": "",
+   "editable": false,
+   "within": "Topics",
+   "href": "https://github.com/topics/bun",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "bundler",
+   "value": "",
+   "editable": false,
+   "within": "Topics",
+   "href": "https://github.com/topics/bundler",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "javascript",
+   "value": "",
+   "editable": false,
+   "within": "Topics",
+   "href": "https://github.com/topics/javascript",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "javascriptcore",
+   "value": "",
+   "editable": false,
+   "within": "Topics",
+   "href": "https://github.com/topics/javascriptcore",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "jsx",
+   "value": "",
+   "editable": false,
+   "within": "Topics",
+   "href": "https://github.com/topics/jsx",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "nodejs",
+   "value": "",
+   "editable": false,
+   "within": "Topics",
+   "href": "https://github.com/topics/nodejs",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "npm",
+   "value": "",
+   "editable": false,
+   "within": "Topics",
+   "href": "https://github.com/topics/npm",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "react",
+   "value": "",
+   "editable": false,
+   "within": "Topics",
+   "href": "https://github.com/topics/react",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "rust",
+   "value": "",
+   "editable": false,
+   "within": "Topics",
+   "href": "https://github.com/topics/rust",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "rust-lang",
+   "value": "",
+   "editable": false,
+   "within": "Topics",
+   "href": "https://github.com/topics/rust-lang",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "transpiler",
+   "value": "",
+   "editable": false,
+   "within": "Topics",
+   "href": "https://github.com/topics/transpiler",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "typescript",
+   "value": "",
+   "editable": false,
+   "within": "Topics",
+   "href": "https://github.com/topics/typescript",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Readme",
+   "value": "",
+   "editable": false,
+   "within": "Resources",
+   "href": "https://github.com/oven-sh/bun#readme-ov-file",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "License",
+   "value": "",
+   "editable": false,
+   "within": "Resources",
+   "href": "https://github.com/oven-sh/bun#License-1-ov-file",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Code of conduct",
+   "value": "",
+   "editable": false,
+   "within": "Code of conduct",
+   "href": "https://github.com/oven-sh/bun#coc-ov-file",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Contributing",
+   "value": "",
+   "editable": false,
+   "within": "Contributing",
+   "href": "https://github.com/oven-sh/bun#contributing-ov-file",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Security policy",
+   "value": "",
+   "editable": false,
+   "within": "Security policy",
+   "href": "https://github.com/oven-sh/bun#security-ov-file",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Activity",
+   "value": "",
+   "editable": false,
+   "within": "Security policy",
+   "href": "https://github.com/oven-sh/bun/activity",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Custom properties",
+   "value": "",
+   "editable": false,
+   "within": "Security policy",
+   "href": "https://github.com/oven-sh/bun/custom-properties",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "5.0k forks",
+   "value": "",
+   "editable": false,
+   "within": "Forks",
+   "href": "https://github.com/oven-sh/bun/forks",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Report repository",
+   "value": "",
+   "editable": false,
+   "within": "Forks",
+   "href": "https://github.com/contact/report-content?content_url=https%3A%2F%2Fgithub.com%2Foven-sh%2Fbun&report=oven-sh+%28user%29",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "GitHub Homepage",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://github.com/",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "Terms",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation",
+   "href": "https://docs.github.com/site-policy/github-terms/github-terms-of-service",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Privacy",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation",
+   "href": "https://docs.github.com/site-policy/privacy-policies/github-privacy-statement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Security",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation",
+   "href": "https://github.com/security",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Status",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation",
+   "href": "https://www.githubstatus.com/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Community",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation",
+   "href": "https://github.community/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Docs",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation",
+   "href": "https://docs.github.com/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Contact",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation",
+   "href": "https://support.github.com/?tags=dotcom-footer",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Manage cookies",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Do not share my personal information",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Dismiss error",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "button",
+   "name": "Close dialog",
+   "value": "",
+   "editable": false,
+   "within": "Footer navigation",
+   "href": "",
+   "icon": true
+  }
+ ]
+}

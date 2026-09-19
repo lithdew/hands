@@ -37,6 +37,12 @@ export type Intent = {
   doneWhen: string;
   /** Things the user said not to do. */
   avoid: string[];
+  /** Exact values the result must have ("party size: 4 people"). screen.ts will not commit anything while the screen shows otherwise. */
+  facts?: string[];
+  /** Keys to press one after another on a screen that does not change (a calculator: "1","2","×","3","1","="). screen.ts maps them all to controls in one request. */
+  presses?: string[];
+  /** The order to do things in, when a planner wrote one before the first look (plan.ts). Advice, like any plan. */
+  steps?: string[];
 };
 
 // ---------------------------------------------------------------- config

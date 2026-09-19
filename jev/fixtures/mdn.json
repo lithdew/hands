@@ -1,0 +1,3858 @@
+{
+ "url": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement",
+ "fetched": "2026-09-19T12:53:56.076Z",
+ "title": "HTMLElement - Web APIs | MDN",
+ "texts": [
+  "HTMLElement",
+  "In this article",
+  "Instance properties",
+  "Instance methods",
+  "Events",
+  "Drag & drop events",
+  "Interest invoker events",
+  "Toggle events",
+  "Specifications",
+  "Browser compatibility",
+  "See also",
+  "Help improve MDN"
+ ],
+ "elements": [
+  {
+   "role": "link",
+   "name": "Skip to main content",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#content",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Skip to search",
+   "value": "",
+   "editable": false,
+   "within": "",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#mdn-search",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "MDN",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Search the site",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "button",
+   "name": "Toggle navigation",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "",
+   "icon": true
+  },
+  {
+   "role": "button",
+   "name": "HTML",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTML: Markup language",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Elements",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Global attributes",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Attributes",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "See all HTML references",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference",
+   "icon": false,
+   "row": "See all…"
+  },
+  {
+   "role": "link",
+   "name": "Responsive images",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Guides/Responsive_images",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTML cheatsheet",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Guides/Cheatsheet",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Date & time formats",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Guides/Date_and_time_formats",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "See all HTML guides",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Guides",
+   "icon": false,
+   "row": "See all…"
+  },
+  {
+   "role": "link",
+   "name": "SVG",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/SVG",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "MathML",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/MathML",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "XML",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/XML",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "CSS",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "CSS: Styling language",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Properties",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Selectors",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "At-rules",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Values",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "See all CSS references",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/Reference",
+   "icon": false,
+   "row": "See all…"
+  },
+  {
+   "role": "link",
+   "name": "Box model",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Box_model/Introduction",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Animations",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Animations/Using",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Flexbox",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Flexible_box_layout/Basic_concepts",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Colors",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Colors/Applying_color",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "See all CSS guides",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/Guides",
+   "icon": false,
+   "row": "See all…"
+  },
+  {
+   "role": "link",
+   "name": "Column layouts",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/How_to/Layout_cookbook/Column_layouts",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Centering an element",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/How_to/Layout_cookbook/Center_an_element",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Card component",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/How_to/Layout_cookbook/Card",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "See all…",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/How_to/Layout_cookbook",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "JavaScriptJS",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "JavaScript: Scripting language",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/JavaScript",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Standard built-in objects",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Expressions & operators",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Statements & declarations",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Functions",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "See all JavaScript references",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference",
+   "icon": false,
+   "row": "See all…"
+  },
+  {
+   "role": "link",
+   "name": "Control flow & error handing",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Control_flow_and_error_handling",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Loops and iteration",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Loops_and_iteration",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Working with objects",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Working_with_objects",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Using classes",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_classes",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "See all JavaScript guides",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide",
+   "icon": false,
+   "row": "See all…"
+  },
+  {
+   "role": "button",
+   "name": "Web APIs",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Web APIs: Programming interfaces",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "File system API",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/File_System_API",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Fetch API",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Geolocation API",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Geolocation_API",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTML DOM API",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTML_DOM_API",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Push API",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Push_API",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Service worker API",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "See all Web API guides",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API",
+   "icon": false,
+   "row": "See all…"
+  },
+  {
+   "role": "link",
+   "name": "Using the Web animation API",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Web_Animations_API/Using_the_Web_Animations_API",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Using the Fetch API",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Working with the History API",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/History_API/Working_with_the_History_API",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Using the Web speech API",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API/Using_the_Web_Speech_API",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Using web workers",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "All",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "All web technology",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Accessibility",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/Accessibility",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTTP",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTTP",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "URI",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/URI",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Web extensions",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "WebAssembly",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/WebAssembly",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "WebDriver",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/WebDriver",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "See all web technology references",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web",
+   "icon": false,
+   "row": "See all…"
+  },
+  {
+   "role": "link",
+   "name": "Media",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/Media",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Performance",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/Performance",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Privacy",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/Privacy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Security",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/Security",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Progressive web apps",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Learn",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Learn web development",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Learn_web_development",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Getting started modules",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Learn_web_development/Getting_started",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Core modules",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Learn_web_development/Core",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "MDN Curriculum",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/curriculum/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Check out the video course from Scrimba, our partner",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://scrimba.com/frontend-path-c0j?via=mdn-learn-navbar",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Structuring content with HTML module",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Structuring_content",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "CSS styling basics module",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Styling_basics",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "CSS layout module",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/CSS_layout",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Dynamic scripting with JavaScript module",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Scripting",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Tools",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Playground",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/play",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTTP Observatory",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/observatory",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Border-image generator",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Backgrounds_and_borders/Border-image_generator",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Border-radius generator",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Backgrounds_and_borders/Border-radius_generator",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Box-shadow generator",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Backgrounds_and_borders/Box-shadow_generator",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Color format converter",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Colors/Color_format_converter",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Color mixer",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Colors/Color_mixer",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Shape generator",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Shapes/Shape_generator",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "About",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "About MDN",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/about",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Advertise with us",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/advertising",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Community",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/community",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "MDN on GitHub",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://github.com/mdn",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Blog",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/blog/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Web",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://developer.mozilla.org/en-US/docs/Web",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Web APIs",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Switch color theme",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "OS default",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Light",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Dark",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "English (US)",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Deutsch",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://developer.mozilla.org/de/docs/Web/API/HTMLElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "English (US)",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Español",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://developer.mozilla.org/es/docs/Web/API/HTMLElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Français",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://developer.mozilla.org/fr/docs/Web/API/HTMLElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "日本語",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://developer.mozilla.org/ja/docs/Web/API/HTMLElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Русский",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://developer.mozilla.org/ru/docs/Web/API/HTMLElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "中文 (简体)",
+   "value": "",
+   "editable": false,
+   "within": "header",
+   "href": "https://developer.mozilla.org/zh-CN/docs/Web/API/HTMLElement",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Baseline Widely available *",
+   "value": "",
+   "editable": false,
+   "within": "HTMLElement",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "See full compatibility",
+   "value": "",
+   "editable": false,
+   "within": "HTMLElement",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#browser_compatibility",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Learn more",
+   "value": "",
+   "editable": false,
+   "within": "HTMLElement",
+   "href": "https://developer.mozilla.org/en-US/docs/Glossary/Baseline/Compatibility",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTML",
+   "value": "",
+   "editable": false,
+   "within": "HTMLElement",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "EventTarget",
+   "value": "",
+   "editable": false,
+   "within": "HTMLElement",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/EventTarget",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Node",
+   "value": "",
+   "editable": false,
+   "within": "HTMLElement",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Node",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Element",
+   "value": "",
+   "editable": false,
+   "within": "HTMLElement",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Element",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement",
+   "value": "",
+   "editable": false,
+   "within": "HTMLElement",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Instance properties",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#instance_properties",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Instance methods",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#instance_methods",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Events",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#events",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Specifications",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#specifications",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Browser compatibility",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#browser_compatibility",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "See also",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#see_also",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Instance properties",
+   "value": "",
+   "editable": false,
+   "within": "In this article",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#instance_properties",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Element",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Element",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.accessKey",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/accessKey",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.accessKeyLabel",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/accessKeyLabel",
+   "icon": false,
+   "row": "HTMLElement.accessKeyLabel Read only"
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.anchorElement",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/anchorElement",
+   "icon": false,
+   "row": "HTMLElement.anchorElement Read only"
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.attributeStyleMap",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/attributeStyleMap",
+   "icon": false,
+   "row": "HTMLElement.attributeStyleMap Read only"
+  },
+  {
+   "role": "link",
+   "name": "StylePropertyMap",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/StylePropertyMap",
+   "icon": false,
+   "row": "A StylePropertyMap representing the declarations of the element's style attribute."
+  },
+  {
+   "role": "link",
+   "name": "style",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/style",
+   "icon": false,
+   "row": "A StylePropertyMap representing the declarations of the element's style attribute."
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.autocapitalize",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/autocapitalize",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.autofocus",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/autofocus",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "autofocus",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/select#autofocus",
+   "icon": false,
+   "row": "A boolean value reflecting the autofocus HTML global attribute, which indicates whether the control should be focused when the page loads, or when dialog or pop"
+  },
+  {
+   "role": "link",
+   "name": "<dialog>",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/dialog",
+   "icon": false,
+   "row": "A boolean value reflecting the autofocus HTML global attribute, which indicates whether the control should be focused when the page loads, or when dialog or pop"
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.autocorrect",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/autocorrect",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "autocorrect",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/autocorrect",
+   "icon": false,
+   "row": "A boolean that represents whether or not text input by a user should be automatically corrected. This reflects the autocorrect HTML global attribute."
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.contentEditable",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/contentEditable",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.dataset",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dataset",
+   "icon": false,
+   "row": "HTMLElement.dataset Read only"
+  },
+  {
+   "role": "link",
+   "name": "DOMStringMap",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/DOMStringMap",
+   "icon": false,
+   "row": "Returns a DOMStringMap with which script can read and write the element's custom data attributes (data-*)."
+  },
+  {
+   "role": "link",
+   "name": "custom data attributes",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/How_to/Use_data_attributes",
+   "icon": false,
+   "row": "Returns a DOMStringMap with which script can read and write the element's custom data attributes (data-*)."
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.dir",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dir",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.draggable",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/draggable",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.editContext",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/editContext",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "EditContext",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/EditContext",
+   "icon": false,
+   "row": "Returns the EditContext associated with the element, or null if there isn't one."
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.enterKeyHint",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/enterKeyHint",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.hidden",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/hidden",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "hidden",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/hidden",
+   "icon": false,
+   "row": "A string or boolean value reflecting the value of the element's hidden attribute."
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.inert",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/inert",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.innerText",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/innerText",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "<br>",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/br",
+   "icon": false,
+   "row": "Represents the rendered text content of a node and its descendants. As a getter, it approximates the text the user would get if they highlighted the contents of"
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.inputMode",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/inputMode",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "inputmode",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/inputmode",
+   "icon": false,
+   "row": "A string value reflecting the value of the element's inputmode attribute."
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.isContentEditable",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/isContentEditable",
+   "icon": false,
+   "row": "HTMLElement.isContentEditable Read only"
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.lang",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/lang",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.nonce",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/nonce",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.offsetHeight",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/offsetHeight",
+   "icon": false,
+   "row": "HTMLElement.offsetHeight Read only"
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.offsetLeft",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/offsetLeft",
+   "icon": false,
+   "row": "HTMLElement.offsetLeft Read only"
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.offsetParent",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/offsetParent",
+   "icon": false,
+   "row": "HTMLElement.offsetParent Read only"
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.offsetTop",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/offsetTop",
+   "icon": false,
+   "row": "HTMLElement.offsetTop Read only"
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.offsetWidth",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/offsetWidth",
+   "icon": false,
+   "row": "HTMLElement.offsetWidth Read only"
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.outerText",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/outerText",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.popover",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/popover",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "popover",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/popover",
+   "icon": false,
+   "row": "Gets and sets an element's popover state via JavaScript (\"auto\", \"hint\", or \"manual\"), and can be used for feature detection. Reflects the value of the popover "
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.spellcheck",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/spellcheck",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "spell-checking",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/spellcheck",
+   "icon": false,
+   "row": "A boolean value that controls the spell-checking hint. It is available on all HTML elements, though it doesn't affect all of them."
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.style",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/style",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "CSSStyleDeclaration",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/CSSStyleDeclaration",
+   "icon": false,
+   "row": "A CSSStyleDeclaration representing the declarations of the element's style attribute."
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.tabIndex",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/tabIndex",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.title",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/title",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.translate",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/translate",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.virtualKeyboardPolicy",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/virtualKeyboardPolicy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "<input>",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input",
+   "icon": false,
+   "row": "A string indicating the on-screen virtual keyboard behavior on devices such as tablets, mobile phones, or other devices where a hardware keyboard may not be ava"
+  },
+  {
+   "role": "link",
+   "name": "<textarea>",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/textarea",
+   "icon": false,
+   "row": "A string indicating the on-screen virtual keyboard behavior on devices such as tablets, mobile phones, or other devices where a hardware keyboard may not be ava"
+  },
+  {
+   "role": "link",
+   "name": "contenteditable",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/contenteditable",
+   "icon": false,
+   "row": "A string indicating the on-screen virtual keyboard behavior on devices such as tablets, mobile phones, or other devices where a hardware keyboard may not be ava"
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.writingSuggestions",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/writingSuggestions",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Instance methods",
+   "value": "",
+   "editable": false,
+   "within": "Instance properties",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#instance_methods",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Element",
+   "value": "",
+   "editable": false,
+   "within": "Instance methods",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Element",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.attachInternals()",
+   "value": "",
+   "editable": false,
+   "within": "Instance methods",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/attachInternals",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "ElementInternals",
+   "value": "",
+   "editable": false,
+   "within": "Instance methods",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/ElementInternals",
+   "icon": false,
+   "row": "Returns an ElementInternals object, and enables a custom element to participate in HTML forms."
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.blur()",
+   "value": "",
+   "editable": false,
+   "within": "Instance methods",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/blur",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.click()",
+   "value": "",
+   "editable": false,
+   "within": "Instance methods",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/click",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.focus()",
+   "value": "",
+   "editable": false,
+   "within": "Instance methods",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/focus",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.hidePopover()",
+   "value": "",
+   "editable": false,
+   "within": "Instance methods",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/hidePopover",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "top layer",
+   "value": "",
+   "editable": false,
+   "within": "Instance methods",
+   "href": "https://developer.mozilla.org/en-US/docs/Glossary/Top_layer",
+   "icon": false,
+   "row": "Hides a popover element by removing it from the top layer and styling it with display: none."
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.showPopover()",
+   "value": "",
+   "editable": false,
+   "within": "Instance methods",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/showPopover",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement.togglePopover()",
+   "value": "",
+   "editable": false,
+   "within": "Instance methods",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/togglePopover",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Events",
+   "value": "",
+   "editable": false,
+   "within": "Instance methods",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#events",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "addEventListener()",
+   "value": "",
+   "editable": false,
+   "within": "Events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Element",
+   "value": "",
+   "editable": false,
+   "within": "Events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Element",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "change",
+   "value": "",
+   "editable": false,
+   "within": "Events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/change_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "<input>",
+   "value": "",
+   "editable": false,
+   "within": "Events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input",
+   "icon": false,
+   "row": "Fired when the value of an <input>, <select>, or <textarea> element has been changed and committed by the user. Unlike the input event, the change event is not "
+  },
+  {
+   "role": "link",
+   "name": "<select>",
+   "value": "",
+   "editable": false,
+   "within": "Events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/select",
+   "icon": false,
+   "row": "Fired when the value of an <input>, <select>, or <textarea> element has been changed and committed by the user. Unlike the input event, the change event is not "
+  },
+  {
+   "role": "link",
+   "name": "<textarea>",
+   "value": "",
+   "editable": false,
+   "within": "Events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/textarea",
+   "icon": false,
+   "row": "Fired when the value of an <input>, <select>, or <textarea> element has been changed and committed by the user. Unlike the input event, the change event is not "
+  },
+  {
+   "role": "link",
+   "name": "input",
+   "value": "",
+   "editable": false,
+   "within": "Events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Element/input_event",
+   "icon": false,
+   "row": "Fired when the value of an <input>, <select>, or <textarea> element has been changed and committed by the user. Unlike the input event, the change event is not "
+  },
+  {
+   "role": "link",
+   "name": "command",
+   "value": "",
+   "editable": false,
+   "within": "Events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/command_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "button",
+   "value": "",
+   "editable": false,
+   "within": "Events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLButtonElement",
+   "icon": false,
+   "row": "Fires on an element that is controlled via a button with valid commandForElement and command values, whenever the button is interacted with (e.g., it is clicked"
+  },
+  {
+   "role": "link",
+   "name": "commandForElement",
+   "value": "",
+   "editable": false,
+   "within": "Events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLButtonElement/commandForElement",
+   "icon": false,
+   "row": "Fires on an element that is controlled via a button with valid commandForElement and command values, whenever the button is interacted with (e.g., it is clicked"
+  },
+  {
+   "role": "link",
+   "name": "command",
+   "value": "",
+   "editable": false,
+   "within": "Events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLButtonElement/command",
+   "icon": false,
+   "row": "Fires on an element that is controlled via a button with valid commandForElement and command values, whenever the button is interacted with (e.g., it is clicked"
+  },
+  {
+   "role": "link",
+   "name": "error",
+   "value": "",
+   "editable": false,
+   "within": "Events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/error_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "load",
+   "value": "",
+   "editable": false,
+   "within": "Events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/load_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Drag & drop events",
+   "value": "",
+   "editable": false,
+   "within": "Events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#drag_drop_events",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "drag",
+   "value": "",
+   "editable": false,
+   "within": "Drag & drop events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/drag_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "dragend",
+   "value": "",
+   "editable": false,
+   "within": "Drag & drop events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dragend_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "dragenter",
+   "value": "",
+   "editable": false,
+   "within": "Drag & drop events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dragenter_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "dragleave",
+   "value": "",
+   "editable": false,
+   "within": "Drag & drop events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dragleave_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "dragover",
+   "value": "",
+   "editable": false,
+   "within": "Drag & drop events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dragover_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "dragstart",
+   "value": "",
+   "editable": false,
+   "within": "Drag & drop events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dragstart_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "drop",
+   "value": "",
+   "editable": false,
+   "within": "Drag & drop events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/drop_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Interest invoker events",
+   "value": "",
+   "editable": false,
+   "within": "Drag & drop events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#interest_invoker_events",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "interest",
+   "value": "",
+   "editable": false,
+   "within": "Interest invoker events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/interest_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "interest invoker",
+   "value": "",
+   "editable": false,
+   "within": "Interest invoker events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Popover_API/Using_interest_invokers",
+   "icon": false,
+   "row": "Fired on the target element of an interest invoker when interest is shown, allowing code to be run in response."
+  },
+  {
+   "role": "link",
+   "name": "loseinterest",
+   "value": "",
+   "editable": false,
+   "within": "Interest invoker events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/loseinterest_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Toggle events",
+   "value": "",
+   "editable": false,
+   "within": "Interest invoker events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#toggle_events",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "beforetoggle",
+   "value": "",
+   "editable": false,
+   "within": "Toggle events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/beforetoggle_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "popover",
+   "value": "",
+   "editable": false,
+   "within": "Toggle events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Popover_API",
+   "icon": false,
+   "row": "Fired when the element is a popover or <dialog>, before it is hidden or shown."
+  },
+  {
+   "role": "link",
+   "name": "<dialog>",
+   "value": "",
+   "editable": false,
+   "within": "Toggle events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/dialog",
+   "icon": false,
+   "row": "Fired when the element is a popover or <dialog>, before it is hidden or shown."
+  },
+  {
+   "role": "link",
+   "name": "toggle",
+   "value": "",
+   "editable": false,
+   "within": "Toggle events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/toggle_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "<details>",
+   "value": "",
+   "editable": false,
+   "within": "Toggle events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/details",
+   "icon": false,
+   "row": "Fired when the element is a popover, <dialog>, or <details> element, just after it is hidden or shown."
+  },
+  {
+   "role": "link",
+   "name": "Specifications",
+   "value": "",
+   "editable": false,
+   "within": "Toggle events",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#specifications",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTML# htmlelement",
+   "value": "",
+   "editable": false,
+   "within": "Specifications",
+   "href": "https://html.spec.whatwg.org/multipage/dom.html#htmlelement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Browser compatibility",
+   "value": "",
+   "editable": false,
+   "within": "Specifications",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#browser_compatibility",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "See also",
+   "value": "",
+   "editable": false,
+   "within": "Browser compatibility",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement#see_also",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Element",
+   "value": "",
+   "editable": false,
+   "within": "See also",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Element",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Learn how to contribute",
+   "value": "",
+   "editable": false,
+   "within": "Help improve MDN",
+   "href": "https://developer.mozilla.org/en-US/docs/MDN/Community/Getting_started",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "MDN contributors",
+   "value": "",
+   "editable": false,
+   "within": "Help improve MDN",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/contributors.txt",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "View this page on GitHub",
+   "value": "",
+   "editable": false,
+   "within": "Help improve MDN",
+   "href": "https://github.com/mdn/content/blob/main/files/en-us/web/api/htmlelement/index.md?plain=1",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Report a problem with this content",
+   "value": "",
+   "editable": false,
+   "within": "Help improve MDN",
+   "href": "https://github.com/mdn/content/issues/new?template=page-report.yml&mdn-url=https%3A%2F%2Fdeveloper.mozilla.org%2Fen-US%2Fdocs%2FWeb%2FAPI%2FHTMLElement&metadata=%3C%21--+Do+not+make+changes+below+this+line+--%3E%0A%3Cdetails%3E%0A%3Csummary%3EPage+report+details%3C%2Fsummary%3E%0A%0A*+Folder%3A+%60en-us%2Fweb%2Fapi%2Fhtmlelement%60%0A*+MDN+URL%3A+https%3A%2F%2Fdeveloper.mozilla.org%2Fen-US%2Fdocs%2FWeb%2FAPI%2FHTMLElement%0A*+GitHub+URL%3A+https%3A%2F%2Fgithub.com%2Fmdn%2Fcontent%2Fblob%2Fmain%2Ffiles%2Fen-us%2Fweb%2Fapi%2Fhtmlelement%2Findex.md%0A*+Last+commit%3A+https%3A%2F%2Fgithub.com%2Fmdn%2Fcontent%2Fcommit%2F3385bda58637833eedc9b8dc41a2804e653208a7%0A*+Document+last+modified%3A+2026-08-31T21%3A05%3A38.000Z%0A%0A%3C%2Fdetails%3E",
+   "icon": false
+  },
+  {
+   "role": "text field",
+   "name": "Filter sidebar",
+   "value": "",
+   "editable": true,
+   "within": "navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Instance properties",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "accessKey",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/accessKey",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "accessKeyLabel",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/accessKeyLabel",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "anchorElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/anchorElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "attributeStyleMap",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/attributeStyleMap",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "autocapitalize",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/autocapitalize",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "autocorrect",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/autocorrect",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "autofocus",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/autofocus",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "contentEditable",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/contentEditable",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "dataset",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dataset",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "dir",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dir",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "draggable",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/draggable",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "editContext",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/editContext",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "enterKeyHint",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/enterKeyHint",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "hidden",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/hidden",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "inert",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/inert",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "innerText",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/innerText",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "inputMode",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/inputMode",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "isContentEditable",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/isContentEditable",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "lang",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/lang",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "nonce",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/nonce",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "offsetHeight",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/offsetHeight",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "offsetLeft",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/offsetLeft",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "offsetParent",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/offsetParent",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "offsetTop",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/offsetTop",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "offsetWidth",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/offsetWidth",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "outerText",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/outerText",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "popover",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/popover",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "spellcheck",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/spellcheck",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "style",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/style",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "tabIndex",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/tabIndex",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "title",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/title",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "translate",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/translate",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "virtualKeyboardPolicy",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/virtualKeyboardPolicy",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "writingSuggestions",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/writingSuggestions",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Instance methods",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "attachInternals()",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/attachInternals",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "blur()",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/blur",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "click()",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/click",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "focus()",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/focus",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "hidePopover()",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/hidePopover",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "showPopover()",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/showPopover",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "togglePopover()",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/togglePopover",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Events",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "beforetoggle",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/beforetoggle_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "change",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/change_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "command",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/command_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "drag",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/drag_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "dragend",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dragend_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "dragenter",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dragenter_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "dragleave",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dragleave_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "dragover",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dragover_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "dragstart",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dragstart_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "drop",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/drop_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "error",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/error_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "interest",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/interest_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "load",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/load_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "loseinterest",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/loseinterest_event",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "toggle",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/toggle_event",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Inheritance",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Element",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Element",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Node",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Node",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "EventTarget",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/EventTarget",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Related pages for HTML DOM",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "BeforeUnloadEvent",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/BeforeUnloadEvent",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "DOMStringMap",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/DOMStringMap",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "ErrorEvent",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/ErrorEvent",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLAnchorElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLAnchorElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLAreaElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLAreaElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLAudioElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLAudioElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLBRElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLBRElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLBaseElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLBaseElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLBodyElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLBodyElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLButtonElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLButtonElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLCanvasElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLDListElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLDListElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLDataElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLDataElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLDataListElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLDataListElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLDialogElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLDialogElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLDivElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLDivElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLDocument",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLDocument",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLEmbedElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLEmbedElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLFieldSetElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLFieldSetElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLFormControlsCollection",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLFormControlsCollection",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLFormElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLFormElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLFrameSetElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLFrameSetElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLGeolocationElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLGeolocationElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLHRElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLHRElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLHeadElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLHeadElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLHeadingElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLHeadingElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLHtmlElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLHtmlElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLIFrameElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLIFrameElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLImageElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLImageElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLInputElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLLIElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLLIElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLLabelElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLLabelElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLLegendElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLLegendElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLLinkElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLLinkElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLMapElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLMapElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLMediaElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLMenuElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLMenuElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLMetaElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLMetaElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLMeterElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLMeterElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLModElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLModElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLOListElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLOListElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLObjectElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLObjectElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLOptGroupElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLOptGroupElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLOptionElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLOptionElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLOptionsCollection",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLOptionsCollection",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLOutputElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLOutputElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLParagraphElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLParagraphElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLPictureElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLPictureElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLPreElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLPreElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLProgressElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLProgressElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLQuoteElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLQuoteElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLScriptElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLScriptElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLSelectElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLSelectElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLSourceElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLSourceElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLSpanElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLSpanElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLStyleElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLStyleElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLTableCaptionElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLTableCaptionElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLTableCellElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLTableCellElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLTableColElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLTableColElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLTableElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLTableElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLTableRowElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLTableRowElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLTableSectionElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLTableSectionElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLTemplateElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLTemplateElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLTextAreaElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLTextAreaElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLTimeElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLTimeElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLTitleElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLTitleElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLTrackElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLTrackElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLUListElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLUListElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLUnknownElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLUnknownElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HTMLVideoElement",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "HashChangeEvent",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HashChangeEvent",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "History",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/History",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "ImageData",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/ImageData",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Location",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Location",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "MessageChannel",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/MessageChannel",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "MessageEvent",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/MessageEvent",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "MessagePort",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/MessagePort",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Navigator",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Navigator",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "PageRevealEvent",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/PageRevealEvent",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "PageSwapEvent",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/PageSwapEvent",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "PageTransitionEvent",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/PageTransitionEvent",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Plugin",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Plugin",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "PluginArray",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/PluginArray",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "PromiseRejectionEvent",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "RadioNodeList",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/RadioNodeList",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "TimeRanges",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/TimeRanges",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "UserActivation",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/UserActivation",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "ValidityState",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/ValidityState",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Window",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/Window",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "WorkletGlobalScope",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/WorkletGlobalScope",
+   "icon": false
+  },
+  {
+   "role": "button",
+   "name": "Guides",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Using microtasks in JavaScript with queueMicrotask()",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTML_DOM_API/Microtask_guide",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "In depth: Microtasks and the JavaScript runtime environment",
+   "value": "",
+   "editable": false,
+   "within": "navigation",
+   "href": "https://developer.mozilla.org/en-US/docs/Web/API/HTML_DOM_API/Microtask_guide/In_depth",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "MDN logo",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.mozilla.org/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "MDN on GitHub",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://github.com/mdn/",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "MDN on Bluesky",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://bsky.app/profile/developer.mozilla.org",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "MDN on X",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://x.com/mozdevnet",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "MDN on Mastodon",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://mastodon.social/@mdn",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "MDN blog RSS feed",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.mozilla.org/en-US/blog/rss.xml",
+   "icon": true
+  },
+  {
+   "role": "link",
+   "name": "About",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.mozilla.org/en-US/about",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Blog",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.mozilla.org/en-US/blog/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Mozilla careers",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.mozilla.org/en-US/careers/listings/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Advertise with us",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.mozilla.org/en-US/advertising",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "MDN Plus",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.mozilla.org/en-US/plus",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Product help",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://support.mozilla.org/products/mdn-plus",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "MDN Community",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.mozilla.org/en-US/community",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Community resources",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.mozilla.org/en-US/docs/MDN/Community",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Writing guidelines",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.mozilla.org/en-US/docs/MDN/Writing_guidelines",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "MDN Discord",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.mozilla.org/discord",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "MDN on GitHub",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://github.com/mdn",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Web technologies",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.mozilla.org/en-US/docs/Web",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Learn web development",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.mozilla.org/en-US/docs/Learn_web_development",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Guides",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.mozilla.org/en-US/docs/MDN/Guides",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Tutorials",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.mozilla.org/en-US/docs/MDN/Tutorials",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Glossary",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.mozilla.org/en-US/docs/Glossary",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Hacks blog",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://hacks.mozilla.org/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Mozilla logo",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.mozilla.org/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Website Privacy Notice",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.mozilla.org/privacy/websites/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Telemetry Settings",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.mozilla.org/en-US/privacy/websites/data-preferences/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Legal",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.mozilla.org/about/legal/terms/mozilla",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "Community Participation Guidelines",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://www.mozilla.org/about/governance/policies/participation/",
+   "icon": false
+  },
+  {
+   "role": "link",
+   "name": "a Creative Commons license",
+   "value": "",
+   "editable": false,
+   "within": "footer",
+   "href": "https://developer.mozilla.org/docs/MDN/Writing_guidelines/Attrib_copyright_license",
+   "icon": false
+  }
+ ]
+}

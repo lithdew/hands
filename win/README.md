@@ -36,6 +36,27 @@ hand state + front window, once a second -> puk-win pip -> live preview (DWM thu
 
 Previews show while a hand is working (blue), waiting for approval (amber) or failed (red), stay green for a few seconds after it finishes, and hide when it is idle, like the Omarchy tiles. A hand with no window yet says so instead of showing a black box. They never take focus.
 
+## Sign the hands in, once
+
+A hand's browser is not your Chrome. It is Puk's own profile (`%LOCALAPPDATA%\Puk\hands\<id>\browser`), so Gmail, Keep, Messages and the rest open signed out until you sign in inside it:
+
+```sh
+bun win/desktop.ts login          # every hand, one after another; or: login 1, login 1,2, login bench
+bun win/desktop.ts sessions       # which sites each hand is signed in to (shows no window)
+```
+
+`login` closes the hand's background browser, opens the same profile as an ordinary window on your desktop, waits until you close it, and says what it found ("Hand 1 is signed in to: Google"). The profile is kept, so this is once per hand, not once per run. While `bun win/serve.ts` is running the command goes through it (`POST /login?hand=1`, state on `GET /login`), because the server owns those browsers; a hand that is working refuses, and a hand whose sign-in window is open tells a task so instead of starting.
+
+Why a window of its own, and not your Chrome:
+
+- **Your Chrome cannot be driven.** It has no DevTools port, Chrome 136 and later ignores `--remote-debugging-port` for the default profile, UI Automation sees next to nothing on another desktop, and acting on your window would take your screen. Its profile is never read, copied or pointed at.
+- **The sign-in window has none of the hand's switches.** Google refuses sign-in ("This browser or app may not be secure") to a browser it takes for automated, and a DevTools port is one of the things it looks at. The session it grants is an ordinary cookie; the hand's browser, with DevTools, uses it afterwards like any other. `PUK_WIN_LOGIN_FLAGS` appends switches to that window; the flow was tested end to end with `--headless=new --remote-debugging-port=0` standing in for the person.
+- **One profile per hand stays.** One shared profile would mean one Chrome process for all hands: the DevTools target is found by window title (`browser.ts`), so two hands on the same site would drive each other's page, the sweep that clears a leftover browser at first launch would take the other hands' windows with it, and the bench could no longer run beside a server. Copying a signed-in profile to the other hands was rejected too: two browsers rotating the same Google session cookies (`__Secure-1PSIDTS`, device-bound sessions) can sign each other out, and a live cookie database does not copy cleanly.
+
+A hand that still lands on a sign-in page stops and says which command fixes it: `signInWall(url, title, hand)` in `session.ts` knows Google's and Microsoft's sign-in pages, the brochure Google shows signed-out visitors instead of Gmail, the Messages pairing page and sites with a login address of their own; `handWall(hand)` in `desktop.ts` asks the hand's page and looks twice, because a signed-in browser passes through the same addresses for a moment.
+
+"Click on that email" is about *your* window. `userForeground()` / `userWindows()` give its title and app (your foreground window, or what is right behind Puk's panel) for understanding the request only. The hand opens the same site in its own browser and never touches yours.
+
 For a log worth reading afterwards: `PUK_DEBUG=1 bun win/serve.ts 2 2> out/win/serve.log`.
 
 ## Jev first, vision second
@@ -57,14 +78,15 @@ request -> one Jev call: which app? only open it? does the speaker want an answe
 
 Measured with `bun win/bench.ts` (2026-09-19, on battery, 1.4 GB RAM free, VPN): "go to youtube" 6.8 s, of which 5.6 s is the page loading and 0.4 s is Jev; "search wikipedia for capybaras" 22.8 s: one Jev action (0.9 s), 14 s of two page loads, 4.5 s for the vision model to write the answer. The same tasks took 37 to 79 s before.
 
-UI Automation is not used to let Jev drive native apps: on a window on another desktop it exposes almost nothing (Calculator: no elements; Paint: its title bar) and takes 1 to 3 s a look. `PUK_JEV_FIRST=0` turns this off and every task goes to the vision agent.
+**Native applications are Jev's too, through UI Automation** (`uia.cs`, `uia.ts`; 2026-09-19). It was once written off here: asked through its top-level handle, a window on another desktop shows its title bar and nothing else (Paint: 7 nodes). Its content's own child windows, the WinUI islands and the classic controls, still answer, so `uia.cs` reads each child window as a root and merges them: Paint 57 controls with every colour by name, Character Map 345, in one cached request of 5 to 450 ms. Actions are patterns (`Invoke`, `Select`, `Toggle`, `Expand`), which need no pointer and no focus. `bun win/native.eval.ts` (live, on its own desktop): "make red the main colour" in Paint and "put the word hello in the characters to copy box" in Character Map, each one plan, one look, one action, 3 Jev requests, about 3 s after the plan, confirmed from the application's own state, with the user's desktop and focus logged unchanged after every phase. Two things it cost to learn: `ValuePattern.SetValue` on a classic edit control takes the keyboard focus, which activates the hidden window, and Windows then follows it onto the hand's desktop (the user's screen flipped); an edit control with a window of its own is now sent `EM_SETSEL` and `EM_REPLACESEL` instead, and every native action notes the user's desktop and focus first and puts them back if they moved. **UWP applications stay closed**: Calculator, Settings and Clock are detached into a `CoreWindow` that serves one node while hidden; they remain the vision agent's, as does anything made by eye (a canvas ignores posted drags). Not yet tried: menus and dialogs that open as separate windows, Office, Electron apps, a native key press. `PUK_JEV_FIRST=0` turns this off and every task goes to the vision agent.
 
 ## Files
 
 | File | Purpose |
 | --- | --- |
 | `serve.ts` | Entry point. Runs `servePuk` on a private port with Windows dependencies and fronts it, because `/desktop.png` and `/desktop/*` in `hotkey.ts` call `pip.ts` directly |
-| `desktop.ts` | Hands as virtual desktops, app discovery and launch, window state, the Cua connection `ai.ts` expects, CLI (`up`, `list`, `down`) |
+| `desktop.ts` | Hands as virtual desktops, app discovery and launch, window state, the Cua connection `ai.ts` expects, signing a hand's browser in, CLI (`up`, `list`, `down`, `login`, `sessions`) |
+| `session.ts` | Pure: which page is a sign-in wall, which cookies mean a session, what the user is looking at |
 | `browser.ts` | Background input for the hand's browser over DevTools |
 | `observe.ts` | The hand's browser page as labelled elements for Jev |
 | `jev.ts` | Jev-first runtime: Jev opens apps and drives the browser, the vision agent takes the rest |
@@ -86,6 +108,11 @@ UI Automation is not used to let Jev drive native apps: on a window on another d
 | DevTools `Input.dispatch*` sent directly | Works with no focus: clicks, text, keys, wheel, a held stroke |
 | Foreground delivery to a window on another desktop | Lands on the **user's** screen instead. Never used for a hand that is not visible |
 | Activating a window on another desktop (a UIA click does) | The shell reassigns it to the current desktop |
+| UI Automation tree of a hidden window, from its top-level handle | Title bar only (Paint: 7 nodes) |
+| The same, reading each child window as a root | The whole window (Paint: 57 controls, Character Map: 345), 5 to 450 ms |
+| UI Automation tree of a hidden UWP window (Calculator) | One node. Its content is detached into a `CoreWindow` that serves nothing |
+| `Invoke` / `Select` on a hidden window | Works, takes no focus |
+| `ValuePattern.SetValue` on a hidden classic edit control | Sets the text, takes the focus, and Windows switches the user to that desktop. `EM_REPLACESEL` to the control does not |
 
 So:
 
@@ -122,7 +149,7 @@ Open, in the order I would take them:
 1. **Voice + Jev-first together.** `refine` rebuilds the intent while the speaker talks and `runIntent` holds typing until speech ends; exercised by types and the Omarchy tests, not yet by a real utterance on Windows.
 2. **One sentence became two tasks.** "Could you open Paint" arrived from the transcriber as `"Could you open Pay? Paint"` and the listener's cut split it across two hands. That is calibration in `jev/listen.ts`, shared with Omarchy, left unchanged.
 3. **Approvals from Jev** reach the panel as `tool: "jev"` with the action text. Seen pausing correctly (`click "Minimize"`, `off_goal 0.89`); approving one from the panel is untested.
-4. **Native apps beyond opening them** go to the vision agent. Driving them with Jev would need element access that works on a hidden window; UI Automation does not.
+4. **UWP applications and anything made by eye** go to the vision agent. Other native windows are read and operated through UI Automation (`uia.ts`); see above for what that was measured on.
 5. **Two hands at once** is untested. Launches are serialized; everything else is per hand.
 6. Page loads were slow on the test machine (battery, 1.4 GB free RAM, VPN). Opting the hand's browser out of Windows power throttling (`SetProcessInformation`, `ProcessPowerThrottling`) was sketched and deliberately not done: Jev's own speed was the goal.
 7. `jev/listen.test.ts` has one test that fails on `/mnt/c` (it waits a fixed time for a lazy import on a slow filesystem). It passes on the Omarchy machine and is unrelated to this branch.
@@ -137,3 +164,5 @@ Machine notes: the Cua installer registers a `cua-driver-serve` autostart task t
 - `bun win/desktop.ts down` removes the hand desktops; Windows then moves their windows to a neighbouring desktop.
 - The undocumented desktop interfaces change between Windows builds. `vendor/` holds the 24H2 file, which also works on 25H2 (26200). Other builds need the matching file from the same repository.
 - A hand's browser is stopped and restarted on the first `open_app` of a run, so two identical windows never confuse the DevTools target.
+- Sign-ins are per hand: two hands, two sign-ins. `sessions` recognises a dozen well-known sites by their session cookie's name (values are never read); a site it does not know may still be signed in. Google Messages pairs through page storage, which it cannot see.
+- `login` from the command line while an older `serve.ts` without `/login` is running closes that hand's browser under it; a task sent to the hand meanwhile would take the profile back. Restart the server, or stop it first.
