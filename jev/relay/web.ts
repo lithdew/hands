@@ -95,12 +95,13 @@ export const searchLog: SearchRecord[] = [];
 
 /** Web search results, in the engine's order. Empty on any failure: a search that fails is a query to reword, not a crash. */
 export async function search(query: string, opts: { fresh?: boolean } = {}): Promise<Result[]> {
-  // Brave first; when it refuses (429 and a captcha, once a few runs share an address) or finds nothing, DuckDuckGo's HTML.
+  // Brave first; DuckDuckGo's HTML when Brave could not be reached or found nothing. Not when Brave REFUSED (429 and a captcha, once
+  // a few runs share an address): that is a site saying no to this script, and another engine asked in its place is a way round it.
   let from: SearchRecord["from"] = "cache";
   const results = await cached(`search-${key(query)}`, async () => {
     const brave = await braveSearch(query);
     if (brave.length) { from = "brave"; return brave; }
-    const duck = await duckSearch(query);
+    const duck = Date.now() < searchRefusedUntil ? [] : await duckSearch(query);
     from = duck.length ? "duckduckgo" : "nothing";
     return duck;
   }, opts.fresh);
