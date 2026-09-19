@@ -59,6 +59,25 @@ test("a successful challenge clears the interruption and resumes the original ta
   finally { await runtime.close(); }
 });
 
+test("a visual-only capture cannot clear an observed challenge or reset its attempt budget", async () => {
+  let inputs = 0, gates = 0;
+  const png = Buffer.alloc(24);
+  Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(png); png.writeUInt32BE(800, 16); png.writeUInt32BE(600, 20);
+  const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: route, narrate: false,
+    desktop: { discover: async () => [], state: async () => ({ width: 800, height: 600, windows: [] }),
+      semantic: (_hand, guard) => createSemanticComputer({ windows: async () => [], observe: async options => options.nativeCanvas
+        ? { ...challenge(), visualOnly: true, elements: [], texts: [], image: { type: "image", mimeType: "image/png", data: png.toString("base64") }, canvasCoordinates: { width: 800, height: 600 }, binding: { ...challenge().binding, canvas: {} } }
+        : challenge(), act: async () => { inputs++; } }, guard) },
+    gate: async () => { gates++; return allow; }, streamFn: script([snapshot, { name: "computer_browser", arguments: { action: "canvas_snapshot" } }]),
+  });
+  try {
+    await runtime.prompt("Inspect the visible article challenge without submitting it.");
+    expect(inputs).toBe(0); expect(gates).toBe(0);
+    expect(runtime.status().interruption).toMatchObject({ kind: "captcha", challengeAttemptsRemaining: 2 });
+    expect(JSON.stringify(runtime.agent.state.messages)).toContain("visual-only capture does not establish that it cleared");
+  } finally { await runtime.close(); }
+});
+
 test("a visible challenge uses Astra then returns to the original fast model without another router call", async () => {
   let inputs = 0, routes = 0;
   const models: string[] = [], png = Buffer.alloc(24);

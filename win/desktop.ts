@@ -31,7 +31,7 @@ import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { Ajv, AjvJsonSchemaValidator } from "@modelcontextprotocol/client/validators/ajv";
 import { debugLog, redact, subprocessEnv, type CuaConnection, type Hand, type InstalledApp } from "../desktop";
-import { browserInput, existingBrowserInput, type ExistingBrowserInput } from "./browser";
+import { browserInput, existingBrowserInput, type ExistingBrowserInput, type ExistingBrowserTiming } from "./browser";
 import { connectBrokerHand } from "./cua-broker";
 import { browserSelections, windowOwnerNamespace } from "./browser-selection";
 import { loginPage, loginTargets, parseDevToolsFile, seenByUser, signedInSites, signInWall, type Cookie, type Foreground, type SeenWindow, type Wall } from "./session";
@@ -231,7 +231,8 @@ export function createWindowTracker(enumerate: (hand: Hand, owners: ReadonlyMap<
 }
 
 const windowTracker = createWindowTracker(async (hand, owners) => JSON.parse(await ask(`state ${hand.display}|${[...owners].map(([id, owner]) => `${id}:${owner.pid}:${owner.nonce}`).join(",")}`)));
-export type BrowserTarget = { mode: "private" } | { mode: "existing"; window_id: number; pid: number; ownerNonce: string; title: string; ready: boolean; error?: string };
+export type BrowserActivity = { active?: { phase: ExistingBrowserTiming["phase"]; sequence: number; startedAt: number }; last?: { phase: ExistingBrowserTiming["phase"]; sequence: number; durationMs: number; outcome: "ok" | "failed" | "cancelled" } };
+export type BrowserTarget = { mode: "private" } | { mode: "existing"; window_id: number; pid: number; ownerNonce: string; title: string; ready: boolean; error?: string; activity?: BrowserActivity };
 type BrowserChoice = { window_id?: number; pid?: number };
 const sameIdentity = (a: RawWindow, b: RawWindow) => a.pid === b.pid && a.containerId === b.containerId && a.ownerNonce === b.ownerNonce;
 const verifiedIdentity = (window: RawWindow) => Number.isSafeInteger(window.pid) && window.pid > 0 && Number.isSafeInteger(window.containerId) && window.containerId > 0
@@ -239,7 +240,7 @@ const verifiedIdentity = (window: RawWindow) => Number.isSafeInteger(window.pid)
 
 /** A borrowed window has a separate, non-owning reservation. Selection is
  * serialized across hands, and a failed attachment cannot revert to a sandbox. */
-export function createExistingBrowserTargets<T extends { close(): Promise<void>; healthy?(): boolean }>(backend: {
+export function createExistingBrowserTargets<T extends { close(): Promise<void>; healthy?(): boolean; activity?(): BrowserActivity }>(backend: {
   candidates(): Promise<RawWindow[]>;
   claim(hand: Hand, window: RawWindow): Promise<void>;
   read(hand: Hand, window: RawWindow): Promise<RawWindow | null>;
@@ -265,7 +266,9 @@ export function createExistingBrowserTargets<T extends { close(): Promise<void>;
   return {
     target(hand: Hand): BrowserTarget {
       const bound = bindings.get(hand.id);
-      return bound ? { mode: "existing", window_id: bound.window.containerId, pid: bound.window.pid, ownerNonce: bound.window.ownerNonce!, title: bound.window.title, ready: bound.ready && bound.connection?.healthy?.() !== false, ...(bound.error ? { error: bound.error } : {}) } : { mode: "private" };
+      let activity: BrowserActivity | undefined;
+      try { activity = bound?.connection?.activity?.(); } catch { /* Observation diagnostics cannot affect ownership or action checks. */ }
+      return bound ? { mode: "existing", window_id: bound.window.containerId, pid: bound.window.pid, ownerNonce: bound.window.ownerNonce!, title: bound.window.title, ready: bound.ready && bound.connection?.healthy?.() !== false, ...(bound.error ? { error: bound.error } : {}), ...(activity?.active || activity?.last ? { activity } : {}) } : { mode: "private" };
     },
     connection(hand: Hand) {
       const bound = bindings.get(hand.id);

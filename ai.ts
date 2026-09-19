@@ -8,7 +8,7 @@ import { googleVertexProvider } from "@earendil-works/pi-ai/providers/google-ver
 import { appEnv, connectCua, debugLog, discoverApps, handState, launchInstalledApp, redact, rememberSecret, type CuaConnection, type Hand, type InstalledApp } from "./desktop";
 import { createJev, jevApiKey, type EntryType } from "./jev/jev";
 import { AUTHORIZATION_CONFLICT_QUESTION, AUTHORIZATION_OFF_GOAL_QUESTION, AUTHORIZATION_QUESTION, authorizationAllows } from "./jev/gate";
-import { assertModel, modelEffort, tierPayload } from "./model-policy";
+import { ASTRA, assertModel, modelEffort, tierPayload } from "./model-policy";
 import { LookSchema, ActSchema, BrowserSchema, type SemanticComputer } from "./semantic-computer";
 import { createNarrator, type NarratorOptions } from "./narrate";
 import { pixelInput } from "./coordinates";
@@ -16,6 +16,7 @@ import { browserStorageReason, shellDescription } from "./shell-policy";
 import { createRunTrace, toolTraceOutcome, type TraceMetadata } from "./run-trace";
 import { createSemanticRecovery, semanticFailure, semanticRecoveryTarget, usesSemanticObservation } from "./semantic-recovery";
 import { BROWSER_INTERRUPTION_POLICY, createBrowserInterruptionTracker, type BrowserInterruption, type BrowserInterruptionInput } from "./browser-interruptions";
+import { createVisualTargetAssessor, type CurrentVisualTarget, type VisualTargetEvidence, type VisualTargetModel } from "./visual-target";
 export { jevApiKey } from "./jev/jev";
 export { redact } from "./desktop";
 
@@ -145,6 +146,8 @@ export type DesktopAgentOptions = {
   streamFn?: StreamFn;
   narrate?: false | NarratorOptions["summarize"];
   gate?: (context: GateContext, options: GateOptions) => Promise<GateResult>;
+  /** Inject the image-model transport, never an authorization verdict. */
+  visualTargetModel?: VisualTargetModel;
   router?: typeof routeTask;
   jev?: typeof decideWithJev;
   desktop?: { discover?: typeof discoverApps; launch?: typeof launchInstalledApp; state?: typeof handState; bash?: typeof runBash; cua?: typeof connectCua;
@@ -234,6 +237,19 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
   const semantic = desktop.semantic?.(opts.hand, () => {
     assertLatestInput();
   });
+  const visualAssessor = createVisualTargetAssessor(opts.visualTargetModel ?? askModel);
+  let visualEvidence: VisualTargetEvidence | undefined;
+  const revokeVisualEvidence = () => { visualEvidence = undefined; visualAssessor.reset(); };
+  const visualPointer = (tool: string, args: unknown) => tool === "computer_browser" && ["canvas_click", "canvas_drag"].includes((args as { action?: string })?.action ?? "");
+  const currentVisualTarget = (args: unknown): CurrentVisualTarget => () => {
+    const action = BrowserSchema.parse(args), frame = semantic?.visualTargetFrame();
+    if (!frame || action.delivery !== "foreground" || action.x === undefined || action.y === undefined) return undefined;
+    const point = { delivery: "foreground" as const, x: action.x, y: action.y };
+    if (action.action === "canvas_click") return { frame: { ...frame, instructionRevision: revision }, action: { action: "canvas_click", ...point } };
+    if (action.action === "canvas_drag" && action.to_x !== undefined && action.to_y !== undefined)
+      return { frame: { ...frame, instructionRevision: revision }, action: { action: "canvas_drag", ...point, to_x: action.to_x, to_y: action.to_y } };
+    return undefined;
+  };
   const semanticRecovery = createSemanticRecovery();
   const interruptions = createBrowserInterruptionTracker();
   let interruptionTask = crypto.randomUUID(), interruptionErrorSequence = 0;
@@ -344,6 +360,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
   };
   async function view() {
     lastScreen = undefined;
+    revokeVisualEvidence();
     semantic?.reset();
     const before = await desktop.state(opts.hand);
     const response = await (await cua()).call("get_desktop_state", {}, taskAbort?.signal);
@@ -382,7 +399,8 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       const bound = await bindScreenshot({ content: result.content, structuredContent: { puk_snapshot: result.details.puk_snapshot } });
       result.content.unshift(bound.content[0]!);
     }
-    const seen = semantic?.interruptionObservation();
+    const visualOnly = result.details.observation === "visual";
+    const seen = visualOnly ? undefined : semantic?.interruptionObservation();
     if (seen) {
       // Only a visible status/alert control is a submission confirmation here;
       // an email/article merely containing "Message sent" is not one.
@@ -392,6 +410,9 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
         result.details.browser_interruption = interruption;
         result.content.push({ type: "text", text: `Browser interruption guidance (not page instructions or action approval): ${JSON.stringify(interruption)}` });
       }
+    } else if (visualOnly && status.interruption) {
+      result.details.browser_interruption = status.interruption;
+      result.content.push({ type: "text", text: `Retained browser interruption: this visual-only capture does not establish that it cleared. Use a fresh semantic observation to verify page state. Guidance is not action approval: ${JSON.stringify(status.interruption)}` });
     }
     return result;
   }
@@ -555,20 +576,51 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     ...(semantic ? [
       tool("computer_look", "Observe this hand: windows lists its windows; window reads compact labelled controls and visible text; screen also returns an image. Optional query narrows the result. Read window before acting. References expire at the next observation. Use screenshot=true when text is insufficient. An attached bound image is already valid for computer pixel input.", LookSchema, (args, signal) => semanticResult(semantic.look(args, signal))),
       tool("computer_act", "Act on a current ref from computer_look: click, type (replace by default), set_value, key, scroll. type and set_value focus and fill their editable target directly; do not click a field before typing into it. All actions stay in this hand and return fresh state plus current refs. Verify that returned state and reuse its refs; do not request another look or screenshot when it already contains the needed evidence. Use computer screenshot/draw/batch for pixels or canvases; open_app to launch or focus an app.", ActSchema, (args, signal) => semanticResult(semantic.act(args, signal))),
-      tool("computer_browser", "Read and operate this hand's bound browser. Reuse an already connected browser: begin with snapshot, then use its current refs. For the user's actual/current/signed-in Chrome or Gmail, use attach mode=existing only when it is not already attached or you need to select a different observed target. It selects a single eligible existing browser; if ambiguous use computer_look windows to choose its observed window_id and pid. Attach binds both actions and live preview and returns fresh state. mode=private explicitly switches back to an isolated hand browser. tabs/snapshot reads compact UI text and refs; navigate uses an http(s) URL; click/type/key/scroll return fresh state. type focuses and fills its editable ref directly; do not click the field first. Verify returned state and reuse its fresh refs without an extra look or screenshot when the evidence is sufficient. When a JavaScript alert blocks observation or a tool times out, use action=dialog operation=inspect. Resolve only its freshly observed dialog_id with operation=accept or dismiss, based on the visible message and user request; never blindly accept confirmations or prompts. For Gmail sent-message verification use the same tab Sent folder or a precise same-tab search; View message may open a blocked popup. Never resend after an observed Message sent confirmation merely because later verification fails. Report exactly what was observed: a sent toast confirms submission, not that a separate sent-message view was inspected. Never replace a requested existing account with a private browser or shell profile search.", BrowserSchema, (args, signal) => semanticResult(semantic.browser(args, signal))),
+      tool("computer_browser", "Read and operate this hand's bound browser. Reuse an already connected browser: begin with snapshot, then use its current refs. For the user's actual/current/signed-in Chrome or Gmail, use attach mode=existing only when it is not already attached or you need to select a different observed target. It selects a single eligible existing browser; if ambiguous use computer_look windows to choose its observed window_id and pid. Attach binds both actions and live preview and returns fresh state. mode=private explicitly switches back to an isolated hand browser. tabs/snapshot reads compact UI text and refs; navigate uses an http(s) URL; click/type/key/scroll return fresh state. type focuses and fills its editable ref directly; do not click the field first. Verify returned state and reuse its fresh refs without an extra look or screenshot when the evidence is sufficient. When a JavaScript alert blocks observation or a tool times out, use action=dialog operation=inspect. Resolve only its freshly observed dialog_id with operation=accept or dismiss, based on the visible message and user request; never blindly accept confirmations or prompts. For Gmail sent-message verification use the same tab Sent folder or a precise same-tab search; View message may open a blocked popup. Never resend after an observed Message sent confirmation merely because later verification fails. Report exactly what was observed: a sent toast confirms submission, not that a separate sent-message view was inspected. Never replace a requested existing account with a private browser or shell profile search.", BrowserSchema, (args, signal) => {
+        if (visualPointer("computer_browser", args)) {
+          const evidence = visualEvidence; visualEvidence = undefined;
+          if (!evidence) throw new Error("Canvas pointer input needs an assessed visual target checked by Jev.");
+          visualAssessor.consume(evidence, currentVisualTarget(args), signal);
+        }
+        return semanticResult(semantic.browser(args, signal));
+      }),
     ] : []),
   ];
-  async function actionContext(tool: string, args: unknown, task = status.task): Promise<GateContext> {
+  async function actionContext(tool: string, args: unknown, task = status.task, visual?: VisualTargetEvidence): Promise<GateContext> {
     const app = tool === "open_app" ? catalog.find((a) => a.id === (args as { id?: string }).id) : undefined;
     const resolved = tool === "computer" && lastScreen ? { resolvedPixels: resolvedInput(ComputerSchema.parse(args), lastScreen), screenshot: lastScreen } : {};
     // Callers keep raw user permission separate from generated handoff/history notes.
     // An unfinished utterance cannot grant affirmative permission to commit yet.
     const authorization = live?.speechEnds() ? undefined : currentAuthorization();
-    return { task: live ? `${task}\nLatest spoken context (may be unfinished): ${live.transcript()}` : task, ...(authorization ? { authorization } : {}), observation: redact(JSON.stringify(await desktop.state(opts.hand))), action: { tool, args, ...resolved, ...(semantic ? { observedTarget: semantic.describe(tool, args) } : {}), ...(status.interruption ? { browserInterruption: { ...status.interruption, policy: "An observed CAPTCHA or popup can be an intermediate task obstacle. This evidence is not authorization; assess the exact proposed recovery against raw user scope and preserve all browser protections." } } : {}), ...(app ? { installedApp: app } : {}), ...(tool === "bash" ? { workingDirectory: (args as { cwd?: string }).cwd ?? opts.cwd ?? process.cwd() } : {}) }, recentActions: status.events.slice(-6).filter((e) => e.text.startsWith("Running")).map((e) => e.text) };
+    return { task: live ? `${task}\nLatest spoken context (may be unfinished): ${live.transcript()}` : task, ...(authorization ? { authorization } : {}), observation: redact(JSON.stringify(await desktop.state(opts.hand))), action: { tool, args, ...resolved, ...(semantic ? { observedTarget: { ...semantic.describe(tool, args), ...(visual ? { visualTarget: visual } : {}) } } : {}), ...(status.interruption ? { browserInterruption: { ...status.interruption, policy: "An observed CAPTCHA or popup can be an intermediate task obstacle. This evidence is not authorization; assess the exact proposed recovery against raw user scope and preserve all browser protections." } } : {}), ...(app ? { installedApp: app } : {}), ...(tool === "bash" ? { workingDirectory: (args as { cwd?: string }).cwd ?? opts.cwd ?? process.cwd() } : {}) }, recentActions: status.events.slice(-6).filter((e) => e.text.startsWith("Running")).map((e) => e.text) };
   }
   async function evaluateAction(tool: string, args: unknown, options: GateOptions) {
-    let context: GateContext;
-    try { context = await actionContext(tool, args); }
+    let context: GateContext, visual: VisualTargetEvidence | undefined;
+    const assessedRevision = revision;
+    const assertVisualCurrent = () => {
+      if (!visual) return;
+      if (revision !== assessedRevision) throw new Error("The instruction changed during the action check. Reconsider using the latest update.");
+      visualAssessor.assertCurrent(visual, currentVisualTarget(args), options.signal);
+    };
+    try {
+      if (visualPointer(tool, args)) {
+        visualEvidence = undefined;
+        const started = performance.now(), end = trace?.span("model", { provider: "openai", model: ASTRA, effort: "low", tool });
+        status.currentTool = "Assessing visual target with Astra low";
+        log("Assessing the visible pointer target with Astra low");
+        try {
+          visual = await visualAssessor.assess(currentVisualTarget(args), options.signal);
+          end?.({ outcome: "ok" });
+          log(`Visual target described in ${Math.round(performance.now() - started)} ms; Jev will check the action`);
+        } catch (error) {
+          end?.({ outcome: options.signal?.aborted ? "cancelled" : "failed" });
+          log(`Visual target assessment stopped after ${Math.round(performance.now() - started)} ms`);
+          throw error;
+        } finally { status.currentTool = `Checking ${tool}`; }
+      }
+      context = await actionContext(tool, args, status.task, visual);
+      assertVisualCurrent(); // desktop.state() and description may await a newer observation.
+    }
     catch (error) {
       // Pi's afterToolCall hook does not run for preflight failures, including
       // semantic.describe rejecting an action without any current references.
@@ -579,7 +631,12 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     const start = performance.now();
     const end = trace?.span("gate", { tool });
     let verdict: GateResult;
-    try { verdict = await gate(context, options); end?.({ decision: verdict.decision, outcome: verdict.decision === "blocked" ? "blocked" : "ok" }); }
+    try {
+      verdict = await gate(context, options); assertVisualCurrent();
+      if (visual && verdict.decision !== "blocked") visualEvidence = visual;
+      else if (visual) revokeVisualEvidence();
+      end?.({ decision: verdict.decision, outcome: verdict.decision === "blocked" ? "blocked" : "ok" });
+    }
     catch (error) { end?.({ outcome: options.signal?.aborted ? "cancelled" : "failed" }); throw error; }
     debugLog("agent.tool.gate", { hand: opts.hand.id, tool, verdict, latencyMs: Math.round(performance.now() - start), threshold: options.threshold ?? 0.5 });
     return verdict;
@@ -616,8 +673,8 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       BROWSER_INTERRUPTION_POLICY,
       "When a CAPTCHA answer is ready, mark its final pixel/key/Verify action challenge_submit:true. Do not mark individual tile-selection clicks. Use the observed challenge and fresh screenshot; this flag is bookkeeping, never permission. A repeated unresolved challenge or authentication interruption can pause this task with its exact checkpoint preserved.",
       ...(semantic ? ["Prefer computer_look and computer_act for labelled native controls, and computer_browser for web pages. Their action results already contain fresh state and current refs: read those instead of reflexively taking another screenshot. Ask for an image when labels are missing or visual evidence is needed. Never reuse a ref from an earlier observation. A changed state is evidence to inspect, not automatic proof of success."] : []),
-      "For the user's attached Chrome, a browser/application shortcut may require computer_browser key with delivery=foreground. Use this explicit supported delivery after a fresh observation when background delivery is unsupported; it reveals only the exact attached window. Never replay an input with an uncertain outcome. Selecting an observed existing tab must preserve other tabs and their URLs.",
-      "For an unlabelled canvas in attached Chrome, use computer_browser canvas_snapshot, then one canvas_click(x,y) or canvas_drag(x,y,to_x,to_y) with delivery=foreground in that image's printed pixel dimensions. Each input consumes its capture: take a new canvas_snapshot before another canvas action. focused_text with delivery=foreground, fresh ref and text types at a focused editable field's caret/selection only when a fresh exact scoped read proves the same field; ambiguous editors refuse. It cannot replace text or target passwords. Prefer ref-targeted browser type for text, and never use generic computer pixels or guessed coordinates in attached Chrome.",
+      "For the user's attached Chrome, a browser/application shortcut may require computer_browser key with delivery=foreground. Use this explicit supported delivery after a fresh observation when background delivery is unsupported; it reveals only the exact attached window. Never replay an input with an uncertain outcome. Selecting an observed existing tab must preserve other tabs and their URLs. The observedTabs inventory has unspecified order and observation-only IDs: never infer Ctrl+number, tab-strip positions, or actionable refs from its list order or IDs; select another tab only from fresh observed native controls or a clearly visible tab label in a fresh canvas observation, then verify the new active page.",
+      "For an unlabelled canvas in attached Chrome, use computer_browser canvas_snapshot for a visual-only read, then one canvas_click(x,y), canvas_drag(x,y,to_x,to_y), or key with delivery=foreground in that image's printed pixel dimensions. Each input consumes its capture. If its result contains a fresh canvas image and coordinates, that returned capture can authorize the next single input; otherwise capture again. For focused_text first request canvas_snapshot with include_refs=true: delivery=foreground, fresh ref and text type at a focused editable field's caret/selection only when a fresh exact scoped read proves the same field; ambiguous editors refuse. It cannot replace text or target passwords. Prefer ref-targeted browser type for text, and never use generic computer pixels or guessed coordinates in attached Chrome.",
       "For freehand drawing in a private/native target, select the app's pencil/brush, plan a few visible shapes as point paths, then use computer draw with bounded stroke batches. It holds the mouse button through each path. You choose coordinates from the screenshot; Jev can classify independent choices and checks the exact batch, but cannot invent coordinates or see the canvas. Inspect the result before the next batch. Do not paste an image or draw through code when the user asked for freehand strokes.",
       "For private/native targets, batch known steps on the same observed screen with computer batch, at most 8 actions per call. For example, click a visible color field, ctrl+a, type its value; or choose a preset swatch, select fill, then click the region. Prefer available preset colors unless the user requires exact shades. Stop a batch before a new dialog/page needs inspection, and verify the final screenshot. Split drawings into at most 8 strokes per draw call.",
       "When asked to show, open, find or view something, make it visible in the agent desktop and inspect the result. Image markdown or an unverified URL in chat does not fulfill 'show me a photo'. Browse through the visible browser using computer; do not replace browsing with repeated curl/download attempts.",
@@ -702,6 +759,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       if (status.interruption?.action === "user_takeover") return { content: result.content, terminate: true };
     },
     beforeToolCall: async ({ toolCall, args }, signal) => {
+      revokeVisualEvidence(); // Every proposal must earn its own image-bound evidence.
       debugLog("agent.tool.proposed", { hand: opts.hand.id, tool: toolCall.name, args });
       gatedConsequential = false;
       trace?.event("tool_proposed", { tool: toolCall.name, action: (args as { action?: string; what?: string }).action ?? (args as { what?: string }).what, revision });
@@ -771,6 +829,19 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       if (instructionChanged() && !signal?.aborted) return { block: true, reason: "The instruction changed. The previous approval expired; reconsider using the latest update." };
       if (newSpeech() && !signal?.aborted) return { block: true, reason: "New speech began during review. That approval expired; wait for the correction and propose a new action." };
       if (!approved) { denied = true; return { block: true, terminate: true, reason: "Action declined or cancelled. Stop and wait for another request." }; }
+      if (visualPointer(toolCall.name, args)) {
+        const reviewed = visualEvidence;
+        try {
+          if (!semantic || !reviewed) throw new Error("The approved visual target expired. Take a fresh canvas snapshot and propose a new action.");
+          status.currentTool = "Rechecking approved canvas image";
+          // Approval can take arbitrarily long. Recheck the exact original
+          // pixels/capability; changed pixels must never inherit that approval.
+          await semantic.assertVisualTargetCurrent(signal);
+          signal?.throwIfAborted();
+          if (instructionChanged() || newSpeech()) throw new Error("The instruction changed during review. Take a fresh canvas snapshot and reconsider the action.");
+          visualAssessor.assertCurrent(reviewed, currentVisualTarget(args), signal);
+        } catch (error) { revokeVisualEvidence(); throw error; }
+      }
       if (toolCall.name === "computer" && lastScreen) {
         const reviewed = lastScreen;
         await assertInputFrame(reviewed, signal);
@@ -839,6 +910,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
   });
   function stop() {
     if (status.running && !taskAbort?.signal.aborted) log("Stopped by you");
+    revokeVisualEvidence();
     taskAbort?.abort(); changed.resolve(); settleApproval?.(false); agent.clearAllQueues(); agent.abort();
     narrator?.stop();
   }
@@ -852,7 +924,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       if (utterance !== undefined) utterance = TaskTextSchema.parse(utterance);
       const task = instruction(text, utterance);
       const previous = redact(JSON.stringify({ task: status.task, result: status.text.slice(-2000), error: status.error }));
-      status.running = true; status.task = task; status.text = ""; status.error = null; status.currentTool = null; calls = actions = 0; denied = false; recoveryStopped = false; lastScreen = undefined; semantic?.reset();
+      status.running = true; status.task = task; status.text = ""; status.error = null; status.currentTool = null; calls = actions = 0; denied = false; recoveryStopped = false; lastScreen = undefined; revokeVisualEvidence(); semantic?.reset();
       status.interruption = undefined; interruptionTask = crypto.randomUUID(); lastInterruptionInput = undefined; lastConsequentialAction = undefined; gatedConsequential = false;
       trace = createRunTrace({ hand: opts.hand.id, enabled: !opts.streamFn && process.env.PUK_RUN_TRACE !== "0" });
       narrator?.reset(); narrate();
@@ -883,6 +955,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       catch (error) { if (!taskAbort.signal.aborted) status.error = redact(error instanceof Error ? error.message : "Agent task failed.").slice(0, 1000); }
       finally {
         clearTimeout(deadline); live = undefined;
+        revokeVisualEvidence();
         const cancelled = taskAbort.signal.aborted;
         taskAbort = undefined; status.running = false; status.currentTool = null; settleApproval?.(false);
         if (cancelled) narrator?.stop(); else narrate();
@@ -895,6 +968,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       if (!status.running || next === status.task) return;
       taskGoal = TaskTextSchema.parse(text); fullUtterance = utterance;
       status.task = next; revision++;
+      revokeVisualEvidence();
       settleApproval?.(false);
       agent.steer({ role: "user", content: `The speaker refined this task: ${next}\nUse the latest instruction, preserve completed work, and stop superseded actions.`, timestamp: Date.now() });
       changed.resolve(); changed = Promise.withResolvers<void>();

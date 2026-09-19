@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { BrowserSchema, createSemanticComputer, diffLines, type DialogObservation, type Snapshot } from "./semantic-computer";
+import { BrowserSchema, createSemanticComputer, diffLines, observedTabInventory, type DialogObservation, type Snapshot } from "./semantic-computer";
 
 const page = (): Snapshot => ({ kind: "browser", identity: "1:2:https://example.test", title: "Search", url: "https://example.test/", texts: ["Ready"], binding: {}, elements: [
   { key: "search", role: "textbox", name: "Search", value: "", editable: true, address: { x: 1, y: 2 } },
@@ -7,6 +7,132 @@ const page = (): Snapshot => ({ kind: "browser", identity: "1:2:https://example.
 ] });
 
 const alertDialog = (): DialogObservation => ({ present: true, dialog_id: "dialog-7", kind: "alert", window: "Search", url: "https://example.test/", binding: {} });
+
+const canvasPage = (): Snapshot => ({ ...page(), image: { type: "image", mimeType: "image/png", data: "native-png" },
+  canvasCoordinates: { width: 1000, height: 800 }, binding: { window: "90:1234:0000000000000123", canvas: { privateCapability: "never-expose" } } });
+
+test("visual target frames require native canvas evidence and never fall back to page identity", async () => {
+  let state = page();
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => state, act: async () => {} });
+  expect(computer.visualTargetFrame()).toBeUndefined();
+  for (const invalid of [page(), { ...page(), image: canvasPage().image },
+    { ...canvasPage(), binding: { window: "90:1234:0000000000000123" } }, { ...canvasPage(), binding: { canvas: {} } },
+    { ...canvasPage(), canvasCoordinates: undefined }, { ...canvasPage(), image: undefined },
+    { ...canvasPage(), image: { type: "image" as const, mimeType: "image/jpeg", data: "jpeg" } },
+    { ...canvasPage(), canvasCoordinates: { width: 0, height: 800 } }, { ...canvasPage(), kind: "native" as const }]) {
+    state = invalid;
+    await computer.look({ what: "window", screenshot: true });
+    expect(computer.visualTargetFrame()).toBeUndefined();
+  }
+});
+
+test("visual target frames are deterministic frozen copies without references or page authority", async () => {
+  const state = canvasPage();
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => state, act: async () => {} });
+  await computer.browser({ action: "canvas_snapshot", include_refs: true });
+  const first = computer.visualTargetFrame()!, same = computer.visualTargetFrame()!;
+  expect(first).toEqual(same); expect(first).not.toBe(same); expect(first.image).not.toBe(same.image);
+  expect(first).toMatchObject({ targetKey: "90:1234:0000000000000123", generation: 1, width: 1000, height: 800,
+    image: { type: "image", mimeType: "image/png", data: "native-png" } });
+  expect(first.observationId.endsWith(":1")).toBe(true);
+  expect(Object.keys(first).sort()).toEqual(["generation", "height", "image", "observationId", "targetKey", "width"]);
+  expect(Object.isFrozen(first)).toBe(true); expect(Object.isFrozen(first.image)).toBe(true);
+  const text = JSON.stringify(first);
+  for (const omitted of ["never-expose", "binding", "example.test", "Search", "Ready", "p1:", "address"]) expect(text).not.toContain(omitted);
+  expect(first.image).not.toBe(state.image);
+  await computer.browser({ action: "canvas_snapshot" });
+  const fresh = computer.visualTargetFrame()!;
+  expect(fresh.generation).toBe(2); expect(fresh.observationId).not.toBe(first.observationId);
+});
+
+test("new, failed, reset and overlapping reads revoke visual target frames immediately", async () => {
+  let pending: ReturnType<typeof Promise.withResolvers<Snapshot>> | undefined;
+  const computer = createSemanticComputer({ windows: async () => [], observe: () => pending?.promise ?? Promise.resolve(canvasPage()), act: async () => {} });
+  await computer.browser({ action: "canvas_snapshot" });
+  const old = computer.visualTargetFrame()!;
+  pending = Promise.withResolvers<Snapshot>();
+  const failed = computer.browser({ action: "canvas_snapshot" }).then(() => null, error => error);
+  expect(computer.visualTargetFrame()).toBeUndefined();
+  pending.reject(new Error("capture failed")); expect(String(await failed)).toContain("capture failed");
+  expect(computer.visualTargetFrame()).toBeUndefined();
+  pending = undefined; await computer.browser({ action: "canvas_snapshot" });
+  expect(computer.visualTargetFrame()!.generation).toBeGreaterThan(old.generation);
+  pending = Promise.withResolvers<Snapshot>();
+  const superseded = computer.browser({ action: "canvas_snapshot" }).then(() => null, error => error);
+  computer.reset(); pending.resolve(canvasPage());
+  expect(String(await superseded)).toContain("newer observation"); expect(computer.visualTargetFrame()).toBeUndefined();
+  pending = undefined; await computer.browser({ action: "canvas_snapshot" });
+  await computer.look({ what: "windows" }); expect(computer.visualTargetFrame()).toBeUndefined();
+});
+
+test("input revokes visual target evidence before dispatch and only fresh capture restores it", async () => {
+  const dispatched = Promise.withResolvers<void>(), consumed = new Set<unknown>(); let fail = false;
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => canvasPage(), act: async (snapshot) => {
+    expect(computer.visualTargetFrame()).toBeUndefined();
+    expect(consumed.has(snapshot.binding.canvas)).toBe(false); consumed.add(snapshot.binding.canvas);
+    await dispatched.promise; if (fail) throw new Error("input failed");
+  } });
+  await computer.browser({ action: "canvas_snapshot" });
+  const first = computer.visualTargetFrame()!;
+  const input = computer.browser({ action: "canvas_click", delivery: "foreground", x: 20, y: 30 });
+  expect(computer.visualTargetFrame()).toBeUndefined();
+  dispatched.resolve(); await input;
+  expect(consumed.size).toBe(1); expect(computer.visualTargetFrame()!.observationId).not.toBe(first.observationId);
+  fail = true;
+  await expect(computer.browser({ action: "canvas_click", delivery: "foreground", x: 20, y: 30 })).rejects.toThrow("input failed");
+  expect(computer.visualTargetFrame()).toBeUndefined();
+  await expect(computer.browser({ action: "canvas_click", delivery: "foreground", x: 20, y: 30 })).rejects.toThrow("Look");
+  expect(consumed.size).toBe(2);
+});
+
+test("visual target verification is read-only and preserves the original observation without refreshing evidence", async () => {
+  const snapshot = canvasPage(), asserted: Snapshot[] = []; let reads = 0, inputs = 0, gates = 0;
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => { reads++; return snapshot; }, act: async () => { inputs++; },
+    assertVisualTargetCurrent: async observed => { asserted.push(observed); } }, () => { gates++; });
+  await computer.browser({ action: "canvas_snapshot" });
+  const original = computer.visualTargetFrame();
+  await computer.assertVisualTargetCurrent();
+  expect(asserted).toEqual([snapshot]); expect(asserted[0]).toBe(snapshot);
+  expect(computer.visualTargetFrame()).toEqual(original);
+  expect(reads).toBe(1); expect(inputs).toBe(0); expect(gates).toBe(0);
+});
+
+test("failed or unavailable visual verification revokes frames and controls instead of blessing changed pixels", async () => {
+  for (const mode of ["unavailable", "changed-pixels", "mutated-frame"]) {
+    const snapshot = canvasPage(); let inputs = 0;
+    const computer = createSemanticComputer({ windows: async () => [], observe: async () => snapshot, act: async () => { inputs++; },
+      ...(mode === "unavailable" ? {} : { assertVisualTargetCurrent: async () => {
+        if (mode === "changed-pixels") throw new Error("The canvas pixels changed");
+        snapshot.image!.data = "new-png"; // A backend must not relabel old evidence even if it returns success.
+      } }) });
+    await computer.browser({ action: "canvas_snapshot", include_refs: true });
+    await expect(computer.assertVisualTargetCurrent()).rejects.toThrow();
+    expect(computer.visualTargetFrame()).toBeUndefined();
+    await expect(computer.browser({ action: "canvas_click", delivery: "foreground", x: 20, y: 30 })).rejects.toThrow("Look");
+    await expect(computer.act({ action: "click", ref: "p1:1" })).rejects.toThrow("Look");
+    expect(inputs).toBe(0);
+  }
+});
+
+test("cancellation or a superseding observation during verification never resurrects the approved frame", async () => {
+  for (const mode of ["cancel", "reset", "new-observation"]) {
+    const pending = Promise.withResolvers<void>(), abort = new AbortController();
+    const computer = createSemanticComputer({ windows: async () => [], observe: async () => canvasPage(), act: async () => {},
+      assertVisualTargetCurrent: async () => pending.promise });
+    await computer.browser({ action: "canvas_snapshot" });
+    const old = computer.visualTargetFrame();
+    const verification = computer.assertVisualTargetCurrent(abort.signal).then(() => null, error => error);
+    if (mode === "cancel") abort.abort();
+    if (mode === "reset") computer.reset();
+    if (mode === "new-observation") await computer.browser({ action: "canvas_snapshot" });
+    const newer = computer.visualTargetFrame();
+    pending.resolve(); expect(await verification).toBeInstanceOf(Error);
+    if (mode === "new-observation") {
+      expect(computer.visualTargetFrame()).toEqual(newer);
+      expect(newer!.observationId).not.toBe(old!.observationId);
+    } else expect(computer.visualTargetFrame()).toBeUndefined();
+  }
+});
 
 test("explicit delivery is confined to browser keys and survives the semantic adapter", async () => {
   for (const delivery of ["foreground", "background"] as const) {
@@ -32,8 +158,64 @@ test("canvas schema requires explicit foreground, integer points and a fresh ded
   const capture=await computer.browser({action:"canvas_snapshot"});expect(JSON.stringify(capture.content)).toContain("1000 x 800");
   await computer.browser({action:"canvas_click",delivery:"foreground",x:4,y:5});
   expect(received).toEqual([{action:"canvas_click",delivery:"foreground",x:4,y:5}]);
-  expect(seen).toEqual([undefined,true,undefined]);
-  await expect(computer.browser({action:"canvas_click",delivery:"foreground",x:4,y:5})).rejects.toThrow("canvas_snapshot");
+  expect(seen).toEqual([undefined,true,true]);
+  await computer.browser({action:"canvas_click",delivery:"foreground",x:4,y:5});
+  expect(received).toHaveLength(2); // The returned image is the next fresh capture.
+});
+
+test("visual canvas reads have no DOM refs and foreground inputs return a new visual observation", async () => {
+  const reads:{nativeCanvas?:boolean;includeRefs?:boolean}[]=[],actions:string[]=[];
+  const computer=createSemanticComputer({windows:async()=>[],observe:async options=>{
+    reads.push({nativeCanvas:options.nativeCanvas,includeRefs:options.includeRefs});
+    const visual=options.nativeCanvas&&!options.includeRefs;
+    return {...page(),visualOnly:visual,elements:visual?[]:page().elements,
+      ...(options.nativeCanvas?{image:{type:"image" as const,mimeType:"image/png",data:"fixture"},canvasCoordinates:{width:1000,height:800},binding:{canvas:{private:true}}}:{})};
+  },act:async(_snapshot,action)=>{actions.push(action.action);}});
+  expect(BrowserSchema.safeParse({action:"snapshot",include_refs:true}).success).toBe(false);
+  const first=await computer.browser({action:"canvas_snapshot"});
+  expect(first.details).toMatchObject({observation:"visual",refs:0});
+  expect(JSON.stringify(first.content)).toContain("no DOM refs");
+  await expect(computer.browser({action:"focused_text",delivery:"foreground",ref:"p1:0",text:"x"})).rejects.toThrow("include_refs:true");
+  await expect(computer.browser({action:"type",ref:"p1:0",text:"x"})).rejects.toThrow("visual-only");
+  await expect(computer.browser({action:"key",key:"f"})).rejects.toThrow("foreground");
+  const after=await computer.browser({action:"canvas_click",delivery:"foreground",x:40,y:50});
+  expect(after.details).toMatchObject({observation:"visual",refs:0});
+  expect(JSON.stringify(after.content)).toContain("Fresh visual capture after input dispatch");
+  await computer.browser({action:"key",delivery:"foreground",key:"f"});
+  await computer.browser({action:"canvas_drag",delivery:"foreground",x:40,y:50,to_x:100,to_y:200});
+  expect(actions).toEqual(["canvas_click","key","canvas_drag"]);
+  expect(reads).toEqual(Array.from({length:4},()=>({nativeCanvas:true,includeRefs:false})));
+  const refs=await computer.browser({action:"canvas_snapshot",include_refs:true});
+  expect(refs.details).toMatchObject({observation:"semantic",refs:2});
+  await computer.browser({action:"focused_text",delivery:"foreground",ref:"p5:0",text:"x"});
+  expect(reads.at(-2)).toEqual({nativeCanvas:true,includeRefs:true});
+  expect(reads.at(-1)).toEqual({nativeCanvas:true,includeRefs:false});
+});
+
+test("a failed visual post-capture reports dispatched input and leaves no replayable capability", async () => {
+  let calls=0,inputs=0;
+  const computer=createSemanticComputer({windows:async()=>[],observe:async()=>{
+    if(++calls>1)throw new Error("PNG unavailable");
+    return {...page(),visualOnly:true,elements:[],image:{type:"image" as const,mimeType:"image/png",data:"fixture"},canvasCoordinates:{width:1000,height:800},binding:{canvas:{private:true}}};
+  },act:async()=>{inputs++;}});
+  await computer.browser({action:"canvas_snapshot"});
+  await expect(computer.browser({action:"canvas_click",delivery:"foreground",x:40,y:50})).rejects.toThrow("Input dispatch returned, but its fresh visual observation failed");
+  await expect(computer.browser({action:"canvas_click",delivery:"foreground",x:40,y:50})).rejects.toThrow("Look at this window");
+  expect(inputs).toBe(1);
+});
+
+test("a visual-only capture cannot report absent semantic interruptions or erase their evidence", async () => {
+  const computer=createSemanticComputer({windows:async()=>[],observe:async options=>options.nativeCanvas&&!options.includeRefs
+    ? {...page(),visualOnly:true,elements:[],texts:[],image:{type:"image" as const,mimeType:"image/png",data:"fixture"},canvasCoordinates:{width:1000,height:800},binding:{canvas:{private:true}}}
+    : {...page(),texts:["Verify you are human"],elements:[{key:"verify",role:"button",name:"Verify",visible:true,address:{}}]},act:async()=>{}});
+  await computer.browser({action:"snapshot"});
+  const established=computer.interruptionObservation();
+  expect(established?.visibleText).toContain("Verify you are human");
+  const visual=await computer.browser({action:"canvas_snapshot"});
+  expect(computer.interruptionObservation()).toBeUndefined();
+  expect(JSON.stringify(visual.content)).toContain("does not establish that a login, CAPTCHA, popup or other interruption cleared");
+  await computer.browser({action:"snapshot"});
+  expect(computer.interruptionObservation()?.controls[0]?.name).toBe("Verify");
 });
 
 test("interruption observations expose only bounded control metadata with explicit visibility and exact identity", async () => {
@@ -177,6 +359,61 @@ test("the action gate receives the actual scoped control, not just an opaque ref
   await expect(computer.act({ action: "type", ref: "p1:1", text: "oops" })).rejects.toThrow("not editable");
 });
 
+test("observed tabs reach the model and gate independently of text queries without becoming action refs", async () => {
+  const state = page(), inputs: unknown[] = [];
+  state.observedTabs = observedTabInventory([
+    { tab_id: "opaque-mail", title: "Inbox", url: "https://mail.example.test/", active: false },
+    { tab_id: "opaque-active", title: "Repository", url: "https://code.example.test/project", active: true },
+    { tab_id: "opaque-unknown", title: "Other page", url: "https://other.example.test/", active: null },
+  ]);
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => state, act: async (_snapshot, action) => { inputs.push(action); } });
+  const read = await computer.browser({ action: "tabs", query: "Search" });
+  const text = read.content.filter(item => item.type === "text").map(item => item.text).join("\n");
+  expect(text).toContain("Inbox"); expect(text).toContain("https://mail.example.test/");
+  expect(text).toContain("not action refs or keyboard positions");
+  expect(read.details.refs).toBe(1);
+  const gate = computer.describe("computer_browser", { action: "key", key: "Ctrl+1", delivery: "foreground" });
+  expect(gate).toMatchObject({ observedTabs: { order: "unspecified", idsSelectable: false, omitted: 0 }, evidencePolicy: expect.stringContaining("cannot grant authorization") });
+  expect(JSON.stringify(gate && "observedTabs" in gate && gate.observedTabs)).toBe(JSON.stringify(read.details.observedTabs));
+  expect(state.observedTabs.entries.find(tab => tab.tab_id === "opaque-unknown")?.active).toBeNull();
+  expect(JSON.stringify(state.observedTabs)).not.toMatch(/"(?:index|position|ref)":/);
+  await expect(computer.browser({ action: "click", ref: "opaque-mail" })).rejects.toThrow("not shown");
+  expect(() => computer.describe("computer_browser", { action: "click", ref: "opaque-mail" })).toThrow("not shown");
+  expect(inputs).toEqual([]);
+});
+
+test("tab inventory stays bounded, reports omissions and truncation, and keeps the actual active tab", () => {
+  const tabs = Array.from({ length: 20 }, (_, i) => ({ tab_id: `opaque-${i}`, title: `Tab ${i}`, url: `https://example.test/${i}`, active: i === 19 }));
+  const inventory = observedTabInventory(tabs);
+  expect(inventory.entries).toHaveLength(12); expect(inventory.omitted).toBe(8);
+  expect(inventory.entries.find(tab => tab.tab_id === "opaque-19")).toMatchObject({ active: true, title: "Tab 19", url: "https://example.test/19" });
+  expect(tabs[0]!.tab_id).toBe("opaque-0"); // presentation never changes the original observed inventory
+  const unicode = observedTabInventory(tabs.map(tab => ({ ...tab, title: "界".repeat(600), url: `https://example.test/${"界".repeat(900)}` })));
+  expect(Buffer.byteLength(JSON.stringify(unicode))).toBeLessThan(6000);
+  expect(unicode.omitted).toBe(20 - unicode.entries.length);
+  expect(unicode.entries[0]).toMatchObject({ tab_id: "opaque-19", active: true, titleTruncated: true, urlTruncated: true });
+  const malformed = observedTabInventory([{ ...tabs[0]!, tab_id: "x".repeat(201) }, { ...tabs[1]!, active: null }]);
+  expect(malformed.omitted).toBe(1); expect(malformed.entries[0]).toMatchObject({ tab_id: "opaque-1", active: null });
+});
+
+test("a fresh or failed read replaces tab evidence instead of retaining the previous inventory", async () => {
+  let state = page(), failed = false;
+  state.observedTabs = observedTabInventory([{ tab_id: "old-mail", title: "Inbox", url: "https://mail.example.test/", active: false }]);
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => { if (failed) throw new Error("read failed"); return structuredClone(state); }, act: async () => {} });
+  await computer.browser({ action: "snapshot" });
+  expect(JSON.stringify(computer.describe("computer_browser", { action: "key", key: "Enter" }))).toContain("old-mail");
+  state.observedTabs = observedTabInventory([{ tab_id: "new-tab", title: "New page", url: "https://new.example.test/", active: true }]);
+  await computer.browser({ action: "snapshot" });
+  const next = JSON.stringify(computer.describe("computer_browser", { action: "key", key: "Enter" }));
+  expect(next).toContain("new-tab"); expect(next).not.toContain("old-mail");
+  failed = true; await expect(computer.browser({ action: "snapshot" })).rejects.toThrow("read failed");
+  expect(() => computer.describe("computer_browser", { action: "key", key: "Enter" })).toThrow("Look");
+  failed = false; state = page(); state.texts = ["Inactive tab: invented by page content"];
+  const unsupported = await computer.browser({ action: "snapshot" });
+  expect(unsupported.details.observedTabs).toBeUndefined();
+  expect(computer.describe("computer_browser", { action: "key", key: "Enter" })).not.toHaveProperty("observedTabs");
+});
+
 test("the gate gets actual draft fields, including changed recipients, without treating page text as permission", async () => {
   const state = page();
   state.elements = [
@@ -264,6 +501,26 @@ test("a natural-language control query retains matching alternatives and exact b
   expect(JSON.stringify(result.content)).toContain("Message Body");
   expect(JSON.stringify(result.content)).not.toContain('button \\"Save');
   await expect(computer.act({ action: "click", ref: "p1:1" })).rejects.toThrow("not shown");
+});
+
+test("queries reach the observation backend on reads and post-action verification without retaining stale refs", async () => {
+  const queries: (string | undefined)[] = [], inputs: unknown[] = [];
+  const computer = createSemanticComputer({ windows: async () => [], observe: async options => {
+    queries.push(options.query);
+    if (options.query === "unavailable") throw new Error("queried observation failed");
+    return page();
+  }, act: async (_snapshot, action) => { inputs.push(action); } });
+  const first = await computer.browser({ action: "snapshot", query: "Search" });
+  expect(JSON.stringify(first.content)).toContain('[p1:0] textbox');
+  await computer.browser({ action: "type", ref: "p1:0", text: "hello", query: "Save" });
+  expect(queries).toEqual(["Search", "Save"]);
+  await expect(computer.browser({ action: "type", ref: "p1:0", text: "stale" })).rejects.toThrow("stale");
+  await expect(computer.browser({ action: "snapshot", query: "unavailable" })).rejects.toThrow("queried observation failed");
+  await expect(computer.browser({ action: "click", ref: "p2:0" })).rejects.toThrow("Look");
+  expect(inputs).toHaveLength(1);
+  expect(queries).toEqual(["Search", "Save", "unavailable"]);
+  expect(BrowserSchema.safeParse({ action: "snapshot", query: "x".repeat(200) }).success).toBe(true);
+  expect(BrowserSchema.safeParse({ action: "snapshot", query: "x".repeat(201) }).success).toBe(false);
 });
 
 test("long editable values expose their truncation instead of implying a complete readback", async () => {
