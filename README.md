@@ -1,10 +1,19 @@
 # Puk
 
-A voice-driven agent working in a real nested desktop, with a clickable picture-in-picture preview. Built for Omarchy / Hyprland; Jev coordinates live speech, Pi runs the selected model, and Cua MCP provides computer input and screenshots. Workers also have Bash.
+A voice-driven computer-use agent with a clickable picture-in-picture preview. On Windows, hands use separate virtual desktops; on Omarchy / Hyprland, they use nested desktops. Jev coordinates live speech and makes bounded decisions, Pi handles writing and visual reasoning, and Cua MCP provides native input and screenshots. Workers also have a shell.
 
 ## Run
 
-Install the desktop prerequisites in [Omarchy setup](docs/omarchy-setup.md), then:
+On Windows, install the prerequisites in [Windows setup](win/README.md), add keys from `.env.example` to `.env`, then:
+
+```sh
+bun install
+bun run start:win
+```
+
+This starts two hands on native Windows Bun. `bun win/serve.ts 3` changes the count. Windows also supports launching through WSL interop.
+
+On Omarchy, install the desktop prerequisites in [Omarchy setup](docs/omarchy-setup.md), then:
 
 ```sh
 bun install
@@ -14,7 +23,7 @@ bun start
 
 Open **http://127.0.0.1:7777** to type a task, hold the speech button, select a provider, watch the desktop, stop work, or review a proposed action. `PUK_HAND` selects the initial desktop (default `1`); independent voice tasks use other available hands; `PUK_PORT` defaults to `7777`.
 
-Run `bun pip.ts bindings` and add its output to `~/.config/hypr/bindings.lua` after checking for conflicting bindings. Preview movement uses Omarchy's existing mouse shortcuts:
+The following preview bindings are for Omarchy; [Windows controls](win/README.md#the-idea) use the native helper. Run `bun pip.ts bindings` and add its output to `~/.config/hypr/bindings.lua` after checking for conflicting bindings. Preview movement uses Omarchy's existing mouse shortcuts:
 
 | Control | Action |
 | --- | --- |
@@ -40,19 +49,20 @@ Bun loads `.env` automatically; keep keys there. `.env.example` lists canonical 
 | Purpose | Key names | Default model |
 | --- | --- | --- |
 | OpenAI agent and speech | `OPENAI_API_KEY` or `OAI` | `gpt-5.6-luna`; speech: `gpt-live-transcribe` |
-| Anthropic agent | `ANTHROPIC_API_KEY` or `ANT` | `claude-sonnet-5` |
 | Gemini agent | `GOOGLE_CLOUD_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, or `GEMINI` | `gemini-3.8-flash` |
 | Jev routing, decisions and action checks | `TYPESAFE_API_KEY`, `JEV_API_KEY`, `JEV`, or `jev_key` | `jev-latest` |
 
-`PUK_PROVIDER=auto` is the default. Jev chooses a configured model and reasoning effort when each task starts, and checks again between model turns when speech refines it. Selecting OpenAI, Anthropic or Gemini in the panel confines routing to that provider. The panel shows the model, effort, and routing time. A timeout, malformed answer, or uncertain difficulty uses a known standard profile; the action gate still runs normally.
+`PUK_PROVIDER=auto` is the default. Jev chooses a configured model when each task starts, and checks again between model turns when speech refines it. Selecting OpenAI or Gemini in the panel confines routing to that provider. The panel shows the model, effort, and routing time. A timeout, malformed answer, or uncertain difficulty uses a known standard profile; the action gate still runs normally.
 
-Auto offers three distinct profiles: **Luna / low** for routine work, **Sonnet 5 / medium** for standard work, and **Astra / high** for complex work. It uses available configured providers if a preferred provider is missing. Explicit provider selection stays on that provider: OpenAI uses Luna plus Astra for complex work, Anthropic uses Sonnet 5, and Gemini uses Gemini 3.8 Flash. Jev chooses **low, medium or high** effort; low is always the minimum. Sonnet uses adaptive thinking.
+The LLM pool is **Luna (`gpt-5.6-luna`)**, **Gemini 3.8 Flash (`gemini-3.8-flash`)**, and **Astra (`gpt-6-astra`)**. Auto prefers Luna for routine work, Gemini for standard visual work, and Astra for complex work. Every routing profile uses **low** reasoning effort, and Astra is clamped to low even when a caller asks for more. Routing falls back within the configured pool when a provider is missing. Explicit OpenAI selection uses Luna plus Astra for complex work; explicit Gemini selection stays on Gemini.
 
-`OPENAI_MODEL`, `ANTHROPIC_MODEL`, or `GEMINI_MODEL` pins a model while Jev still selects effort. Optional `*_COMPLEX_MODEL` changes the complex profile. Explicit overrides must exist in Pi's catalog. An unavailable optional default complex model falls back to that provider's configured model. Actual API access still depends on the key.
+`OPENAI_MODEL` or `GEMINI_MODEL` pins a model. `OPENAI_COMPLEX_MODEL` can select the OpenAI complex profile. Overrides must be in both this pool and Pi's catalog; other model IDs are rejected. An unavailable optional default complex model falls back to that provider's configured model. Actual API access still depends on the key.
 
 For a Vertex key, set **`GEMINI_BACKEND=vertex`**. `GOOGLE_CLOUD_API_KEY` selects Vertex automatically; keys under the other aliases need the explicit setting. AI Studio keys use `GEMINI_BACKEND=ai-studio`. Vertex Express mode API keys do not require a project/location here. Gemini 3.8 uses at least low thinking because Vertex rejects the SDK's implicit minimal setting.
 
 Voice always uses OpenAI transcription, independently of the agent provider. Typed tasks can use any configured provider. `TRANSCRIBE_MODEL` and `JEV_MODEL` are also configurable.
+
+The supplied `pi-tier.ts` behavior is integrated into OpenAI requests: `PUK_SERVICE_TIER` (or the fallback alias `PI_TIER`) accepts `priority`, `flex`, or `off`, defaulting to `priority`. `off` omits `service_tier`. Pi's `onPayload` hook and the standalone Responses adapter both apply the setting. It does not change Jev, Vertex, or speech requests. Priority has separate API pricing; requested service tier is not a measured latency guarantee. The earlier intent comparison in the [Jev eval report](docs/jev-evals.md) predates this setting; no priority-tier speedup has been measured.
 
 ## Behavior
 
@@ -66,9 +76,11 @@ F8 / microphone → live transcript → Jev task coordinator
 - Realtime deltas feed Chi's `jev/listen.ts` immediately. Jev identifies startable requests, independent task boundaries, refinements, repetitions and cancellations. A new task starts on a free hand while speech continues. Related steps update that same worker; extra independent tasks queue. Even several requests arriving in one transcript delta can be split by Jev.
 - Workers remain attached until speech finishes so corrections can reach them. Rewritten final transcripts cancel superseded work. Stop cancels capture, classification, queued tasks and every active worker. Apps already opened remain available.
 - The panel shows tasks and desktop selectors. Select a worker to watch it, click its preview to enter, and review pending actions from any worker. Starting a worker does not disable the speech button while it is held.
-- Pi has `apps`, `open_app`, `computer`, `bash`, and `jev` tools. It discovers apps itself, plans GUI/file work, and can batch independent text decisions through Jev. `computer` uses a private Cua MCP process pointed at that hand's Sway socket. Requests to show something must display it in the desktop and inspect the result.
+- Progress captions run alongside Pi, using bounded, redacted task events. Luna at low effort is used when an OpenAI key is configured, with a 256-token output cap; otherwise captions use Gemini at low effort with a 1,024-token cap. Truncated captions are discarded. Changed events are coalesced at six-second intervals, with at most one request in flight per hand. Idle or unchanged state makes no calls, and narration failures do not stop actions. Captions are available in worker status and the Windows preview. Set `PUK_NARRATION=0` to disable them.
+- Pi has `apps`, `open_app`, `computer`, `bash`, and `jev` tools. It discovers apps itself, plans GUI/file work, and can batch independent text decisions through Jev. `computer` uses a private Cua MCP process scoped to the hand. On Windows it also has `computer_look`, `computer_act`, and `computer_browser`, adapted from the supplied `pi-cua.ts`: compact labelled observations, fresh element references, and a new observation returned with each action. Native controls use Cua UI Automation; browser controls use the existing persistent DevTools connection. Screenshots remain available for visual evidence and canvases. Requests to show something must display it in the desktop and inspect the result.
 - For freehand drawing, the model plans up to eight strokes at once, with at most 32 points per stroke. Jev checks that exact plan, and Cua holds the left mouse button while following each path. A separate `computer batch` can group up to eight known palette, fill or form actions on the same observed screen. The complete batch is validated and checked once, with a screenshot afterward. Cancellation, instruction changes, focus changes and resizing stop remaining steps; held strokes always release the mouse button. Prefer preset colours when an exact shade is unnecessary.
-- Jev is text-only: it returns bounded choices and probabilities, not pixels, coordinates or free-form plans. It coordinates speech, selects model/effort and checks exact proposed actions. Independent questions share one call. The model handles vision, writing, tool arguments and recovery.
+- Coordinate input through `computer` uses an explicit contract. Gemini must declare `coordinate_space="normalized_1000"`; pixel or omitted units are rejected with a corrective error. Luna and Astra use screenshot pixels by default and may explicitly declare `normalized_1000`. One declaration covers every point in a batch or drawing path. Conversion uses the exact bound screenshot dimensions, and the action gate sees resolved pixel coordinates. The [Paint grounding diagnostic](docs/jev-evals.md#paint-coordinate-grounding-diagnostic) explains why units must be checked; the Paint task itself remained incomplete.
+- Jev is text-only: it returns bounded choices and probabilities, not pixels, coordinates or free-form plans. It coordinates speech, selects the model profile and checks exact proposed actions. On Windows, Jev opens native apps and runs the browser loop first; Pi takes over for native work beyond opening, writing, or recovery. A browser decision batches nine independent questions in **one** Jev call; the exact-action gate is a separate call. The last post-action observation is reused for the next decision.
 - While speech is unfinished, the risk threshold is stricter. A flagged action waits for the completed instruction and is checked again; consequential steps require approval of those exact arguments. A correction expires a stale proposal or approval. Failed checks block execution. Screenshots go to the selected model; Jev gets window metadata, exact arguments and the current instruction.
 - Bash shares your files and permissions. Desktop input is separated; the filesystem is not sandboxed. `.env` key aliases and exported credentials are removed from subprocess environments and redacted from outputs. Commands have bounded output, process-group cancellation and timeouts, including when a child keeps a pipe open.
 - Runs have a five-minute limit, 30 action calls and 120 total tool calls. Screenshots, app discovery and Jev queries do not consume the action budget. Conversation history stays in memory; switching provider or restarting clears it.
@@ -76,9 +88,9 @@ F8 / microphone → live transcript → Jev task coordinator
 
 ## Code and checks
 
-The app integration stays in `desktop.ts` (desktop/app tools), `pip.ts` (Hyprland navigation and preview styling), `ai.ts` (Pi/providers/tools), `hotkey.ts` (speech/server), and `panel.html` (the control page). It reuses the merged `jev/listen.ts` task coordinator and `jev/jev.ts` SDK transport. Both the listener and Pi's Jev tools share credentials, timeouts and response validation. Pi starts planning each accepted live task directly, without a second intent-generation LLM. The old app-only warm-up controller is kept only as an eval baseline in `evals.ts`. Standalone Jev planners are loaded lazily and are not pulled into the panel's worker loop. Zod defines the app's tool, HTTP, Jev response and routing schemas; Pi receives JSON Schema generated from the same tool definitions.
+The shared integration is in `desktop.ts` (desktop/app tools), `pip.ts` (Hyprland navigation and preview styling), `ai.ts` (Pi/providers/tools), `hotkey.ts` (speech/server), and `panel.html` (the control page), with the Windows backend in `win/`. It reuses the merged `jev/listen.ts` task coordinator and `jev/jev.ts` SDK transport. Both the listener and Pi's Jev tools share credentials, timeouts and response validation. The coordinator dispatches accepted text without a second intent-generation LLM; the Windows wrapper can build a more detailed intent when its Jev-first path needs one. The old app-only warm-up controller is kept only as an eval baseline in `evals.ts`. Standalone Jev planners are loaded lazily. Zod defines the app's tool, HTTP, Jev response and routing schemas; Pi receives JSON Schema generated from the same tool definitions.
 
-Chi's standalone Jev/AT-SPI desktop loop remains available under [`jev/`](jev/README.md). The panel uses Pi for Bash, vision, approvals and all three providers. `jev/cua.ts` is a native desktop experiment, not the external CUA SDK.
+Chi's standalone Jev/AT-SPI desktop loop remains available under [`jev/`](jev/README.md). Windows reuses its decision loop through [`win/jev.ts`](win/jev.ts); Pi provides the shell, vision and approvals using the three-model pool above. `jev/cua.ts` is the local controller, separate from external Cua Driver MCP.
 
 ```sh
 bun test
@@ -88,4 +100,6 @@ bun run eval --live --rounds=3 --suite=all
 
 `evals.ts` keeps synthetic fixtures and the live API harness together. App/shell execution is mocked; runs write model profiles, redacted traces, error-inclusive latency/accuracy, and estimated LLM token cost under ignored `out/evals/`. Suites can be run separately with `--suite=decisions|routing|workflow|streaming|listener|batch`, optionally filtered by `--strategy=NAME`. The listener suite uses the production coordinator with real Jev and mocked Pi execution. These paid API evals measure the configured providers on this connection; they are not latency guarantees or a security certification.
 
-See [handoff](docs/handoff.md) for live verification, limitations, and next steps. Cua Driver MCP is integrated on nested Sway. macOS/Windows desktop backends remain future work. Preview buffers remain tile-sized; Cua capture/input alignment at fractional output scales still needs verification.
+`bun jev/eval.ts --live --suite=decisions --split=holdout --rounds=3` compares five Jev contracts against synthetic observations with the independent gate retained. The [2026-09-19 eval report](docs/jev-evals.md) records the raw-run provenance, improvements, and limits: the production contract scored 36/36 held-out decisions versus 33/36 for the baseline, while exact literal intent extraction improved from 9/24 to 24/24. These are one-step checks, not complete computer-use success rates.
+
+See [Windows verification and limits](win/README.md) and the earlier [Omarchy handoff](docs/handoff.md). Windows native Bun and WSL startup/browser control have been exercised on this machine; native app input still depends on what Windows exposes in a background window. Hand browsers use private profiles by default. A separate authorized Cua connection verified signed-in YouTube Shorts access, but the panel does not yet offer existing-account attachment. macOS is not implemented. On Omarchy, Cua capture/input alignment at fractional output scales still needs verification.

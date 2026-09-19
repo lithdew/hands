@@ -1,0 +1,167 @@
+# Jev contracts and Windows computer use: 2026-09-19
+
+Better inputs reduced avoidable handoffs without making the production Jev request materially faster. On 12 held-out synthetic screens repeated three times, the production `evidence` contract passed 36/36 decision-and-gate checks versus 33/36 for the baseline. Its median decision took 351 ms and its median case, including a gate when needed, took 670 ms. Improving the literal choices available to the intent builder raised its result from 9/24 to 24/24 at a 323 ms median.
+
+These are model-contract measurements. They do not show that a computer-use task finishes in 670 ms, that native Windows input works in every app, or that the full harness is five times faster.
+
+## What ran
+
+The live API harness is [`jev/eval.ts`](../jev/eval.ts), with synthetic observations and expected outcomes in [`jev/eval-fixtures.ts`](../jev/eval-fixtures.ts). The served Jev model was **`jev-1.13.0`**, using Bun 1.4.2 on native Windows. Jobs were interleaved with seed `20260919`, concurrency one, three repeats and no automatic retries. Each run made a cold warm-up probe; that probe is recorded separately and excluded from aggregate latency. Percentiles use nearest rank and errors remain in the success denominator.
+
+There were **450 decision trials**: 18 development cases and 12 held-out cases, each repeated three times across five contracts. That is 30 distinct synthetic cases, not 450 independent tasks. The fixtures cover literal fields, duplicate labels and parent scope, loading and text-only states, task completion, injected page text, and screens that need visual interpretation. Actions and the writer were mocked. The existing independent Jev action gate was called for proposed actions; a writer request was recorded as a handoff.
+
+The recorded runs are:
+
+- `out/evals/jev-development`: 270 decisions, 27 latency probes and 24 legacy intent trials, starting 12:27 UTC.
+- `out/evals/jev-holdout`: 180 decisions, starting 12:39 UTC.
+- `out/evals/jev-intent-live`: 72 intent trials, including the live Luna writer, starting 12:36 UTC. This used an intermediate literal extractor.
+- `out/evals/jev-intent-final`: 48 intent trials comparing the final literal extractor with the legacy version, starting 12:44 UTC.
+
+Each ignored run directory contains `metadata.json`, `summary.json` and append-only `results.jsonl`. Metadata records the served model, warm-up and source hashes. [The tracked summary export](jev-evals-2026-09-19.json) preserves those metadata and summaries without account screenshots or credentials. The pilot and a network-blocked preflight are excluded from the comparisons below.
+
+## Decision contracts
+
+The production decision already batches **nine independent questions into one Jev request**: move, goal completion, stuck, target, input, field, submit, key and direction. The exact-action gate is a second request. No question in a batch reads another question's answer. Only newly generated text requires a writer call.
+
+[`jev/contracts.ts`](../jev/contracts.ts) compares these alternatives:
+
+- `fanout`: baseline behavior, including immediate escalation if there are no controls and scope-free target descriptions at the gate.
+- `compact`: the same baseline questions and thresholds, with UI labels supplied once in state instead of repeated in each target choice.
+- `evidence`: the production contract. Readable text can establish state even with no controls, and the gate receives the selected control's parent scope.
+- `actions`: one choice among fully specified, grounded action tuples, plus completion and stuck checks.
+- `scores`: one Noul per candidate action, then ranking in code. Despite the strategy name, this does **not** use the SDK's `score` primitive.
+
+The action experiments cover ordinary browser actions; production also offers right and double clicks. Candidate overflow falls back to the compact contract rather than silently removing targets. Neither action experiment is enabled in production.
+
+### Development cases
+
+Each row contains 54 trials. “Pass” means an expected or explicitly acceptable next decision **and** the expected gate result when a gate runs. “Direct” counts exact expected decision signatures before gate scoring. Total time is the wall time of a case, including the separate gate when the decision requires it; no desktop input or page loading is included.
+
+| Contract | Pass | Direct | Handoffs / unnecessary | Decision p50 / p95 (ms) | Total p50 / p95 (ms) | Mean decision input tokens |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| fanout | 45/54 | 42/54 | 15 / 6 | 320 / 372 | 629 / 739 | 1,822 |
+| compact | 45/54 | 42/54 | 15 / 6 | 327 / 410 | 636 / 770 | 1,722 |
+| evidence | 54/54 | 48/54 | 9 / 0 | 329 / 386 | 627 / 720 | 1,777 |
+| actions | 54/54 | 52/54 | 7 / 0 | 329 / 400 | 634 / 736 | 1,515 |
+| scores | 54/54 | 51/54 | 6 / 0 | 348 / 465 | 661 / 792 | 4,623 |
+
+### Held-out cases
+
+Each row contains 36 trials over 12 different cases. The held-out fixtures were not used to tune the final decision contract after this run.
+
+| Contract | Pass | Direct | Handoffs / unnecessary | Decision p50 / p95 (ms) | Total p50 / p95 (ms) | Mean decision input tokens |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| fanout | 33/36 | 27/36 | 6 / 3 | 343 / 459 | 661 / 799 | 1,584 |
+| compact | 33/36 | 27/36 | 6 / 3 | 351 / 420 | 670 / 830 | 1,554 |
+| evidence | 36/36 | 29/36 | 2 / 0 | 351 / 431 | 670 / 771 | 1,572 |
+| actions | 29/36 | 28/36 | 9 / 7 | 349 / 429 | 650 / 709 | 1,260 |
+| scores | 36/36 | 33/36 | 0 / 0 | 412 / 537 | 757 / 910 | 3,760 |
+
+The production change removed the baseline's three unnecessary held-out handoffs at similar latency. Whole-action choices looked good in development but regressed on held-out long queries, Chinese text and reversed fields. Per-candidate Noul ranking passed all fixtures but used about 2.4 times the production decision input tokens on holdout and took longer. Some of its “no handoff” outcomes were acceptable focus clicks: they do not prove that it could finish the following writing step without an LLM.
+
+All five contracts recorded zero API errors, wrong-action counts and conditional false-allow counts in these decision fixtures. The false-allow metric only scores the selected expected or acceptable action when the fixture requires approval. This small fixture set is not a general action-safety evaluation.
+
+## Literal intent extraction
+
+The legacy extractor stripped useful programming punctuation, offered at most six-word spans, and could not choose an arbitrary explicitly supplied URL. No prompt can recover a correct answer that is absent from its choice set. The new [`jev/quick.ts`](../jev/quick.ts) prioritizes quoted phrases and long literal suffixes, preserves internal text such as `C++`, offers supplied HTTP(S) destinations, and distinguishes a destination URL from a URL used as a search query. The total choices remain bounded.
+
+The final development run used eight cases repeated three times:
+
+| Builder | Exact result | Handoffs | p50 / p95 (ms) |
+| --- | ---: | ---: | ---: |
+| Legacy Jev choices | 9/24 | 6 | 325 / 384 |
+| Final literal Jev choices | 24/24 | 0 | 323 / 389 |
+
+The earlier live intent run had Luna at 24/24, with a 1,589 ms median and 2,080 ms p95. The final literal Jev median is about 4.9 times faster than that earlier writer median **for intent extraction only**. These were separate runs, not a simultaneous controlled comparison; the intermediate literal implementation scored 18/24 before the final URL/query fix. The intent cases were used during development and have no separate held-out set. The old metadata records the Jev model but not the LLM model ID; Luna was established from the configured adapter used for that run.
+
+## Question width matters
+
+The latency microbenchmark varied label count and question count. Each configuration had only three repeats, so p95 is effectively the slowest observation and is particularly unstable.
+
+| Labels per choice | Questions | Decision p50 / p95 (ms) | Result |
+| ---: | ---: | ---: | --- |
+| 8 | 1 | 349 / 1,477 | 3/3 answered; one slow request |
+| 8 | 9 | 323 / 375 | 3/3 answered |
+| 8 | 32 | 334 / 426 | 3/3 answered |
+| 80 | 1 | 338 / 343 | 3/3 answered |
+| 80 | 9 | 395 / 437 | 3/3 answered |
+| 80 | 32 | 784 / 935 | 3/3 answered |
+| 150 | 1 | 332 / 359 | 3/3 answered |
+| 150 | 9 | 672 / 697 | 3/3 answered |
+| 150 | 32 | 442 / 450 | 0/3; HTTP 400, not successful inference latency |
+
+At 80 labels and 32 questions the serialized state plus question definitions averaged 73,297 bytes and 47,428 reported input tokens. The rejected 150-by-32 requests averaged 138,967 bytes; the response body was not retained, so the precise server limit is unknown. Bulk questions were cheap when choices were small. Repeating many large choice sets was not.
+
+## Changes wired into the Windows harness
+
+The production path retains the fan-out contract and independent gate. It now preserves literal inputs, carries target scope into the gate, recognizes readable text without controls, and allows one passive re-observation for a low-confidence loading state before escalation. That retry is bounded per run, obeys cancellation, and is covered by tests; it was not measured as an end-to-end live latency gain in the one-step decision tables.
+
+The supplied `pi-cua.ts` and `pi-tier.ts` were written for a different Pi extension host and macOS. Their relevant behavior is adapted into the existing Windows runtime:
+
+- `computer_look`, `computer_act` and `computer_browser` return bounded labelled state, fresh references, optional images, and current state after actions. Results highlight changes without treating any change as success. Failed reads/actions invalidate references, and uncertain mutations are not automatically retried.
+- Native controls use Cua element tokens or snapshot-bound indices. The browser path keeps Puk's persistent CDP connection and compact DOM observations. It refuses ambiguous tab matches and checks observed window/page bindings before input. The macOS Retina coordinate conversion and `open -g` launch path were not ported.
+- The Pi gate sees the resolved control label and window/URL context before a semantic mutation. The tools retain cancellation and instruction-revision checks. Existing-profile authorization in the supplied extension is not automatically applied to the user's Chrome account.
+- The LLM pool is Luna (`gpt-5.6-luna`), Gemini 3.8 Flash (`gemini-3.8-flash`) and Astra (`gpt-6-astra`). All routing profiles use low effort, and Astra is clamped to low. Jev and speech models are separate. Auto prefers Luna for routine work, Gemini for standard visual work and Astra for complex work.
+- OpenAI requests now send the configured `service_tier` through Pi's `onPayload` hook and the standalone Responses adapter. `PUK_SERVICE_TIER` overrides `PI_TIER`; both accept `priority`, `flex` or `off`, defaulting to priority. This change followed the measurements above. Priority has separate pricing and these evals do not measure its performance effect. See [OpenAI fast mode](https://developers.openai.com/api/docs/guides/fast-mode).
+
+Live availability smoke requests succeeded for all three configured models after setting `GEMINI_BACKEND=vertex` for the user's Vertex key. Those were single short responses, not a model latency ranking or proof of the actual served OpenAI priority tier.
+
+Progress narration now runs beside Pi through `narrate.ts`, using bounded, redacted events rather than an additional screenshot. It coalesces changed state at six-second intervals, keeps one request in flight per hand, and discards obsolete responses after cancellation or task changes. Idle and unchanged state make no model calls. The default summarizer uses Luna at low effort with a 256-token cap when an OpenAI key is present, otherwise Gemini at low effort with a 1,024-token cap. Truncated captions are discarded; `PUK_NARRATION=0` disables narration. Captions are exposed in worker status and the Windows preview. This has regression coverage, but no measured improvement in task completion or latency is claimed.
+
+## Paint coordinate grounding diagnostic
+
+The native Paint task to draw a cat **remained incomplete**. A proposed Undo click at `(310,80)` did not match the screenshot's Undo button, whose visually annotated center was approximately `(416,72)`. On the 1342×891 capture, treating the proposed point as coordinates normalized to 0–1000 gives `(416.02,71.28)`, almost exactly that center. This motivated explicit coordinate-space handling rather than assuming every returned number is a screenshot pixel.
+
+Google's [Computer Use documentation](https://ai.google.dev/gemini-api/docs/computer-use) specifies coordinates normalized to 1000×1000 for its dedicated tool. Puk's probes below used generic `ai.askModel` image-and-text calls with **no** Computer Use tool enabled, so the documented tool contract alone does not establish the behavior of this path.
+
+We made six diagnostic calls, one explicit pixel prompt and one explicit normalized prompt for each allowed model, at low effort and a 256-token output cap. Two separately authorized Gemini follow-ups used the same prompts with a 1,024-token cap. The image was a local copy with the account/avatar and entire drawing canvas masked; its dimensions and all 1,763 pixels in the conservative Undo rectangle (`x=395..437`, `y=51..91`) were preserved and checked. That rectangle is a visual annotation, not an inspected native hitbox. No clicks or other UI input were performed. The original unmasked screenshot upload was rejected by automatic review; a fresh review approved only the reduced image.
+
+These are single observations on one icon, not a model benchmark. Initial calls ran concurrently in a group of six; the Gemini follow-ups ran concurrently as a pair. The rows below show complete coordinate replies; latency is retained only for diagnostic traceability.
+
+| Model | Requested units | Token cap | Returned point | Point interpreted as requested (pixels) | Error from annotated center | Latency (ms) |
+| --- | --- | ---: | --- | --- | ---: | ---: |
+| Luna | pixels | 256 | `(416,72)` | `(416,72)` | 0 px | 2,993 |
+| Luna | normalized 0–1000 | 256 | `(310,81.93)` | `(416.02,73.00)` | 1.0 px | 3,412 |
+| Astra low | pixels | 256 | `(416,73)` | `(416,73)` | 1.0 px | 2,319 |
+| Astra low | normalized 0–1000 | 256 | `(310,82)` | `(416.02,73.06)` | 1.1 px | 2,192 |
+| Gemini 3.8 Flash, Vertex | pixels | 1,024 | `(310,82)` | `(310,82)` | **106.5 px; outside bounds** | 3,953 |
+| Gemini 3.8 Flash, Vertex | normalized 0–1000 | 1,024 | `(309,83)` | `(414.68,73.95)` | 2.4 px | 6,059 |
+
+At the 256-token cap, both Gemini replies were incomplete JSON: the pixel prompt returned `{"x": 310, "y":`, and the normalized prompt returned a JSON fence followed by `{"x": 310,`. Each reported 252 output tokens including 241 reasoning tokens, leaving only 11 visible tokens. With the 1,024-token cap, the pixel response used 374 output tokens (351 reasoning, 23 visible), while the normalized response used 687 (659 reasoning, 28 visible). This is consistent with output-budget pressure; `askModel` did not expose the completion stop reason in these saved runs. The invalid replies are retained as two failed parses, not omitted from the eight-call record.
+
+Gemini's complete pixel response even labelled its point `"coordinate_space":"pixels"`, although the numbers land near Undo only after normalized conversion. An explicit field therefore does not by itself verify visual correctness. The complete normalized replies from all three models landed inside the annotated bounds; Gemini's complete reply came from the 1,024-token follow-up. These probes do not establish accuracy on other controls, drawing strokes, scales or tool-call contexts.
+
+The implemented `computer` input contract now requires Gemini coordinate-bearing calls to explicitly declare `coordinate_space="normalized_1000"`. A pixel declaration or omitted units are rejected with a corrective error, rather than silently reinterpreted. Luna and Astra use screenshot pixels by default and can explicitly declare normalized coordinates. One declaration applies to every point in a batch or path. Conversion uses the exact bound screenshot dimensions, and the action gate receives the resolved pixel coordinates. The provider policy determines which declared contract is accepted; the runtime does not infer units from the returned numbers. Visual correctness and the action's actual effect still need verification, and the Paint task remains incomplete.
+
+`askModel` now exposes `stopReason` and `rawStopReason`, and narration rejects captions stopped by their token limit. Those fields were unavailable in the saved probes above; the historical truncation explanation remains an inference from token usage and the complete higher-budget replies.
+
+Raw prompts, answers, token usage, source hashes and image hash are in ignored `out/evals/grounding-smoke/`, with the two follow-ups under `gemini-1024/`. The [tracked export](jev-evals-2026-09-19.json) includes both diagnostic runs alongside the original Jev summaries. No automatic retries ran and the original screenshot was never uploaded by this eval.
+
+## What still limits computer use
+
+The decision endpoint was already around 0.3–0.4 s warm on these fixtures. Adding image segmentation would not fix the absent literal candidates or missing task-state evidence found here. The first useful improvements are better observations, explicit progress and verified effects, followed by visual parsing for controls that UIA/DOM cannot describe. CoreML segmentation was not benchmarked, and this Windows implementation does not use it.
+
+Separate local probes found the existing compact DOM observer around 28–36 ms warm, while sampled full Cua browser semantic snapshots took roughly 2.3–4.3 s. Those small probes are diagnostic observations, not controlled distributions. Keeping the fast DOM path avoids replacing it with a slower full-tree request on every browser action.
+
+Native Windows controls on hidden desktops can still be inaccessible or reject background input. The first Calculator pixel baseline failed to establish the requested result. A live read through the new adapter still returned zero labelled Calculator controls in 1,378 ms. Adding Cua references therefore has not resolved that background limitation. The Windows runtime still hands native tasks beyond opening to Pi.
+
+Watching Shorts also needs task state that generic “screen changed” history does not supply: playback progress, elapsed watch time and distinct video IDs. A private-profile Shorts run and a separate authorized signed-in Chrome playback check are different tests. One signed-in Short was observed playing; advancing through three signed-in Shorts was not verified. The normal panel still uses private hand profiles and has no existing-account attachment mode.
+
+Further measurements should use complete tasks on real apps, hold out new goals and UI layouts, and count task success, time to first useful action, recoveries, handoffs, observation time, model time and verified input effects separately. Include a case where screen content changes without task progress. A three-model routing policy can reduce expensive turns only if those measurements show it does.
+
+## Reproduce
+
+Set the Jev key using `.env.example`. These commands make paid API calls but do not drive the desktop:
+
+```sh
+bun jev/eval.ts --live --suite=decisions --split=development --rounds=3 --seed=20260919 --out=out/evals/recheck-development
+bun jev/eval.ts --live --suite=decisions --split=holdout --rounds=3 --seed=20260919 --out=out/evals/recheck-holdout
+bun jev/eval.ts --live --suite=latency --rounds=3 --seed=20260919 --out=out/evals/recheck-latency
+bun jev/eval.ts --live --suite=intent --rounds=3 --seed=20260919 --out=out/evals/recheck-intent
+```
+
+Add `--llm` to the intent command to include the configured OpenAI writer, or use `--strategies=fanout,evidence` to narrow the decision suite. Use a fresh output directory per run. `--live` is required to send requests; without it the CLI prints its dry-run instructions. To omit the new OpenAI service-tier request when comparing with the historical writer run, set `PUK_SERVICE_TIER=off`; the historical run did not record the actual served tier. Current source and model aliases can differ from the saved hashes, so a rerun will not reproduce an old network trace exactly.
+
+Run `bun test` and `bun run check` for code checks. The full suite was exercised in WSL because some shared desktop tests depend on Linux process behavior. The server itself was also started with native Windows Bun.
+
+The public Cua example was inspected at commit `83f142c4290a0f7d9ed545ae8532858c6e4f8145`. Its [Jev example](https://github.com/trycua/cua/tree/83f142c4290a0f7d9ed545ae8532858c6e4f8145/libs/cua-driver/examples/jev-use) uses bounded candidates; that design is useful evidence for constructing choices, not evidence for unrestricted desktop speed. Related references are TypeSafe's [fan-out pattern](https://docs.typesafe.ai/patterns/fan-out) and [confidence guidance](https://docs.typesafe.ai/confidence), plus Cua's [browser profile attachment](https://cua.ai/docs/reference/cua-driver/browser-profile-attachment) and [Windows tools](https://cua.ai/docs/reference/cua-driver/mcp-tools-windows).

@@ -1,16 +1,29 @@
-# jev/: Jev drives the hands (branch `jev-cua`)
+# jev/: Jev decisions, intent extraction and speech coordination
 
 Originally written by Chi on `jev-cua`, merged into `desktop-pip` at `eb3c4c8`
-on 2026-09-19. The panel uses `listen.ts` as its live coordinator: accepted tasks start Pi workers on free hands immediately, refinements steer the same worker, and retractions cancel it. The app supplies a literal intent builder, so there is no second intent LLM. Pi provides OpenAI/Anthropic/Vertex Gemini, Bash and **external Cua Driver MCP** input/screenshots. The SDK transport in `jev.ts` is shared with `ai.ts`.
+on 2026-09-19. The panel uses `listen.ts` as its live coordinator: accepted tasks start workers on free hands immediately, refinements steer the same worker, and retractions cancel it. The app supplies a literal intent builder, so the coordinator needs no second intent LLM. Pi uses Luna, Vertex Gemini 3.8 Flash, or Astra at low effort, plus a shell and **external Cua Driver MCP** input/screenshots. The SDK transport in `jev.ts` is shared with `ai.ts`.
 
-The rest of this document describes the standalone Jev/AT-SPI loop and its
-original measurements. It is not the external CUA SDK.
+Windows reuses `cua.ts` for browser actions through `win/jev.ts`, `win/observe.ts` and its persistent DevTools adapter. Native tasks beyond opening an app go to Pi, whose new `computer_look` / `computer_act` tools use labelled Cua controls when available. The standalone Omarchy loop uses AT-SPI. This module is the local controller, separate from the external Cua Driver SDK.
+
+## Current contract and measured changes
+
+`decide` asks **nine independent questions in one request**: move, goal completion, stuck, target, input, field, submit, key and direction. The target and field questions see the original state; they do not depend on another answer in the batch. Code assembles an executable action, then a **separate exact-action gate** checks it. A normal action therefore needs two Jev requests, plus a writer only when new text is required.
+
+The current path preserves long literal queries, punctuation and explicitly supplied HTTP(S) URLs when offering intent choices; distinguishes readable text from an unreadable screen with no controls; includes the target's parent scope in the gate; and allows one passive re-observation when a low-confidence wait suggests loading. Cancellation and the action gate still apply. The post-action observation is reused for the next decision.
+
+The [2026-09-19 eval report](../docs/jev-evals.md) records 450 real-Jev decision trials over 30 synthetic screens, with 18 development and 12 held-out cases repeated three times per strategy. The production `evidence` contract scored 36/36 held-out decisions versus 33/36 for the old `fanout` baseline. The final intent run scored 24/24 versus 9/24 for legacy literal candidates, at a 323 ms median. These measurements do not establish whole-task completion rates. `contracts.ts` also contains experimental whole-action choices and per-candidate Noul ranking; neither replaces the production contract.
+
+```sh
+bun jev/eval.ts --live --suite=decisions --split=development --rounds=3
+bun jev/eval.ts --live --suite=decisions --split=holdout --rounds=3
+bun jev/eval.ts --live --suite=intent --rounds=3 --llm
+```
+
+The remaining sections document the standalone loop. The original smoke measurements are labelled separately below.
 
 ## What it does
 
-A small LLM turns what the user said into an **Intent**. **Jev** (TypeSafe's
-System One model) then operates a hand until the intent is met: click, type,
-key, scroll. A vision model is consulted only when Jev is stuck.
+`quick.ts` builds simple intents with Jev alone, selecting from literal text and known or explicitly supplied URLs. A small LLM builds intents that need writing. Jev then operates a hand until the intent is met: click, type, key, scroll. A vision model is consulted when the standalone loop cannot proceed.
 
 ```
 words, as they are spoken
@@ -21,7 +34,7 @@ words, as they are spoken
      intent.ts    small LLM, once per task: goal, launcher, inputs to type, done_when
   -> cua.ts       per step:
        observe.ts   the screen as labelled text (AT-SPI tree, no model call)
-       Jev          which move? then: which element / input / key?   ~100 ms each
+       Jev          move + goal + target / input / key: one batched request
        gate.ts      Jev again: is this one action risky? if so, wait for the user
        desktop.ts   click / type / key / scroll inside the hand
   -> planner.ts   only when stuck: Jev picks a vision model ("quick" or "deep"),
@@ -56,7 +69,7 @@ string or a coordinate, and is documented as weak with raw numbers. So:
 - **Models never hand us a command.** The intent's launcher is a closed set
   (`browser | terminal | files | none`) and its url must be http(s).
 
-In Chi's original standalone branch, Jev decides each action and vision is the escalation. The integrated panel instead reuses his live coordinator with Pi workers and external Cua MCP. See the root handoff for that path; the measurements below retain their original standalone scope.
+In Chi's original standalone branch, Jev decides each action and vision is the escalation. The Omarchy panel reuses his live coordinator with Pi workers and external Cua MCP; the Windows panel also runs the Jev browser controller first. See the root README and Windows README for those paths. The historical measurements below retain their original standalone scope.
 
 ## Listening while the user speaks
 
@@ -101,7 +114,7 @@ listener.cancel();                 // Stop: abort pending decisions and all queu
 For `transcribe.ts` there is also a pipe: `bun jev/listen.ts stdin` takes the
 transcript so far on each line, and an empty line as the end of the utterance.
 
-## Files
+## Original standalone file verification (before Windows integration)
 
 | File | Purpose | Status |
 | --- | --- | --- |
@@ -115,15 +128,11 @@ transcript so far on each line, and an empty line as the end of the utterance.
 | `quick.ts` | Jev builds a simple intent with no LLM | **Run live.** Unit tested. |
 | `cua.ts` | `decide`, `perform`, `runIntent`, CLI | `decide` **run live** on synthetic screens. `perform` and the loop tested with a scripted Jev, asserting the exact `wlrctl`/`wtype` argv. |
 
-103 tests here (125 with the existing 22), all seams faked, same idiom as
-`desktop.test.ts`.
+At the original branch handoff there were 103 tests here (125 with the existing 22), with desktop seams faked. These are historical counts; use `bun test` for the current tree.
 
-**No action has ever reached a real hand.** The machine this was written on
-has no sway and no AT-SPI typelib. So the two ends that touch the desktop,
-`atspi_dump.py` reading a tree and `perform` driving `wlrctl`/`wtype`, are
-the unproven part. Everything between them has run against the real models.
+The original standalone authoring environment had no Sway or AT-SPI typelib, so its `atspi_dump.py` reader and `wlrctl`/`wtype` performer were not exercised on a live hand in that handoff. This does not describe the later Windows browser integration, which has driven real windows; see [Windows verification](../win/README.md#verification-and-limits).
 
-## What the real models did (2026-09-19)
+## Historical standalone smoke results (2026-09-19)
 
 `decide` and `assessRisk` against real Jev, on hand-written screens:
 
@@ -139,9 +148,7 @@ the unproven part. Everything between them has run against the real models.
 Six for six, on six screens I wrote myself. It is a smoke test, not an
 evaluation.
 
-Latency from WSL: 230 to 290 ms per warm Jev request, about 1 s for the first.
-A step is three requests (move, arguments, gate), so roughly 0.8 s of Jev per
-step. TypeSafe quotes about 100 ms; the rest is likely network from here.
+The original sequential implementation measured 230 to 290 ms per warm Jev request from WSL, about 1 s for the first. It made three requests per step (move, arguments, gate), roughly 0.8 s of Jev time. The current implementation batches move and arguments in one request and keeps the gate separate; current measurements are in the eval report linked above.
 
 One threshold was wrong and is fixed: Jev answered `stuck` 0.57 on a run with
 an empty history. `stuck` now counts only after three actions.
@@ -161,11 +168,11 @@ returning the text "null" as a url, which failed the final build and left a
 task running on the fragment "I'm running"; one error logged four times; and
 Jev picking "youtube" as the words to type into YouTube.
 
-`makePlan` against both planners, on a generated 1280x800 PNG with a blue
+The old `makePlan` smoke test used two planners on a generated 1280x800 PNG with a blue
 rectangle at a known place: `gpt-5.4-mini` 2.3 s, centre off by 4 px;
 `gpt-6-astra` 2.9 s, exact. Both took image plus strict schema, and both
 answered in the hand's own pixel space. A real, dense UI will be harder than
-one rectangle.
+one rectangle. The `gpt-5.4-mini` result is historical; that model is outside the current allowed pool and is no longer enabled.
 
 ## Setup on Omarchy
 
@@ -183,10 +190,7 @@ Optional: `PUK_INTENT_MODEL` (default `gpt-5.6-luna`),
 `PUK_PLANNER_QUICK_MODEL` (`gpt-5.6-luna`), `PUK_PLANNER_DEEP_MODEL`
 (`gpt-6-astra`), `PUK_RISK_THRESHOLD` (0.5), `PUK_MIN_CONFIDENCE` (0.45),
 `PUK_PYTHON` (`/usr/bin/python3`), `OPENAI_BASE_URL`.
-The intent and quick planner also honor `OPENAI_MODEL`. Intent/quick calls
-use low reasoning effort; the deep planner uses high. `JEV_MODEL` selects
-the shared Jev model. The panel's provider/effort routing is documented in the
-root README; these `PUK_*` planner overrides apply to the standalone loop.
+The intent and quick planner also honor `OPENAI_MODEL`. All these overrides must remain within the allowed OpenAI pool (Luna or Astra). Intent, quick and deep planner calls use low reasoning effort; Astra is always clamped to low. `JEV_MODEL` selects the shared Jev model. `PUK_SERVICE_TIER` / `PI_TIER` applies to these OpenAI calls as well. The panel's model routing is documented in the root README; these `PUK_*` planner overrides apply to the standalone loop.
 
 ## First 10 minutes
 
@@ -234,8 +238,7 @@ has something to stand on.
    0.94, and 0.02 vs 0.96). `MIN_CONFIDENCE` 0.45 has one close data point: a
    correct move at 0.61. TypeSafe suggests plotting confidence against
    accuracy on your own runs.
-7. **`jev-preview` exists** and is described as better in most ways. Try it
-   with `TYPESAFE_DEFAULT_MODEL=jev-preview`.
+7. **Record the served model.** `JEV_MODEL` selects the requested model; aliases can change. The current eval harness stores the actual model returned by the SDK (`jev-1.13.0` in the recorded runs).
 8. **A request that leans on the one before it.** "Open wikipedia", and once
    that is done, "now search for capybaras": the second task is built from its
    own words only and does not know Wikipedia is meant. Refining works only
