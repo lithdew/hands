@@ -5,15 +5,17 @@
 // what has to be operated. What comes back is plain data for Jev to sift (sift.ts) and an LLM to read.
 //
 //   search(query)        -> results {title, url, snippet}     Brave's HTML (DuckDuckGo answers 202 to a script)
-//   arxiv(query, n)      -> the same, from arXiv's own API, newest first, with the abstract as snippet
-//   page(url)            -> {title, blocks, links, pdf}       readable text in reading order, cached on disk
+//   arxiv(query, n)      -> the same, from arXiv's own API, with the whole abstract as `text` (newest first, or by relevance)
+//   arxivByIds(ids)      -> arXiv's own record of papers whose ids turned up somewhere else
+//   page(url)           -> {title, blocks, links, pdf}       readable text in reading order, cached on disk
 //
 // Everything a page says is data. Nothing here follows an instruction found in one.
 
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-export type Result = { title: string; url: string; snippet: string };
+/** `text`: the source's whole text, when the search already brought it (an abstract). Such a result needs no fetch. */
+export type Result = { title: string; url: string; snippet: string; text?: string; date?: string };
 export type Page = { url: string; title: string; blocks: string[]; links: { text: string; url: string }[]; pdf: boolean; status: number };
 
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
@@ -21,13 +23,57 @@ const CACHE = join(import.meta.dir, "..", "..", "out", "relay", "cache");
 const clean = (s: string) => s.replace(/\s+/g, " ").trim();
 const key = (s: string) => Bun.hash(s).toString(16);
 
+// A failure is not an answer. An empty listing or a page that did not come (a 429, a timeout) is not kept:
+// one bad minute would otherwise empty that query for every later run. Callers asking for the same thing
+// at the same moment share one fetch.
+const pending = new Map<string, Promise<unknown>>();
+export function worthKeeping(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length > 0;
+  const status = (value as { status?: unknown } | null)?.status;
+  return typeof status !== "number" || !(status === 0 || status === 429 || status >= 500);
+}
+
 async function cached<T>(name: string, make: () => Promise<T>, fresh = false): Promise<T> {
   const file = Bun.file(join(CACHE, `${name}.json`));
-  if (!fresh && await file.exists()) return file.json() as Promise<T>;
-  const value = await make();
-  await mkdir(CACHE, { recursive: true });
-  await Bun.write(file, JSON.stringify(value));
-  return value;
+  if (!fresh && await file.exists()) { const kept = await (file.json() as Promise<T>).catch(() => undefined); if (kept !== undefined && worthKeeping(kept)) return kept; }
+  if (pending.has(name)) return pending.get(name) as Promise<T>;
+  const work = (async () => {
+    const value = await make();
+    if (worthKeeping(value)) { await mkdir(CACHE, { recursive: true }); await Bun.write(file, JSON.stringify(value)); }
+    return value;
+  })().finally(() => pending.delete(name));
+  pending.set(name, work);
+  return work;
+}
+
+/** At most `n` of these run at once; the rest wait their turn. An engine that sees thirty requests in a second answers 429 to all of them. */
+export function limiter(n: number): <T>(work: () => Promise<T>) => Promise<T> {
+  let running = 0;
+  const waiting: (() => void)[] = [];
+  return async (work) => {
+    // A finished piece of work hands its place straight to the next in line, so nothing arriving in between can take it.
+    if (running >= n) await new Promise<void>((go) => waiting.push(go)); else running++;
+    try { return await work(); } finally { const next = waiting.shift(); if (next) next(); else running--; }
+  };
+}
+/** One at a time, and no sooner than `gapMs` after the one before began. */
+export function paced(gapMs: number): <T>(work: () => Promise<T>) => Promise<T> {
+  let next = 0, line: Promise<unknown> = Promise.resolve();
+  return (work) => {
+    const mine = line.then(async () => { const wait = next - Date.now(); if (wait > 0) await Bun.sleep(wait); next = Date.now() + gapMs; return work(); });
+    line = mine.catch(() => {});
+    return mine;
+  };
+}
+// arXiv asks for one request every three seconds over one connection. Measured: twenty-five in four seconds were all
+// answered, and then every request for the next five minutes got 429, the judge's among them. So: few, large, slow.
+const searchTurn = limiter(2), arxivTurn = paced(3_100);
+let searchRefusedUntil = 0, arxivRefusedUntil = 0;
+async function arxivGet(url: string): Promise<Result[]> {
+  if (Date.now() < arxivRefusedUntil) return [];
+  const res = await arxivTurn(async () => Date.now() < arxivRefusedUntil ? null : get(url, 40_000).catch(() => null));
+  if (res?.status === 429) arxivRefusedUntil = Date.now() + 120_000;
+  return res?.ok ? arxivEntries(await res.text()) : [];
 }
 
 async function get(url: string, timeoutMs = 20_000): Promise<Response> {
@@ -37,7 +83,9 @@ async function get(url: string, timeoutMs = 20_000): Promise<Response> {
 /** Web search results, in the engine's order. Empty on any failure: a search that fails is a query to reword, not a crash. */
 export async function search(query: string, opts: { fresh?: boolean } = {}): Promise<Result[]> {
   return cached(`search-${key(query)}`, async () => {
-    const res = await get(`https://search.brave.com/search?q=${encodeURIComponent(query)}&source=web`).catch(() => null);
+    // Two at a time. And once the engine refuses (429), asking again at once only lengthens the refusal: leave it alone for a while.
+    const res = await searchTurn(async () => Date.now() < searchRefusedUntil ? null : get(`https://search.brave.com/search?q=${encodeURIComponent(query)}&source=web`).catch(() => null));
+    if (res?.status === 429) searchRefusedUntil = Date.now() + 45_000;
     if (!res?.ok) return [];
     const results: Result[] = [];
     let current: Result | null = null, inTitle = false, inSnippet = false;
@@ -52,17 +100,27 @@ export async function search(query: string, opts: { fresh?: boolean } = {}): Pro
   }, opts.fresh);
 }
 
-/** arXiv's own listing: real papers with their abstracts, newest first. The id in the url is what a citation is checked against. */
-export async function arxiv(query: string, max = 25, opts: { fresh?: boolean } = {}): Promise<Result[]> {
-  return cached(`arxiv-${key(`${query}|${max}`)}`, async () => {
-    const res = await get(`https://export.arxiv.org/api/query?search_query=${encodeURIComponent(query)}&max_results=${max}&sortBy=submittedDate&sortOrder=descending`).catch(() => null);
-    if (!res?.ok) return [];
-    const xml = await res.text();
-    return [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map((m) => {
-      const pick = (tag: string) => clean(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`).exec(m[1]!)?.[1] ?? "");
-      return { title: pick("title"), url: pick("id").replace(/^http:/, "https:").replace(/v\d+$/, ""), snippet: `${pick("published").slice(0, 10)}. ${pick("summary")}`.slice(0, 900) };
-    }).filter((r) => r.title && r.url);
-  }, opts.fresh);
+/** The entries of an arXiv API answer. `text` is the whole abstract: a writer needs all of it to say what the paper did. */
+export function arxivEntries(xml: string): Result[] {
+  const plain = (s: string) => clean(s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;|&#39;/g, "'").replace(/&amp;/g, "&"));
+  return [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map((m) => {
+    const pick = (tag: string) => plain(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`).exec(m[1]!)?.[1] ?? "");
+    const date = pick("published").slice(0, 10), text = pick("summary");
+    return { title: pick("title"), url: pick("id").replace(/^http:/, "https:").replace(/v\d+$/, ""), snippet: `${date}. ${text}`.slice(0, 900), text, date };
+  }).filter((r) => r.title && /arxiv\.org\/abs\//.test(r.url));
+}
+
+/** arXiv's own listing: real papers with their abstracts, newest first unless `sort` says by relevance. The id in the url is what a citation is checked against. */
+export async function arxiv(query: string, max = 25, opts: { fresh?: boolean; sort?: "submittedDate" | "relevance" } = {}): Promise<Result[]> {
+  const sort = opts.sort ?? "submittedDate";
+  return cached(`arxiv-${key(`${query}|${max}|${sort}|text`)}`, () => arxivGet(`https://export.arxiv.org/api/query?search_query=${encodeURIComponent(query)}&max_results=${max}&sortBy=${sort}&sortOrder=descending`), opts.fresh);
+}
+
+/** arXiv's own record of these ids (the 2501.01234 of arxiv.org/abs/2501.01234): the exact title and whole abstract of a paper that turned up somewhere else. */
+export async function arxivByIds(ids: string[], opts: { fresh?: boolean } = {}): Promise<Result[]> {
+  const wanted = [...new Set(ids)].sort();
+  const lots = Array.from({ length: Math.ceil(wanted.length / 50) }, (_, i) => wanted.slice(i * 50, (i + 1) * 50));
+  return (await Promise.all(lots.map((lot) => cached(`arxiv-ids-${key(lot.join(","))}`, () => arxivGet(`https://export.arxiv.org/api/query?id_list=${lot.join(",")}&max_results=${lot.length}`), opts.fresh)))).flat();
 }
 
 /** A page as text in reading order, and its links. A PDF is reported as one; turning it into text is a kit's business. */
