@@ -74,6 +74,10 @@ export type Kit = {
   requery?: boolean;
   /** Extra sources for research, beyond web search, asked once per query (a step planned without queries asks once, with its goal). A result may bring its own text: see `Result` in web.ts. */
   sources?: (query: string) => Promise<Result[]>;
+  /** false: research never searches the web; the kit's own sources are all there is (a pitch may claim only what the repository's documents say). */
+  web?: boolean;
+  /** How many sources that came with their text a research step keeps, best first (default 24: abstracts. A kit whose sources are single passages keeps more). */
+  inHand?: number;
   /** The same, asked once for all of a step's queries: for a source that wants few, large requests (arXiv: one every three seconds). */
   sourcesAtOnce?: (queries: string[]) => Promise<Result[]>;
   /** After searching, before Jev sifts: make the results the kit's own (an arXiv link becomes arXiv's record with the whole abstract as `text`), or drop what it cannot use. */
@@ -269,7 +273,7 @@ export async function relay(task: string, ws: Workspace, deps: RelayDeps): Promi
     // Search: the web and the kit's own sources, query by query, and the kit's source that wants one large request. A step
     // planned without web queries still gets the kit's sources, asked with its goal (not when redone: those are in hand).
     const none = () => [] as Result[], ofKit = queries.length ? queries : again ? [] : [step.goal];
-    const [web, own, atOnce] = await Promise.all([Promise.all(queries.map((q) => search(q))), Promise.all(kit.sources ? ofKit.map((q) => kit.sources!(q).catch(none)) : []), kit.sourcesAtOnce && queries.length ? kit.sourcesAtOnce(queries).catch(none) : none()]);
+    const [web, own, atOnce] = await Promise.all([Promise.all(queries.map((q) => kit.web === false ? none() : search(q))), Promise.all(kit.sources ? ofKit.map((q) => kit.sources!(q).catch(none)) : []), kit.sourcesAtOnce && queries.length ? kit.sourcesAtOnce(queries).catch(none) : none()]);
     asked.push(...queries.map((query, i) => ({ query, results: web[i]!.length })));
     ran.set(step.id, asked);
     const searched = [...queries.flatMap((_, i) => [...web[i]!, ...(own[i] ?? [])]), ...(queries.length ? [] : own.flat()), ...atOnce];
@@ -279,7 +283,7 @@ export async function relay(task: string, ws: Workspace, deps: RelayDeps): Promi
     const brought = unique.filter((r) => r.blocks?.length), listed = unique.filter((r) => !r.blocks?.length);
     const results = await sift(ask, step.goal, listed.map((result) => ({ result, text: `${result.title}. ${result.snippet} (${result.url})` })), "search result");
     // A result that came with its whole text needs no fetch, so more of those can be kept than of pages to open.
-    const inHand = results.filter((r) => r.result.text).slice(0, IN_HAND_PER_STEP), toFetch = results.filter((r) => !r.result.text).slice(0, PAGES_PER_STEP);
+    const inHand = results.filter((r) => r.result.text).slice(0, kit.inHand ?? IN_HAND_PER_STEP), toFetch = results.filter((r) => !r.result.text).slice(0, PAGES_PER_STEP);
     trace.sifted += listed.length; trace.kept += toFetch.length;
     const pages = [...brought.map((result) => ({ result, blocks: result.blocks! })), ...await Promise.all(toFetch.map(async ({ result }) => {
       const p = await page(result.url);
