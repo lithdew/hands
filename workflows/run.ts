@@ -20,7 +20,7 @@ export type ArtifactInput = {
 };
 export type ArtifactDependencies = {
   ask?: Ask; model?: Model; gather?: typeof gatherSources;
-  preview?: (input: { directory: string; entrypoint: string; outputDir: string; signal?: AbortSignal }) => Promise<{ checks: Check[]; screenshots: string[] }>;
+  preview?: (input: { directory: string; entrypoint: string; outputDir: string; videoTimeSeconds?: number; signal?: AbortSignal }) => Promise<{ checks: Check[]; screenshots: string[] }>;
   render?: (spec: string, output: string, options: { evidenceAssets?: Record<string, string>; signal?: AbortSignal; onProgress?: (phase: string, detail?: string) => void }) => Promise<unknown>;
   outputRoot?: string;
 };
@@ -198,7 +198,18 @@ export async function runArtifactWorkflow(input: ArtifactInput, dependencies: Ar
       phaseTo("previewing");
       await writeFile(join(filesDirectory,"runtime.json"),JSON.stringify({runId,parentRunId:input.resumeRunId,status:"validation-in-progress",elapsedMs:Math.round(performance.now()-started),events,checks},null,2));
       const preview = dependencies.preview ?? (await import("./preview")).previewArtifacts;
-      const observed = await preview({ directory: filesDirectory, entrypoint, outputDir: join(directory, "preview"), signal: input.signal });
+      let videoTimeSeconds: number | undefined;
+      if (kind === "video") {
+        // Inspect a stable scene midpoint instead of pausing a fade immediately
+        // after a fixed seek time. Actual narration-adjusted frame timing wins.
+        try {
+          const rendered = JSON.parse(await readFile(join(filesDirectory, "media/storyboard.normalized.json"), "utf8"));
+          const scene = rendered.scenes[1] ?? rendered.scenes[0];
+          const midpoint = (scene.startFrame + scene.frames / 2) / rendered.fps;
+          if (Number.isFinite(midpoint)) videoTimeSeconds = midpoint;
+        } catch { /* Alternate renderers can use the ordinary playback probe. */ }
+      }
+      const observed = await preview({ directory: filesDirectory, entrypoint, outputDir: join(directory, "preview"), videoTimeSeconds, signal: input.signal });
       checks.push(...observed.checks); screenshots = observed.screenshots;
       await writeFile(join(directory, "preview.json"), JSON.stringify(observed, null, 2));
       const visualPaths=[...screenshots.slice(0,2),...(kind==="video"?[join(filesDirectory,"media","contact-sheet.png")]:[])];

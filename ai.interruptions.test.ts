@@ -59,6 +59,31 @@ test("a successful challenge clears the interruption and resumes the original ta
   finally { await runtime.close(); }
 });
 
+test("a visible challenge uses Astra then returns to the original fast model without another router call", async () => {
+  let inputs = 0, routes = 0;
+  const models: string[] = [], png = Buffer.alloc(24);
+  Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(png);
+  png.writeUInt32BE(800, 16); png.writeUInt32BE(600, 20);
+  const data = png.toString("base64");
+  const modelScript = script([snapshot, click("p1:1")]);
+  const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", narrate: false,
+    router: async (...args) => { routes++; return route(...args); },
+    desktop: { discover: async () => [], state: async () => ({ width: 800, height: 600, windows: [] }),
+      semantic: (_hand, guard) => createSemanticComputer({ windows: async () => [], observe: async () => inputs
+        ? { ...challenge(), title: "Article", texts: ["Requested content"], elements: [] }
+        : { ...challenge(), image: { type: "image", mimeType: "image/png", data }, capture: { window: null, width: 800, height: 600, digest: Bun.hash(data).toString(16) } },
+        act: async () => { inputs++; } }, guard) },
+    gate: async () => allow,
+    streamFn: (model, context, options) => { models.push(model.id); return modelScript(model, context, options); },
+  });
+  try {
+    await runtime.prompt("Read the article and try the visible challenge if needed.");
+    expect(models).toEqual(["gpt-5.6-luna", "gpt-6-astra", "gpt-5.6-luna"]);
+    expect(routes).toBe(1); expect(inputs).toBe(1);
+    expect(runtime.status().interruption).toBeUndefined(); expect(runtime.status().error).toBeNull();
+  } finally { await runtime.close(); }
+});
+
 test("visible login pauses before credential input but article CAPTCHA mentions remain ordinary data", async () => {
   for (const login of [true, false]) {
     let inputs = 0, gates = 0;

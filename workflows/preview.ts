@@ -6,7 +6,7 @@ import { chromium, type Browser, type Page } from "playwright-core";
 import { ARTIFACT_CSP } from "../win/artifacts";
 
 export type PreviewResult = { checks: { name: string; passed: boolean; detail: string }[]; screenshots: string[] };
-export type PreviewOptions = { directory: string; entrypoint: string; outputDir: string; signal?: AbortSignal };
+export type PreviewOptions = { directory: string; entrypoint: string; outputDir: string; videoTimeSeconds?: number; signal?: AbortSignal };
 const ROOT = resolve(import.meta.dir, "..");
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
@@ -157,7 +157,7 @@ export async function previewArtifacts(options: PreviewOptions): Promise<Preview
         const state = await snapshot(page);
         anchorsByPath.set(path, new Set(state.anchors));
         const label = `${viewport.name}${index ? `-page${index + 1}` : ""}`;
-        const videos = await page.evaluate(async()=>{
+        const videos = await page.evaluate(async(previewTime)=>{
           const doc=(globalThis as any).document;
           const wait=(element:any,event:string,predicate:()=>boolean)=>new Promise<void>((resolve,reject)=>{
             if(predicate()){resolve();return;}
@@ -170,13 +170,14 @@ export async function previewArtifacts(options: PreviewOptions): Promise<Preview
           for(const video of [...doc.querySelectorAll("video")].slice(0,3) as any[]){
             try{
               video.muted=true;video.preload="auto";video.load();await wait(video,"loadeddata",()=>video.readyState>=2);
-              const target=Math.min(15,video.duration*.2);video.currentTime=target;await wait(video,"seeked",()=>!video.seeking&&video.readyState>=2);
+              const target=typeof previewTime==="number"&&Number.isFinite(previewTime)?Math.min(Math.max(0,previewTime),Math.max(0,video.duration-.5)):Math.min(15,video.duration*.2);
+              video.currentTime=target;await wait(video,"seeked",()=>!video.seeking&&video.readyState>=2);
               const before=video.currentTime;await video.play();await wait(video,"timeupdate",()=>video.currentTime>before+.1);video.pause();
               const tracks=[];for(const track of [...video.querySelectorAll("track")] as any[]){track.track.mode="hidden";await wait(track,"load",()=>track.readyState===2);tracks.push({loaded:track.readyState===2,cues:track.track.cues?.length??0});}
               observed.push({passed:video.videoWidth>0&&video.videoHeight>0,duration:video.duration,width:video.videoWidth,height:video.videoHeight,time:video.currentTime,tracks});
             }catch(error){video.pause();observed.push({passed:false,error:String(error)});}
           }return observed;
-        });
+        }, options.videoTimeSeconds);
         if(videos.length)check(`${label}-video-playback`,videos.every(video=>video.passed),JSON.stringify(videos));
         check(`${label}-loaded`, response?.status() === 200 && Boolean(state.text || state.images.length), `${path}: HTTP ${response?.status() ?? "none"}; title ${state.title || "(untitled)"}`);
         check(`${label}-overflow`, state.overflow <= 2 && state.overflowing.length === 0, state.overflow > 2 || state.overflowing.length ? `${state.overflow}px document overflow; ${state.overflowing.join("; ")}` : `No horizontal overflow at ${viewport.width}×${viewport.height}`);
