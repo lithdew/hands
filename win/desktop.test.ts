@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { adoptable, bindWindowCapture, capturedImage, createDriverPool, createExistingBrowserTargets, createWindowTracker, frontWindow, handFor, helperReply, isPrivateBrowser, launchedBrowserWindow, selectedExistingWindow, signInLine, type BrowserActivity, type RawWindow, type WindowOwner } from "./desktop";
+import { adoptable, bindWindowCapture, captureExistingWindow, capturedImage, createDriverPool, createExistingBrowserTargets, createWindowTracker, frontWindow, handFor, helperReply, isPrivateBrowser, launchedBrowserWindow, selectedExistingWindow, signInLine, type BrowserActivity, type RawWindow, type WindowOwner } from "./desktop";
 import { serverResources, virtualKey } from "./serve";
 import type { CuaConnection, Hand } from "../desktop";
 
@@ -222,13 +222,62 @@ describe("capture binding", () => {
     expect(response.content).toEqual([{ type: "image", data, mimeType: "image/png" }]);
     expect(await bindWindowCapture(async () => null, async () => data)).toEqual({ data, window: null });
   });
+
+  test("minimized Chrome falls back only to its healthy direct viewport, retaining native owner and PNG dimensions", async () => {
+    const window: RawWindow = { ...paint(), app: "chrome", title: "Fixture - Google Chrome", iconic: true, focused: false, rect: [-32000, -32000, 219, 30] };
+    let nativeCalls = 0, previewCalls = 0;
+    const preview = async () => { previewCalls++; return { window, image: { type: "image" as const, mimeType: "image/png" as const, data: png() }, width: 1342, height: 891 }; };
+    const result = await bindWindowCapture(async () => window, async captured => captureExistingWindow(captured!, async () => { nativeCalls++; throw new Error("blank"); }, () => ({ healthy: () => true, preview })));
+    expect({ nativeCalls, previewCalls }).toEqual({ nativeCalls: 1, previewCalls: 1 });
+    expect(result.window).toEqual(window);
+    expect(result.window?.rect).toEqual([-32000, -32000, 219, 30]);
+    expect(result.coordinateSpace).toBe("browser-viewport");
+    expect(capturedImage(result).structuredContent).toEqual({ puk_snapshot: { window, width: 1342, height: 891, digest: Bun.hash(png()).toString(16), coordinateSpace: "browser-viewport" } });
+    // Native capture success does not invoke the backend or invalidate a task's refs.
+    const native = await captureExistingWindow(window, async () => png(), () => { throw new Error("must not request a direct preview"); });
+    expect(native).toEqual({ data: png() });
+    expect(previewCalls).toBe(1);
+  });
+
+  test("missing or unhealthy direct preview stays closed without any alternate transport", async () => {
+    const window = { ...paint(), app: "chrome" };
+    const grab = async () => { throw new Error("blank"); };
+    let calls = 0;
+    const preview = async () => { calls++; throw new Error("must not preview"); };
+    for (const connection of [null, { healthy: () => false, preview }, { healthy: () => true }])
+      await expect(captureExistingWindow(window, grab, () => connection)).rejects.toThrow("preview is unavailable");
+    expect(calls).toBe(0);
+    await expect(captureExistingWindow(window, grab, () => ({ healthy: () => true, preview: async () => { calls++; throw new Error("direct backend busy"); } }))).rejects.toThrow("direct backend busy");
+    expect(calls).toBe(1);
+  });
+
+  test("direct preview refuses changed native owner/state and dishonest PNG dimensions", async () => {
+    const window = { ...paint(), app: "chrome", iconic: true };
+    const grab = async () => { throw new Error("blank"); };
+    const valid = { window, image: { type: "image" as const, mimeType: "image/png" as const, data: png() }, width: 1342, height: 891 };
+    for (const next of [{ ...window, pid: 99 }, { ...window, containerId: 902 }, { ...window, ownerNonce: "0000000000000002" },
+      { ...window, title: "Another tab" }, { ...window, iconic: false }, { ...window, rect: [40, 40, 200, 30] as RawWindow["rect"] }])
+      await expect(captureExistingWindow(window, grab, () => ({ healthy: () => true, preview: async () => ({ ...valid, window: next }) }))).rejects.toThrow("window changed");
+    for (const dimensions of [{ width: 219 }, { height: 30 }, { width: 0 }, { image: { ...valid.image, data: "bad" } }])
+      await expect(captureExistingWindow(window, grab, () => ({ healthy: () => true, preview: async () => ({ ...valid, ...dimensions }) }))).rejects.toThrow("PNG dimensions");
+    let healthy = true;
+    await expect(captureExistingWindow(window, grab, () => ({ healthy: () => healthy, preview: async () => { healthy = false; return valid; } }))).rejects.toThrow("window changed");
+  });
+
+  test("changing selected target during a direct preview cannot publish old viewport pixels", async () => {
+    let current = { ...paint(), app: "chrome", iconic: true };
+    const expected = current;
+    await expect(bindWindowCapture(async () => current, async window => captureExistingWindow(window!, async () => { throw new Error("blank"); }, () => ({ healthy: () => true,
+      preview: async () => { current = { ...expected, pid: 99, containerId: 902 }; return { window: expected, image: { type: "image", mimeType: "image/png", data: png() }, width: 1342, height: 891 }; },
+    })))).rejects.toThrow("changed while capturing");
+  });
 });
 
 describe("existing browser target ownership", () => {
   const hand: Hand = { id: 1, pid: 7, display: "Puk hand 1", width: 1280, height: 800 };
   const chrome = (id = 901, pid = 82): RawWindow => ({ app: "chrome", title: "Inbox - Google Chrome", focused: true, pid, containerId: id,
     ownerNonce: id.toString(16).padStart(16, "0"), rect: [40, 40, 1360, 900] });
-  function fixture(activity?: () => BrowserActivity) {
+  function fixture(activity?: () => BrowserActivity, allowMinimizedAfterBind = false) {
     let available = [chrome()], current: RawWindow | null = chrome(), failed = false, preparations = 0, healthy = true;
     let restored: RawWindow | null = chrome(), focusing: Promise<void> | undefined, focusError: Error | undefined;
     const calls: string[] = [];
@@ -236,6 +285,7 @@ describe("existing browser target ownership", () => {
     let validate: (() => Promise<RawWindow>) | undefined;
     let reading: Promise<RawWindow | null> | undefined;
     const targets = createExistingBrowserTargets({
+      allowMinimizedAfterBind,
       candidates: async () => available,
       claim: async (hand, window) => { calls.push(`claim ${hand.id} ${window.containerId}`); },
       read: async () => reading ?? current,
@@ -290,6 +340,40 @@ describe("existing browser target ownership", () => {
     expect(f.preparations()).toBe(1);
     expect(f.calls).toEqual(["claim 1 901", "focus 1 901"]);
     expect(f.targets.target(hand)).toMatchObject({ ready: true, iconic: false });
+  });
+
+  test("opted-in direct connection remains ready while minimized and repeated attach does not restore or reconnect", async () => {
+    const f = fixture(undefined, true); await f.targets.attach(hand);
+    const connection = f.targets.connection(hand), minimized: RawWindow = { ...chrome(), focused: false, iconic: true, rect: [-32000, -32000, 219, 30] };
+    f.current(minimized);
+    expect(await f.targets.read(hand)).toEqual(minimized);
+    expect(f.targets.target(hand)).toMatchObject({ ready: true, iconic: true });
+    expect(f.targets.connection(hand)).toBe(connection);
+    expect(await f.validate()).toEqual(minimized);
+    await f.targets.attach(hand, { window_id: 901 });
+    expect(f.preparations()).toBe(1);
+    expect(f.calls).toEqual(["claim 1 901"]);
+    expect(f.targets.target(hand)).toMatchObject({ ready: true, iconic: true });
+    f.expire();
+    expect(f.targets.target(hand)).toMatchObject({ ready: false, iconic: true });
+    expect(() => f.targets.connection(hand)).toThrow();
+    await expect(f.validate()).rejects.toThrow("minimized");
+  });
+
+  test("direct minimized opt-in cannot skip restoration on initial/expired binding or grant a startup binding", async () => {
+    const minimized: RawWindow = { ...chrome(), focused: false, iconic: true, rect: [-32000, -32000, 219, 30] };
+    const f = fixture(undefined, true); f.found([minimized]); f.current(minimized); f.restored({ ...chrome(), iconic: false });
+    await f.targets.attach(hand);
+    expect(f.calls).toEqual(["claim 1 901", "focus 1 901"]);
+    f.current(minimized); f.expire();
+    await f.targets.attach(hand);
+    expect(f.preparations()).toBe(2);
+    expect(f.calls).toEqual(["claim 1 901", "focus 1 901", "end session", "release 1", "claim 1 901", "focus 1 901"]);
+    const restored = fixture(undefined, true); restored.found([minimized]); restored.current(minimized);
+    await expect(restored.targets.restore(hand, chrome())).rejects.toThrow("minimized");
+    expect(restored.calls).toEqual(["claim 1 901"]);
+    expect(restored.preparations()).toBe(0);
+    expect(restored.targets.target(hand)).toMatchObject({ ready: false, iconic: true });
   });
 
   test("startup restoration of a minimized selection is passive and stays disconnected until explicit attach", async () => {

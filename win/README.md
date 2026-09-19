@@ -20,7 +20,11 @@ irm https://cua.ai/driver/install.ps1 | iex
 
 An explicit attachment reserves the exact native HWND/PID/window lifetime, restores that window if minimized, and discovers only loopback listening ports owned by that Chrome process. The persistent CDP connection additionally correlates its window geometry and active tab. Ambiguous windows fail without selecting another browser. Chrome's own remote-debugging enablement and permission dialog still apply; Hands does not approve them itself. Startup restores the selection without requesting new permission. A server restart closes this direct connection, so an explicit reattachment may prompt again.
 
+When Chrome's consent server omits `/json/version`, discovery reads only its documented `DevToolsActivePort` rendezvous file. The file's port must already belong to the selected native Chrome process, and ownership is checked again before connection. No cookies or account files are read.
+
 One isolated-world read collects visible main-document controls and text. References retain actual DOM objects; immediately before input the verifier checks the document, original object, visibility, relevant form values and metadata. Old or interrupted actions are never replayed. The existing Jev gate and mid-task correction checks remain. A click opening a synchronous page dialog yields to the dialog tools while retaining its original pending response. Capture uses the selected native window; visual actions use a separately attested CDP viewport screenshot and explicit viewport coordinates.
+
+Chrome must remain running. Its selected renderer uses CDP focus emulation so another app can keep Windows focus. Native window/title ownership and current same-title tab uniqueness are independently rechecked before input. After an initial exact attachment, PiP can use the same CDP viewport when the native window is minimized; it does not rebind from minimized geometry or revoke semantic references. Preview yields to agent work. If Chrome still reports a hidden document, input requests a restore instead of pretending it succeeded.
 
 Child-frame and shadow-DOM semantic controls are currently omitted and reported as such. Browser-toolbar shortcuts are not sent as page keys. The direct backend is currently verified on native Windows Bun; WSL's legacy helper relay has not been ported to it.
 

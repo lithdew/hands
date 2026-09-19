@@ -3,7 +3,7 @@ import { connectChromeCdp, type ChromeCdp } from "./chrome-cdp";
 import { discoverChromeEndpoint, ownsChromeEndpoint, sameChromeOwner, readDefaultChromeRendezvous, type ChromeEndpoint } from "./chrome-endpoint";
 import type { NativeChromeMetadata } from "./chrome-native";
 import { collectorFunction, verifierFunction, verifyFocusFunction, type ChromeObservation } from "./chrome-observation";
-import { keyEvent, type ExistingBrowserInput, type ExistingBrowserSnapshot, type ExistingBrowserWindow, type ExistingCanvas, type ExistingDialog, type ExistingBrowserActivity } from "./browser";
+import { keyEvent, type ExistingBrowserInput, type ExistingBrowserSnapshot, type ExistingBrowserWindow, type ExistingCanvas, type ExistingDialog, type ExistingBrowserActivity, type ExistingBrowserPreview } from "./browser";
 
 type Tab = { targetId: string; type: string; title: string; url: string };
 type Bounds = { left?: number; top?: number; width?: number; height?: number; windowState?: string };
@@ -45,8 +45,10 @@ function pageKeys(value: string | undefined) {
 export function directChromeBrowser(options: DirectChromeOptions): ExistingBrowserInput {
   let connection: ChromeCdp | undefined, endpoint: ChromeEndpoint | undefined, owner: NativeChromeMetadata | undefined;
   let closed = false, ready = false, busy = false, sequence = 0, generation = 0;
+  let previewDone: Promise<void> | undefined, waitingForPreview = false;
   let activity: ExistingBrowserActivity = {};
   let binding: Binding | undefined, evidence: Evidence | undefined, canvas: ExistingCanvas | undefined, activeSession: string | undefined;
+  let windowProof: { windowId: number; native: NativeChromeMetadata } | undefined;
   let dialog: { id: string; kind: "alert"|"confirm"|"prompt"|"beforeunload"|"other"; session: string } | undefined;
   let inspected: ExistingDialog | undefined;
   let pendingAck: Promise<unknown> | undefined;
@@ -60,27 +62,43 @@ export function directChromeBrowser(options: DirectChromeOptions): ExistingBrows
   const call = <T>(method: string, params: Record<string, unknown> = {}, signal?: AbortSignal, sessionId?: string) => {
     signal?.throwIfAborted(); return requireConnection().call<T>(method, params, { signal, sessionId });
   };
-  const run = async <T>(phase: NonNullable<ExistingBrowserActivity["active"]>["phase"], work: () => Promise<T>): Promise<T> => {
+  const run = async <T>(phase: NonNullable<ExistingBrowserActivity["active"]>["phase"], work: () => Promise<T>, revokeOnFailure = true): Promise<T> => {
+    if (busy && previewDone && revokeOnFailure && !waitingForPreview) {
+      waitingForPreview = true;
+      try { await previewDone; } finally { waitingForPreview = false; }
+    }
     if (busy) throw new Error("A direct Chrome operation is already in progress.");
     busy = true; const id = ++sequence, start = performance.now(); activity.active = { phase, sequence: id, startedAt: Date.now() };
+    let finishPreview: (()=>void) | undefined;
+    if (!revokeOnFailure) previewDone = new Promise<void>(resolve => { finishPreview = resolve; });
     let outcome: "ok"|"failed" = "failed";
     try { const result = await work(); outcome = "ok"; return result; }
-    catch (error) { invalidate(); throw error; }
-    finally { busy = false; activity = { last: { phase, sequence: id, durationMs: Math.round(performance.now()-start), outcome } }; }
+    catch (error) { if (revokeOnFailure) invalidate(); throw error; }
+    finally {
+      busy = false; activity = { last: { phase, sequence: id, durationMs: Math.round(performance.now()-start), outcome } };
+      if (finishPreview) { previewDone = undefined; finishPreview(); }
+    }
   };
   async function native(signal?: AbortSignal, expected?: Binding) {
     signal?.throwIfAborted();
     const window = await options.current(); signal?.throwIfAborted();
     const meta = await options.probe(window, signal); signal?.throwIfAborted();
     if (meta.window_id !== window.containerId || meta.pid !== window.pid || meta.ownerNonce !== window.ownerNonce || meta.title !== window.title
-      || meta.iconic || meta.outerRect[2] < 100 || meta.outerRect[3] < 100) { ready=false; throw new Error("The selected Chrome window is unavailable or minimized. Restore and attach that same window."); }
+      || window.iconic !== undefined && window.iconic !== meta.iconic
+      || !meta.iconic && (meta.outerRect[2] < 100 || meta.outerRect[3] < 100)) { ready=false; throw new Error("The selected Chrome window changed during native observation. Observe that same window again."); }
     if (owner && !sameChromeOwner(owner, meta) || endpoint && !ownsChromeEndpoint(meta, endpoint)) {
-      ready=false; connection?.close(); throw new Error("The selected Chrome process or debugging endpoint changed. Attach again.");
+      ready=false; invalidate(); connection?.close(); throw new Error("The selected Chrome process or debugging endpoint changed. Attach again.");
+    }
+    if (meta.iconic && (!windowProof || !sameChromeOwner(windowProof.native, meta) || !connection?.isOpen())) {
+      ready=false; throw new Error("Restore this Chrome window before its first exact attachment. Minimized geometry cannot establish a new binding.");
     }
     if (expected && (!sameWindow(window, expected.window) || window.title !== expected.window.title || !equalRect(window.rect, expected.window.rect)
-      || !equalRect(meta.outerRect, expected.native.outerRect) || meta.dpiScale !== expected.native.dpiScale)) throw new Error("The selected Chrome window changed after observation. Look again.");
-    return { window, meta };
+      || !equalRect(meta.outerRect, expected.native.outerRect) || meta.dpiScale !== expected.native.dpiScale || meta.iconic !== expected.native.iconic)) throw new Error("The selected Chrome window changed after observation. Look again.");
+    return { window: { ...window, iconic: meta.iconic }, meta };
   }
+  const correlatedWindow = (meta: NativeChromeMetadata, windowId: number, bounds: Bounds) => meta.iconic
+    ? !!windowProof && windowProof.windowId === windowId && sameChromeOwner(windowProof.native, meta)
+    : chromeBoundsMatch(meta, bounds);
   async function functionValue<T>(b: Binding, declaration: string, argument: unknown, signal?: AbortSignal): Promise<T> {
     const reply = await call<{ result?: { value?: T }; exceptionDetails?: unknown }>("Runtime.callFunctionOn", {
       functionDeclaration: declaration, executionContextId: b.context, arguments: [{ value: argument }], returnByValue: true, awaitPromise: false,
@@ -94,15 +112,31 @@ export function directChromeBrowser(options: DirectChromeOptions): ExistingBrows
       call<{windowId:number;bounds:Bounds}>("Browser.getWindowForTarget", { targetId: b.tab.targetId }, signal),
       call<{targetInfo:Tab}>("Target.getTargetInfo", { targetId:b.tab.targetId }, signal),
       call<{frameTree:{frame:Frame}}>("Page.getFrameTree", {}, signal, b.session),
+      assertSelectedTab(b, signal),
     ]);
-    if (window.windowId !== b.windowId || !chromeBoundsMatch(b.native, window.bounds) || target.targetInfo.targetId !== b.tab.targetId || target.targetInfo.type !== "page" || target.targetInfo.title !== b.tab.title
+    if (window.windowId !== b.windowId || !correlatedWindow(b.native, window.windowId, window.bounds) || target.targetInfo.targetId !== b.tab.targetId || target.targetInfo.type !== "page" || target.targetInfo.title !== b.tab.title
       || target.targetInfo.url !== b.tab.url || frame.frameTree.frame.id !== b.frame.id || frame.frameTree.frame.loaderId !== b.frame.loaderId) {
       throw new Error("The active Chrome document changed after observation. Look again.");
     }
     signal?.throwIfAborted();
   }
+  async function assertSelectedTab(b: Binding, signal?: AbortSignal) {
+    const targets = await call<{targetInfos:Tab[]}>("Target.getTargets", {}, signal);
+    if (!Array.isArray(targets.targetInfos) || targets.targetInfos.length > 256) throw new Error("Chrome cannot verify the bounded tab inventory.");
+    const titled = targets.targetInfos.filter(t => t.type === "page" && t.title === titleOf(b.window.title));
+    if (!titled.some(t => t.targetId === b.tab.targetId && t.url === b.tab.url) || titled.length > 64) throw new Error("The selected Chrome target changed or its title is ambiguous. Observe again.");
+    const candidates: string[] = [];
+    for (let i=0;i<titled.length;i+=16) {
+      const matches = await Promise.all(titled.slice(i,i+16).map(async tab => ({tab,...await call<{windowId:number;bounds:Bounds}>("Browser.getWindowForTarget",{targetId:tab.targetId},signal)})));
+      candidates.push(...matches.filter(match=>match.windowId===b.windowId&&correlatedWindow(b.native,match.windowId,match.bounds)).map(match=>match.tab.targetId));
+    }
+    if (candidates.length !== 1 || candidates[0] !== b.tab.targetId) throw new Error("Chrome cannot uniquely identify the selected tab in its verified window. Observe again.");
+  }
+  async function releaseFocusEmulation(session: string) {
+    if (!connection?.isOpen()) return;
+    try { await connection.call("Emulation.setFocusEmulationEnabled", {enabled:false}, {sessionId:session,timeoutMs:1000}); } catch { /* Closing/detaching also ends this session. */ }
+  }
   async function bind(signal?: AbortSignal): Promise<Binding> {
-    ready=false;
     const {window, meta} = await native(signal);
     const result = await call<{targetInfos:Tab[]}>("Target.getTargets", {}, signal);
     const tabs = result.targetInfos.filter(t => t.type === "page" && !t.url.startsWith("devtools://"));
@@ -112,34 +146,44 @@ export function directChromeBrowser(options: DirectChromeOptions): ExistingBrows
       const batch = await Promise.all(tabs.slice(i,i+16).map(async tab => ({tab,...await call<{windowId:number;bounds:Bounds}>("Browser.getWindowForTarget", {targetId:tab.targetId}, signal)})));
       windows.push(...batch);
     }
-    const matches = windows.filter(w => chromeBoundsMatch(meta,w.bounds));
-    if (new Set(matches.map(w=>w.windowId)).size !== 1) throw new Error("Chrome's windows have ambiguous geometry. Move the selected Chrome window slightly, then attach again.");
+    const matches = windows.filter(w => correlatedWindow(meta,w.windowId,w.bounds));
+    if (new Set(matches.map(w=>w.windowId)).size !== 1) { ready=false; throw new Error("Chrome's windows have ambiguous geometry. Move the selected Chrome window slightly, then attach again."); }
     const active = matches.filter(w => w.tab.title === titleOf(window.title));
     if (active.length !== 1) throw new Error("The selected Chrome tab cannot be uniquely matched. Select a tab with a unique title and observe again.");
     const selected = active[0]!;
+    if (windowProof && selected.windowId !== windowProof.windowId) { ready=false; throw new Error("Chrome's previously verified native window no longer matches its CDP window. Attach again."); }
     let session: string;
     if (binding?.tab.targetId === selected.tab.targetId) session = binding.session;
     else {
-      if (binding) await call("Target.detachFromTarget", {sessionId:binding.session},signal);
+      if (binding) { await releaseFocusEmulation(binding.session); await call("Target.detachFromTarget", {sessionId:binding.session},signal); }
       binding = undefined; dialog = undefined;
       session = (await call<{sessionId:string}>("Target.attachToTarget", {targetId:selected.tab.targetId,flatten:true},signal)).sessionId;
       activeSession = session;
       await call("Page.enable", {}, signal, session);
+      // Activates the renderer without moving/focusing the operating-system window.
+      // Native title plus unique target/window checks remain mandatory on input.
+      await call("Emulation.setFocusEmulationEnabled", {enabled:true}, signal, session);
     }
     const frame = (await call<{frameTree:{frame:Frame}}>("Page.getFrameTree", {}, signal, session)).frameTree.frame;
     if (!frame.id || !frame.loaderId) throw new Error("Chrome's active document is not ready. Observe again after it loads.");
     const context = (await call<{executionContextId:number}>("Page.createIsolatedWorld", {frameId:frame.id,worldName:"hands-direct-observation"},signal,session)).executionContextId;
     const b: Binding = {window,native:meta,windowId:selected.windowId,tab:selected.tab,session,frame,context,
       tabs:matches.map(w=>({tab_id:w.tab.targetId,title:w.tab.title,url:w.tab.url,active:w.tab.targetId===selected.tab.targetId}))};
-    await native(signal,b); binding = b; ready=true; return b;
+    await native(signal,b);
+    if (!meta.iconic) windowProof = { windowId: selected.windowId, native: meta };
+    binding = b; ready=true; return b;
   }
   async function snapshot(signal?: AbortSignal): Promise<ExistingBrowserSnapshot> {
     if(Boolean(dialog))throw new Error("Chrome has a page dialog. Inspect and resolve that dialog before reading the page.");
     invalidate(); const b = await bind(signal), nonce = crypto.randomUUID();
     if(dialog?.session===b.session)throw new Error("Chrome has a page dialog. Inspect and resolve that dialog before reading the page.");
     const observation = await functionValue<ChromeObservation>(b,collectorFunction,{nonce},signal);
+    if (b.native.iconic && observation.document.visibility === "hidden") throw new Error("Restore this Chrome window to resume input. Its minimized document is hidden; the read-only PiP preview can continue.");
     const sameUrl = observation.document.url === b.tab.url || ["chrome://newtab/", "chrome://new-tab-page/"].includes(observation.document.url) && ["chrome://newtab/", "chrome://new-tab-page/"].includes(b.tab.url);
-    if (observation.nonce !== nonce || observation.document.visibility !== "visible" || observation.document.title !== b.tab.title || !sameUrl || observation.document.titleTruncated || observation.document.urlTruncated) throw new Error("The Chrome tab changed while reading it. Observe again.");
+    if (observation.nonce !== nonce || observation.document.visibility !== "visible" || observation.document.title !== b.tab.title || !sameUrl || observation.document.titleTruncated || observation.document.urlTruncated) {
+      const visibility = observation.document.visibility === "visible" ? "visible" : observation.document.visibility === "hidden" ? "hidden" : "unknown";
+      throw new Error(`The Chrome tab changed while reading it (visibility=${visibility}, titleMatch=${observation.document.title===b.tab.title}, urlMatch=${sameUrl}, identityTruncated=${!!(observation.document.titleTruncated||observation.document.urlTruncated)}). Observe again.`);
+    }
     await attest(b,signal);
     const page: ExistingBrowserSnapshot = {target_id:`chrome:${b.windowId}`,tab_id:b.tab.targetId,title:b.tab.title,url:b.tab.url,tabs:b.tabs,snapshot_id:nonce,window:b.window,
       refs:observation.elements.map(e=>({ref:e.ref,role:e.role,name:e.name,value:e.value,visibility:"in_viewport",actions:e.actions,
@@ -264,12 +308,36 @@ export function directChromeBrowser(options: DirectChromeOptions): ExistingBrows
     const fresh = await capture(binding,c.page,signal);
     if (fresh.digest!==c.digest || fresh.width!==c.width || fresh.height!==c.height) throw new Error("The Chrome pixels changed after approval. Capture again before input.");
   }
+  async function preview(signal?: AbortSignal): Promise<ExistingBrowserPreview> {
+    if (busy || waitingForPreview || dialog || pendingAck || deferredRelease) throw new Error("Chrome preview is busy; keep the previous frame and try the next scheduled preview.");
+    if (!binding || !ready || !connection?.isOpen()) throw new Error("Attach and observe this Chrome window before requesting its preview.");
+    return run("capture_rpc", async () => {
+      const original = binding!, revision = generation, sampled = await native(signal);
+      const b: Binding = { ...original, window: sampled.window, native: sampled.meta };
+      if (titleOf(b.window.title) !== b.tab.title) throw new Error("The selected Chrome tab changed; wait for its next task observation before previewing it.");
+      await attest(b, signal);
+      const document = await functionValue<{title:string;url:string;visibility:string}>(b,"function(){return {title:document.title,url:document.URL,visibility:document.visibilityState}}",{},signal);
+      const sameUrl = document.url === b.tab.url || ["chrome://newtab/", "chrome://new-tab-page/"].includes(document.url) && ["chrome://newtab/", "chrome://new-tab-page/"].includes(b.tab.url);
+      if (document.title !== b.tab.title || !sameUrl || document.visibility !== "visible" && !(b.native.iconic && document.visibility === "hidden")) throw new Error("Chrome preview's document is no longer the selected tab.");
+      const shot = await call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false},signal,b.session);
+      const png = Buffer.from(shot.data,"base64");
+      if (png.length < 24 || png.toString("hex",0,8) !== "89504e470d0a1a0a") throw new Error("Chrome returned an invalid preview PNG.");
+      const width=png.readUInt32BE(16),height=png.readUInt32BE(20);
+      if (!width || !height || width > 32768 || height > 32768 || width*height > 64_000_000) throw new Error("Chrome preview dimensions exceeded their bound.");
+      await attest(b,signal); await native(signal,b); signal?.throwIfAborted();
+      if (binding !== original || generation !== revision) throw new Error("Chrome changed during preview capture; wait for its next task observation.");
+      return {window:b.window,width,height,image:{type:"image",mimeType:"image/png",data:shot.data}};
+    }, false);
+  }
   const api: ExistingBrowserInput = {
     healthy:()=>!closed&&ready&&!!connection?.isOpen(), activity:()=>({...activity}),
+    preview,
     attach:(signal, settings)=>run("bind_rpc",async()=>{
       if(closed)throw new Error("This direct Chrome connection has ended.");
       if(settings?.allowPrepare===false)throw new Error("Attach the selected Chrome window to establish its direct connection. Startup does not request browser permission.");
-      connection?.close(); connection=undefined; binding=undefined; activeSession=undefined; owner=undefined; endpoint=undefined; dialog=undefined; ready=false; pendingAck=undefined; deferredRelease=undefined;
+      if (binding && ready && connection?.isOpen() && (await native(signal)).meta.iconic) { invalidate(); await bind(signal); return; }
+      if (activeSession) await releaseFocusEmulation(activeSession);
+      connection?.close(); connection=undefined; binding=undefined; windowProof=undefined; activeSession=undefined; owner=undefined; endpoint=undefined; dialog=undefined; ready=false; pendingAck=undefined; deferredRelease=undefined;
       invalidate(); const {meta}=await native(signal); owner=meta;
       endpoint=await (options.discover??((native,token)=>discoverChromeEndpoint(native,token,undefined,readDefaultChromeRendezvous)))(meta,signal);
       await native(signal); connection=await (options.connect??connectChromeCdp)(endpoint.url,{signal,timeoutMs:60000});
@@ -317,13 +385,13 @@ export function directChromeBrowser(options: DirectChromeOptions): ExistingBrows
       const [target,window]=await Promise.all([call<{targetInfo:Tab}>("Target.getTargetInfo",{targetId:b.tab.targetId},signal),
         call<{windowId:number;bounds:Bounds}>("Browser.getWindowForTarget",{targetId:b.tab.targetId},signal)]);
       if(dialog?.id!==id||target.targetInfo.targetId!==b.tab.targetId||target.targetInfo.title!==b.tab.title||target.targetInfo.url!==b.tab.url
-        ||window.windowId!==b.windowId||!chromeBoundsMatch(b.native,window.bounds))throw new Error("The Chrome dialog target changed.");
+        ||window.windowId!==b.windowId||!correlatedWindow(b.native,window.windowId,window.bounds))throw new Error("The Chrome dialog target changed.");
       before();signal?.throwIfAborted();
       // JavaScript is paused by this dialog. Never evaluate a DOM verifier here.
       await call("Page.handleJavaScriptDialog",{accept:operation==="accept"},signal,b.session);
       await drainDialogInput();
     }),
-    close:async()=>{closed=true;invalidate();connection?.close();},
+    close:async()=>{closed=true;invalidate();if(activeSession)await releaseFocusEmulation(activeSession);connection?.close();},
   };
   return api;
 }

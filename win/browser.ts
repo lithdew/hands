@@ -894,5 +894,6 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     assertCanvasCurrent: withActivity(api.assertCanvasCurrent.bind(api)), canvasAct: withActivity(api.canvasAct.bind(api)),
     act: withActivity(api.act.bind(api)), navigate: withActivity(api.navigate.bind(api)) };
 }
-export type ExistingBrowserInput = ReturnType<typeof existingBrowserInput>;
+export type ExistingBrowserPreview = { window: ExistingBrowserWindow; image: { type: "image"; mimeType: "image/png"; data: string }; width: number; height: number };
+export type ExistingBrowserInput = ReturnType<typeof existingBrowserInput> & { preview?(signal?: AbortSignal): Promise<ExistingBrowserPreview> };
 export type ExistingBrowserSnapshot = Awaited<ReturnType<ExistingBrowserInput["snapshot"]>>;
