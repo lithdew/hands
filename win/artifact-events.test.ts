@@ -86,12 +86,12 @@ describe("artifact events as feed lines", () => {
       "Visual review 1/3: passed — Legible scene text · 5:50",
       "Visual review 2/3 with gpt-6-astra · 6:00",
       "Jev: deliver · 6:11",
-      "Complete · 22/22 checks passed · 6:12",
+      "Complete · 23/23 checks passed · 6:12", // 22 preview checks plus the passed visual review
     ]);
     for (const line of lines.filter(Boolean)) expect(line).not.toMatch(/jev_handoff|agent_returned|jev_decision|artifact_delivered|run_failed|bundle_saved|visual_review|render-progress/);
     expect(state.phases).toEqual(["routing", "planning", "research", "creating", "saving", "reviewing", "review", "rendering", "previewing", "visual-review"]);
     expect(state.decision).toBe("deliver");
-    expect(liveText("video", state)).toBe("video · complete · 22 checks passed");
+    expect(liveText("video", state)).toBe("video · complete · 23 checks passed");
   });
 
   test("live text stays compact through fetching, rendering and previewing", () => {

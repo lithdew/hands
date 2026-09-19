@@ -206,6 +206,9 @@ export async function previewArtifacts(options: PreviewOptions): Promise<Preview
         check(`${label}-overflow`, state.overflow <= 2 && state.overflowing.length === 0, state.overflow > 2 || state.overflowing.length ? `${state.overflow}px document overflow; ${state.overflowing.join("; ")}` : `No horizontal overflow at ${viewport.width}×${viewport.height}`);
         check(`${label}-images`, state.images.every(image => image.loaded), state.images.some(image => !image.loaded) ? `Unloaded visible images: ${state.images.filter(image => !image.loaded).map(image => image.src).join(", ")}` : `${state.images.length} visible image(s) loaded`);
         const screenshot = join(outputDir, `${label}.png`);
+        // A viewport capture is what the reviewer grades: bring the first player fully into it (top-aligned when it is
+        // taller than the viewport) so the frame is judged, not where the page's fold happened to fall.
+        if(videos.length)await page.evaluate(()=>{const video=(globalThis as any).document.querySelector("video");if(!video)return;const rect=video.getBoundingClientRect(),viewport=(globalThis as any).innerHeight;video.scrollIntoView({block:rect.height>viewport-40?"start":"center",behavior:"instant"});});
         await page.screenshot({ path: screenshot, fullPage: false, animations: "disabled" });
         if(videos.length)await page.evaluate(()=>{for(const video of (globalThis as any).document.querySelectorAll("video"))video.pause();});
         result.screenshots.push(screenshot);

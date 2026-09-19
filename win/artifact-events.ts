@@ -148,6 +148,8 @@ export function advance(state: ArtifactProgressState, event: ArtifactEvent): str
       if (event.count) state.visual.total = event.count;
       state.visual.done++;
       const m = /^(\d+)\/(\d+)\s+(passed|failed)(?::\s*(.*))?$/.exec(detail);
+      // Visual reviews are checks too: the closing tally must not read "33/33 passed" after a failed review.
+      if (m) state.checks = { passed: (state.checks?.passed ?? 0) + (m[3] === "passed" ? 1 : 0), failed: (state.checks?.failed ?? 0) + (m[3] === "failed" ? 1 : 0) };
       if (!m) return `Visual review ${state.visual.done}${state.visual.total ? `/${state.visual.total}` : ""}${at}`;
       return `Visual review ${m[1]}/${m[2]}: ${m[3]}${m[4] ? ` — ${m[4].slice(0, 120)}` : ""}${at}`;
     }
