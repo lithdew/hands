@@ -1,7 +1,7 @@
 import React, {useLayoutEffect, useRef, useState} from "react";
 import {AbsoluteFill, Audio, Img, staticFile, useCurrentFrame} from "remotion";
 import type {PreparedScene} from "./storyboard";
-import {assertCaptionHeight, CAPTION_TOP, evidencePhase, workflowLabelSize} from "./layout";
+import {assertCaptionHeight, CAPTION_TOP, evidencePhase, taskLabelSize, workflowLabelSize} from "./layout";
 import {MathLayout} from "./math-layout";
 
 const INK="#111216", IVORY="#f5f0e6", BLUE="#2545ff";
@@ -68,7 +68,7 @@ function Tasks({scene,frame,color,muted,accent,light,restrained}:{scene:Prepared
     <svg width="1280" height="555" style={{position:"absolute",inset:0}}><path d={points.map((p,i)=>`${i?"L":"M"}${p.x},${p.y+25}`).join(" ")} fill="none" stroke={light?"#cecec8":"#43454d"} strokeWidth="2"/>{points.map((p,i)=><circle key={i} cx={p.x} cy={p.y+25} r={selected===i?9:5} fill={selected===i?accent:muted} opacity={rise(frame,i*8)}/>)}</svg>
     {tasks.map((task,i)=>{const p=rise(frame,12+i*8),point=points[i]!,w=1195-point.x-30;
       return <div key={i} style={{position:"absolute",left:point.x+30,top:point.y,width:w,opacity:p,transform:`translateX(${(1-p)*(restrained?15:70)}px)`}}>
-        <div style={{fontSize:16,letterSpacing:2,color:muted,marginBottom:5}}>0{i+1}</div><Fit width={w} height={tasks.length>4?49:69} id={`${scene.id}-task-${i}`}><div style={{fontSize:tasks.length>4?33:52,lineHeight:1.06,fontWeight:selected===i?700:500,letterSpacing:-1.3,color:selected===i?accent:color}}>{task}</div></Fit>
+        <div style={{fontSize:16,letterSpacing:2,color:muted,marginBottom:5}}>0{i+1}</div><Fit width={w} height={tasks.length>4?49:69} id={`${scene.id}-task-${i}`}><div style={{fontSize:taskLabelSize(task,tasks.length,i)??(tasks.length>4?33:52),lineHeight:1.06,fontWeight:selected===i?700:500,letterSpacing:-1.3,color:selected===i?accent:color}}>{task}</div></Fit>
       </div>;
     })}
   </>;

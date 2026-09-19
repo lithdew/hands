@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { taskLabelSize } from "./layout";
 
 /** Legibility contract. Every frame is 1280x720 but is also watched inside a
  * 390px-wide phone page, where the whole frame is about 360px wide. Text is
@@ -48,6 +49,12 @@ const Scene = z.object({
   const words = copy.split(/\s+/).filter(Boolean).length;
   if (s.durationSeconds * SCENE_TEXT_BUDGET.wordsPerSecond < words) c.addIssue({code: "custom", message: `${words} words need at least ${Math.ceil(words / SCENE_TEXT_BUDGET.wordsPerSecond)} seconds of reading time; raise durationSeconds or shorten the copy`});
   if (s.emphasis && !s.title.includes(s.emphasis)) c.addIssue({code:"custom",message:"emphasis must be an exact phrase in the scene title"});
+  // Mirrors motion.tsx inferredLayout: these scenes render as a task field whose items must fit their boxes.
+  const taskField = s.layout === "task-field" || (!s.layout && !s.artifactImage && !s.workflow && !/jev.*specialist|specialist.*jev/i.test(s.title) && s.visual !== "closing" && (s.chips || s.visual === "bullets"));
+  if (taskField) {
+    const items = s.chips ?? s.bullets ?? [s.body ?? s.title];
+    items.forEach((item, i) => { if (taskLabelSize(item, items.length, i) === null) c.addIssue({code: "custom", message: `Task-field item ${i + 1} is ${item.length} characters and cannot fit its box legibly; keep task items within about ${items.length > 4 ? 30 : 60} characters or use fewer items`}); });
+  }
   if (s.layout === "artifact-stage" && !s.artifactImage) c.addIssue({code:"custom",message:"artifact-stage requires a trusted artifactImage ID"});
   if (s.correction && s.layout !== "workflow") c.addIssue({code:"custom",message:"A correction branch belongs to an explicit workflow layout"});
   if(s.math && s.visual === "matrix") c.addIssue({code:"custom",message:"Use separate actual Manim geometry and typeset equation scenes"});

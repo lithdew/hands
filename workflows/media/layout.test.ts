@@ -1,5 +1,18 @@
 import {expect, test} from "bun:test";
-import {assertCaptionHeight, bodyRepeatsMatrixPanel, CAPTION_TOP, evidencePhase, evidenceTextScale, fitScale, inlineMatrices, MATRIX_TEXT_HEIGHT, matrixLetter, matrixPhaseLabel, matrixTextScale, PANEL_TOP, workflowLabelSize} from "./layout";
+import {assertCaptionHeight, bodyRepeatsMatrixPanel, CAPTION_TOP, evidencePhase, evidenceTextScale, fitScale, inlineMatrices, MATRIX_TEXT_HEIGHT, matrixLetter, matrixPhaseLabel, matrixTextScale, PANEL_TOP, taskBox, taskLabelSize, workflowLabelSize} from "./layout";
+
+test("task-field items step down the type ladder to fit their box instead of being refused at render", () => {
+  expect(taskLabelSize("Explore Hands", 3, 0)).toBe(52);
+  // 66 characters (the pitch run that was refused) wraps to two 28px lines inside the 69px box.
+  const long = "Starting audience hypothesis: builders, students and researchers.";
+  const size = taskLabelSize(long, 1, 0)!;
+  expect(size).toBeGreaterThanOrEqual(28);
+  expect(Math.ceil(long.length * .58 * size / taskBox(1, 0).width) * size * 1.06).toBeLessThanOrEqual(69);
+  // Past four items the box is 49px: one line at 33px or 28px only.
+  expect(taskLabelSize("Open the browser", 5, 1)).toBe(33);
+  expect(taskLabelSize(long, 5, 1)).toBeNull();
+  expect(taskLabelSize("x".repeat(120), 2, 2)).toBeNull();
+});
 
 test("workflow node labels drop to two 30px lines instead of wrapping 39px text past the label box", () => {
   const fourNodeBox = 244 - 48, threeNodeBox = 300 - 48;

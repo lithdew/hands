@@ -85,6 +85,24 @@ export function workflowLabelSize(label: string, boxWidth: number, large = 39, s
   return label.length * emPerChar * large <= boxWidth ? large : small;
 }
 
+/** Task-field items (motion.tsx Tasks) sit in boxes that narrow along the
+ * diagonal path and shrink past four items. Step the type down the ladder
+ * until the wrapped lines fit the box, so copy the storyboard schema accepted
+ * is never refused at render; null means no rung fits and the schema rejects it. */
+export const TASK_SIZES = [52, 44, 38, 33, 28] as const;
+export function taskBox(count: number, index: number) {
+  return { width: 1195 - (555 + (index % 3) * 48) - 30, height: count > 4 ? 49 : 69 };
+}
+export function taskLabelSize(task: string, count: number, index: number, emPerChar = .58): number | null {
+  const { width, height } = taskBox(count, index);
+  for (const size of TASK_SIZES) {
+    if (count > 4 && size > 33) continue;
+    const lines = Math.ceil(task.length * emPerChar * size / width);
+    if (lines * size * 1.06 <= height) return size;
+  }
+  return null;
+}
+
 /** The letter the lesson copy uses for the animated matrix, so the trusted
  * matrix panel does not call a singular example S "A". */
 export function matrixLetter(copy: (string | undefined)[], explicit?: string) {
