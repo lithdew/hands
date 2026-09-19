@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { Ajv, AjvJsonSchemaValidator } from "@modelcontextprotocol/client/validators/ajv";
-import { redact, rememberSecret, subprocessEnv, type CuaConnection } from "../desktop";
+import { debugLog, redact, rememberSecret, subprocessEnv, type CuaConnection } from "../desktop";
 
 type Driver = { call: CuaConnection["call"]; close(): Promise<void> };
 export type BrokerConnection = Driver & { browserSession(): Promise<string> };
@@ -192,15 +192,24 @@ async function identity(driver: string): Promise<Identity> {
   return { root, runtime, script, driver: executable, source: createHash("sha256").update(await readFile(script)).digest("hex") };
 }
 
+/** Windows PowerShell can inherit a PowerShell 7 module path. Use only .NET
+ * APIs here so securing the broker never depends on cmdlet module autoload. */
+export const BROKER_DIRECTORY_ACL_SCRIPT = "$ErrorActionPreference='Stop'; $p=$env:PUK_BROKER_PRIVATE_DIR; $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=[System.Security.AccessControl.DirectorySecurity]::new(); $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false); foreach($s in @($sid,[System.Security.Principal.SecurityIdentifier]::new('S-1-5-18'))){$r=[System.Security.AccessControl.FileSystemAccessRule]::new($s,'FullControl','ContainerInherit,ObjectInherit','None','Allow'); $acl.AddAccessRule($r)}; [System.IO.Directory]::SetAccessControl($p,$acl)";
+
 async function protectDirectory() {
   await mkdir(DIRECTORY, { recursive: true, mode: 0o700 });
   if (!samePath(await realpath(DIRECTORY), join(await realpath(ROOT), "out", "win", "cua-broker"))) throw new Error("Cua broker state must stay inside this checkout's output directory.");
   if (process.platform === "win32") {
     // Only this user's SID and SYSTEM can read the secret. The path is passed as
     // data, never interpolated into PowerShell source or a process argument.
-    const command = "$ErrorActionPreference='Stop'; $p=$env:PUK_BROKER_PRIVATE_DIR; $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=New-Object System.Security.AccessControl.DirectorySecurity; $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false); foreach($s in @($sid,(New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-18'))){$r=New-Object System.Security.AccessControl.FileSystemAccessRule($s,'FullControl','ContainerInherit,ObjectInherit','None','Allow'); $acl.AddAccessRule($r)}; Set-Acl -LiteralPath $p -AclObject $acl";
     const ps = join(process.env.WINDIR ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
-    await promisify(execFile)(ps, ["-NoProfile", "-NonInteractive", "-Command", command], { windowsHide: true, timeout: 10_000, env: { ...subprocessEnv(), PUK_BROKER_PRIVATE_DIR: DIRECTORY } });
+    try {
+      await promisify(execFile)(ps, ["-NoProfile", "-NonInteractive", "-Command", BROKER_DIRECTORY_ACL_SCRIPT], { windowsHide: true, timeout: 10_000, env: { ...subprocessEnv(), PUK_BROKER_PRIVATE_DIR: DIRECTORY } });
+    } catch (error) {
+      const detail = error as { code?: unknown; stderr?: unknown };
+      debugLog("win.cua-broker.acl", { code: detail.code, stderr: redact(String(detail.stderr ?? "")).slice(0, 3000) });
+      throw new Error("Private Cua broker directory setup failed. Check its Windows permissions before attaching again.");
+    }
   } else await chmod(DIRECTORY, 0o700);
 }
 

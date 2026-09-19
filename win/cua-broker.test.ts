@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { brokerRequestAuthorized, createBrokerClient, createBrokerCore, UncertainCuaCall, validateBrokerState, type BrokerState } from "./cua-broker";
-import type { CuaConnection } from "../desktop";
+import { execFile } from "node:child_process";
+import { mkdtemp, rmdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+import { BROKER_DIRECTORY_ACL_SCRIPT, brokerRequestAuthorized, createBrokerClient, createBrokerCore, UncertainCuaCall, validateBrokerState, type BrokerState } from "./cua-broker";
+import { subprocessEnv, type CuaConnection } from "../desktop";
 
 const id = () => crypto.randomUUID();
 const reply = { content: [] } as Awaited<ReturnType<CuaConnection["call"]>>;
@@ -245,6 +250,19 @@ describe("broker client cancellation", () => {
 });
 
 describe("broker authentication and process identity", () => {
+  test.skipIf(process.platform !== "win32")("Windows directory ACL setup works with all module autoload disabled", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "puk-broker-acl-"));
+    try {
+      const ps = join(process.env.WINDIR ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+      const inspect = "$actual=[System.IO.Directory]::GetAccessControl($p); if(!$actual.AreAccessRulesProtected){throw 'Inherited access was retained'}; if($actual.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid.Value){throw 'Wrong directory owner'}; $rules=$actual.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier]); if($rules.Count -ne 2){throw 'Unexpected directory access rules'}; foreach($rule in $rules){if($rule.IdentityReference.Value -notin @($sid.Value,'S-1-5-18') -or $rule.AccessControlType -ne 'Allow' -or $rule.FileSystemRights -ne 'FullControl'){throw 'Unexpected directory access'}}; [Console]::WriteLine('private-acl-ok')";
+      const result = await promisify(execFile)(ps, ["-NoProfile", "-NonInteractive", "-Command", `$PSModuleAutoloadingPreference='None'; ${BROKER_DIRECTORY_ACL_SCRIPT}; ${inspect}`], {
+        windowsHide: true, timeout: 10_000, env: { ...subprocessEnv(), PUK_BROKER_PRIVATE_DIR: directory },
+      });
+      expect(result.stdout.trim()).toBe("private-acl-ok");
+      expect(result.stderr).toBe("");
+    } finally { await rmdir(directory); }
+  }, 15_000);
+
   const identity = { root: "D:\\projects\\puk", runtime: "D:\\tools\\bun.exe", script: "D:\\projects\\puk\\win\\cua-broker.ts", source: "source-digest", driver: "C:\\Tools\\cua-driver.exe" };
   const state: BrokerState = { protocol: 1, port: 43123, pid: 123, boot: "12345678-abcd-abcd-abcd-123456789000", token: "a".repeat(64), identity };
   const request = (extra: Record<string, string> = {}, url = `http://127.0.0.1:${state.port}/call`) => new Request(url, { method: "POST", headers: {
