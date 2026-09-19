@@ -50,6 +50,15 @@ describe("isolated generated artifact preview", () => {
     expect(result.screenshots).toHaveLength(2);
   }, 45_000);
 
+  test.skipIf(!previewBrowserExecutable())("media request cancellation tolerance does not accept an unplayable video", async () => {
+    await writeFile(join(directory, "index.html"), html('<h1>Broken lesson video</h1><video controls preload="auto" src="invalid.mp4" style="max-width:100%"></video>'));
+    await writeFile(join(directory, "invalid.mp4"), "This is not a video.");
+    const result = await previewArtifacts(options());
+    for (const name of ["desktop-video-playback", "mobile-video-playback"]) {
+      expect(result.checks.find(check => check.name === name)?.passed).toBe(false);
+    }
+  }, 45_000);
+
   test.skipIf(!previewBrowserExecutable())("generated code cannot fetch a control API or escape to external network", async () => {
     await writeFile(join(directory, "index.html"), html('<h1>Contained preview</h1><script>fetch("/task", {method:"POST",body:"bad"}).catch(()=>{}); fetch("https://example.test/").catch(()=>{})</script><img src="https://example.test/private.png">'));
     const result = await previewArtifacts(options());

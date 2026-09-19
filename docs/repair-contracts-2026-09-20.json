@@ -1,0 +1,201 @@
+{
+  "benchmark": "Small wording repair: exact-edit versus complete changed file",
+  "started": "2026-09-19T16:31:06.419Z",
+  "finished": "2026-09-19T16:31:15.227Z",
+  "runId": "d7162030-e1aa-4016-baff-c9774e7a4cc7",
+  "design": {
+    "calls": 4,
+    "repeatsPerCell": 1,
+    "concurrency": 4,
+    "models": [
+      "gpt-5.6-luna",
+      "gpt-6-astra"
+    ],
+    "effort": "low",
+    "provider": "openai",
+    "serviceTier": "priority",
+    "timeoutMs": 60000,
+    "maxTokens": 8000,
+    "sameSourceContext": true,
+    "sourceFiles": 5
+  },
+  "task": {
+    "target": "hands.html",
+    "before": "Explore the system ↓",
+    "after": "See how Hands works ↓",
+    "expectedSha256": "4b831fd3c6acd8cf4764dbca9bda8dbc21f809794d841922d0315444324c5972",
+    "expectedBytes": 4017
+  },
+  "inputFiles": [
+    {
+      "path": "index.html",
+      "bytes": 3350,
+      "sha256": "8e16ed448c9e2422b8ad75bdd01600e154f70d68f802db34f11f4c1ebfc43525"
+    },
+    {
+      "path": "hands.html",
+      "bytes": 4016,
+      "sha256": "370ba1d59748cef4653207eb01a73af24ba66d05b9865d51d5ebb93d821fee23"
+    },
+    {
+      "path": "style.css",
+      "bytes": 7525,
+      "sha256": "fed9c3655315b3aadf38dfba4f3357297a42a60a4a58843023967e43e6b522a1"
+    },
+    {
+      "path": "README.md",
+      "bytes": 3153,
+      "sha256": "768debcdac0ea625e706a031cd953f20c5c8dba4086a785462c3e6ef4e36cae4"
+    },
+    {
+      "path": "provenance.json",
+      "bytes": 7175,
+      "sha256": "74c9d71f81194df695ed527df80287c505e9148ff90bf293fc5ddf02233b7577"
+    }
+  ],
+  "results": [
+    {
+      "model": "gpt-5.6-luna",
+      "contract": "exact-edit",
+      "latencyMs": 1108,
+      "promptBytes": 27000,
+      "responseBytes": 101,
+      "responseSha256": "b3bd557ea21c712a1110ccb54573e22049a6207cafd4f65afcc85ce318d0d312",
+      "stopReason": "stop",
+      "rawStopReason": "completed",
+      "truncated": false,
+      "usage": {
+        "input": 3,
+        "output": 30,
+        "cacheRead": 0,
+        "cacheWrite": 7296,
+        "reasoning": 0,
+        "totalTokens": 7329,
+        "cost": {
+          "input": 0.0000012000000000000002,
+          "output": 0.000072,
+          "cacheRead": 0,
+          "cacheWrite": 0.003648,
+          "total": 0.0037212
+        }
+      },
+      "validation": {
+        "validJson": true,
+        "correct": true,
+        "reason": "In-memory candidate equals the exact requested byte change; no artifact writes performed.",
+        "candidateSha256": "4b831fd3c6acd8cf4764dbca9bda8dbc21f809794d841922d0315444324c5972",
+        "candidateBytes": 4017
+      }
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "contract": "full-file",
+      "latencyMs": 6934,
+      "promptBytes": 26986,
+      "responseBytes": 4199,
+      "responseSha256": "ee2f0a15480760f1a8022b8ff9634d27b5939a056eec16f90430c56c3701a174",
+      "stopReason": "stop",
+      "rawStopReason": "completed",
+      "truncated": false,
+      "usage": {
+        "input": 3,
+        "output": 1066,
+        "cacheRead": 0,
+        "cacheWrite": 7289,
+        "reasoning": 31,
+        "totalTokens": 8358,
+        "cost": {
+          "input": 0.0000012000000000000002,
+          "output": 0.0025583999999999997,
+          "cacheRead": 0,
+          "cacheWrite": 0.0036445,
+          "total": 0.0062041
+        }
+      },
+      "validation": {
+        "validJson": true,
+        "correct": true,
+        "reason": "In-memory candidate equals the exact requested byte change; no artifact writes performed.",
+        "candidateSha256": "4b831fd3c6acd8cf4764dbca9bda8dbc21f809794d841922d0315444324c5972",
+        "candidateBytes": 4017
+      }
+    },
+    {
+      "model": "gpt-6-astra",
+      "contract": "exact-edit",
+      "latencyMs": 1846,
+      "promptBytes": 27000,
+      "responseBytes": 101,
+      "responseSha256": "b3bd557ea21c712a1110ccb54573e22049a6207cafd4f65afcc85ce318d0d312",
+      "stopReason": "stop",
+      "rawStopReason": "completed",
+      "truncated": false,
+      "usage": {
+        "input": 3,
+        "output": 30,
+        "cacheRead": 0,
+        "cacheWrite": 7296,
+        "reasoning": 0,
+        "totalTokens": 7329,
+        "cost": {
+          "input": 0.000030000000000000004,
+          "output": 0.0015,
+          "cacheRead": 0,
+          "cacheWrite": 0.0912,
+          "total": 0.09273
+        }
+      },
+      "validation": {
+        "validJson": true,
+        "correct": true,
+        "reason": "In-memory candidate equals the exact requested byte change; no artifact writes performed.",
+        "candidateSha256": "4b831fd3c6acd8cf4764dbca9bda8dbc21f809794d841922d0315444324c5972",
+        "candidateBytes": 4017
+      }
+    },
+    {
+      "model": "gpt-6-astra",
+      "contract": "full-file",
+      "latencyMs": 8803,
+      "promptBytes": 26986,
+      "responseBytes": 4199,
+      "responseSha256": "ee2f0a15480760f1a8022b8ff9634d27b5939a056eec16f90430c56c3701a174",
+      "stopReason": "stop",
+      "rawStopReason": "completed",
+      "truncated": false,
+      "usage": {
+        "input": 3,
+        "output": 1033,
+        "cacheRead": 0,
+        "cacheWrite": 7289,
+        "reasoning": 0,
+        "totalTokens": 8325,
+        "cost": {
+          "input": 0.000030000000000000004,
+          "output": 0.05165,
+          "cacheRead": 0,
+          "cacheWrite": 0.0911125,
+          "total": 0.1427925
+        }
+      },
+      "validation": {
+        "validJson": true,
+        "correct": true,
+        "reason": "In-memory candidate equals the exact requested byte change; no artifact writes performed.",
+        "candidateSha256": "4b831fd3c6acd8cf4764dbca9bda8dbc21f809794d841922d0315444324c5972",
+        "candidateBytes": 4017
+      }
+    }
+  ],
+  "originalArtifactUnchanged": true,
+  "limitations": [
+    "One request per cell on one reviewed website: a smoke measurement, not a statistically reliable model ranking.",
+    "All four requests ran concurrently with identical five-file source context; provider load and prompt caching were not controlled.",
+    "The full-file baseline returns only the changed file, not all five files. This deliberately avoids inflating its output with unchanged files.",
+    "This benchmark uses compact edits/before/after or files wrappers; production BundlePatch uses edits/find/replace plus replacements. The result supports the mechanism of smaller repair responses, not an exact production latency promise.",
+    "Correctness is exact in-memory byte equality after applying the response. No artifact was edited and no browser or UI task ran.",
+    "Jev is absent from this text-generation benchmark because it cannot author free text; this measures specialist repair-contract cost only.",
+    "The 8000-token ceiling and 60-second timeout are common to all cells; truncation and failures count as failures, not successful repairs.",
+    "Usage fields are SDK-reported counters; cost fields are SDK estimates, not verified billed amounts."
+  ]
+}
