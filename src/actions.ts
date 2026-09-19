@@ -3,8 +3,9 @@
 import type { TypeSafeClient } from "@typesafe-ai/sdk";
 import { SITES } from "./config.ts";
 import { type Decision, OFFSCREEN_PREFIX, verifyTyped } from "./decide.ts";
+import { hand, quote } from "./hand.ts";
 import * as macos from "./macos.ts";
-import { type Field, isText, type Item, repr, type Screen, toPoints } from "./models.ts";
+import { center, type Field, isText, type Item, type Point, repr, type Screen, toPoints } from "./models.ts";
 import { composeText, composeUrl, type Writer } from "./writer.ts";
 
 export const VERIFY_THRESHOLD = 0.5;
@@ -40,6 +41,7 @@ export async function perform(decision: Decision, screen: Screen, items: Item[],
  * a sticky header, a cookie banner, or a tooltip. An element that refuses still has a location.
  */
 export async function clickItem(it: Item, screen: Screen): Promise<string> {
+  await hand.cue("press", `click ${quote(it.text)}`, center(it).map((v) => v / screen.scale) as Point);
   const ref = screen.axRefs.get(it.index);
   if (ref !== undefined && macos.axPress(ref)) return `pressed ${repr(it.text)} via accessibility`;
   await macos.clickAt(toPoints(screen, it));
@@ -57,6 +59,7 @@ export async function clickItem(it: Item, screen: Screen): Promise<string> {
 export function pressOffscreen(key: string, screen: Screen): string {
   const node = /^\d+$/.test(key) ? screen.offscreen[Number(key)] : undefined;
   if (!node) return `press_offscreen refused: there is no off-screen control ${repr(key)}`;
+  void hand.cue("press", `press ${quote(node.label)}`);
   if (macos.axPress(node.ref)) return `pressed ${repr(node.label)} (off-screen control) via accessibility`;
   return `press_offscreen refused: ${repr(node.label)} did not accept the press`;
 }
@@ -69,6 +72,7 @@ export function pressOffscreen(key: string, screen: Screen): string {
  * only a field that really holds the text counts. Returns which path ran, for the history.
  */
 export async function fillField(field: Field, text: string): Promise<string> {
+  void hand.cue("write", `typing ${quote(text)}`);
   if (field.ref !== undefined) {
     macos.axFocus(field.ref);
     if (macos.axSetValue(field.ref, text) && macos.axValue(field.ref)?.endsWith(text)) return "via accessibility";
@@ -96,6 +100,7 @@ const useBrowser: Handler = async (decision, _screen, _items, ctx) => {
     url = await composeUrl(ctx.writer, ctx.goal, ctx.history);
   }
   if (!url) return "use_browser refused: the writer proposed no usable URL for this goal";
+  void hand.cue("go", `open ${url.replace(/^https?:\/\//, "")}`);
   if (await macos.openUrl(ctx.browser, url)) return `opened ${url}`;
   return `use_browser failed: opened ${url} but ${ctx.browser} did not come to the front`;
 };
@@ -120,8 +125,10 @@ const typeTextAction: Handler = async (_decision, screen, items, ctx) => {
   return `typed ${repr(text)} into ${repr(screen.field.label)} ${how} (verified ${p.toFixed(2)})`;
 };
 
-const key = (name: string, description: string): Handler => async () => (await macos.press(name), description);
-const scroll = (lines: number, description: string): Handler => async () => (await macos.scroll(lines), description);
+const key = (name: string, description: string): Handler => async () => (void hand.cue("key", `press ${name}`), await macos.press(name), description);
+const scroll = (lines: number, description: string): Handler => async () => (
+  void hand.cue("scroll", description, undefined, { swipe: [0, Math.sign(lines)] }), await macos.scroll(lines), description
+);
 
 const HANDLERS: Record<string, Handler> = {
   use_browser: useBrowser,

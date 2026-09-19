@@ -40,6 +40,7 @@ Grant your terminal **Screen Recording** and **Accessibility** in System Setting
 ```
 bun hands "prompt"                                   # one task
 bun hands --background "prompt"                      # any app or site, without taking your mouse, keyboard or focus
+bun hands --name Lefty --color 4f8cff "prompt"       # the hand on screen: its name and colour (--no-hand runs without one)
 bun hands                                            # a prompt per line, same conversation
 bun clicker "open the Playground"                    # dry run: one step, prints what it would do
 bun clicker "open the Playground" --act              # drives the machine, up to 100 steps
@@ -50,6 +51,29 @@ bun clicker-inspect "any goal"                       # 3-2-1, capture, open the 
 **Stopping a live run.** Ctrl-C, or slam the mouse into the top-left corner of whichever screen it is on. The clicker also stops itself on `done` or `none`, on confidence under `--min-confidence` (0.4), after two consecutive no-ops, or at `--steps`.
 
 **Sharing the seat.** By default the agent uses your mouse, keyboard and focus. If you bring another app forward mid-task, its input tools refuse to act until it has looked at the screen again, so a keystroke meant for a web page does not land in your terminal. It is best left alone while it works, or run in the background.
+
+## The hand
+
+While it runs, the agent is on screen: an emoji hand with its name on a tag underneath, riding on the window it is working in.
+
+| it is | the hand |
+| --- | --- |
+| starting, or taking a new prompt | 👋 waves, top right of the main display, with the prompt on its tag |
+| reading the window (`screen`) | 🖐️ sweeps over it: `looking` |
+| waiting on the model, or running a shell or file tool | 👆 bobs: `thinking`, `bash “…”` |
+| clicking or pressing | 👆 glides there on a slight arc, taps, and a ring spreads from the fingertip: `click “Sign in”` |
+| typing, or writing a file | ✍️ scribbles: `typing “…”` |
+| drawing or dragging | ✍️ the pen's point follows the pointer event for event, so the ink comes out of it |
+| pressing keys | 👇 taps once per chord |
+| scrolling | ✌️ two fingers swipe the way a trackpad would |
+| opening an app or a page | 👉 `opening Notes`, `open arxiv.org/…` |
+| waiting | ✋ |
+| finished, or stopped | 👍 or ✋, which lingers a moment after the process has gone, then fades |
+
+- **Attached to the window.** With `--background` the hand belongs to the window being worked: it is stacked directly above that window in the window server's order (`orderWindow:relativeTo:` takes another app's window number), so whatever of yours covers the window covers the hand too, and it follows the window when it moves, leaves with it when it is minimized or on another desktop, and is put back above it within a frame or two if the window is raised past it. Its coordinates are the capture's own, from the window's corner, so the fingertip lands on the control being pressed. Without `--background` the agent works the whole screen, menus and all, so the hand rides on the display instead, above everything.
+- **Any colour.** `--color 4f8cff` (or `'#4f8cff'`, or `HANDS_COLOR`) makes the hand, and the ring it taps with, that colour; without it the hand is the emoji's own yellow. Colour emoji are pictures, so there is no colour to set: each glyph is set in type, photographed into a bitmap, and every pixel given the tint at the brightness it had. The shading survives, the pen stays black, and the skin comes out the colour asked for.
+- **It never gets in the way, and it is in your recordings.** The window ignores the mouse, cannot take the focus, and belongs to a process with no Dock icon. The agent must not see its own hand: it would cover the very thing it points at, and its tag would be read back as text. A window is captured by id, which leaves the hand out anyway. A display capture would not, so for exactly as long as one of those takes, the hand's window tells the window server to leave it out of captures, and the agent waits to hear that it has before it shoots (measured: out of 12 of 12 of the agent's captures, in every capture between them). So a screen recording shows the hand throughout a background run, and throughout a foreground run but for a blink at each of the agent's looks. The window also declares itself 99% opaque, which no eye can tell, so that the check for "is my browser window covered?" knows to look through it.
+- **How it is drawn.** `src/hand.ts` spawns itself as a second process and sends it one JSON cue per line. That process is an AppKit app driven from `bun:ffi` like everything else here: a transparent window the size of the display, and a few Core Animation layers (the glyph, the ring, the tag). Core Animation plays every motion inside the window server, so nothing draws frames and an idle hand costs about 1% of a core. It is a process of its own because the agent's thread stalls for a second at a time in OCR and tree walks, and because a fault in a drawing must never end a run: if the renderer dies, the cues become no-ops. All timing is the agent's side: it waits out the glide (160 to 520 ms) before it presses, so what is pressed visibly answers to the hand.
 
 ## Background mode
 
@@ -152,6 +176,7 @@ Everything else is a faithful port, tests included. These are deliberate:
 ```
 src/
   macos.ts        the only module that touches Quartz, AX, Vision, ScriptingBridge, AppleScript
+                  (hand.ts draws with the Objective-C runtime bound here)
   perception.ts   capture, OCR, the read region and the changed-tile cache, block merging,
                   goal-echo filter, the accessibility item source, and the merge of the two
   dates.ts        date parsing and "in N days" hints
@@ -164,6 +189,7 @@ src/
   cli.ts          `clicker` and `clicker inspect`
   llm.ts          pi-ai model runtime, model resolution, the service tier
   tools.ts        computer use as agent tools
+  hand.ts         the hand on screen: the cues the tools send, and the process that draws them
   agent.ts        `hands`: the pi agent, its system prompt, transcript pruning
 tests/            pure logic: dates, merging, reading order, echo filter, the OCR cache,
                   decisions, actions, the tree walk against a fake tree
@@ -182,6 +208,7 @@ bun run typecheck
 - OCR only sees text, and the accessibility tree only covers apps that publish one. Electron apps and canvases mostly reach neither, which is what `screen`'s screenshot is for.
 - Two identical labels get only a coarse region hint and split the classifier's vote.
 - Chords go by US-layout keycodes; typed text does not.
+- What is typed shows on the hand's tag, as it does in the terminal. In a recording of a foreground run the hand drops out for the moment of each of the agent's own screen captures.
 - Passwords are never typed. Rely on the browser's password manager or an SSO button.
 
 ## License

@@ -2,7 +2,8 @@
  * macOS adapter: synthetic input, app control, screen capture, Vision OCR, and the accessibility tree.
  *
  * This is the only module that touches Quartz, ApplicationServices, Vision, or AppleScript, all of it
- * through bun:ffi. A Linux adapter would provide the same functions over xdotool and AT-SPI.
+ * through bun:ffi (hand.ts draws the agent's hand with the runtime bound here, and nothing else). A Linux
+ * adapter would provide the same functions over xdotool and AT-SPI.
  *
  * bun:ffi cannot return a struct, so nothing here calls a function that returns CGPoint or CGRect:
  * Cocoa hands those over as NSValue through key-value coding, and AX and CG write them to a pointer.
@@ -82,6 +83,8 @@ function bind() {
 
   return {
     sym,
+    fn,
+    send,
     kCFBooleanTrue: read.ptr(sym("kCFBooleanTrue") as never, 0) as unknown as Ref,
     getClass: fn("objc_getClass", ["cstring"], "ptr"),
     selector: fn("sel_registerName", ["cstring"], "ptr"),
@@ -227,6 +230,24 @@ function structOf(object: Ref, key: string, doubles: number): number[] {
   return [...out];
 }
 
+/**
+ * The Objective-C runtime as bound here, for the one other module that talks to AppKit: the hand draws with it.
+ * `msg` is `objc_msgSend` under one exact signature, written "returns,arg,arg":
+ * `msg("void,f64,f64")(layer, sel("setPosition:"), x, y)`.
+ */
+export const objc = {
+  cls,
+  sel,
+  str: cfstr,
+  pooled,
+  structOf,
+  msg: cache((signature): Native => {
+    const [returns, ...args] = signature.split(",") as FFITypeOrString[];
+    return native().send(returns!, ...args);
+  }),
+  fn: (name: string, args: FFITypeOrString[], returns: FFITypeOrString): Native => native().fn(name, args, returns),
+};
+
 const sleep = (ms: number) => Bun.sleep(ms);
 
 // ------------------------------------------------------------------ escape hatch
@@ -332,8 +353,8 @@ export async function clickAt(point: Point, options: { button?: "left" | "right"
   }
 }
 
-/** Press, drag through every point, release. The points between are filled in, since a canvas draws what it is sent. */
-export async function drag(path: Point[]): Promise<void> {
+/** Press, drag through every point, release. The points between are filled in, since a canvas draws what it is sent; `onMove` hears each one. */
+export async function drag(path: Point[], onMove?: (at: Point) => void): Promise<void> {
   const n = native();
   const [start, end] = [path[0], path[path.length - 1]];
   if (!start || !end) return;
@@ -344,7 +365,9 @@ export async function drag(path: Point[]): Promise<void> {
     const steps = Math.max(1, Math.ceil(Math.hypot(x - px, y - py) / DRAG_STEP_PT));
     for (let i = 1; i <= steps; i++) {
       checkAbort();
-      await post(n.CGEventCreateMouse(null, MOUSE.leftDragged, px + ((x - px) * i) / steps, py + ((y - py) * i) / steps, 0), DRAG_DELAY_MS);
+      const at: Point = [px + ((x - px) * i) / steps, py + ((y - py) * i) / steps];
+      onMove?.(at);
+      await post(n.CGEventCreateMouse(null, MOUSE.leftDragged, at[0], at[1], 0), DRAG_DELAY_MS);
     }
     [px, py] = [x, y];
   }
@@ -822,8 +845,8 @@ export function appWindows(pid: number): AppWindow[] {
   }
 }
 
-/** Every ordinary on-screen window of every app, front to back, with the process that owns it. */
-export function allWindows(): (AppWindow & { pid: number })[] {
+/** Every ordinary on-screen window of every app, front to back, with the process that owns it and how solid it is. */
+export function allWindows(): (AppWindow & { pid: number; alpha: number })[] {
   const n = native();
   const windows = n.CGWindowListCopyWindowInfo(1 | 16, 0);
   if (!windows) return [];
@@ -834,12 +857,20 @@ export function allWindows(): (AppWindow & { pid: number })[] {
       const value = n.CFDictionaryGetValue(dict, cfstr(key));
       return value && n.CFNumberGetValue(value, 4, number) ? Number(number[0]) : null;
     };
-    const out: (AppWindow & { pid: number })[] = [];
+    const out: (AppWindow & { pid: number; alpha: number })[] = [];
+    const real = new Float64Array(1);
     for (let i = 0; i < Number(n.CFArrayGetCount(windows)); i++) {
       const window = n.CFArrayGetValueAtIndex(windows, i);
       const bounds = n.CFDictionaryGetValue(window, cfstr("kCGWindowBounds"));
       if (integer(window, "kCGWindowLayer") !== 0 || !bounds || !n.CGRectFromDictionary(bounds, rect)) continue;
-      if (rect[2]! > MIN_WINDOW_SIDE_PT && rect[3]! > MIN_WINDOW_SIDE_PT) out.push({ id: integer(window, "kCGWindowNumber") ?? 0, pid: integer(window, "kCGWindowOwnerPID") ?? 0, frame: [...rect] as Frame });
+      if (rect[2]! <= MIN_WINDOW_SIDE_PT || rect[3]! <= MIN_WINDOW_SIDE_PT) continue;
+      const alpha = n.CFDictionaryGetValue(window, cfstr("kCGWindowAlpha"));
+      out.push({
+        id: integer(window, "kCGWindowNumber") ?? 0,
+        pid: integer(window, "kCGWindowOwnerPID") ?? 0,
+        frame: [...rect] as Frame,
+        alpha: alpha && n.CFNumberGetValue(alpha, 13, real) ? real[0]! : 1, // kCFNumberDoubleType
+      });
     }
     return out;
   } finally {
@@ -1129,7 +1160,7 @@ const POINTER = { moved: 5, down: 1, up: 2, dragged: 6 };
  * it has the focus, hence the records, and only when Chrome thinks the page is visible, which a window
  * covered on every side is not: see revealWindow. The key window the app had before is given back.
  */
-export async function windowPointer(target: PointerTarget, path: Point[], options: { count?: number } = {}): Promise<void> {
+export async function windowPointer(target: PointerTarget, path: Point[], options: { count?: number; onMove?: (at: Point) => void } = {}): Promise<void> {
   const [n, s] = [native(), sky()];
   const [start, end] = [path[0], path[path.length - 1]];
   if (!s) throw new Error("this system has no window-addressed pointer (SkyLight's symbols are missing)");
@@ -1160,7 +1191,9 @@ export async function windowPointer(target: PointerTarget, path: Point[], option
         const steps = Math.max(1, Math.ceil(Math.hypot(x - px, y - py) / DRAG_STEP_PT));
         for (let i = 1; i <= steps; i++) {
           checkAbort();
-          await send([px + ((x - px) * i) / steps, py + ((y - py) * i) / steps], POINTER.dragged, click, DRAG_DELAY_MS);
+          const at: Point = [px + ((x - px) * i) / steps, py + ((y - py) * i) / steps];
+          options.onMove?.(at);
+          await send(at, POINTER.dragged, click, DRAG_DELAY_MS);
         }
         [px, py] = [x, y];
       }
@@ -1176,13 +1209,19 @@ export async function windowPointer(target: PointerTarget, path: Point[], option
 const SLIVER_PT = 24; // how much of a window has to show for the browser to call its page visible
 const GRID_PT = 12;
 
+/**
+ * What lies over a window: the frames in front of it. A window that lets any light through covers nothing,
+ * which is how an agent's hand, a display-wide sheet of glass right above the window it works in, says so.
+ */
+const coversOf = (windows: ReturnType<typeof allWindows>, at: number): Frame[] => windows.slice(0, at).filter((c) => c.alpha >= 1).map((c) => c.frame);
+
 /** The patch of a window that nothing covers, if there is one: a grid point on a display, inside the window, under no window in front of it. */
 function showing(windowId: number): Point | null {
   const windows = allWindows();
   const at = windows.findIndex((w) => w.id === windowId);
   if (at < 0) return null;
   const [x, y, w, h] = windows[at]!.frame;
-  const covers = windows.slice(0, at).map((c) => c.frame);
+  const covers = coversOf(windows, at);
   const inside = ([fx, fy, fw, fh]: Frame, px: number, py: number) => px >= fx && py >= fy && px < fx + fw && py < fy + fh;
   const screens = displays().map((d) => d.frame);
   for (let py = y + GRID_PT; py < y + h; py += GRID_PT) {
@@ -1208,7 +1247,7 @@ export async function revealWindow(pid: number, windowId: number): Promise<boole
   const at = windows.findIndex((w) => w.id === windowId);
   if (at < 0) return false;
   const [, , w, h] = windows[at]!.frame;
-  const covers = windows.slice(0, at).map((c) => c.frame);
+  const covers = coversOf(windows, at);
   const inside = ([fx, fy, fw, fh]: Frame, px: number, py: number) => px >= fx && py >= fy && px < fx + fw && py < fy + fh;
   // Free spots, below the menu bar, nearest a side edge first: the window then hangs off the screen rather than lying under the user's.
   const spots: { point: Point; edge: number; left: boolean }[] = [];

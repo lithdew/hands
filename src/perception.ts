@@ -2,6 +2,7 @@
 
 import sharp from "sharp";
 import { MAX_OPTIONS, MIN_OCR_CONFIDENCE } from "./config.ts";
+import { hand } from "./hand.ts";
 import * as macos from "./macos.ts";
 import { type AxNode, type Box, type Capture, type Frame, fromAx, type Item, item, type Point, roleWord, type Screen, sizePt, toPoints } from "./models.ts";
 import { OCR_RECTS, OCR_REGION_PCT, phase, type Timing } from "./timing.ts";
@@ -52,10 +53,12 @@ export async function capture(options: CaptureOptions = {}): Promise<Screen> {
   });
   const window = await phase(timing, "window", () => (replay ? null : macos.frontmostWindowBounds(pid)));
   const display = macos.displayFor(window);
+  if (!replay) hand.look({ origin: [display.frame[0], display.frame[1]] }, [display.frame[2], display.frame[3]]);
   const image = await phase(timing, "screenshot", () => {
     if (imagePath) return macos.captureAt(imagePath);
     if (!options.out) throw new Error("capture needs somewhere to write the screenshot");
-    return macos.screenshot(display, options.out);
+    const out = options.out;
+    return hand.unseen(() => macos.screenshot(display, out));
   });
   const field = await phase(timing, "field", () => (replay ? null : macos.focusedField()));
   const pageUrl = await phase(timing, "url", () => (url !== undefined ? url : replay ? null : macos.browserUrl(browser)));
@@ -83,6 +86,7 @@ async function captureWindow(target: { pid: number; windowId: number }, { out, u
   const window = await phase(timing, "window", () => macos.appWindows(target.pid).find((w) => w.id === target.windowId)?.frame ?? null);
   if (!window) throw new Error("the window is gone: closed, minimized, or on another desktop");
   if (!out) throw new Error("capture needs somewhere to write the screenshot");
+  hand.look({ window: target.windowId, origin: [window[0], window[1]] }, [window[2], window[3]]);
   const image = await phase(timing, "screenshot", () => macos.screenshotWindow(target.windowId, out));
   return {
     image,

@@ -31,3 +31,6 @@ export const thinking = (): string => process.env.HANDS_THINKING || DEFAULT_THIN
 /** "off" sends no service_tier at all. */
 export const serviceTier = (): string => process.env.HANDS_SERVICE_TIER || DEFAULT_SERVICE_TIER;
 export const email = (): string | null => process.env.CLICKER_EMAIL || null;
+/** What the hand on screen is called, and its colour as hex (none: the emoji's own yellow). */
+export const handName = (): string => process.env.HANDS_NAME || "Hands";
+export const handColor = (): string | undefined => process.env.HANDS_COLOR || undefined;

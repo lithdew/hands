@@ -11,6 +11,7 @@ import { createCodingTools } from "@earendil-works/pi-coding-agent";
 import { timestamp } from "./cli.ts";
 import * as config from "./config.ts";
 import { nowContext } from "./dates.ts";
+import { hand, quote, tintOf } from "./hand.ts";
 import { onPayload, resolveModel, runtime } from "./llm.ts";
 import * as macos from "./macos.ts";
 import { computerTools, type Details } from "./tools.ts";
@@ -175,14 +176,30 @@ function report(agent: Agent, runDir: string): void {
   });
 }
 
-const USAGE = `usage: hands [prompt] [--background] [--cwd DIR] [--out DIR] [--model provider/model] [--thinking LEVEL]
+/**
+ * The run as the hand shows it. The computer tools pose for themselves, since only they know where on the
+ * screen they act; this covers pi's own tools, and the thinking in between.
+ */
+function personify(agent: Agent): void {
+  agent.subscribe((event) => {
+    if (event.type === "tool_execution_start") {
+      const about = Object.values(event.args ?? {}).find((value) => typeof value === "string");
+      void hand.cue(event.toolName === "write" || event.toolName === "edit" ? "write" : "think", `${event.toolName} ${about ? quote(about) : ""}`.trim());
+    } else if (event.type === "tool_execution_end") hand.rest();
+  });
+}
+
+const USAGE = `usage: hands [prompt] [--background] [--name NAME] [--color HEX] [--no-hand] [--cwd DIR] [--out DIR] [--model provider/model] [--thinking LEVEL]
 
 An agent that drives this Mac: ${config.DEFAULT_MODEL} at ${config.DEFAULT_THINKING} effort, with read, bash, edit, write and computer use.
 With no prompt it reads one per line until EOF. Abort: Ctrl-C, or slam the mouse into a screen's top-left corner.
 
   --background   keep working while it works: apps are started without coming forward, the browser gets a window
                  of its own behind yours, and clicks, drags and keys are addressed to its windows rather than
-                 sent through your mouse and keyboard.`;
+                 sent through your mouse and keyboard.
+  --name NAME    what the hand on screen is called (default ${config.handName()}). The hand rides on the window being
+                 worked in and shows each action as it happens; --no-hand runs without it.
+  --color HEX    the hand's colour, as 4f8cff or '#4f8cff' (default: the emoji's own yellow).`;
 
 async function main(argv: string[]): Promise<void> {
   const { values, positionals } = parseArgs({
@@ -194,10 +211,18 @@ async function main(argv: string[]): Promise<void> {
       model: { type: "string" },
       thinking: { type: "string" },
       background: { type: "boolean", default: false },
+      name: { type: "string", default: config.handName() },
+      color: { type: "string", default: config.handColor() },
+      "no-hand": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
   });
   if (values.help) return void console.log(USAGE);
+  const tint = values.color === undefined ? undefined : tintOf(values.color);
+  if (tint === null) {
+    console.error(`--color wants a hex colour such as 4f8cff, not ${JSON.stringify(values.color)}`);
+    process.exit(2);
+  }
   if (!process.env.TYPESAFE_API_KEY) console.log("TYPESAFE_API_KEY is not set: the clicker tool will fail until it is (put it in .env)");
   if (!macos.accessibilityTrusted()) {
     console.error("this terminal lacks Accessibility permission; grant it in System Settings > Privacy & Security");
@@ -206,6 +231,10 @@ async function main(argv: string[]): Promise<void> {
   const runDir = resolve(values.out);
   const agent = await createAgent({ cwd: resolve(values.cwd), runDir, model: values.model, thinking: values.thinking, background: values.background });
   report(agent, runDir);
+  if (!values["no-hand"]) {
+    hand.start(values.name, tint);
+    personify(agent);
+  }
   console.log(`run folder: ${runDir}\nabort: Ctrl-C, or slam the mouse into a screen's top-left corner.`);
   if (values.background) console.log("background: working behind your windows. Your mouse, keyboard and focus stay yours.");
 
@@ -218,7 +247,11 @@ async function main(argv: string[]): Promise<void> {
   const run = async (prompt: string) => {
     interrupts = 0;
     macos.interrupt(false);
+    void hand.cue("wave", quote(prompt));
     await ask(agent, prompt);
+    const ended = agent.state.messages.at(-1);
+    const stopped = ended?.role === "assistant" && (ended.stopReason === "aborted" || ended.stopReason === "error");
+    await hand.cue(stopped ? "stop" : "done", stopped ? "stopped" : "done");
   };
 
   if (positionals.length) return run(positionals.join(" "));

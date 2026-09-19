@@ -13,6 +13,7 @@ import sharp from "sharp";
 import { type TSchema, Type } from "typebox";
 import { clickItem, pressOffscreen } from "./actions.ts";
 import * as config from "./config.ts";
+import { hand, quote } from "./hand.ts";
 import * as macos from "./macos.ts";
 import { Abort, center, type Item, type Point, repr, roleWord, type Screen, sizePt, toPoints } from "./models.ts";
 import { capture, OcrCache, perceive } from "./perception.ts";
@@ -71,6 +72,12 @@ async function withScreenshot(result: Result, screen: Screen): Promise<Result> {
   result.content.push({ type: "image", data: jpeg.toString("base64"), mimeType: "image/jpeg" });
   return result;
 }
+
+/** Where an item is, in the points of its capture: the space the hand moves in. */
+const spot = (screen: Screen, it: Item): Point => center(it).map((v) => v / screen.scale) as Point;
+/** Which way two fingers go to scroll that way. */
+const SWIPES: Record<string, Point> = { up: [0, 1], down: [0, -1], left: [1, 0], right: [-1, 0] };
+const times = (count: number): string => (count > 1 ? ` x${count}` : "");
 
 export const computerTools = (options: ToolOptions): AgentTool<any>[] => (options.background ? backgroundTools(options) : foregroundTools(options));
 
@@ -168,12 +175,14 @@ function foregroundTools({ runDir, writer, onAbort }: ToolOptions): AgentTool<an
         if (index !== undefined) {
           const it = itemAt(index);
           if (plain && !mouse) return acted(await clickItem(it, current().screen));
+          await hand.cue("press", `${button === "right" ? "right-" : ""}click ${quote(it.text)}`, spot(current().screen, it), { count });
           await macos.clickAt(toPoints(current().screen, it), { button, count });
-          return acted(`clicked ${repr(it.text)} (${button}${count > 1 ? ` x${count}` : ""})`);
+          return acted(`clicked ${repr(it.text)} (${button}${times(count)})`);
         }
         if (x === undefined || y === undefined) throw new Error("give an item, or both x and y");
+        await hand.cue("press", `${button === "right" ? "right-" : ""}click`, [x, y], { count });
         await macos.clickAt(toGlobal(x, y), { button, count });
-        return acted(`clicked at ${x},${y} (${button}${count > 1 ? ` x${count}` : ""})`);
+        return acted(`clicked at ${x},${y} (${button}${times(count)})`);
       },
     ),
     tool(
@@ -185,6 +194,7 @@ function foregroundTools({ runDir, writer, onAbort }: ToolOptions): AgentTool<an
       }),
       async ({ text, enter }) => {
         await focused();
+        void hand.cue("write", `typing ${quote(text)}`);
         await (text.length > PASTE_OVER_CHARS ? macos.pasteText(text) : macos.typeText(text));
         if (enter) await macos.press("return");
         return acted(`typed ${repr(text.length > 80 ? `${text.slice(0, 80)}…` : text)}${enter ? " and pressed Return" : ""}`);
@@ -196,6 +206,7 @@ function foregroundTools({ runDir, writer, onAbort }: ToolOptions): AgentTool<an
       Type.Object({ keys: Type.String({ description: "e.g. `cmd+n` or `cmd+a delete`" }) }),
       async ({ keys }) => {
         await focused();
+        void hand.cue("key", `press ${keys}`, undefined, { count: keys.trim().split(/\s+/).length });
         for (const chord of keys.trim().split(/\s+/)) {
           const parts = chord.length > 1 ? chord.split("+") : [chord];
           await macos.press(parts.pop()!, parts);
@@ -215,6 +226,7 @@ function foregroundTools({ runDir, writer, onAbort }: ToolOptions): AgentTool<an
       async ({ direction, amount = 10, x, y }) => {
         await focused();
         const at = x !== undefined && y !== undefined ? toGlobal(x, y) : undefined;
+        await hand.cue("scroll", `scroll ${direction}`, at && [x, y], { swipe: SWIPES[direction] });
         const [vertical, horizontal] = { up: [amount, 0], down: [-amount, 0], left: [0, amount], right: [0, -amount] }[direction as "up"]!;
         await macos.scroll(vertical!, at, horizontal);
         return acted(`scrolled ${direction} ${amount}`);
@@ -231,8 +243,11 @@ function foregroundTools({ runDir, writer, onAbort }: ToolOptions): AgentTool<an
         }),
       }),
       async ({ strokes }: { strokes: [number, number][][] }) => {
-        await focused();
-        for (const stroke of strokes) await macos.drag(stroke.map(([x, y]) => toGlobal(x, y)));
+        const [left, top] = (await focused()).screen.origin;
+        for (const stroke of strokes) {
+          await hand.cue("draw", "drawing", stroke[0]);
+          await macos.drag(stroke.map(([x, y]) => toGlobal(x, y)), ([x, y]) => hand.at([x - left, y - top]));
+        }
         return acted(`dragged ${strokes.length} stroke${strokes.length === 1 ? "" : "s"}`);
       },
     ),
@@ -247,6 +262,7 @@ function foregroundTools({ runDir, writer, onAbort }: ToolOptions): AgentTool<an
       "Open a macOS application, or bring it to the front if it is already running. Returns the new `screen` listing.",
       Type.Object({ name: Type.String({ description: "As in /Applications, e.g. Calculator, Notes, Finder" }) }),
       async ({ name }) => {
+        void hand.cue("go", `opening ${name}`);
         const front = await macos.activate(name).catch(() => false);
         if (!front) await Bun.spawn(["open", "-a", name]).exited;
         const reached = front || (await macos.activate(name).catch(() => false));
@@ -267,6 +283,7 @@ function foregroundTools({ runDir, writer, onAbort }: ToolOptions): AgentTool<an
         tab: Type.Optional(Type.Integer({ description: "Tab number from `tabs`. Default the active tab." })),
       }),
       async (params) => {
+        void hand.cue("go", `${params.action.replace("_", " ")} ${(params.url ?? "").replace(/^https?:\/\//, "")}`.trim());
         const outcome = await chrome(browser, params);
         return params.action === "tabs" ? say(outcome) : moved(outcome, params.action === "close_tab" ? undefined : pageLoaded);
       },
@@ -275,7 +292,7 @@ function foregroundTools({ runDir, writer, onAbort }: ToolOptions): AgentTool<an
       "wait",
       "Wait for a page to load or an animation to finish.",
       Type.Object({ seconds: Type.Number({ minimum: 0, maximum: 30 }) }),
-      async ({ seconds }) => (await macos.sleepWatching(seconds), say(`waited ${seconds}s`)),
+      async ({ seconds }) => (void hand.cue("wait", `waiting ${seconds}s`), await macos.sleepWatching(seconds), say(`waited ${seconds}s`)),
     ),
     tool(
       "clicker",
@@ -290,6 +307,7 @@ function foregroundTools({ runDir, writer, onAbort }: ToolOptions): AgentTool<an
       }),
       async ({ goal, steps = CLICKER_STEPS }) => {
         view = null; // its captures release every element handle this one gave out
+        void hand.cue("go", `clicker: ${quote(goal)}`);
         const out = join(runDir, `clicker-${String(++clickerRuns).padStart(2, "0")}`);
         const state = await run({ goal, out, act: true, steps }, (typesafe, history) => ({
           goal,
@@ -412,6 +430,7 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
         "window from here on. Returns the `screen` listing.",
       Type.Object({ name: Type.String({ description: "As in /Applications, e.g. Calculator, Notes, TextEdit" }) }),
       async ({ name }) => {
+        void hand.cue("go", `opening ${name}`);
         const pid = await macos.runInBackground(name);
         if (pid === null) throw new Error(`${name} did not start`);
         target = { app: name, pid };
@@ -424,6 +443,7 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
         "screen. A path that stops at a menu lists what is in it, and an empty path lists the menu bar: look before you guess a name.",
       Type.Object({ path: Type.Array(Type.String(), { description: "e.g. [\"Edit\", \"Select All\"], or [\"View\"] to see what View holds" }) }),
       async ({ path }: { path: string[] }) => {
+        if (path.length) void hand.cue("press", `menu ${path.join(" › ")}`);
         const result = macos.menu(mine().pid, path);
         return "items" in result ? say(`${path.join(" > ") || "menu bar"}: ${result.items.join(", ")}`) : moved(`chose ${result.pressed}`);
       },
@@ -444,12 +464,13 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
         const it = index === undefined ? undefined : items.find((candidate) => candidate.index === index);
         if (index !== undefined && !it) throw new Error(`no item ${index} on the current screen (${items.length} items); call \`screen\` again`);
         const ref = it && screen.axRefs.get(it.index);
-        if (it && ref !== undefined && count === 1 && macos.axPress(ref)) return acted(`pressed ${repr(it.text)} via accessibility`);
         if (!it && (x === undefined || y === undefined)) throw new Error("give an item, or both x and y");
-        const [px, py] = it ? center(it).map((v) => v / screen.scale) : [x!, y!];
+        const [px, py] = it ? spot(screen, it) : [x!, y!];
+        await hand.cue("press", it ? `click ${quote(it.text)}` : "click", [px, py], { count });
+        if (it && ref !== undefined && count === 1 && macos.axPress(ref)) return acted(`pressed ${repr(it.text)} via accessibility`);
         const target = await pointed();
-        await macos.windowPointer(target, [onScreen(target, px!, py!)], { count });
-        return acted(`clicked ${it ? repr(it.text) : `at ${px},${py}`}${count > 1 ? ` x${count}` : ""} with a pointer of your own`);
+        await macos.windowPointer(target, [onScreen(target, px, py)], { count });
+        return acted(`clicked ${it ? repr(it.text) : `at ${px},${py}`}${times(count)} with a pointer of your own`);
       },
     ),
     tool(
@@ -465,7 +486,11 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
       }),
       async ({ strokes }: { strokes: [number, number][][] }) => {
         const target = await pointed();
-        for (const stroke of strokes) await macos.windowPointer(target, stroke.map(([x, y]) => onScreen(target, x, y)));
+        const onMove = ([x, y]: Point) => hand.at([x - target.frame[0], y - target.frame[1]]);
+        for (const stroke of strokes) {
+          await hand.cue("draw", "drawing", stroke[0]);
+          await macos.windowPointer(target, stroke.map(([x, y]) => onScreen(target, x, y)), { onMove });
+        }
         return acted(`dragged ${strokes.length} stroke${strokes.length === 1 ? "" : "s"} with a pointer of your own`);
       },
     ),
@@ -482,11 +507,13 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
       async ({ item: index, text, submit }) => {
         if (index === undefined) {
           const pid = keyboard();
+          void hand.cue("write", `typing ${quote(text)}`);
           await macos.typeText(text, pid);
           if (submit) await macos.press("return", [], pid);
           return acted(`typed ${repr(text.length > 80 ? `${text.slice(0, 80)}…` : text)} into ${mine().app}${submit ? " and pressed Return" : ""}`);
         }
         const { it, ref } = control(index);
+        await hand.cue("write", `typing ${quote(text)}`, spot(current().screen, it));
         if (!macos.axSetValue(ref, text) || !macos.axValue(ref)?.endsWith(text)) throw new Error(`${repr(it.text)} would not take a value through accessibility`);
         const confirmed = submit ? macos.axPerform(ref, "AXConfirm") : false;
         return acted(`set ${repr(it.text)} to ${repr(text)}${submit ? (confirmed ? " and confirmed it" : ", but the field has no confirm action: press the form's button") : ""}`);
@@ -500,6 +527,7 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
       Type.Object({ keys: Type.String({ description: "e.g. `cmd+n` or `cmd+a delete`" }) }),
       async ({ keys }) => {
         const pid = keyboard();
+        void hand.cue("key", `press ${keys}`, undefined, { count: keys.trim().split(/\s+/).length });
         for (const chord of keys.trim().split(/\s+/)) {
           const parts = chord.length > 1 ? chord.split("+") : [chord];
           await macos.press(parts.pop()!, parts, pid);
@@ -516,6 +544,7 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
       }),
       async ({ direction, control: chosen }) => {
         const { screen } = current();
+        void hand.cue("scroll", chosen === undefined ? `scroll ${direction ?? "down"}` : "scroll to a control", undefined, { swipe: SWIPES[direction ?? "down"] });
         // A list or a text view pages itself. A web page has no such action, and is moved by bringing something on it into view.
         if (chosen === undefined && direction && macos.scrollPage(screen.pid!, screen.windowId!, direction)) return acted(`scrolled ${direction} a page`);
         const [, top, , height] = screen.window!;
@@ -547,6 +576,7 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
         tab: Type.Optional(Type.Integer({ description: "Tab number from `tabs`. Default the active tab." })),
       }),
       async ({ action, url, new_tab = false, tab }) => {
+        void hand.cue("go", `${action.replace("_", " ")} ${(url ?? "").replace(/^https?:\/\//, "")}`.trim());
         let pinned = target?.pinned ?? webWindow;
         if (action === "open") {
           if (!url || !/^https?:\/\//.test(url)) throw new Error("open needs a url starting with https://");
@@ -572,7 +602,7 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
       "wait",
       "Wait for a page to load or a window to settle.",
       Type.Object({ seconds: Type.Number({ minimum: 0, maximum: 30 }) }),
-      async ({ seconds }) => (await macos.sleepWatching(seconds), say(`waited ${seconds}s`)),
+      async ({ seconds }) => (void hand.cue("wait", `waiting ${seconds}s`), await macos.sleepWatching(seconds), say(`waited ${seconds}s`)),
     ),
   ];
 }
