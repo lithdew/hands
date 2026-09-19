@@ -1,8 +1,9 @@
 /** Run the same Hands workflow used by /task, with reproducible acceptance briefs. */
 import { readFile, writeFile } from "node:fs/promises";
-import { resolve, join } from "node:path";
+import { resolve } from "node:path";
 import { runArtifactWorkflow, type ArtifactInput } from "./run";
 import { ArtifactPathSchema } from "./contracts";
+import { inspectedRunEvidence } from "./evidence";
 
 export async function caseInput(path: string): Promise<ArtifactInput> {
   const brief = JSON.parse(await readFile(path, "utf8"));
@@ -31,17 +32,16 @@ if (import.meta.main) {
     const resumeAt = process.argv.indexOf("--resume");
     if (resumeAt >= 0) input.resumeRunId = process.argv[resumeAt + 1];
     input.executeOnly=process.argv.includes("--execute-only");
+    input.previewOnly=process.argv.includes("--preview-only");
+    input.reuseMedia=process.argv.includes("--reuse-media");
     const evidenceAt = process.argv.indexOf("--evidence");
     if (evidenceAt >= 0) {
-      input.evidenceAssets = {};
-      for (const id of process.argv.slice(evidenceAt + 1).filter((_,index,values)=>!values.slice(0,index+1).some(value=>value.startsWith("--")))) {
-        if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error("Evidence must be an existing artifact run UUID.");
-        const manifest = JSON.parse(await readFile(join("out/artifacts", id, "manifest.json"), "utf8"));
-        if (manifest.status !== "complete" || !manifest.checks.every((check: any) => check.passed)) throw new Error("Only validated earlier runs can supply pitch evidence.");
-        const evidenceId = `artifact-${Object.keys(input.evidenceAssets).length + 1}`;
-        input.evidenceAssets[evidenceId] = manifest.screenshots[0];
-        input.context += `\nVerified Hands output ${evidenceId}: ${JSON.stringify({runId:id,kind:manifest.kind,title:manifest.summary,elapsedMs:manifest.elapsedMs,checks:manifest.checks,previewImage:evidenceId})}`;
-      }
+      const ids:string[]=[];
+      for(const value of process.argv.slice(evidenceAt+1)){if(value.startsWith("--"))break;ids.push(value);}
+      if(!ids.length)throw new Error("--evidence requires at least one inspected Hands run UUID.");
+      const evidence=await inspectedRunEvidence(resolve("out/artifacts"),ids);
+      input.evidenceAssets=evidence.assets;
+      input.context += `\nVerified independently inspected Hands output evidence: ${JSON.stringify(evidence.records)}`;
     }
     const abort = new AbortController(); process.on("SIGINT", () => abort.abort()); input.signal = abort.signal;
     input.onEvent = event => console.log(JSON.stringify(event));

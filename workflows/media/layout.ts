@@ -10,6 +10,13 @@ export function matrixPhaseLabel(frame: number, frames: number, invertible: bool
   return "Original basis restored";
 }
 
+/** Frame lanes (1280x720). Copy lives in one panel above a reserved caption
+ * band; the band ends above desktop player controls so screenshots stay legible. */
+export const PANEL_TOP = 70;
+export const CAPTION_TOP = 548;
+export const MATRIX_TEXT_HEIGHT = CAPTION_TOP - PANEL_TOP - 16;
+export const CAPTION_MAX_HEIGHT = 70;
+
 /** Fit a measured block of copy into its lane as one unit. Below the legible
  * floor the render is refused instead of clipping or shrinking text that a
  * phone-sized player could no longer show. */
@@ -22,8 +29,25 @@ export function fitScale(requiredHeight: number, availableHeight: number, floor 
 
 /** Preserve a fixed caption lane. Refuse overloaded copy instead of clipping
  * it or shrinking the smallest matrix text below readable size. */
-export function matrixTextScale(requiredHeight: number, availableHeight = 555) {
+export function matrixTextScale(requiredHeight: number, availableHeight = MATRIX_TEXT_HEIGHT) {
   return fitScale(requiredHeight, availableHeight, .76, "Matrix scene text");
+}
+
+export function assertCaptionHeight(requiredHeight: number) {
+  if (!Number.isFinite(requiredHeight) || requiredHeight <= 0 || requiredHeight > CAPTION_MAX_HEIGHT) throw new Error("Caption exceeds two readable lines. Shorten the caption before rendering.");
+}
+
+/** Keep the scene midpoint on the actual artifact, then give its supplied
+ * evidence a separate readable panel rather than shrinking both side by side. */
+export function evidencePhase(frame: number, frames: number, hasDetails: boolean) {
+  return hasDetails && frame / frames >= .62 ? "details" : "artifact";
+}
+
+export function evidenceTextScale(requiredHeight: number, availableHeight: number) {
+  if (!Number.isFinite(requiredHeight) || requiredHeight <= 0 || !Number.isFinite(availableHeight) || availableHeight <= 0) throw new Error("Evidence text could not be measured");
+  const scale = Math.min(1, availableHeight / requiredHeight);
+  if (scale < .85) throw new Error("Evidence scene text exceeds its readable panel. Shorten the title, body, bullets or evidence before rendering.");
+  return scale;
 }
 
 export type InlineMatrix = { rows: string[][] };

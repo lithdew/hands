@@ -30,13 +30,23 @@ export const BundleSchema = z.object({
 export type ArtifactBundle = z.infer<typeof BundleSchema>;
 export const BundlePatchSchema = z.object({
   replacements: z.array(z.object({path:ArtifactPathSchema,content:z.string().max(300_000)})).max(20),
+  edits:z.array(z.object({path:ArtifactPathSchema,find:z.string().min(1).max(20_000),replace:z.string().max(30_000)})).max(50).optional(),
   remove: z.array(ArtifactPathSchema).max(20).optional(),
   title: z.string().min(1).max(200).optional(), summary:z.string().min(1).max(2000).optional(),
   entrypoint:ArtifactPathSchema.optional(), sources:BundleSchema.shape.sources.optional(), limitations:BundleSchema.shape.limitations.optional(),
 }).refine(patch=>new Set(patch.replacements.map(file=>file.path.toLowerCase())).size===patch.replacements.length,"Duplicate replacement paths");
 export function applyBundlePatch(bundle:ArtifactBundle,patch:z.infer<typeof BundlePatchSchema>) {
   const replaced=new Set(patch.replacements.map(file=>file.path));
-  return {...bundle,...Object.fromEntries(Object.entries(patch).filter(([key,value])=>!["replacements","remove"].includes(key)&&value!==undefined)),files:[...bundle.files.filter(file=>!replaced.has(file.path)&&!patch.remove?.includes(file.path)),...patch.replacements]};
+  const files=[...bundle.files.filter(file=>!replaced.has(file.path)&&!patch.remove?.includes(file.path)),...patch.replacements].map(file=>({...file}));
+  for (const edit of patch.edits ?? []) {
+    const file = files.find(file => file.path === edit.path);
+    const first = file?.content.indexOf(edit.find) ?? -1;
+    if (!file || !edit.find || first < 0 || first !== file.content.lastIndexOf(edit.find)) {
+      throw new Error(`Exact edit must match once in ${edit.path}; no uncertain replacement is allowed.`);
+    }
+    file.content = file.content.replace(edit.find, () => edit.replace);
+  }
+  return {...bundle,...Object.fromEntries(Object.entries(patch).filter(([key,value])=>!["replacements","remove","edits"].includes(key)&&value!==undefined)),files};
 }
 export const ReviewSchema = z.object({
   passed: z.boolean(), summary: z.string().min(1).max(2000),

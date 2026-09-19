@@ -240,6 +240,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
   let gatedConsequential = false;
   let recoveryStopped = false;
   let routedRevision = -1, taskGoal = "", previousResult = "", fullUtterance: string | undefined;
+  let challengeReturn: { provider: Provider; model: string; effort: Effort } | undefined;
   let changed = Promise.withResolvers<void>();
   let settled = Promise.withResolvers<void>();
   settled.resolve();
@@ -595,6 +596,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     signal?.throwIfAborted();
     if (!available.some((c) => c.id === route.id && c.provider === route.provider && c.model === route.model && c.effort === route.effort)) throw new Error("The router selected an unavailable model or effort.");
     status.route = route; status.provider = route.provider; status.model = route.model; status.effort = route.effort;
+    challengeReturn = undefined;
     agent.state.model = providerModel(route.provider, route.model);
     agent.state.thinkingLevel = route.effort;
     routedRevision = choosingRevision;
@@ -629,9 +631,18 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       if (status.interruption?.kind === "captcha" && status.interruption.action === "attempt_challenge" && lastScreen) {
         const visual = availableCandidates().find(candidate => candidate.model === "gpt-6-astra");
         if (visual && status.model !== visual.model) {
+          challengeReturn ??= { provider: status.provider, model: status.model, effort: status.effort };
           status.provider = visual.provider; status.model = visual.model; status.effort = "low";
           agent.state.model = providerModel(visual.provider, visual.model); agent.state.thinkingLevel = "low";
           log("Using Astra low for the observed visual challenge");
+        }
+      }
+      if (challengeReturn && !status.interruption) {
+        const previous = challengeReturn; challengeReturn = undefined;
+        if (availableCandidates().some(candidate => candidate.provider === previous.provider && candidate.model === previous.model)) {
+          status.provider = previous.provider; status.model = previous.model; status.effort = previous.effort;
+          agent.state.model = providerModel(previous.provider, previous.model); agent.state.thinkingLevel = previous.effort;
+          log(`Visual challenge cleared; returning to ${previous.model}`);
         }
       }
       modelRevision = contextRevision;
@@ -776,6 +787,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
         ?? available.find((c) => c.difficulty === "standard") ?? available[0];
       if (!next) return;
       status.route = { ...next, confidence: 0, latencyMs: 0, fallback: true, reason: `${failed} is unavailable; continuing with an allowed model.` };
+      challengeReturn = undefined;
       status.provider = next.provider; status.model = next.model; status.effort = next.effort; status.error = null;
       agent.state.model = providerModel(next.provider, next.model);
       agent.state.thinkingLevel = next.effort;

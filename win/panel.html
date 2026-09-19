@@ -353,14 +353,14 @@ textarea#prompt::placeholder{color:var(--faint)}
 </aside>
 </div>
 
-<div id="stash" hidden><img id="preview" alt="Live view of the selected hand's desktop"><iframe id="artifact-preview" title="Selected hand's generated artifact" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe></div>
+<div id="stash" hidden><img id="preview" alt="Live view of the selected hand's desktop"><iframe id="artifact-preview" title="Selected hand's generated artifact" sandbox="allow-scripts" allow="fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe></div>
 
 <script>
 const $ = id => document.getElementById(id);
 let preview = $('preview');
 let held = false, refreshing = false, shotAt = 0, shownHand = null, selectedHand = null, stoppedAt = 0;
 let pendingShot = null, shownTarget = null, selectedTarget = null, browserChanging = false, browserError = null;
-let selectedArtifact = null, artifactPreviewKey = null;
+let selectedArtifact = null, artifactPreviewKey = null, artifactPreviewReady = false;
 const artifactPreview = $('artifact-preview');
 const wasRunning = new Map(), finishedAt = new Map(), prevHand = new Map();
 
@@ -450,13 +450,21 @@ function artifactOf(agent) {
   }
   return { runId: value.runId, kind: value.kind, phase: String(value.phase || 'Creating'), url };
 }
+function panelError(status, agent, browser, artifact, localBrowserError) {
+  return status.lastError || agent.error || status.listener.error
+    || (!artifact && ((localBrowserError?.hand === status.hand ? localBrowserError.message : '') || browser?.error)) || '';
+}
 function openArtifact(artifact) {
   if (artifact?.url) window.open(artifact.url, '_blank', 'noopener,noreferrer');
 }
 function syncArtifactPreview(hand, artifact) {
   const key = artifact?.url ? JSON.stringify([hand, artifact.runId, artifact.url]) : null;
-  if (key === artifactPreviewKey) return;
+  const ready = ['previewing', 'visual-review', 'complete', 'needs-review'].includes(artifact?.phase);
+  // A preview opened before media finished may have cached a missing asset.
+  // Reload once when files are ready; later status polls never restart playback.
+  if (key === artifactPreviewKey && (artifactPreviewReady || !ready)) return;
   artifactPreviewKey = key;
+  artifactPreviewReady = ready;
   artifactPreview.removeAttribute('src');
   $('stash').append(artifactPreview);
   if (artifact?.url) artifactPreview.src = artifact.url;
@@ -680,7 +688,7 @@ async function refresh() {
     hold.disabled = s.state === 'transcribing' || s.state === 'dispatching' || browserChanging;
     setText($('hold-label'), s.held ? 'Release to send' : 'Hold to speak');
     hold.setAttribute('aria-pressed', String(Boolean(s.held)));
-    setText($('error'), s.lastError || a.error || s.listener.error || (browserError?.hand === s.hand ? browserError.message : '') || browser?.error || '');
+    setText($('error'), panelError(s, a, browser, selectedArtifact, browserError));
 
     // Stage: the transcript is the hero while F8 is held; the selected hand's reply sits under it.
     const stage = $('stage');

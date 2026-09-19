@@ -22,8 +22,11 @@ describe("artifact preview selection", () => {
       expect(artifactOf({ artifact: { ...artifact, previewUrl } }).url).toBeNull();
     }
     expect(artifactOf({ artifact: { ...artifact, runId: "../../outside" } })).toBeNull();
-    expect(html).toContain('sandbox="allow-scripts" referrerpolicy="no-referrer"');
+    expect(html).toContain('sandbox="allow-scripts" allow="fullscreen" allowfullscreen referrerpolicy="no-referrer"');
     expect(html).not.toContain('sandbox="allow-scripts allow-same-origin"');
+    const artifactFrame = html.match(/<iframe id="artifact-preview"[^>]*>/)?.[0] ?? "";
+    expect(artifactFrame.match(/allow="([^"]*)"/)?.[1]).toBe("fullscreen");
+    expect(artifactFrame.match(/sandbox="([^"]*)"/)?.[1]).toBe("allow-scripts");
   });
 
   test("reuses one preview across progress polls and clears it on task or hand changes", () => {
@@ -32,8 +35,8 @@ describe("artifact preview selection", () => {
       removeAttribute: (name: string) => actions.push(`remove:${name}`),
       set src(value: string) { actions.push(`src:${value}`); },
     };
-    const sync = new Function("artifactPreview", "$", `let artifactPreviewKey = null; ${functionSource("syncArtifactPreview", "loadPreview")} return syncArtifactPreview;`)(frame, () => ({ append: () => actions.push("stash") }));
-    const artifact = { runId, url: `/artifacts/${runId}/index.html` };
+    const sync = new Function("artifactPreview", "$", `let artifactPreviewKey = null, artifactPreviewReady = false; ${functionSource("syncArtifactPreview", "loadPreview")} return syncArtifactPreview;`)(frame, () => ({ append: () => actions.push("stash") }));
+    const artifact = { runId, url: `/artifacts/${runId}/index.html`, phase: "previewing" };
     sync(1, artifact);
     expect(actions).toEqual(["remove:src", "stash", `src:${artifact.url}`]);
     sync(1, { ...artifact, phase: "complete" });
@@ -45,5 +48,34 @@ describe("artifact preview selection", () => {
     const count = actions.length;
     sync(2, null);
     expect(actions).toHaveLength(count);
+  });
+
+  test("reloads an early preview once when media becomes available without restarting playback on polls", () => {
+    const sources: string[] = [];
+    const frame = { removeAttribute() {}, set src(value: string) { sources.push(value); } };
+    const sync = new Function("artifactPreview", "$", `let artifactPreviewKey = null, artifactPreviewReady = false; ${functionSource("syncArtifactPreview", "loadPreview")} return syncArtifactPreview;`)(frame, () => ({ append() {} }));
+    const artifact = { runId, url: `/artifacts/${runId}/index.html`, phase: "rendering" };
+    sync(1, artifact);
+    sync(1, artifact);
+    expect(sources).toHaveLength(1);
+    sync(1, { ...artifact, phase: "previewing" });
+    expect(sources).toHaveLength(2);
+    for (const phase of ["visual-review", "jev_execution", "complete", "complete"]) sync(1, { ...artifact, phase });
+    expect(sources).toHaveLength(2);
+    sync(1, null);
+    sync(1, { ...artifact, phase: "complete" });
+    expect(sources).toHaveLength(3);
+  });
+
+  test("keeps task errors visible while hiding an unrelated browser reconnect error from artifacts", () => {
+    const error = new Function(`${functionSource("panelError", "openArtifact")} return panelError;`)();
+    const status = { hand: 1, listener: {} };
+    const browser = { error: "Chrome needs reconnection" };
+    const local = { hand: 1, message: "Changing browser failed" };
+    expect(error(status, {}, browser, { runId }, local)).toBe("");
+    expect(error(status, { error: "Render failed" }, browser, { runId }, local)).toBe("Render failed");
+    expect(error({ ...status, lastError: "Microphone failed" }, {}, browser, { runId }, local)).toBe("Microphone failed");
+    expect(error(status, {}, browser, null, local)).toBe("Changing browser failed");
+    expect(error(status, {}, browser, null, { ...local, hand: 2 })).toBe("Chrome needs reconnection");
   });
 });

@@ -1,5 +1,5 @@
 import {expect, test} from "bun:test";
-import {bodyRepeatsMatrixPanel, fitScale, inlineMatrices, matrixLetter, matrixPhaseLabel, matrixTextScale} from "./layout";
+import {assertCaptionHeight, bodyRepeatsMatrixPanel, CAPTION_TOP, evidencePhase, evidenceTextScale, fitScale, inlineMatrices, MATRIX_TEXT_HEIGHT, matrixLetter, matrixPhaseLabel, matrixTextScale, PANEL_TOP} from "./layout";
 
 test("matrix overlays follow the actual forward, hold, inverse and final phases", () => {
   expect(matrixPhaseLabel(0, 1000, true)).toBe("Original basis");
@@ -14,16 +14,35 @@ test("matrix overlays follow the actual forward, hold, inverse and final phases"
 
 test("matrix text fitting protects the caption lane and refuses unreadable overload", () => {
   expect(matrixTextScale(450)).toBe(1);
-  expect(matrixTextScale(620) * 620).toBeLessThanOrEqual(555);
+  expect(matrixTextScale(600) * 600).toBeLessThanOrEqual(MATRIX_TEXT_HEIGHT);
   expect(() => matrixTextScale(900)).toThrow("Shorten");
   expect(() => matrixTextScale(0)).toThrow("measured");
 });
 
+test("caption text stays above playback controls and scene copy stays above captions", () => {
+  expect(CAPTION_TOP + 15 + 54).toBeLessThanOrEqual(630);
+  expect(PANEL_TOP + MATRIX_TEXT_HEIGHT).toBeLessThan(CAPTION_TOP);
+  expect(() => assertCaptionHeight(53)).not.toThrow();
+  expect(() => assertCaptionHeight(79)).toThrow("two readable lines");
+});
+
 test("scene copy fits its lane as one unit and is refused below the legible floor", () => {
-  expect(fitScale(400, 505)).toBe(1);
-  expect(fitScale(560, 505) * 560).toBeLessThanOrEqual(505);
-  expect(() => fitScale(700, 505, .8, "Scene \"formula\" text")).toThrow("formula");
-  expect(() => fitScale(NaN, 505)).toThrow("measured");
+  expect(fitScale(400, 462)).toBe(1);
+  expect(fitScale(520, 462) * 520).toBeLessThanOrEqual(462);
+  expect(() => fitScale(700, 462, .8, "Scene \"formula\" text")).toThrow("formula");
+  expect(() => fitScale(NaN, 462)).toThrow("measured");
+});
+
+test("evidence screenshots get the full scene midpoint and retain a separate attribution phase", () => {
+  expect(evidencePhase(0, 1000, true)).toBe("artifact");
+  expect(evidencePhase(500, 1000, true)).toBe("artifact");
+  expect(evidencePhase(619, 1000, true)).toBe("artifact");
+  expect(evidencePhase(620, 1000, true)).toBe("details");
+  expect(evidencePhase(999, 1000, false)).toBe("artifact");
+  expect(evidenceTextScale(400, 450)).toBe(1);
+  expect(evidenceTextScale(500, 450) * 500).toBeLessThanOrEqual(450);
+  expect(() => evidenceTextScale(600, 450)).toThrow("Shorten");
+  expect(() => evidenceTextScale(NaN, 450)).toThrow("measured");
 });
 
 test("inline [[a,b],[c,d]] notation is typeset as a matrix while other brackets stay literal", () => {

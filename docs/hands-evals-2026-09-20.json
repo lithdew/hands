@@ -1,0 +1,599 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-20",
+  "timezone": "Asia/Hong_Kong",
+  "generatedAt": "2026-09-19T16:43:11.104Z",
+  "headline": "5/5 bounded Hands artifact cases accepted with minor advisories.",
+  "scope": "Real Hands specialist/Jev artifact workflow executions and independently inspected outputs. All selected attempts resume checkpoints; timing excludes earlier creation, research, failed attempts and some reused rendering. This is neither a fresh five-task reliability rate nor an end-to-end speedup comparison.",
+  "totals": {
+    "completedCases": 5,
+    "requestedCases": 5,
+    "finalAttemptElapsedSumMs": 770977,
+    "jevCalls": 32,
+    "jevDurationMs": 14338,
+    "specialistCalls": 25,
+    "specialistDurationMs": 629771,
+    "routingCalls": 5,
+    "routingDurationMs": 4564
+  },
+  "cases": [
+    {
+      "caseId": "website",
+      "runId": "d7162030-e1aa-4016-baff-c9774e7a4cc7",
+      "status": "complete",
+      "independentVerdict": "pass-with-advisories",
+      "accepted": true,
+      "result": "Two responsive personal/project pages; desktop/mobile source and visual review passed with minor focus/copy advisories.",
+      "entrypoint": "index.html",
+      "finalAttempt": {
+        "elapsedMs": 146083,
+        "mode": "checkpoint-resume",
+        "parentRunId": "05f528e3-60ae-488e-afac-827940f6840e",
+        "bundleFilesReused": 5,
+        "sourceRecordsReused": 1,
+        "sourceFetchSuccesses": 0,
+        "sourceFetchFailures": 2,
+        "jev": {
+          "calls": 8,
+          "durationMs": 3487,
+          "decisions": [
+            "research",
+            "execute",
+            "repair",
+            "execute",
+            "repair",
+            "execute",
+            "execute",
+            "deliver"
+          ]
+        },
+        "specialists": {
+          "calls": 5,
+          "durationMs": 137364,
+          "stages": [
+            {
+              "phase": "review",
+              "model": "gpt-6-astra",
+              "durationMs": 7940
+            },
+            {
+              "phase": "repair",
+              "model": "gpt-6-astra",
+              "durationMs": 60039
+            },
+            {
+              "phase": "review",
+              "model": "gpt-6-astra",
+              "durationMs": 5272
+            },
+            {
+              "phase": "repair",
+              "model": "gpt-6-astra",
+              "durationMs": 61189
+            },
+            {
+              "phase": "review",
+              "model": "gpt-6-astra",
+              "durationMs": 2924
+            }
+          ]
+        },
+        "routing": {
+          "calls": 1,
+          "durationMs": 778
+        },
+        "allModelStages": {
+          "gpt-6-astra": {
+            "calls": 5,
+            "durationMs": 137364
+          },
+          "gemini-3.8-flash": {
+            "calls": 1,
+            "durationMs": 778
+          }
+        }
+      },
+      "checks": {
+        "runtimePassed": 22,
+        "runtimeFailed": [],
+        "independentAdvisories": 2
+      },
+      "evidence": {
+        "manifest": "out/artifacts/d7162030-e1aa-4016-baff-c9774e7a4cc7/manifest.json",
+        "manifestSha256": "37a6439a6d440542f1b4c57f57c496e8fc9dce2aadb73d670cb17fd0e48ca6da",
+        "independentAudit": "out/artifacts/d7162030-e1aa-4016-baff-c9774e7a4cc7/independent-inspection.json",
+        "independentAuditSha256": "65ea369da4b4f1689391b184fd733cf25284b961da68168361547639445731a2"
+      }
+    },
+    {
+      "caseId": "calculus",
+      "runId": "f7db73c3-bb83-4312-bbdc-a9395d34dc71",
+      "status": "complete",
+      "independentVerdict": "pass-with-advisories",
+      "accepted": true,
+      "result": "Original 180-minute, 100-mark mock:12 questions, 40/60 course split; all12 solutions independently checked, 23-page A4 print inspected; sources and syllabus years distinguished.",
+      "entrypoint": "mock-exam.html",
+      "finalAttempt": {
+        "elapsedMs": 269865,
+        "mode": "checkpoint-resume",
+        "parentRunId": "e154d7f2-95fc-40e2-b886-8781984bfa30",
+        "bundleFilesReused": 0,
+        "sourceRecordsReused": 12,
+        "sourceFetchSuccesses": 1,
+        "sourceFetchFailures": 1,
+        "jev": {
+          "calls": 6,
+          "durationMs": 3098,
+          "decisions": [
+            "research",
+            "execute",
+            "repair",
+            "execute",
+            "execute",
+            "deliver"
+          ]
+        },
+        "specialists": {
+          "calls": 4,
+          "durationMs": 249959,
+          "stages": [
+            {
+              "phase": "creating",
+              "model": "gpt-6-astra",
+              "durationMs": 101295
+            },
+            {
+              "phase": "review",
+              "model": "gpt-6-astra",
+              "durationMs": 5410
+            },
+            {
+              "phase": "repair",
+              "model": "gpt-6-astra",
+              "durationMs": 138869
+            },
+            {
+              "phase": "review",
+              "model": "gpt-6-astra",
+              "durationMs": 4385
+            }
+          ]
+        },
+        "routing": {
+          "calls": 1,
+          "durationMs": 982
+        },
+        "allModelStages": {
+          "gpt-6-astra": {
+            "calls": 5,
+            "durationMs": 250941
+          }
+        }
+      },
+      "checks": {
+        "runtimePassed": 18,
+        "runtimeFailed": [],
+        "independentAdvisories": 4
+      },
+      "evidence": {
+        "manifest": "out/artifacts/f7db73c3-bb83-4312-bbdc-a9395d34dc71/manifest.json",
+        "manifestSha256": "7b5c0794771704a9a3520d3f3e75a84c80cf34c89d8ed455f216c39642601a1e",
+        "independentAudit": "out/artifacts/f7db73c3-bb83-4312-bbdc-a9395d34dc71/independent-inspection.json",
+        "independentAuditSha256": "6cc51a652c89b1b005dcb92e7f768bb4ef9e84d88e8348353d701d1380b01311"
+      }
+    },
+    {
+      "caseId": "reinforcement-learning",
+      "runId": "2da3987e-b999-4bb8-af12-98ecea72e761",
+      "status": "complete",
+      "independentVerdict": "pass-with-advisories",
+      "accepted": true,
+      "result": "About 2376 words, six themes, 13 primary works, contextual empirical/theory claims and three proposed experiments; independent source/claim audit and desktop/mobile checks passed.",
+      "entrypoint": "rl-research.html",
+      "finalAttempt": {
+        "elapsedMs": 195775,
+        "mode": "checkpoint-resume",
+        "parentRunId": "76e85a03-87c0-41fc-9092-107011d8cab3",
+        "bundleFilesReused": 7,
+        "sourceRecordsReused": 17,
+        "sourceFetchSuccesses": 1,
+        "sourceFetchFailures": 0,
+        "jev": {
+          "calls": 8,
+          "durationMs": 3499,
+          "decisions": [
+            "research",
+            "execute",
+            "repair",
+            "execute",
+            "repair",
+            "execute",
+            "execute",
+            "deliver"
+          ]
+        },
+        "specialists": {
+          "calls": 7,
+          "durationMs": 187218,
+          "stages": [
+            {
+              "phase": "review",
+              "model": "gpt-6-astra",
+              "durationMs": 8746
+            },
+            {
+              "phase": "repair",
+              "model": "gpt-6-astra",
+              "durationMs": 155901
+            },
+            {
+              "phase": "review",
+              "model": "gpt-6-astra",
+              "durationMs": 5447
+            },
+            {
+              "phase": "repair",
+              "model": "gpt-6-astra",
+              "durationMs": 5126
+            },
+            {
+              "phase": "review",
+              "model": "gpt-6-astra",
+              "durationMs": 6283
+            },
+            {
+              "phase": "visual-review",
+              "model": "gemini-3.8-flash",
+              "durationMs": 2860
+            },
+            {
+              "phase": "visual-review",
+              "model": "gemini-3.8-flash",
+              "durationMs": 2855
+            }
+          ]
+        },
+        "routing": {
+          "calls": 1,
+          "durationMs": 913
+        },
+        "allModelStages": {
+          "gpt-6-astra": {
+            "calls": 6,
+            "durationMs": 182416
+          },
+          "gemini-3.8-flash": {
+            "calls": 2,
+            "durationMs": 5715
+          }
+        }
+      },
+      "checks": {
+        "runtimePassed": 22,
+        "runtimeFailed": [],
+        "independentAdvisories": 2
+      },
+      "evidence": {
+        "manifest": "out/artifacts/2da3987e-b999-4bb8-af12-98ecea72e761/manifest.json",
+        "manifestSha256": "253beacae48f890febb07a856cd37e6f14eb54bc5c6fbe77f8d3869e9c00f6f5",
+        "independentAudit": "out/artifacts/2da3987e-b999-4bb8-af12-98ecea72e761/independent-inspection.json",
+        "independentAuditSha256": "691877f5d7612570c103b32b42e4b77994fa901e37e3b4de3d5dfaaeecab9979"
+      }
+    },
+    {
+      "caseId": "matrix-inversion",
+      "runId": "3f81c0aa-0a32-4264-80cf-f7a5a2952dc7",
+      "status": "complete",
+      "independentVerdict": "pass-with-advisories",
+      "accepted": true,
+      "result": "105-second silent Remotion video with actual ManimGL scenes, 12 keyboard-tested flashcards and a printable cheat sheet; exact media hashes preserve prior math/frame/print audit; new mobile read-along and fullscreen tested.",
+      "entrypoint": "index.html",
+      "finalAttempt": {
+        "elapsedMs": 20233,
+        "mode": "checkpoint-resume",
+        "parentRunId": "91211176-997f-4aad-b0ed-cfc9afa32f13",
+        "bundleFilesReused": 8,
+        "sourceRecordsReused": 6,
+        "sourceFetchSuccesses": 0,
+        "sourceFetchFailures": 1,
+        "jev": {
+          "calls": 4,
+          "durationMs": 1490,
+          "decisions": [
+            "research",
+            "execute",
+            "execute",
+            "deliver"
+          ]
+        },
+        "specialists": {
+          "calls": 3,
+          "durationMs": 9475,
+          "stages": [
+            {
+              "phase": "visual-review",
+              "model": "gpt-6-astra",
+              "durationMs": 2631
+            },
+            {
+              "phase": "visual-review",
+              "model": "gpt-6-astra",
+              "durationMs": 3406
+            },
+            {
+              "phase": "visual-review",
+              "model": "gpt-6-astra",
+              "durationMs": 3438
+            }
+          ]
+        },
+        "routing": {
+          "calls": 1,
+          "durationMs": 1018
+        },
+        "allModelStages": {
+          "gpt-6-astra": {
+            "calls": 4,
+            "durationMs": 10493
+          }
+        }
+      },
+      "checks": {
+        "runtimePassed": 36,
+        "runtimeFailed": [],
+        "independentAdvisories": 3
+      },
+      "evidence": {
+        "manifest": "out/artifacts/3f81c0aa-0a32-4264-80cf-f7a5a2952dc7/manifest.json",
+        "manifestSha256": "40aa3be26ced3735b905f9cadf48cd6a2ea0f723dfbc9b5215f73b10c793bd2c",
+        "independentAudit": "out/artifacts/3f81c0aa-0a32-4264-80cf-f7a5a2952dc7/independent-inspection.json",
+        "independentAuditSha256": "c594b77e0de3bac8601e7c95f8bbf307bf7960ef7fc7b255b588f9eb70b999c2"
+      }
+    },
+    {
+      "caseId": "hands-pitch",
+      "runId": "420d69a4-b71f-440f-be80-d540beaeb770",
+      "status": "complete",
+      "independentVerdict": "pass-with-advisories",
+      "accepted": true,
+      "result": "75-second silent H.264 Remotion pitch with real focused website/calculus evidence. All 26 runtime checks and independent scene, transition, hash, claim and desktop/mobile playback/fullscreen/read-along checks passed; minor portrait-inline and pacing advisories remain.",
+      "entrypoint": "index.html",
+      "finalAttempt": {
+        "elapsedMs": 139021,
+        "mode": "checkpoint-resume",
+        "parentRunId": "e1906d3e-729e-4843-bfe6-0fe34b6842d9",
+        "bundleFilesReused": 13,
+        "sourceRecordsReused": 1,
+        "sourceFetchSuccesses": 0,
+        "sourceFetchFailures": 3,
+        "jev": {
+          "calls": 6,
+          "durationMs": 2764,
+          "decisions": [
+            "research",
+            "execute",
+            "repair",
+            "execute",
+            "execute",
+            "deliver"
+          ]
+        },
+        "specialists": {
+          "calls": 6,
+          "durationMs": 45755,
+          "stages": [
+            {
+              "phase": "review",
+              "model": "gpt-6-astra",
+              "durationMs": 9182
+            },
+            {
+              "phase": "repair",
+              "model": "gpt-6-astra",
+              "durationMs": 20406
+            },
+            {
+              "phase": "review",
+              "model": "gpt-6-astra",
+              "durationMs": 6916
+            },
+            {
+              "phase": "visual-review",
+              "model": "gpt-6-astra",
+              "durationMs": 3175
+            },
+            {
+              "phase": "visual-review",
+              "model": "gpt-6-astra",
+              "durationMs": 3218
+            },
+            {
+              "phase": "visual-review",
+              "model": "gpt-6-astra",
+              "durationMs": 2858
+            }
+          ]
+        },
+        "routing": {
+          "calls": 1,
+          "durationMs": 873
+        },
+        "allModelStages": {
+          "gpt-6-astra": {
+            "calls": 7,
+            "durationMs": 46628
+          }
+        }
+      },
+      "checks": {
+        "runtimePassed": 26,
+        "runtimeFailed": [],
+        "independentAdvisories": 4
+      },
+      "evidence": {
+        "manifest": "out/artifacts/420d69a4-b71f-440f-be80-d540beaeb770/manifest.json",
+        "manifestSha256": "05f330fe11bac6b873c20d3005188ffbb5e5b449d6f83c70b38e7e6e79b2c496",
+        "independentAudit": "out/artifacts/420d69a4-b71f-440f-be80-d540beaeb770/independent-inspection.json",
+        "independentAuditSha256": "9184609be9f873df3a1a551a2ca00b74ddbd175b67227239ddedae8686d5537e"
+      },
+      "media": {
+        "finalRepairRunMs": 139021,
+        "videoDurationSeconds": 75,
+        "width": 1280,
+        "height": 720,
+        "fps": 24,
+        "audioStreams": 0,
+        "renderMs": 71514,
+        "rendererTotalMs": 82651,
+        "actualRuntimeChecks": 26,
+        "ownBrowserChecks": 8,
+        "captionCues": 16,
+        "movieSha256": "711d7dea6c63254af9d3c8deb81d2f94c76bac86d796de312aec32624395b232"
+      }
+    }
+  ],
+  "email": {
+    "verifiedSends": 1,
+    "status": "One authorized test message verified in the Sent folder through the existing browser",
+    "agentStopped": true,
+    "agentErrorPresent": false,
+    "verificationTextObserved": true,
+    "privateEvidence": "out/win/email-final-verified-status.json",
+    "privateEvidenceSha256": "a2f01fb004e8715feb088cde63e3d3490b0958a0bf393768ca98456a45ad5fc1",
+    "privacy": "No recipient, subject, body, account identifier, browser message identifier or email screenshot is included in this report."
+  },
+  "stream": {
+    "kind": "live Hands panel artifact selection audit",
+    "testedRunId": "86b49171-fedc-4032-a605-8dc27b249dc2",
+    "statusPolls": 31,
+    "matchingArtifactFrame": true,
+    "selectedMatchingRun": true,
+    "desktopRequests": 0,
+    "nonReadRequests": 0,
+    "artifactFailures": [],
+    "videoReadyState": 4,
+    "videoError": null,
+    "fullscreenAllowed": true,
+    "privateEvidence": "out/win/panel-live-fullscreen-check.json",
+    "evidenceSha256": "3a8ebddae67fa7ba2fbc6e907ca7fd462e41b733de90742c83678de6515f98c5",
+    "qualification": "An earlier live panel check caught an opaque-origin video CORS error. Corrected reruns loaded the matching artifact video with no video error; two navigation-abort request events remain in the audit. Final rerun observed needs-review state, while the earlier audit observed rendering, previewing and visual-review transitions. This specifically verifies artifact-panel routing; it is not a broad signed-in-browser stream reliability measurement."
+  },
+  "interruptionHandling": {
+    "tested": "Fresh observed blocking challenge allows a bounded ordinary-UI attempt under the existing action gate; two submitted attempts exhaust the task/target budget; passive polling is bounded; login, MFA and URL-verification restrictions require user takeover.",
+    "modelRestoration": "ai.interruptions.test.ts checks Luna -> Astra low -> Luna after a fresh observation shows the challenge cleared, without another router call. This is model restoration, not persisted tracker restoration.",
+    "liveCaptchaSolved": false,
+    "ownNativeTests": {
+      "files": [
+        "browser-interruptions.test.ts",
+        "win/browser-selection.test.ts"
+      ],
+      "passed": 9,
+      "failed": 0,
+      "assertions": 59
+    },
+    "rootReportedValidation": {
+      "wslTestsPassed": 143,
+      "wslAssertions": 734,
+      "nativeWorkflowTestsPassed": 28,
+      "nativeWorkflowAssertions": 159,
+      "previewTestsPassed": 6,
+      "typecheck": "passed in 3.4s after excluding 477 generated out JS/TS files",
+      "nativeMediaTestsPassed": 4,
+      "nativeMediaAssertions": 29,
+      "restartObservation": "Existing Chrome connection reported ready after restart; this is a status observation, not a new account-interaction reliability benchmark."
+    }
+  },
+  "repairBenchmark": {
+    "evidence": "docs/repair-contracts-2026-09-20.json",
+    "script": "evals/repair-contracts.ts",
+    "calls": 4,
+    "repeatsPerCell": 1,
+    "results": [
+      {
+        "model": "gpt-5.6-luna",
+        "contract": "exact-edit",
+        "latencyMs": 1108,
+        "outputTokens": 30,
+        "correct": true,
+        "truncated": false
+      },
+      {
+        "model": "gpt-5.6-luna",
+        "contract": "full-file",
+        "latencyMs": 6934,
+        "outputTokens": 1066,
+        "correct": true,
+        "truncated": false
+      },
+      {
+        "model": "gpt-6-astra",
+        "contract": "exact-edit",
+        "latencyMs": 1846,
+        "outputTokens": 30,
+        "correct": true,
+        "truncated": false
+      },
+      {
+        "model": "gpt-6-astra",
+        "contract": "full-file",
+        "latencyMs": 8803,
+        "outputTokens": 1033,
+        "correct": true,
+        "truncated": false
+      }
+    ],
+    "artifactUnchanged": true,
+    "limitations": [
+      "One request per cell on one reviewed website: a smoke measurement, not a statistically reliable model ranking.",
+      "All four requests ran concurrently with identical five-file source context; provider load and prompt caching were not controlled.",
+      "The full-file baseline returns only the changed file, not all five files. This deliberately avoids inflating its output with unchanged files.",
+      "This benchmark uses compact edits/before/after or files wrappers; production BundlePatch uses edits/find/replace plus replacements. The result supports the mechanism of smaller repair responses, not an exact production latency promise.",
+      "Correctness is exact in-memory byte equality after applying the response. No artifact was edited and no browser or UI task ran.",
+      "Jev is absent from this text-generation benchmark because it cannot author free text; this measures specialist repair-contract cost only.",
+      "The 8000-token ceiling and 60-second timeout are common to all cells; truncation and failures count as failures, not successful repairs.",
+      "Usage fields are SDK-reported counters; cost fields are SDK estimates, not verified billed amounts."
+    ]
+  },
+  "limits": [
+    "Case outcomes retain minor advisories and do not establish general Hands capability, accessibility conformance or exhaustive research coverage.",
+    "Matrix final 20.233s attempt reuses the existing 105-second media encode; the prior render record is 149.746s including assets, rendering and full decode. Do not present 20.233s as video generation latency.",
+    "Final-attempt timing sums are descriptive sums of selected successful resumes, not session wall time or an independent fresh-task benchmark.",
+    "Only recorded routed and agent_returned events are counted in model-stage totals; source fetching, rendering and preview time are not model time.",
+    "Raw artifacts, audits, email evidence and screenshots remain under ignored out/. Only redacted metrics and local evidence paths/hashes are committed."
+  ],
+  "supersededPitchAttempt": {
+    "runId": "e1906d3e-729e-4843-bfe6-0fe34b6842d9",
+    "status": "needs-review",
+    "elapsedMs": 178237,
+    "failedChecks": [
+      "visual-review-1",
+      "visual-review-3"
+    ],
+    "independentVerdict": "needs-repair",
+    "evidence": {
+      "manifest": "out/artifacts/e1906d3e-729e-4843-bfe6-0fe34b6842d9/manifest.json",
+      "manifestSha256": "175767fadab1069a62fdd5f98568606775139c1cdf8083336a76cbc0d05a67db",
+      "independentAudit": "out/artifacts/e1906d3e-729e-4843-bfe6-0fe34b6842d9/independent-inspection.json",
+      "independentAuditSha256": "f21d8e632518188bca669afbea7b521a471b2e44ed00238d14428d6b18419c7f"
+    },
+    "reason": "Website evidence legibility and caption/control collision required repair; never counted as a completed case."
+  },
+  "productionRepair": {
+    "runId": "420d69a4-b71f-440f-be80-d540beaeb770",
+    "contract": "BundlePatch",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "durationMs": 20406,
+    "edits": 11,
+    "replacements": 0,
+    "outputTokens": 2092,
+    "stopReason": "stop",
+    "evidence": "out/artifacts/420d69a4-b71f-440f-be80-d540beaeb770/repair-27.json",
+    "evidenceSha256": "70261548439ad55d5ea0ba1faf7a471efb7a4751b9977198ceb64c9db9c6e1b6",
+    "qualification": "One actual workflow repair, followed by passing validation and independent inspection. This is genuine production contract use, not a controlled before/after latency comparison."
+  },
+  "validatedCommits": {
+    "coreAndRepairBenchmark": "6e81725",
+    "mediaFix": "a796300"
+  }
+}

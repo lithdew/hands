@@ -2,13 +2,14 @@ import React, {useLayoutEffect, useRef, useState} from "react";
 import {AbsoluteFill, Audio, Composition, Img, OffthreadVideo, Sequence, interpolate, registerRoot, staticFile, useCurrentFrame} from "remotion";
 import type {PreparedStoryboard, PreparedScene} from "./storyboard";
 import {inverse} from "./storyboard";
-import {bodyRepeatsMatrixPanel, fitScale, inlineMatrices, matrixLetter, matrixPhaseLabel} from "./layout";
+import {assertCaptionHeight, bodyRepeatsMatrixPanel, CAPTION_TOP, evidencePhase, evidenceTextScale, fitScale, inlineMatrices, MATRIX_TEXT_HEIGHT, matrixLetter, matrixPhaseLabel, PANEL_TOP} from "./layout";
 
 // Every frame is also watched inside a ~360px-wide phone player, so copy is
-// set large, kept to one lane and refused (not shrunk) when it would not fit.
+// set large, kept to one lane above the caption band and refused (not shrunk)
+// when it would not fit.
 const colors = {bg:"#0b1422", body:"#dbe5f1", muted:"#a9b8cc", text:"#f7f9fc", cyan:"#61ded8", gold:"#ffd174", line:"#2c4058"};
 const font = "'Segoe UI', Arial, sans-serif";
-const PAD=58, CONTENT_W=1280-2*PAD, PANEL_TOP=74, PANEL_H=505, COPY_W=500, VIDEO_W=CONTENT_W-COPY_W-28, VIDEO_H=380;
+const PAD=58, CONTENT_W=1280-2*PAD, PANEL_H=MATRIX_TEXT_HEIGHT, COPY_W=500, VIDEO_W=CONTENT_W-COPY_W-28, VIDEO_H=372;
 const fmt = (n: number) => Number(n.toFixed(3)).toString().replace("-", "−");
 
 function InlineMatrix({rows}: {rows: string[][]}) {
@@ -30,12 +31,47 @@ function Fit({children, width, height, identity, what, center}: {children: React
     <div ref={content} data-fit-content style={{display:"flow-root",width,transform:`scale(${scale})`,transformOrigin:center?"left center":"top left"}}>{children}</div>
   </div>;
 }
+function Caption({text,sceneId}:{text:string;sceneId:string}) {
+  const content=useRef<any>(null);
+  useLayoutEffect(()=>{assertCaptionHeight(content.current.scrollHeight);},[text,sceneId]);
+  return <div data-caption-safe-area style={{position:"absolute",left:PAD,width:CONTENT_W,top:CAPTION_TOP,fontSize:26,lineHeight:1.25,color:colors.text,borderTop:`1px solid ${colors.line}`,paddingTop:14}}><div ref={content}>{text}</div></div>;
+}
+function EvidenceText({children, height, identity}: {children: React.ReactNode; height:number; identity:string}) {
+  const content=useRef<any>(null),[scale,setScale]=useState(1);
+  useLayoutEffect(()=>{
+    try {setScale(evidenceTextScale(content.current.scrollHeight,height));}
+    catch(error) {throw new Error(`${identity}: ${String(error)} (measured ${content.current.scrollHeight}px; available ${height}px)`);}
+  },[identity,height]);
+  return <div style={{height}}><div ref={content} style={{display:"flow-root",transform:`scale(${scale})`,transformOrigin:"top left"}}>{children}</div></div>;
+}
+/** Evidence scenes keep the unchanged artifact image for the first 62% of the
+ * scene, then give the supplied records their own readable panel. */
+function EvidenceContent({scene, frame}: {scene:PreparedScene;frame:number}) {
+  const evidence=scene.evidence??[], hasDetails=Boolean(scene.body||scene.bullets?.length||evidence.length);
+  const phase=evidencePhase(frame,scene.frames,hasDetails);
+  const runId=evidence.map(item=>item.source).join(" ").match(/\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b/i)?.[0];
+  const source=[scene.artifactImage,runId].filter(Boolean).join(" · ");
+  return <div data-evidence-layout={phase} style={{position:"absolute",left:PAD,width:CONTENT_W,top:52}}>
+    <EvidenceText height={47} identity={`${scene.id}-heading`}><h1 style={{fontSize:39,lineHeight:1.12,fontWeight:650,letterSpacing:-1,margin:0}}>{scene.title}</h1></EvidenceText>
+    {phase==="artifact" ? <>
+      <div style={{height:28,fontSize:18,color:colors.cyan,lineHeight:1.3}}>{scene.artifactLabel}</div>
+      <div data-evidence-image-panel style={{height:384,width:"100%",background:"#152334",border:"1px solid #284254",borderRadius:9,overflow:"hidden"}}><Img src={staticFile(scene.imageAsset!)} style={{width:"100%",height:"100%",objectFit:"contain"}}/></div>
+      {source&&<div style={{marginTop:8,fontSize:18,lineHeight:1.2,color:colors.muted,overflowWrap:"anywhere"}}>{source}</div>}
+    </> : <div style={{marginTop:26}}><EvidenceText height={412} identity={`${scene.id}-details`}>
+      {scene.body&&<p style={{fontSize:30,lineHeight:1.3,color:colors.body,margin:"0 0 22px"}}>{scene.body}</p>}
+      {Boolean(scene.bullets?.length)&&<ul style={{fontSize:27,lineHeight:1.35,margin:"0 0 24px",paddingLeft:30}}>{scene.bullets!.map((value,i)=><li key={i}>{value}</li>)}</ul>}
+      <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.max(1,evidence.length)}, minmax(0, 1fr))`,gap:36}}>{evidence.map((item,i)=><div key={i} style={{borderTop:`2px solid ${colors.cyan}`,paddingTop:22}}><div style={{fontSize:22,color:colors.cyan,marginBottom:16}}>{item.label}</div><div style={{fontSize:34,lineHeight:1.22,marginBottom:26}}>{item.value}</div><div style={{fontSize:20,lineHeight:1.35,color:colors.muted,overflowWrap:"anywhere"}}>{item.source}</div></div>)}</div>
+      {scene.artifactLabel&&<div style={{fontSize:20,color:colors.cyan,marginTop:28}}>{scene.artifactLabel}</div>}
+    </EvidenceText></div>}
+  </div>;
+}
 function Scene({scene, index, total}: {scene: PreparedScene;index:number;total:number}) {
   const f=useCurrentFrame();
   const reveal=interpolate(f,[0,Math.min(14,scene.frames/5)],[0,1],{extrapolateRight:"clamp"});
   const matrix=scene.matrix;
   const inverseMatrix=matrix ? inverse(matrix) : null;
   const matrixMode=scene.visual==="matrix";
+  const evidenceMode=scene.visual==="evidence"&&Boolean(scene.imageAsset);
   const big=scene.visual==="title"||scene.visual==="closing";
   const caption = scene.caption ?? "";
   const bullets=scene.bullets ?? [];
@@ -53,7 +89,7 @@ function Scene({scene, index, total}: {scene: PreparedScene;index:number;total:n
     <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 90% 15%, #18384a 0%, transparent 60%)",opacity:.7}} />
     <div style={{position:"absolute",left:PAD,top:26,fontSize:17,letterSpacing:4,color:colors.cyan,fontWeight:700}}>HANDS / {matrixMode ? "LINEAR ALGEBRA" : "STUDIO"}</div>
     <div style={{position:"absolute",right:PAD,top:26,color:colors.muted,fontSize:17}}>{String(index+1).padStart(2,"0")} / {String(total).padStart(2,"0")}</div>
-    <div style={{position:"absolute",left:PAD,top:PANEL_TOP,width:CONTENT_W,height:PANEL_H,opacity:reveal,transform:`translateY(${(1-reveal)*14}px)`}}>
+    {evidenceMode?<EvidenceContent scene={scene} frame={f}/>:<div style={{position:"absolute",left:PAD,top:PANEL_TOP,width:CONTENT_W,height:PANEL_H,opacity:reveal,transform:`translateY(${(1-reveal)*14}px)`}}>
       <Fit width={CONTENT_W} height={PANEL_H} identity={scene.id} what={`Scene "${scene.id}" text`} center>
         {heading}
         {matrixMode ? <div style={{display:"flex",gap:28,alignItems:"flex-start"}}>
@@ -65,12 +101,12 @@ function Scene({scene, index, total}: {scene: PreparedScene;index:number;total:n
         </div>
         : scene.imageAsset ? <div style={{display:"flex",gap:32,alignItems:"flex-start"}}>
           <div style={{width:470,flexShrink:0}}>{copy}</div>
-          <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:12}}><Img src={staticFile(scene.imageAsset)} style={{width:"100%",height:360,objectFit:"contain",background:"#ffffff",borderRadius:12,border:"1px solid #284254"}}/>{scene.artifactLabel&&<div style={{fontSize:22,color:colors.cyan}}>{scene.artifactLabel}</div>}</div>
+          <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:12}}><Img src={staticFile(scene.imageAsset)} style={{width:"100%",height:340,objectFit:"contain",background:"#ffffff",borderRadius:12,border:"1px solid #284254"}}/>{scene.artifactLabel&&<div style={{fontSize:22,color:colors.cyan}}>{scene.artifactLabel}</div>}</div>
         </div>
         : copy}
       </Fit>
-    </div>
-    {caption && <div style={{position:"absolute",left:PAD,right:PAD,bottom:34,fontSize:28,lineHeight:1.3,color:colors.text,borderTop:`1px solid ${colors.line}`,paddingTop:14}}>{caption}</div>}
+    </div>}
+    {caption && <Caption text={caption} sceneId={scene.id}/>}
     <div style={{position:"absolute",left:0,bottom:0,height:6,width:`${100*(index+f/scene.frames)/total}%`,background:colors.cyan}}/>
     {scene.audioAsset && <Audio src={staticFile(scene.audioAsset)}/>}
   </AbsoluteFill>;
