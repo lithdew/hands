@@ -1,85 +1,81 @@
-# Omarchy setup for hands
+# Omarchy setup
 
-Hands run as nested `sway` desktops inside your Hyprland session. Each one is a
-normal window that `pip.ts` pins in the corner. Input injected by `desktop.ts`
-goes only into that window's own seat, so you keep your mouse and keyboard.
+Hands are nested Sway desktops inside Hyprland. Each has a separate input seat. The native window is the preview, so there is no VNC stream or remote desktop server.
 
-## Packages
+## Prerequisites
 
-```sh
-sudo pacman -S --needed sway grim wtype
-sudo pacman -S --needed wlrctl || yay -S wlrctl
-```
-
-Chromium is Omarchy's default browser and needs nothing extra. Firefox works
-too.
-
-## Try it
+Bun, Sway, grim, wtype, wlrctl, foot (or alacritty), curl, util-linux (`setpriv` and `flock`), and PipeWire (`pw-record` for speech). On Omarchy, use its package commands:
 
 ```sh
-bun desktop.ts up 2 --url=https://example.com   # two hands, a browser in each
-bun pip.ts layout                                # pin them bottom-right
-bun desktop.ts shot 1 /tmp/hand1.png             # what hand 1 sees
-bun desktop.ts click 1 640 400
-bun desktop.ts key 1 ctrl+l
-bun desktop.ts type 1 wikipedia.org
-bun desktop.ts key 1 Return
-bun pip.ts swap 1                                # fullscreen hand 1; click in it to take over
-bun pip.ts back
-bun desktop.ts down
+omarchy pkg add sway
+omarchy pkg add grim
+omarchy pkg add wtype
+omarchy pkg aur add wlrctl
 ```
 
-`bun desktop.ts up 2 --terminal` opens a terminal instead of a browser, which
-is handy for testing input.
+Install [Cua Driver for Linux](https://cua.ai/docs/how-to-guides/driver/install) and ensure `cua-driver` is on Puk's PATH. The app was tested with **0.28.2**. No shared driver daemon is needed: Puk launches a private MCP process per worker, strips the host display target and sets `CUA_DRIVER_RS_ENABLE_WAYLAND=1` for the nested Sway session. Driver telemetry is disabled in that subprocess.
 
-## Hyprland config (optional)
-
-`pip.ts` does the floating and pinning by window address, so no rules are
-required. If you want hand windows to *start* floating and never get tiled
-into your layout, add a rule keyed on the nested compositor's app id. Check it
-with `hyprctl clients -j` after `bun desktop.ts up 1`; it is usually `wlroots`
-or `sway`:
-
-```ini
-windowrulev2 = float, class:^(wlroots|sway)$
-windowrulev2 = noinitialfocus, class:^(wlroots|sway)$
+```sh
+cua-driver --version
 ```
 
-Keybinds for the parts that come next (hotkey hold and release map to
-`bind` and `bindr`):
+The implementation was verified on Hyprland 0.56.2 (Lua configuration), Sway 1.12, and Bun 1.4.2. Older Hyprland INI dispatcher syntax is not supported by this branch.
 
-```ini
-bind  = SUPER, H, exec, curl -s -X POST localhost:7777/hotkey/down
-bindr = SUPER, H, exec, curl -s -X POST localhost:7777/hotkey/up
-bind  = SUPER, P, exec, bun /path/to/puk/pip.ts layout
-bind  = SUPER, 1, exec, bun /path/to/puk/pip.ts swap 1
-bind  = SUPER, 0, exec, bun /path/to/puk/pip.ts back
+## Start and use
+
+```sh
+bun install
+bun desktop.ts up 2 --terminal
+bun start
 ```
 
-## Browser logins
+Open `http://127.0.0.1:7777`. Use **Open desktop** or click a corner preview to enter. **‹ Desktop** in the nested bar returns to your previous app. The bar also launches apps; the tabs switch between open apps. The initial desktop is hand 1 unless `PUK_HAND` is set. Independent spoken requests start workers on other available hands; the panel lets you select which one to watch. Hold F8 to stream speech to Jev and start work; release finishes the instruction.
 
-`launchBrowser` copies `~/.config/chromium` (or your Firefox default profile)
-into `~/.hands/<browser>-<id>` the first time a hand starts, so cookies and
-logins carry over. Delete that folder to start fresh. Sync between the copy
-and your real profile is one-way and only happens on first copy.
+Hold **Super** (Windows key) over a corner preview: **left-drag moves** it and **right-drag resizes** it, using Omarchy's native [mouse bindings](https://wiki.hypr.land/configuring/core/binds/devices/mouse/). Entering and returning keeps each preview's size and position. **Reset previews** in the panel, Ctrl+Alt+P, or `bun pip.ts layout` restores the default arrangement.
 
-## How the pieces fit
+Previews appear while their agents work or await review. Idle, stopped and failed hands move to a hidden workspace without closing their apps. **Open desktop** and the hand shortcuts still open them, and manually opened desktops stay visible until you return. The panel serves the last captured frame while a hand is hidden. Run one Puk server to manage all hands; it reconciles their visibility together.
 
-- `desktop.ts` writes a tiny sway config, starts `sway` with
-  `WLR_BACKENDS=wayland`, and waits for the nested compositor to report its
-  socket name (`hand-<id>.display` under `$XDG_RUNTIME_DIR/hands`).
-- Screenshots: `grim` with `WAYLAND_DISPLAY` set to the hand's socket.
-- Mouse: `wlrctl pointer` (relative moves; we jump to the corner first so
-  positions are absolute). Keyboard: `wtype`.
-- `pip.ts` finds the Hyprland window whose `pid` equals the sway pid and
-  drives it with `hyprctl dispatch`.
+`up` reuses existing hands, preserves adjusted previews and open desktops, and places new hands in free slots. `--empty` starts without an app, `--no-pip` skips arrangement, and omitting `--terminal` starts a browser. Hands and launched apps survive the CLI exiting. `bun desktop.ts down` closes all registered hands, so save work first.
 
-## Known limits
+## Shortcuts
 
-- `wlrctl` moves are relative, so if a nested app warps the cursor the next
-  move still starts from the corner and stays correct.
-- Two hands running the same Electron app share nothing but can collide on
-  single-instance locks. Browsers are handled; other apps may need their own
-  profile flags.
-- Exiting the terminal that ran `bun desktop.ts up` may hang up the hands.
-  Launch from a Hyprland keybind or `nohup` for anything long-lived.
+Check `omarchy menu keybindings --print` for conflicts. Back up `~/.config/hypr/bindings.lua`, then add the output of:
+
+```sh
+bun pip.ts bindings
+```
+
+It generates current Omarchy Lua bindings with absolute paths: Ctrl+Alt+1/2/3 to enter/return, Ctrl+Alt+0 to return, Ctrl+Alt+P to arrange, F8 press/release for speech, and Ctrl+Alt+Escape to stop. It also generates a conditional left-click handler that consumes clicks on pinned previews while passing other clicks through.
+
+If a key is already assigned, explicitly unbind its old assignment before replacing it. Finish with:
+
+```sh
+hyprctl reload
+hyprctl configerrors
+```
+
+No global window rules are required. `pip.ts` floats, pins, tags, positions, rounds and borders only windows matched to registered compositor PIDs. `bun pip.ts state <id> idle|working|review|error` applies visibility and the state border, and the running server checks all hands once a second. Idle previews are unpinned and parked on `special:puk-idle`; working previews return to the active workspace with `follow=false`, preserving host focus and tile geometry. UI, bar, shortcut and state transitions use the same `flock` lock. A bounded screenshot capture caches the last frame before parking because hidden Sway outputs stop producing frames.
+
+The nested bar and tab strip use the active Omarchy theme's `colors.toml` (read from `~/.local/state/omarchy/current/theme.name`), falling back to Tokyo Night. The bar polls `http://127.0.0.1:$PUK_PORT/status` once a second to show the agent's state from inside the hand; restart hands after changing themes.
+
+## App and browser behavior
+
+The agent scans XDG desktop entries, respects hidden user overrides, and passes parsed arguments directly to executables. It chooses appropriate installed apps from their descriptions, categories and keywords. Already open matching apps are focused inside the hand. Omarchy webapp launchers use the hand's browser profile; foot clients are launched as separate foot windows.
+
+Hands use tabs by default and disable focus-follows-mouse. Hovering over a preview should not redirect the agent's keyboard input to another inner window. Bash identifies the nested session as Sway and receives its IPC socket; the host Hyprland target is removed.
+
+Browsers use per-hand profiles under `~/.hands`. On first launch, `launchBrowser` copies the user's existing Chromium/Chrome/Brave profile or Firefox default profile when found, excluding active singleton locks afterward. Profile copying is one-time; subsequent changes are not synchronized. Programmatic callers can use `{ copyProfile: false }` for a clean profile. Login portability depends on the browser and its credential storage.
+
+## Troubleshooting and limits
+
+- `PUK_DEBUG=1 bun start` enables redacted provider, Jev, Cua and capture diagnostics.
+- Logs and registry live in `$XDG_RUNTIME_DIR/hands`. `bun desktop.ts ls` and `bun pip.ts ls` show the mapping.
+- Arch Sway carries `CAP_SYS_NICE`; `setpriv --no-new-privs` prevents inherited realtime limits from killing the nested compositor at startup.
+- The native CLI/standalone wtype helper restores Sway's persistent keyboard afterward. This avoids a Sway 1.12 / Chromium keymap race observed when opening Chromium after virtual-keyboard input.
+- The nested output's physical size follows the outer window, but the bar process rescales it to preserve `Hand.width` (1280 by default). A 480×300 tile therefore represents a 1280×800 desktop at 0.375 scale. A different fullscreen aspect ratio can still change the logical height. Cua capture/input alignment must be checked at a non-1 scale: a physical-size capture would be 480×300 while logical clicks expect 1280×800.
+- While a hand is a small tile its window buffer is only 480×300 pixels, so screenshots taken then are soft. Enlarge the tile or enter the hand when the agent needs to read small text.
+- Cua's native Wayland support is experimental. Screenshot dimensions come from the PNG and nested Sway state; the driver's generic `get_screen_size` still expects X11 in this version. Unsupported operations report an error.
+- Other apps can have D-Bus activation or single-instance behavior that needs app-specific flags. X11-only apps are not supported with the current `xwayland disable` config.
+- On release, `pw-record` can handle SIGINT and exit with code 1. An expected stop is accepted and final transcription is preserved; only an unsolicited capture exit is a microphone failure. Provider/auth errors retain their cause.
+- PipeWire captures the default microphone; set `PUK_MICROPHONE` to a target accepted by `pw-record` if necessary. Capture starts only on a press and has a 60-second hold limit.
+- macOS Spaces and Windows virtual desktops provide navigation within a session; an independent agent desktop there still needs a backend/viewer. This branch implements Linux/Hyprland only.

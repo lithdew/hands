@@ -1,100 +1,125 @@
-# Handoff: hand desktops + PIP (branch `desktop-pip`)
+# Handoff: desktop-pip
 
-Written 2026-09-19 for whoever picks this up on Omarchy.
+Updated 2026-09-19 on the Omarchy machine. Work remains on `desktop-pip`. Chi Li's latest `origin/jev-cua` (`eb3c4c8`, including `2ada6c6`) has been fast-forward merged. Listener adaptations and app integration are kept in separate commits for review. The remote Jev branch was rechecked before committing and still pointed at that commit.
 
-## What exists
+## Implemented
 
-| File | Purpose | Status |
+| File | Responsibility |
+| --- | --- |
+| `desktop.ts` | Detached nested Sway lifecycle, private Cua MCP connection, app discovery and launch/focus, browser profiles, native app tabs and return bar |
+| `pip.ts` | Current Hyprland Lua dispatchers, idempotent preview layout, rounded/bordered tiles whose color follows the hand's state, consumed click-to-enter, saved tile/focus restoration, shared transition lock, generated shortcuts |
+| `ai.ts` | Pi agent runtime, OpenAI/Anthropic/Gemini adapters, Zod schemas, model/effort routing, bounded/cancellable Bash, desktop tools, Jev decisions/gate and exact-action approval |
+| `hotkey.ts` | Hold/release lifecycle, OpenAI Realtime PCM transcription, Chi listener → live Pi workers, HTTP endpoints, preview state painting |
+| `panel.html` | The localhost control page: task entry, hold-to-speak, approvals, desktop card with state ring and hand switcher, activity feed |
+| `jev/listen.ts`, `jev/jev.ts` | Chi's task coordinator and the shared TypeSafe SDK transport; the other `jev/` modules retain his standalone native desktop experiment |
+| `evals.ts` | Synthetic fixtures, live API latency/correctness evals, mocked action execution, traces and reports |
+| Matching `*.test.ts` | Lifecycle, geometry, discovery, Pi tools, gate, cancellation, HTTP origin checks and streaming regression tests |
+
+Keep changes concentrated for merging, let the agent figure out which installed app fits a task, and use pi-agent-core with Bash. The runtime uses `@earendil-works/pi-agent-core` and `@earendil-works/pi-ai` 0.85.1, Zod 4.6.5, `@typesafe-ai/sdk` 0.6.0, and `@modelcontextprotocol/client` 2.0.0. **Cua Driver MCP 0.28.2 is integrated**, with one private process per hand, experimental native Wayland enabled and telemetry disabled. Chi's separate `jev/cua.ts` remains a native Wayland/AT-SPI experiment; the app does not use it for input.
+
+The latest model choices are **GPT-5.6 Luna**, **Claude Sonnet 5**, and **Gemini 3.8 Flash on Vertex**. Low is the minimum reasoning effort across every provider. Auto offers three distinct profiles: **Luna/low**, **Sonnet 5/medium**, and **Astra/high**. Selecting a provider confines Jev to that provider's low/medium/high profiles. OpenAI uses Astra for complex work; Anthropic and Gemini keep their selected models and increase effort. A `*_MODEL` override pins that provider's model; `*_COMPLEX_MODEL` changes its complex profile when unpinned. A missing optional default complex model falls back to the configured model; a bad explicit override errors clearly. Jev re-evaluates capability and effort between model turns when a live refinement changes the task.
+
+Exact API IDs and thinking behavior were checked against the installed Pi catalog, [Luna documentation](https://developers.openai.com/api/docs/models/gpt-5.6-luna), and [Sonnet 5 documentation](https://platform.claude.com/docs/en/docs/about-claude/models/whats-new-sonnet-5). Pi sends Sonnet adaptive thinking plus effort, avoiding its removed manual thinking-budget mode.
+
+## Verified live
+
+Current Cua/live-worker checks:
+
+- An isolated disposable hand received actual Cua MCP `type_text` and `press_key` input and displayed `PUK_CUA_MCP_OK`. Screenshots and command results are in `out/cua-input-smoke.*`; the fixture was removed afterward.
+- A real Luna → Jev → Cua browser run opened the browser at **4.52 s**, before the simulated speaker released at **15.10 s**, then visibly displayed capybara image search results. The agent completed in **29.79 s**. See `out/live-cua-smoke.json` and `out/live-cua-smoke.png`. It used a clean browser profile in a disposable hand and did not record microphone audio.
+- That browser run exposed over-splitting of “open a browser” followed by “show me a photo.” The relation prompt and final worker update were corrected, then the current listener passed three repeats including that schedule. The GUI run predates this parser correction; it demonstrates Cua execution, not a clean final-parser end-to-end result.
+- Real Luna/medium → Jev → Cua freehand drawing completed a cat in **30.9 s**, with **11 pointer presses, 351 trusted moves while held, and 11 releases**, all browser events marked `isTrusted=true`. The model initially exceeded the eight-path limit; validation rejected it before input, then it split the drawing into 8+3 paths. No Bash, image generation, paste or programmatic painting ran. See `out/drawing-live-smoke.json` and `out/drawing-live-after.png`. The disposable hand and private Cua processes were removed afterward.
+- A separate **real JS Paint run in hand 3** completed a yellow cat with pink ears/nose in **68.7 s**. OpenAI was selected explicitly for this comparison; Jev selected **Luna/medium** in 952 ms. Luna planned 14 held strokes in two calls (8+6), three input batches (3+2+4 clicks), and three individual clicks. Its first colour choice was green; it inspected the result and corrected it to yellow. Jev made eight action checks, all allowed, with median 335 ms and 5.50 s total (including one 2.60 s check). No Bash, image paste or drawing code ran. This typed request bypassed speech parsing. See `out/cat-separate-result.json` and `out/cat-separate-final.png`. The temporary demo panel on 7778 was closed after verification; the main panel on 7777 manages all hands. The original drawing desktop has since been replaced; the saved trace and screenshots retain the result. This is one successful run, not a general task-success or speedup estimate.
+- Live preview checks verified idle hiding, working/review visibility, preserved position/size and host focus, manual fullscreen viewing, and hiding again on return. A cached idle frame was served in 21 ms. See `out/pip-visibility-live.json`. The updated production server then ran a real Luna/low → Jev → Bash task: its preview appeared during work, hid afterward, and preserved geometry and focus; its cached frame returned in 37 ms. See `out/pip-production-check.json`. The apps remain running while their outer window is parked. Automated HTTP tests also check working/review/Stop transitions across two hands.
+- Earlier Sonnet/medium attempts on the shared Paint desktop produced a cat outline and partial colouring but spent too long on palette selection; one reached the five-minute deadline. Later runs were stopped from the panel as the user continued voice work. A read-only diagnostic sent the same actual Cua PNG directly to Sonnet/low and through a fresh Pi screenshot-tool context: both correctly described the olive cat (2.52 s / 4.75 s), with identical image bytes and no mutation attempts. This checks basic image delivery in a fresh context; it does not explain every production observation. See `out/anthropic-image-diagnostic.json`.
+- Production HTTP integration tests exercise two concurrent hands, early dispatch, task refinement, queued work, approvals belonging to a different selected hand, approval replay rejection, Stop, provider/task busy checks, and cross-site request rejection with mocked capture and model execution.
+- The F8 false microphone error was reproduced: normal `pw-record` SIGINT shutdown can exit **1** without a signal. Expected shutdown now preserves the final transcript; unsolicited capture exits still fail, and Realtime auth/timeout errors retain their cause. Regression tests exercise all three cases with a real child process and a fake WebSocket. An unlinked PipeWire probe confirmed its exit behavior without capturing user audio.
+
+Earlier native-backend checks (desktop/provider evidence, not measurements of the new Cua worker loop):
+
+- Two nested desktops persist after the launcher exits. Physical desktop input remains separate from injected hand input.
+- PIP windows float, pin and stack correctly. Repeated arrangement is stable. Enter hand 1, switch to hand 2, and return restores the saved tile and prior host focus.
+- A physical preview click expands the hand without clicking the application below it: a test webpage's click counter remained zero.
+- Foot, Chromium, and Omawrite work inside the nested desktop. Omawrite was discovered from its installed desktop entry, without a user-provided app name.
+- Luna completed a real Bash call and read “Puk desktop is ready.” from a screenshot of the existing Omawrite draft. Sonnet 5 completed a live Pi → Jev → Bash → model round trip at low effort.
+- Gemini 3.8 Flash completed real desktop work using the Vertex key: discovered/focused Omawrite, typed a short unsaved draft, verified it in a screenshot, and used the native return bar. Low, medium and high thinking were accepted. `.env` now explicitly sets `GEMINI_BACKEND=vertex`; key values were not changed. The earlier Generative Language API restriction was a backend mismatch, not an unusable key.
+- Live OpenAI transcription emitted partial text before commit. Two later synthetic 24 kHz speech checks saw first partials at 2.9–3.1 s, an Omawrite focus at 7.1–8.0 s, and release at 13.5–13.8 s. The app was reused and its existing note stayed unchanged. The earlier 4.9 s launch used different speech/coordinator behavior and is not evidence of a speedup. These are individual measurements, not latency guarantees; no user microphone audio was recorded.
+- The pre-merge check with the new models saw a first partial at 3.74 s, focused the existing Omawrite at 8.27 s, and released at 14.65 s: the app was ready 6.38 s before release. Jev selected Luna/low for the final request; Pi reused the same window and verified it with a screenshot. [Pre-merge result](../out/evals/2026-09-19T06-07-43-461Z-all/voice-smoke.json).
+- After the merge, the panel completed a real Pi → shared Jev SDK → Bash call, printing `LISTENER_MERGE_READY` with Luna/low. The synthetic speech replay exercises Realtime, Chi's task coordinator, app discovery/focus, and sequential Pi workers; its [current result and task trace](../out/evals/2026-09-19T06-35-58-760Z-listener/voice-smoke.json) include before/after desktop state and screenshots. No microphone recording was made.
+- Jev declined negated, hypothetical and cancelled app-opening examples. Runtime tests cover blocked/approval actions, stale approvals, cancellation during startup/final handoff, and Bash child-process cleanup.
+- The control panel submitted real Bash tasks and displayed results. Stop killed a sleeping Bash process group (exit 143, cancelled, no stdout) and returned to Ready without a spurious provider error. Localhost host/origin/fetch-site validation protects microphone and action routes from ordinary cross-site requests.
+- A fresh third hand survived its launcher exiting, opened two terminal tabs, and was removed after the check. Keyboard focus no longer follows a host pointer hovering over a preview.
+
+`bun test` passed **249 tests across 13 files** (811 assertions), and `bun run check` passed. A redundant earlier parallel typecheck was SIGKILLed; subsequent separate checks completed cleanly. Tests cover live Pi steering/rerouting, stale gate results, provider/key handling, microphone shutdown, the real HTTP routes, stroke and input batching/cleanup, preview visibility/navigation, native desktop helpers and Chi's standalone loop. Real GUI checks are listed separately above. Only variable names/aliases belong in documentation; never print or commit `.env` values.
+
+## Design details
+
+A hand is a native Wayland-backed Sway window, not just one application. Its apps use the real user's home and permissions. Sway tabs and a small native bar provide navigation. The app's model-facing screenshots and input use Cua MCP against the nested socket. The preview and standalone CLI retain native grim/wlrctl/wtype helpers. Bash inherits the hand's Wayland display and Sway IPC socket, with `.env` key aliases, exported credentials and the outer Hyprland target removed from its environment. This does not create a filesystem or security sandbox.
+
+The server reconciles all registered hands once a second. Working/review previews are pinned on the active workspace; idle/error previews are unpinned and parked on `special:puk-idle` without changing their geometry or stopping apps. Workspace moves use `follow=false` to preserve host focus. State changes share the UI transition lock and check the compositor PID. Manually opened fullscreen hands remain visible. Before parking, a bounded capture saves a frame keyed by hand ID and compositor PID; the panel reads that cached image while hidden instead of leaving `grim` waiting for an output frame.
+
+`gpt-live-transcribe` streams deltas while audio arrives, even with `turn_detection: null`. Chi's listener classifies new tasks, refinements, covered text and retractions. It starts a Pi worker **immediately on each free hand**; extra independent tasks queue. Jev can split multiple independent requests arriving in one delta, while keeping dependent steps in the same task. The literal intent builder avoids a second intent-generation LLM. A changed assigned goal steers the running worker; other independent tasks remain context and do not become its assignment. Workers stay attached until speech ends so late corrections reach them. The old app-only warm-up controller now lives only in `evals.ts` as a historical baseline.
+
+Stop cancels capture, classification, queued tasks, pending approvals and every active worker. Late replies cannot restart them. A rewritten final transcript cancels superseded tasks and rebuilds from the corrected text. The coordinator tracks consumed characters, not space-delimited words, so Chinese cancellations and words completed over multiple deltas are heard. Final classification failures abort partial tasks before releasing workers. A hand reservation queue prevents two tasks from acquiring the same desktop across an async lookup. An app already opened stays available after cancellation. The panel exposes per-hand work and all pending approvals; switching which desktop is viewed does not change an approval's owner.
+
+Pi executes tools sequentially within each hand. The `computer` tool reads current PNG dimensions, rejects stale coordinates after resize, and returns a screenshot after input. Its `draw` action accepts 1–8 paths of 2–32 points each, holds the left mouse button through each path and lifts between paths. The model chooses coordinates from the screenshot; Jev checks the exact batch once. Each segment rechecks the instruction, dimensions and focused window; cleanup releases the button even on cancellation or failure. Ambiguous Cua/Sway window matches are rejected.
+
+`computer batch` accepts 1–8 click/key/type/move/scroll steps on the same observed screen. Every step is validated before the first input; the exact complete plan passes through Jev once. Each step checks cancellation, the latest instruction, dimensions and focused window. A partial failure stops the remainder, invalidates the old screenshot and reports how many steps completed; it does not undo them. The model inspects a new screenshot afterward. Batches cannot contain nested batches, drawing, shell or app-launch tools. A known Cua 0.28.2 quirk maps click `(0,0)` to screen center, so that coordinate is rejected rather than clicking a different location.
+
+The text-only gate receives the task, actual command/arguments, current window metadata, and recent action labels; images go only to the selected vision model. Raw tool output is not fed back into the gate. During speech the risk threshold is stricter: flagged actions wait for the completed instruction and are checked again. Corrections expire obsolete proposals. Approval applies to one pending tool call, and failed checks never execute an action. Bash has bounded output and kills its process group on timeout/Stop, including daemonized children retaining stdout. Runs stop at five minutes, **30 action calls**, or 120 total tool calls; screenshots, app discovery and Jev queries do not spend the action budget.
+
+In the app, Jev handles speech task boundaries, model/effort routing and checks of exact proposed actions. Pi chooses apps from the installed catalog and plans their use. All app and standalone Jev calls use `jev/jev.ts` over the same SDK, key aliases and cancellation path. Defaults use bounded timeouts with no hidden retries; transport errors omit server bodies/credentials. The app's Zod schemas add stricter tool/response validation. The standalone vision loop retains its own action policy; the panel uses Pi's exact-action approval flow.
+
+Pi handles planning, vision, tool execution and recovery. It can also call `jev` for text decisions and supply shared choice descriptions once at the top level. This read-only tool cannot approve or execute another action. Obvious small classifications should stay in the current LLM turn because generating tool arguments and waiting for another LLM turn can outweigh Jev's own response time. Standalone intent/quick planners now default to Luna/low; the deep planner retains Astra/high. Panel defaults remain Luna, Sonnet 5 and Vertex Gemini 3.8 Flash, with low as the effort floor.
+
+`PUK_DEBUG=1` adds bounded, redacted tool proposals and gate verdict/timing to the existing diagnostics. Normal activity labels distinguish screenshots, stroke counts and input-batch lengths. Debug mode is opt-in; do not treat its logs as public artifacts without reviewing their task content.
+
+## Evals and decisions
+
+The current listener's [report](../out/evals/2026-09-19T07-42-41-035Z-listener/report.md) and [raw traces](../out/evals/2026-09-19T07-42-41-035Z-listener/results.jsonl) passed **33/33 live cases**, three repeats of eleven transcript schedules, with zero transport/schema errors. Cases cover progressive speech, English/Chinese cancellation during classification, a Chinese request, final transcript replacement, retraction after dispatch, independent tasks across deltas and within one delta, dependent steps, browser-follow-up refinement, and an informational question. These runs use real Jev and the production voice adapter with mocked Pi execution. They measure dispatch, steering, cancellation, queueing and parallelism; they do not establish general desktop success or safety.
+
+Median first-worker dispatch was **361 ms**, excluding transcription and model execution. Overall row time includes fixed release waits and is not decision latency. Calibration artifacts are retained: `07-29-39` exposed an empty task at “and separately”; `07-37-46` exposed an overly broad/overlapping relation rubric. Boundary filtering and compact positive relation criteria fixed these cases. The final corpus includes the related browser/photo request discovered by the real GUI run. Run `bun evals.ts --live --rounds=3 --suite=listener` to repeat this focused check. Three repeats of a partly calibrated, small corpus are directional, not a latency guarantee or a broad reliability claim. Older `06-*` listener results exercise the former app-only warm-up path and should not be pooled with this architecture.
+
+The pre-merge provider [report](../out/evals/2026-09-19T06-07-43-461Z-all/report.md), [summary](../out/evals/2026-09-19T06-07-43-461Z-all/summary.json), and [raw traces](../out/evals/2026-09-19T06-07-43-461Z-all/results.jsonl) contain **404 live API runs**. Actions were mocked; these are separate from the real GUI/Bash/voice checks above. The baseline LLM calls use Luna, Sonnet 5 and Vertex Gemini 3.8 Flash, all at low effort. Jev's completed-task router may choose medium/high. Two workers interleave fixtures in a seeded order, with three repeats per case except four single-run streaming traces per strategy. No harness retries; errors remain in the denominator. Models and profiles are recorded with the results. Artifacts are local and gitignored; this handoff preserves the findings for merging.
+
+| App intent, including the same Jev action check on positive proposals | Exact match | Median / p95 |
 | --- | --- | --- |
-| `desktop.ts` | One nested sway desktop per hand: start/stop, screenshot, click, type, key, scroll, launch apps, launch browser with the user's logins | Verified live under WSLg. Not yet run on Omarchy. |
-| `pip.ts` | Pins hand windows as corner tiles in Hyprland, swaps one to fullscreen and back | Unit tested only. Needs a real Hyprland to verify. |
-| `desktop.test.ts`, `pip.test.ts` | 22 tests, all mocking the shell | `bun test` passes |
-| `docs/omarchy-setup.md` | Packages, try-it commands, Hyprland keybinds | |
-| `docs/superpowers/specs/2026-09-19-hand-desktops-and-pip-design.md` | Why this design and not Docker or a ghost monitor | |
-| `.env.example` | Keys we expect in `.env.local` | `.env.local` still empty |
+| Jev | 45/48 | 398 / 816 ms |
+| Luna | 46/48 | 1,272 / 3,009 ms |
+| Sonnet 5 | 48/48 | 1,633 / 2,929 ms |
+| Gemini 3.8 Flash | 48/48 | 1,873 / 2,538 ms |
+| Experimental Jev → Luna on every abstention | 46/48 | 1,343 / 2,509 ms |
 
-## The design in one paragraph
+Jev's three misses were abstentions on the same request containing a quoted command; Luna's two misses were abstentions on a completed opening clause followed by “and”. The experimental fallback made **two false launch proposals** for “How do I open a terminal in Omarchy?” and passed the side-effect gate. It remains disabled for partial speech. Production Jev made no false launches in this small corpus. An action-risk check is not a replacement for intent detection.
 
-A hand is a `sway` compositor started with `WLR_BACKENDS=wayland` from inside
-Hyprland. It appears as a normal window. It has its own seat, so input we
-inject with `wlrctl` and `wtype` (with `WAYLAND_DISPLAY` set to the nested
-socket) never touches the user's mouse or keyboard. Apps launched inside run as
-the user with the user's home, so real apps and logins work. Screenshots come
-from `grim`. `pip.ts` finds the window by the sway pid and drives it with
-`hyprctl dispatch`. The window is the PIP feed; there is no VNC or streaming.
+Jev's action checks matched 24/24 fixtures, median 329 ms. Gemini matched 24/24, Luna 23/24, and Sonnet 21/24. The LLM non-matches were stricter blocks instead of approvals for an injected shell command; no unsafe allows were observed. There were no transport/schema errors in this final run. Jev routing matched confidently on 21/24 cases, median 337 ms; the remaining three used a standard fallback that still matched the expected difficulty. This measures routing consistency, not the quality of solving hard tasks.
 
-## First 10 minutes on Omarchy
+| Nine easy classifications in a Pi turn (three runs each, all correct) | Direct median | Forced Jev tool median |
+| --- | --- | --- |
+| Luna | 1,086 ms | 3,691 ms |
+| Sonnet 5 | 2,299 ms | 8,302 ms |
+| Gemini 3.8 Flash | 1,930 ms | 5,909 ms |
 
-```sh
-sudo pacman -S --needed sway grim wtype
-sudo pacman -S --needed wlrctl || yay -S wlrctl
-git clone https://github.com/lithdew/puk && cd puk && git checkout desktop-pip
-bun install && bun test
+The Jev tool request itself took **305–444 ms**. Most added time was LLM argument generation, transport and the next LLM turn. The schema supports shared choices once at the top level, though models sometimes still repeat them per question. A single nine-question Jev request had a 413 ms median, versus 879 ms for three concurrent smaller requests; keep one batch for this workload. All twelve mocked Bash round trips passed; medians were Luna 2,598 ms, Sonnet 3,397 ms, Gemini 3,208 ms, and Auto 3,287 ms. Auto adds a routing decision; it is useful for selecting capability/effort, not to accelerate an already fixed trivial task.
 
-bun desktop.ts up 2 --terminal     # two hand windows should appear
-bun pip.ts ls                      # each hand should map to a window address
-bun pip.ts layout                  # tiles pinned bottom-right
-bun desktop.ts click 1 640 400
-bun desktop.ts type 1 "echo hi from hand 1"
-bun desktop.ts key 1 Return
-bun desktop.ts shot 1 /tmp/h1.png  # open it; the text should be there
-bun pip.ts swap 1                  # fullscreen; click inside to take over
-bun pip.ts back
-bun desktop.ts down
-```
+Both streaming strategies passed all four fixed transcript schedules. First launch was 772 ms for Jev versus 1,089 ms for Luna on the complete Chinese command; the progressive English trace was effectively tied at 3.03 s. Cancellation during an in-flight request produced no launch. These traces exclude transcription and include fixed release waits, so their total wall time is not decision latency. Continuous speech and stale-result cancellation can dominate actual app-opening time, as the real synthetic voice check demonstrates.
 
-Then the browser path: `bun desktop.ts up 1 --url=https://mail.google.com`.
-The first launch copies `~/.config/chromium` to `~/.hands/chromium-1`, so you
-should be logged in.
+Earlier directories contain calibration runs and Mini/Haiku-era baselines. The incomplete `2026-09-19T06-05-52-283Z-all` run was stopped when low became the required minimum; it is explicitly marked aborted and excluded above. Do not pool those results with this configuration. Three repeats on a small partly calibrated corpus are directional; Wilson intervals count repeated calls, not independent task diversity. LLM JSON baselines use prompts plus Zod rather than provider-enforced structured output. Reported dollar estimates exclude Jev, speech and local compute.
 
-## What to watch for on first Omarchy run
+Headless Fable helped design the fixtures and reviewed anonymized results. The [checked review](../out/evals/2026-09-19T06-07-43-461Z-all/fable-review.md) supports the division of work above and flags the false-launch fallback and limited evidence. Its raw cost table incorrectly calls three-run totals per-run costs and calls unmeasured Jev cost zero; use the corrected interpretation and raw measurements. Gating/injection resistance and real desktop success cannot be inferred from these mocked workflow traces.
 
-1. **`pip.ts ls` shows "no window yet".** Hyprland reports a different pid
-   than the sway process (unlikely, but possible). Compare `hyprctl clients -j`
-   with `bun desktop.ts ls` and adjust `findHandWindow` in `pip.ts`.
-2. **`pin` or `setfloating` rejects the address argument.** Check
-   `hyprctl dispatch pin` syntax for your Hyprland version and edit
-   `pipCommands` in `pip.ts`. The unit test for it is easy to update.
-3. **Hand windows get tiled into your layout on start.** Add the
-   `windowrulev2 = float` rule from `docs/omarchy-setup.md`.
-4. **Nested sway fails to start.** Look at `$XDG_RUNTIME_DIR/hands/hand-1.log`.
-   If it is a renderer error, try `WLR_RENDERER=pixman bun desktop.ts up 1`.
-5. **First keystrokes garbled.** We saw this once and added a 40 ms settle
-   delay before typing. If it recurs, raise `KEYMAP_SETTLE_MS` in `desktop.ts`.
-6. **Chromium refuses to start a second instance.** The per-hand profile dir
-   should prevent this. If it happens, delete `~/.hands/chromium-<id>/Singleton*`.
+## Follow-up work
 
-## Design decisions already made (do not re-open without a reason)
+- The bar process subscribes to Sway output events and sets `output * scale` to physical width ÷ logical width, preserving `Hand.width`. Scaling was exercised with Sway 1.12 down to 0.375. A different fullscreen aspect ratio can still change logical height. The tile buffer remains tile-sized, so preview captures can be soft; the Cua driver's capture/click coordinates at non-1 scale still need verification.
+- Test real microphone ergonomics with the user. `pw-record` is wired into the same tested transcription pipeline; synthetic audio does not prove their microphone selection or room acoustics.
+- Support more single-instance/D-Bus app behaviors and X11-only apps as needed. Chromium, foot and Omawrite were exercised; not every discovered app has been tested.
+- Browser profile copy/login portability is implemented but not verified against signed-in user accounts in this run; Chromium was exercised with a clean temporary profile.
+- Cua is integrated on native nested Sway, but its Wayland support remains experimental. The generic driver `get_screen_size` expects X11 in this version; use current PNG dimensions and Sway state. Drawing currently supports the left button and requires a uniquely identifiable focused window. macOS/Windows desktop backends remain future work; native Spaces/virtual desktops alone share the user's input session.
+- Durable conversation state and broader speech actions are later work. The current panel keeps history in memory, resets it when changing provider, and requires stopping a running task before submitting another.
+- Jev adaptations are committed separately from the app integration. Review `jev/listen.ts` against any later upstream changes; no messages were sent to Chi. The direct desktop/CLI transition entry points still need consolidation around the UI/shortcut lock; the registry's stale-PID check also does not yet prove process identity after PID reuse.
 
-- Omarchy is the demo machine. Mac is a later port via a Docker desktop
-  provider that exposes the same `Hand` API.
-- Hands need real apps and logins, so no Docker sandbox on Omarchy.
-- Risky actions pause and wait for approval.
-- **Jev (TypeSafe) is text only.** It cannot see screenshots. Its job is the
-  risk gate (`noul` over the planned action) and optionally picking between
-  candidate actions (`choice`). A vision model does perception.
-- One feature per file.
+## Machine notes
 
-## What is next, in order
+Sway initially died with SIGKILL because its `CAP_SYS_NICE` interacted with an inherited zero realtime CPU limit. Launching with `setpriv --no-new-privs` fixed startup without changing user limits. A later owned Chromium test crashed inside `xkb_state_update_mask` with a null keyboard state after wtype exited. Restoring the persistent keyboard via Sway IPC after wtype fixed that launch sequence. Do not remove these workarounds without reproducing and checking the underlying compositor versions.
 
-1. Verify `pip.ts` on real Hyprland (list above).
-2. `hotkey.ts`: tiny Bun HTTP server; Hyprland `bind` posts `/hotkey/down`,
-   `bindr` posts `/hotkey/up`. Config lines are in `docs/omarchy-setup.md`.
-3. `transcribe.ts`: OpenAI realtime WebSocket, `type: "transcription"`,
-   model `gpt-live-transcribe`, `turn_detection: null`, append 24 kHz PCM
-   while held, `input_audio_buffer.commit` on release.
-4. `gate.ts`: `POST https://api.typesafe.ai/v1/systemone` with a `noul`
-   question over the next action's description. Block if probability is high.
-5. The action loop: screenshot via `desktop.ts`, ask the vision model for the
-   next action, run it through `gate.ts`, execute via `desktop.ts`.
-6. Progress summaries and the on-screen "hands" cursors.
-
-## Useful internals
-
-- Registry: `$XDG_RUNTIME_DIR/hands/hand-<id>.json` holds `{id, pid, display,
-  width, height}`. Any module can call `listHands()` from `desktop.ts`.
-- Every shell call goes through an injectable `exec` so tests never need
-  sway or Hyprland installed.
-- Absolute mouse moves are done as a huge negative relative move (clamped to
-  the corner) followed by the target offset. It is exact because a hand has
-  exactly one output.
+Generated shortcuts were installed in a managed Puk block in `~/.config/hypr/bindings.lua`, with timestamped backups beside it; `hyprctl configerrors` was empty after reload. Runtime state lives under `$XDG_RUNTIME_DIR/hands`, including `pip.json` (session-scoped window/rectangle/focus state). Browser profiles live under `~/.hands`. The hand registry is keyed by compositor PID.
