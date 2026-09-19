@@ -21,13 +21,46 @@ const CACHE = join(import.meta.dir, "..", "..", "out", "relay", "cache");
 const clean = (s: string) => s.replace(/\s+/g, " ").trim();
 const key = (s: string) => Bun.hash(s).toString(16);
 
-async function cached<T>(name: string, make: () => Promise<T>, fresh = false): Promise<T> {
+/** `keep` says whether a value is worth remembering: a failure is not an answer, and caching one makes it permanent. */
+async function cached<T>(name: string, make: () => Promise<T>, fresh = false, keep: (value: T) => boolean = () => true): Promise<T> {
   const file = Bun.file(join(CACHE, `${name}.json`));
   if (!fresh && await file.exists()) return file.json() as Promise<T>;
   const value = await make();
+  if (!keep(value)) return value;
   await mkdir(CACHE, { recursive: true });
   await Bun.write(file, JSON.stringify(value));
   return value;
+}
+
+// ---------------------------------------------------------------- a search engine that says no
+//
+// Brave answers a script that asks too much, too fast with 429 and a captcha. That is the site saying
+// no, and the answer to it is to stop: no retries, no disguise, no way round. So searches go out one at
+// a time with a pause between them (the relay asks for a step's queries all at once), the first refusal
+// ends searching for the rest of the run, nothing refused is cached, and `searchStatus` lets the caller
+// say in its notes that search was not available instead of passing silence off as "nothing exists".
+
+const SEARCH_GAP_MS = Number(process.env.PUK_SEARCH_GAP_MS ?? 2500);
+const status = { asked: 0, answered: 0, refused: 0, blocked: false };
+let queue: Promise<unknown> = Promise.resolve(), lastSearch = 0;
+
+/** How searching has gone in this process. `blocked`: the engine refused, and nothing more was sent. */
+export const searchStatus = () => ({ ...status });
+
+/** True when a search response is a refusal (rate limit, captcha, bot wall) rather than results. Exported for tests. */
+export function refusal(httpStatus: number, body: string): boolean {
+  if (httpStatus === 429 || httpStatus === 403) return true;
+  return /captcha|flagged as being suspicious|unusual traffic|are you a robot/i.test(body.slice(0, 200_000)) && !/class="snippet/i.test(body);
+}
+
+function inTurn<T>(work: () => Promise<T>): Promise<T> {
+  const run = queue.then(async () => {
+    const wait = lastSearch + SEARCH_GAP_MS - Date.now();
+    if (wait > 0) await Bun.sleep(wait);
+    try { return await work(); } finally { lastSearch = Date.now(); }
+  });
+  queue = run.catch(() => {});
+  return run;
 }
 
 async function get(url: string, timeoutMs = 20_000): Promise<Response> {
@@ -36,9 +69,16 @@ async function get(url: string, timeoutMs = 20_000): Promise<Response> {
 
 /** Web search results, in the engine's order. Empty on any failure: a search that fails is a query to reword, not a crash. */
 export async function search(query: string, opts: { fresh?: boolean } = {}): Promise<Result[]> {
-  return cached(`search-${key(query)}`, async () => {
-    const res = await get(`https://search.brave.com/search?q=${encodeURIComponent(query)}&source=web`).catch(() => null);
-    if (!res?.ok) return [];
+  return cached<Result[] | null>(`search-${key(query)}`, () => inTurn(async () => {
+    if (status.blocked) return null;
+    status.asked++;
+    const got = await get(`https://search.brave.com/search?q=${encodeURIComponent(query)}&source=web`).catch(() => null);
+    if (!got) return null;
+    const html = await got.text().catch(() => "");
+    if (refusal(got.status, html)) { status.refused++; status.blocked = true; return null; }
+    if (!got.ok) return null;
+    status.answered++;
+    const res = new Response(html);
     const results: Result[] = [];
     let current: Result | null = null, inTitle = false, inSnippet = false;
     await new HTMLRewriter()
@@ -49,7 +89,7 @@ export async function search(query: string, opts: { fresh?: boolean } = {}): Pro
       .transform(res).text();
     const seen = new Set<string>();
     return results.map((r) => ({ title: clean(r.title).slice(0, 200), url: r.url, snippet: clean(r.snippet).slice(0, 400) })).filter((r) => r.url && r.title && !seen.has(r.url) && seen.add(r.url)).slice(0, 20);
-  }, opts.fresh);
+  }), opts.fresh, (value) => value !== null).then((value) => value ?? []);
 }
 
 /** arXiv's own listing: real papers with their abstracts, newest first. The id in the url is what a citation is checked against. */
@@ -83,7 +123,7 @@ export async function page(url: string, opts: { fresh?: boolean; maxBlocks?: num
       .transform(res).text();
     const seen = new Set<string>(), kept = blocks.map(clean).filter((b) => b.length > 25 && !seen.has(b) && seen.add(b));
     return { url: res.url, title: clean(title).slice(0, 200), blocks: kept.slice(0, opts.maxBlocks ?? 400).map((b) => b.slice(0, 1200)), links: links.map((l) => ({ text: clean(l.text).slice(0, 160), url: l.url })).filter((l) => l.text).slice(0, 400), pdf: false, status: res.status };
-  }, opts.fresh);
+  }, opts.fresh, (value) => value.status !== 0 && value.status !== 429 && value.status < 500);
 }
 
 /** Does this address answer? For citations: a source that does not open is not a source. */
