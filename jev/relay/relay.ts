@@ -51,6 +51,50 @@ export type Kit = {
   repairs?: number;
 };
 
+/** Once more, twice at most, when `transient` says the failure was the line and not the answer. A refusal is an answer. */
+export async function again<T>(work: () => Promise<T>, transient: (error: unknown, afterMs: number) => boolean, log: (line: string) => void = () => {}, pauseMs = 3000): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    const t = performance.now();
+    try { return await work(); } catch (error) {
+      if (attempt >= 2 || !transient(error, performance.now() - t)) throw error;
+      log(`a connection dropped after ${Math.round((performance.now() - t) / 1000)} s (${String(error instanceof Error ? error.message : error).slice(0, 60)}); once more`);
+      await Bun.sleep(pauseMs * (attempt + 1));
+    }
+  }
+}
+
+/** A dropped socket or a 5xx is the line, not the model; a 4xx (a refusal, a bad request, a spent quota) is an answer and is not retried. */
+export const dropped = (error: unknown) => { const text = String(error instanceof Error ? `${error.name} ${error.message} ${(error as { code?: string }).code ?? ""}` : error); return /ECONNRESET|ECONNREFUSED|EPIPE|ETIMEDOUT|socket connection was closed|fetch failed|failed \(5\d\d\)/i.test(text); };
+
+/**
+ * An Llm that survives a dropped connection. With PUK_RELAY_LLM_CACHE=1 (development only, off by default) it also
+ * remembers answers on disk by the exact request, so a run that died at step six does not pay again for steps one to five.
+ */
+export function steady(llm: Llm, log: (line: string) => void = () => {}): Llm {
+  const dir = process.env.PUK_RELAY_LLM_CACHE === "1" ? join(import.meta.dir, "..", "..", "out", "relay", "cache") : null;
+  return async (req) => {
+    const file = dir ? Bun.file(join(dir, `llm-${Bun.hash(JSON.stringify([req.model, req.effort, req.system, req.user, req.schema.name])).toString(16)}.json`)) : null;
+    if (file && await file.exists()) return file.json();
+    // A call cut after a long silence was cut for being long; asking again pays again for the same cut.
+    const answer = await again(() => llm(req), (error, afterMs) => dropped(error) && afterMs < 45_000, log);
+    if (file) { await mkdir(dir!, { recursive: true }); await Bun.write(file, JSON.stringify(answer)); }
+    return answer;
+  };
+}
+
+/**
+ * A file as the checker is shown it. The first 5,000 characters of a long file hide its last section and its
+ * tables from a reader who is asked whether they exist, so: its outline (headings, and the head of each table),
+ * then how it starts and how it ends.
+ */
+export function shown(content: string, budget = 3600): string {
+  if (content.length <= budget) return content;
+  const lines = content.split("\n");
+  const outline = lines.filter((line, i) => /^#{1,6}\s/.test(line) || (/^\s*\|/.test(line) && !/^\s*\|/.test(lines[i - 1] ?? ""))).map((l) => l.slice(0, 140)).join("\n").slice(0, Math.floor(budget / 3));
+  const head = Math.floor(budget * 0.42), tail = budget - head - outline.length;
+  return `OUTLINE (headings and table heads of the whole file)\n${outline}\n\nSTARTS\n${content.slice(0, head)}\n[...]\nENDS\n${content.slice(-Math.max(400, tail))}`;
+}
+
 /** Items grouped by a key, in first-seen order. */
 export function groupBy<T>(items: T[], key: (item: T) => string): Record<string, T[]> {
   const out: Record<string, T[]> = {};
@@ -106,8 +150,8 @@ export async function workspace(dir: string, log: (line: string) => void = () =>
 export async function relay(task: string, ws: Workspace, deps: RelayDeps): Promise<RelayResult> {
   const started = performance.now(), log = deps.log ?? ws.log;
   const trace: Trace = { jevRequests: 0, jevMs: 0, llmCalls: [], fetched: 0, sifted: 0, kept: 0, redone: [], ms: 0 };
-  const ask: Ask = async (state, questions, options) => { const t = performance.now(); trace.jevRequests++; try { return await deps.ask(state, questions, options); } finally { trace.jevMs += performance.now() - t; } };
-  const llm = async (what: string, req: Parameters<Llm>[0]) => { const t = performance.now(); try { return await deps.llm(req); } finally { trace.llmCalls.push({ what, ms: Math.round(performance.now() - t) }); } };
+  const llm = async (what: string, req: Parameters<Llm>[0]) => { const t = performance.now(); try { return await steady(deps.llm, log)(req); } finally { trace.llmCalls.push({ what, ms: Math.round(performance.now() - t) }); } };
+  const ask: Ask = async (state, questions, options) => { const t = performance.now(); trace.jevRequests++; try { return await again(() => deps.ask(state, questions, options), (e) => /unavailable or timed out|HTTP 5\d\d/.test(String(e)), log); } finally { trace.jevMs += performance.now() - t; } };
   const model = deps.model ?? MODEL;
 
   // -- director
@@ -131,7 +175,8 @@ Never plan anything that publishes, sends, buys or signs in.` })) as Plan;
       const wrong = await check(step, made);
       log(`${step.id}${attempt ? " (again)" : ""}: ${Math.round(performance.now() - t)} ms${wrong.length ? `; not yet: ${wrong.join(" | ")}` : "; accepted"}`);
       if (!wrong.length) break;
-      if (attempt === REDO) { failed.push(`${step.id}: ${wrong.join("; ")}`); break; }
+      // The same build on the same files says the same thing: a build is not redone for Jev's doubt, only reported.
+      if (attempt === REDO || step.worker === "build") { failed.push(`${step.id}: ${wrong.join("; ")}`); break; }
       trace.redone.push(step.id); feedback = wrong;
     }
   }
@@ -193,14 +238,18 @@ Never plan anything that publishes, sends, buys or signs in.` })) as Plan;
     const notes = Object.fromEntries((step.needs.length ? step.needs : Object.keys(ws.notes)).filter((id) => ws.notes[id]).map((id) => [id, ws.notes[id]!]));
     // A write step that needs an earlier write step reads what that step wrote (answers are written from the exam, not from its name).
     // A step being redone reads its own files: it repairs what was named, it does not start again.
-    const paths = [...new Set([...step.needs.flatMap((id) => madeBy[id] ?? []), ...(feedback.length ? madeBy[step.id] ?? [] : [])])].filter((p) => ws.files[p] !== undefined);
+    const ownerOf = (path: string) => Object.keys(madeBy).find((id) => madeBy[id]!.includes(path));
+    const theirs = [...new Set(step.needs.flatMap((id) => madeBy[id] ?? []))].filter((p) => ws.files[p] !== undefined && ownerOf(p) !== step.id);
+    const paths = [...new Set([...theirs, ...(feedback.length ? madeBy[step.id] ?? [] : [])])].filter((p) => ws.files[p] !== undefined);
     const files = Object.fromEntries(paths.map((p) => [p, ws.files[p]!.slice(0, 40_000)]));
     const out = (await llm(`write:${step.id}`, { model: deps.deepModel ?? DEEP, effort: "medium", schema: FILES_SCHEMA, user: JSON.stringify({ request: task, goal: step.goal, must_be_true: step.accept, not_yet_true_last_time: feedback, notes, files_so_far: Object.keys(ws.files), files }), system:
       `You write the files for one step of a task. ${deps.kit.brief}
-Use only facts that are in the notes, with their addresses where the format has a place for sources. Where the notes lack something, say so in the file instead of inventing it. Paths are relative, inside the workspace. Return every file in full.${feedback.length ? `\nThis is a repair: "files" holds what was written last time and "not_yet_true_last_time" what is wrong with it. Change what is named there and whatever depends on it; keep the rest as it is.` : ""}` })) as { files: { path: string; content: string }[] };
-    for (const file of out.files.slice(0, 40)) await ws.write(file.path, file.content);
-    madeBy[step.id] = [...new Set([...(madeBy[step.id] ?? []), ...out.files.slice(0, 40).map((f) => f.path.replace(/\\/g, "/").replace(/^\/+/, ""))])];
-    return out.files.map((f) => `FILE ${f.path} (${f.content.length} characters)\n${f.content.slice(0, 5000)}`).join("\n\n");
+Use only facts that are in the notes, with their addresses where the format has a place for sources. Where the notes lack something, say so in the file instead of inventing it. Paths are relative, inside the workspace. Write only the files this step's goal names, each in full.${theirs.length ? `\nThese files were written by earlier steps and are given under "files" for reading only; do not return them: ${theirs.join(", ")}.` : ""}${feedback.length ? `\nThis is a repair: "files" holds what this step wrote last time and "not_yet_true_last_time" what is wrong with it. Change what is named there and whatever depends on it; keep the rest as it is.` : ""}` })) as { files: { path: string; content: string }[] };
+    // The step that first wrote a file owns it. A later step that returns it anyway (with fewer notes in hand) does not overwrite it.
+    const mine = out.files.slice(0, 40).map((f) => ({ ...f, path: f.path.replace(/\\/g, "/").replace(/^\/+/, "") })).filter((f) => { const owner = ownerOf(f.path); if (owner && owner !== step.id) log(`${step.id} returned ${f.path}, which ${owner} wrote; kept as it was`); return !owner || owner === step.id; });
+    for (const file of mine) await ws.write(file.path, file.content);
+    madeBy[step.id] = [...new Set([...(madeBy[step.id] ?? []), ...mine.map((f) => f.path)])];
+    return mine.map((f) => `FILE ${f.path} (${f.content.length} characters)\n${shown(f.content)}`).join("\n\n");
   }
 
   // -- build: the kit's own. What it finds wrong goes back to the step that wrote the file, and the build runs again.
@@ -223,7 +272,9 @@ Use only facts that are in the notes, with their addresses where the format has 
       }
       made = await deps.kit.build(ws, { ask });
     }
-    return `build ${made.ok ? "succeeded" : "FAILED"}; outputs: ${made.outputs.join(", ") || "none"}\n${made.log.slice(-4000)}`;
+    const report = `build ${made.ok ? "succeeded" : "FAILED"}; outputs: ${made.outputs.join(", ") || "none"}\n${made.log.slice(-4000)}`;
+    await Bun.write(join(ws.dir, "notes", "build.log"), `${report}\n`);
+    return report;
   }
 
   // -- check: back to Jev after every step

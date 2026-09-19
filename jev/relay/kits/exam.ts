@@ -40,7 +40,7 @@ ${KEY}: a JSON array with one entry for every part whose final answer is a formu
 
 const HINTS = `How to plan this kind of task.
 Research reads a fixed set of university archives and course-outline indexes and follows their links (web search is often refused to scripts, so do not count on it); the step's goal is what a fast, literal reader sifts every link and passage against. So write each research goal as one concrete sentence naming what to look for (course codes, "course outline", "past midterm or final exam paper", the topics). Use separate research steps for: the HKUST syllabus (official course outlines and catalogue entries of MATH 1013 and MATH 1014, with their topic lists); HKUST past papers of those courses; other universities' past exam papers on differential calculus (limits, derivatives, applications); other universities' past exam papers on integral calculus, sequences and series.
-Then two write steps: first the exam and its sources (mock-exam.md, sources.md), needing all research steps; then the answers (answers.md and ${KEY}), which needs the first write step and solves the exam as written. Then one build step.
+Then two write steps: first the exam and its sources (mock-exam.md and sources.md, and only those), needing all research steps; then the answers (answers.md and ${KEY}, and only those), which needs the first write step and solves the exam as written. Then one build step, whose only accept statement is "The build output says the build succeeded.": the build checks the format, the marks, the addresses and the answer key exactly, and sends what fails back to the writers itself.
 An accept statement is checked by that same literal reader against the text produced: state one visible thing at a time ("The notes give the address of an HKUST course outline.", "mock-exam.md states the time allowed."). No counts above three, no "every" or "all", nothing about quality or correctness (the build checks those exactly). Where a step may honestly find nothing (HKUST past papers are usually behind a university login), accept either outcome: "The notes give addresses of HKUST past papers, or say plainly that none could be opened."`;
 
 // ---------------------------------------------------------------- the shape of the files (pure; tested)
@@ -113,8 +113,8 @@ export async function topicsOf(ask: Ask, questions: ExamQuestion[], topics: stri
 export async function build(ws: Workspace, tools: { ask: Ask }) {
   {
     const lines: string[] = [], repair = shapeProblems(ws.files, ws.notes);
-    lines.push(`shape: ${repair.length ? `${repair.length} problems` : "ok"}`);
     const examMd = ws.files["mock-exam.md"] ?? "", sourcesMd = ws.files["sources.md"] ?? "", questions = questionsIn(examMd);
+    lines.push(`exam format and marks check: ${repair.length ? `${repair.length} problems` : "passed"} (${questions.length} numbered questions; their marks add up to ${questions.reduce((a, q) => a + (q.marks ?? 0), 0)}; an answer and a mapping row for each; no address that is not in the research notes)`);
 
     // Addresses that are cited must open. One that does not belongs under "Not found or not opened", or nowhere.
     const cited = urlsIn(sourcesMd.split(/^#{1,4}\s*Not found or not opened/im)[0] ?? "");
@@ -136,7 +136,7 @@ export async function build(ws: Workspace, tools: { ask: Ask }) {
       let results: KeyResult[] = [];
       try { results = JSON.parse(ran.stdout) as KeyResult[]; } catch { lines.push(`sympy: the checker failed: ${ran.stderr.slice(-300)}`); }
       const wrong = results.filter((r) => r.verdict === "wrong"), unverified = results.filter((r) => r.verdict === "unverified");
-      lines.push(`sympy: ${results.filter((r) => r.verdict === "ok").length} answers verified, ${wrong.length} wrong, ${unverified.length} could not be checked (of ${key.length} in the key; ${questions.length} questions)`);
+      lines.push(`answer key check (sympy): ${results.filter((r) => r.verdict === "ok").length} answers verified, ${wrong.length} wrong, ${unverified.length} could not be checked (of ${key.length} in the key; ${questions.length} questions)`);
       for (const r of wrong) { const entry = (key as Record<string, unknown>[]).find((k) => String(k.question) === r.question); repair.push({ file: "answers.md", problem: `Question ${r.question}: the key claims ${JSON.stringify(entry?.claimed)} for ${entry?.kind} of ${JSON.stringify(entry?.expr)}, but ${r.detail}. Rework this part by hand; correct answers.md and the key (or the key's transcription, if answers.md was right).` }); }
       for (const r of unverified) lines.push(`  unverified ${r.question}: ${r.detail}`);
       await Bun.write(join(ws.dir, "notes", "answers.verified.json"), JSON.stringify(results, null, 2));
