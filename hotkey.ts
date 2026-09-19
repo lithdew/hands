@@ -212,18 +212,16 @@ export function createVoiceListener(opts: {
     session.closing = true;
     session.listener.cancelUtterance();
   }
-  return {
-    begin() {
+  function begin(speaking = true) {
       if (current && !current.cancelled) {
         if (!current.closing || current.finishing) throw new Error("The previous recording is still finishing.");
-        if (busy()) {
-          current.text = "";
-          current.closing = false;
-          current.error = null;
-          current.listener.warm();
-          return;
-        }
-        cancel(); // Finished history must not make a fresh request look already covered.
+        // A later hold can correct an active hand or continue a failed/completed
+        // task. The listener distinguishes those from a fresh independent job.
+        current.text = "";
+        current.closing = !speaking;
+        current.error = null;
+        if (speaking) current.listener.warm();
+        return;
       }
       let session: Session;
       const listener = createListener({
@@ -239,18 +237,20 @@ export function createVoiceListener(opts: {
             const worker = await opts.runtime(hand);
             runtime = worker;
             if (job.signal.aborted || session.cancelled) return { status: "cancelled", reason: "Voice task cancelled", steps: [] };
-            let assigned = job.intent().goal;
+            let assigned = job.intent().goal, context = job.transcript();
             unsubscribe = job.onUpdate?.((intent) => {
               // Other tasks remain context for the gate. Only Jev's assigned
               // goal can steer this worker, including when speech finishes.
-              if (intent.goal !== assigned) {
+              const latestContext = job.transcript();
+              if (intent.goal !== assigned || latestContext !== context) {
                 assigned = intent.goal;
-                worker.refine(assigned, job.transcript());
+                context = latestContext;
+                worker.refine(assigned, context);
               }
             });
             session.workers.add(worker);
             job.signal.addEventListener("abort", stop, { once: true });
-            await worker.prompt(assigned, [], job.transcript(), { speechEnds: job.speechEnds, transcript: job.transcript });
+            await worker.prompt(assigned, [], context, { speechEnds: job.speechEnds, transcript: job.transcript });
             const error = worker.status().error;
             return { status: job.signal.aborted ? "cancelled" : error ? "gave_up" : "done", reason: error ?? "Voice task finished", steps: [] };
           } catch (error) {
@@ -263,10 +263,22 @@ export function createVoiceListener(opts: {
           }
         },
       });
-      session = { listener, text: "", closing: false, finishing: false, cancelled: false, workers: new Set(), error: null };
+      session = { listener, text: "", closing: !speaking, finishing: false, cancelled: false, workers: new Set(), error: null };
       current = session;
-      listener.warm();
+      if (speaking) listener.warm();
+  }
+  return {
+    begin: () => begin(),
+    async submit(text: string) {
+      text = TaskTextSchema.parse(text);
+      begin(false);
+      const session = current!;
+      session.text = text; session.finishing = true;
+      try { await session.listener.submit(text); }
+      catch (error) { session.error = redact(error instanceof Error ? error.message : "Could not start the typed task."); throw error; }
+      finally { session.finishing = false; }
     },
+    recordCorrection: async (hand: number, text: string) => !current?.cancelled && await current?.listener.recordCorrection(hand, TaskTextSchema.parse(text)) || false,
     hear(text: string) {
       if (!current || current.closing || current.cancelled) return;
       current.text = z.string().max(16_000).parse(text).trim();
@@ -624,15 +636,11 @@ export async function servePuk(opts: {
     port: opts.port ?? Number(process.env.PUK_PORT ?? 7777),
     startRecording: (onDelta) => (opts.dependencies?.record ?? startRecording)({ onDelta }),
     onStart(signal) {
-      const begin = async () => {
+      const begin = () => {
         signal.throwIfAborted();
         if (changingProvider) throw new Error("Wait for the model change before recording another task.");
-        const hands = await availableHands();
-        signal.throwIfAborted();
-        const reserved = new Set(voice.status().tasks.filter((task) => task.status === "running").map((task) => task.hand));
-        if (!hands.some((hand) => !reserved.has(hand.id) && !starting.has(hand.id) && !workers.get(hand.id)?.runtime.status().running)) {
-          throw new Error("All hands are busy. Wait for a free hand or press Stop before recording another task.");
-        }
+        // Recording must remain available to correct or cancel occupied hands.
+        // The listener queues independent tasks until a hand becomes available.
         voice.begin();
       };
       return stopping ? stopping.then(begin) : begin();
@@ -652,7 +660,7 @@ export async function servePuk(opts: {
         try { const { previewScreenshot } = await import("./pip"); return new Response(await previewScreenshot(active().hand), { headers: { "Content-Type": "image/png", "Cache-Control": "no-store" } }); }
         catch { return new Response("Desktop unavailable", { status: 503 }); }
       }
-      if (!["/task", "/stop", "/approve", "/provider", "/hand", "/desktop/enter", "/desktop/back", "/desktop/layout"].includes(path)) return null;
+      if (!["/task", "/refine", "/stop", "/approve", "/provider", "/hand", "/desktop/enter", "/desktop/back", "/desktop/layout"].includes(path)) return null;
       if (request.method !== "POST") return new Response("Use POST", { status: 405, headers: { Allow: "POST" } });
       try {
         if (path === "/stop") {
@@ -685,6 +693,22 @@ export async function servePuk(opts: {
           selected = hand.id;
           return Response.json({ ok: true });
         }
+        if (path === "/refine") {
+          const parsed = z.object({ hand: z.int().positive().optional(), text: TaskTextSchema }).safeParse(body);
+          if (!parsed.success) return Response.json({ error: "Choose a hand and enter a correction of at most 16000 characters." }, { status: 400 });
+          const worker = workers.get(parsed.data.hand ?? selected);
+          if (!worker) return Response.json({ error: "That hand has no active worker." }, { status: 404 });
+          const current = worker.runtime.status();
+          if (!current.running || changingProvider || stopping) return Response.json({ error: "That hand is not running a task to correct." }, { status: 409 });
+          const revised = TaskTextSchema.safeParse(`${current.task}\nCorrection: ${parsed.data.text}`);
+          if (!revised.success) return Response.json({ error: "The task and correction exceed 16000 characters." }, { status: 400 });
+          if (!await voice.recordCorrection(worker.hand.id, parsed.data.text)) {
+            if (!worker.runtime.status().running) return Response.json({ error: "That hand finished before the correction arrived." }, { status: 409 });
+            worker.runtime.refine(revised.data);
+          }
+          voice.clearError(); controller.clearError();
+          return Response.json({ ok: true, hand: worker.hand.id }, { status: 202 });
+        }
         if (busy() || stopping || voice.status().busy || controller.status().state !== "idle") return Response.json({ error: "A task or recording is active. Stop it first." }, { status: 409 });
         if (path === "/provider") {
           const parsed = z.object({ provider: ProviderSelectionSchema }).safeParse(body);
@@ -702,9 +726,7 @@ export async function servePuk(opts: {
           const task = z.object({ text: TaskTextSchema }).safeParse(body);
           if (!task.success) return Response.json({ error: "Enter a task of at most 16000 characters." }, { status: 400 });
           voice.clearError(); controller.clearError();
-          void active().runtime.prompt(task.data.text).finally(() => voice.schedule()).catch((error) => {
-            debugLog("listener", { message: redact(error instanceof Error ? error.message : "Could not schedule the next task.") });
-          });
+          await voice.submit(task.data.text);
         }
         return Response.json({ ok: true }, { status: 202 });
       } catch (error) { return Response.json({ error: redact(error instanceof Error ? error.message : "Request failed.") }, { status: 400 }); }

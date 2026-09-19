@@ -130,6 +130,29 @@ test("a failed shell process is a failed tool result rather than successful comp
   } finally { await runtime.close(); }
 });
 
+test("a new F8 hold invalidates an existing approval before its first words arrive", async () => {
+  let ran = 0, holding: Promise<void> | null = null;
+  const released = Promise.withResolvers<void>();
+  const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+    desktop: { ...fakeDesktop, bash: async () => { ran++; return { exitCode: 0, timedOut: false, cancelled: false, stdout: "", stderr: "" }; } },
+    gate: async () => ({ decision: "approval", risk: 0.9, reason: "Review" }),
+    streamFn: scriptedModel([{ name: "bash", arguments: { command: "echo test" } }]),
+  });
+  const pending = runtime.prompt("Do the requested action", [], undefined, { speechEnds: () => holding, transcript: () => "" });
+  try {
+    for (let n = 0; !runtime.status().approval && n < 100; n++) await Bun.sleep(5);
+    const approval = runtime.status().approval;
+    expect(approval).not.toBeNull();
+    holding = released.promise;
+    runtime.approve(approval!.id, true);
+    for (let n = 0; !runtime.agent.state.messages.some(m => m.role === "toolResult") && n < 100; n++) await Bun.sleep(5);
+    expect(ran).toBe(0);
+    expect(JSON.stringify(runtime.agent.state.messages)).toContain("New speech began during review");
+    holding = null; released.resolve();
+    await pending;
+  } finally { holding = null; released.resolve(); await runtime.close(); }
+});
+
 function failedMessage(model: ReturnType<typeof providerModel>, errorMessage = "HTTP 503 unavailable", content: AssistantMessage["content"] = []): AssistantMessage {
   return { role: "assistant", api: model.api, provider: model.provider, model: model.id, timestamp: Date.now(), content, stopReason: "error", errorMessage,
     usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };

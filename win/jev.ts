@@ -20,7 +20,7 @@ import { parseIntent, type Intent } from "../jev/intent";
 import { choice, createJev, jevApiKey, noul, type Ask } from "../jev/jev";
 import { createOpenAI, type Llm } from "../jev/openai";
 import { quickIntent } from "../jev/quick";
-import { browserWindow, capture, connectCua, frontOf, handBrowser, windowsDesktop } from "./desktop";
+import { browserTarget, browserWindow, capture, connectCua, frontOf, handBrowser, windowsDesktop } from "./desktop";
 import { observeHand, pageSettled } from "./observe";
 import { semanticComputer } from "./semantic";
 
@@ -33,7 +33,7 @@ type Runtime = Awaited<ReturnType<typeof createDesktopAgent>>;
 type Speaking = Parameters<Runtime["prompt"]>[3];
 export type JevFirstOptions = DesktopAgentOptions & { jevFirst?: {
   ask?: Ask; llm?: Llm; agent?: typeof createDesktopAgent;
-  run?: typeof runIntent; browserWindow?: typeof browserWindow; frontOf?: typeof frontOf;
+  run?: typeof runIntent; browserWindow?: typeof browserWindow; frontOf?: typeof frontOf; browserTarget?: typeof browserTarget;
 } };
 
 /** Pure: what `perform` sends for a key from jev/cua.ts KEYS ("Return", "shift+Tab", "alt+Left"). */
@@ -61,7 +61,7 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
   let declined = false;
   let settled = Promise.withResolvers<void>();
   settled.resolve();
-  let said = "", intent: Intent | undefined, rebuilding = 0, startedAt = 0;
+  let said = "", fullUtterance: string | undefined, intent: Intent | undefined, rebuilding = 0, startedAt = 0;
   const log = (text: string) => { mine.events.push({ time: Date.now(), text: redact(text).slice(0, 1000) }); mine.events = mine.events.slice(-30); debugLog("win.jev", { hand: hand.id, text }); };
 
   let computer: ReturnType<typeof connectCua> | undefined;
@@ -118,8 +118,9 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
       app: choice("Which installed application does `request` name, or clearly need opened first? Anything on the web, a web site or a search is `browser`.", { ...apps, [BROWSER]: "The web browser: web sites, searching, anything online.", [NO_APP]: "No application needs opening, or it is unclear which." }),
       only_open: noul("`request` asks only to open, start or show an application, and nothing more once it is open."),
       wants_answer: noul("The speaker expects to be told something: a fact, a number, a summary or an answer read from the screen."),
+      existing_browser: noul("The user explicitly asks to use their existing/current/actual/signed-in browser, Chrome profile, or their own Gmail/YouTube/web account, or says not to use a sandbox/private browser. This requires attaching the existing browser. Merely naming a public site or asking for a web search is not enough."),
     });
-    return { app: answers.app.choice as string, sure: answers.app.confidence, onlyOpen: answers.only_open.noul, wantsAnswer: answers.wants_answer.noul };
+    return { app: answers.app.choice as string, sure: answers.app.confidence, onlyOpen: answers.only_open.noul, wantsAnswer: answers.wants_answer.noul, existingBrowser: answers.existing_browser.noul };
   }
 
   async function work(text: string, opened: string[], utterance: string | undefined, speaking: Speaking, signal: AbortSignal): Promise<void> {
@@ -129,20 +130,33 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
       phase = "pi";
       const steps = done?.steps.map((s) => `${s.did} -> ${s.outcome}`).slice(-8) ?? [];
       const note = `\n\nThe Jev controller stopped in this hand (${why}).${steps.length ? ` Its recorded steps were: ${steps.join("; ")}.` : ""} Get a fresh compact observation of the current window and keep completed work. If an input failed, inspect its result before retrying it. Reuse applications that are still open; reopen a needed application only if its window has closed.`;
-      await pi.prompt(said + note, opened, utterance, speaking);
+      await pi.prompt(said + note, opened, fullUtterance, speaking);
     };
 
     try {
+      const bound = (opts.jevFirst?.browserTarget ?? browserTarget)(hand);
+      if (bound.mode === "existing") {
+        return handOver(bound.ready
+          ? "this hand is already connected to the user's existing Chrome. Start with computer_browser action: snapshot and use its semantic references. Reuse the working connection, current page and account"
+          : "this hand targets the user's existing Chrome but needs its connection restored. Use computer_browser action: attach, mode: existing; do not substitute a private browser", null);
+      }
       const catalog = pi.apps();
       // Both start now, but opening an application does not wait for the intent:
       // when Jev alone cannot build it, that is a call to an LLM.
+      const startingRevision = rebuilding;
       const building = buildIntent(text);
       building.catch(() => {});
       const kind = await triage(text, catalog).catch(() => null);
       if (signal.aborted) return;
+      if (startingRevision !== rebuilding) return handOver("the request changed while Jev was starting. Apply the latest instruction before opening or driving an application", null);
+      if ((kind?.existingBrowser ?? 0) >= 0.6) {
+        return handOver("the user requested their existing browser/account. Call computer_browser with action: attach and mode: existing before observing its tabs. If attachment needs a browser choice, show the available browser targets; do not launch a private browser", null);
+      }
       const native = kind && kind.sure >= 0.6 && kind.app !== BROWSER && kind.app !== NO_APP;
-      if (!native) intent = await building ?? undefined;
+      const initialIntent = !native ? await building : undefined;
       if (signal.aborted) return;
+      if (startingRevision !== rebuilding) return handOver("the request changed while Jev was starting. Apply the latest instruction before opening or driving an application", null);
+      if (!native) intent = initialIntent ?? undefined;
       const web = !native && (intent?.launcher === "browser" || kind?.app === BROWSER);
 
       if (!web) {
@@ -218,7 +232,7 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
     },
     async prompt(text, opened = [], utterance, speaking) {
       if (phase === "jev" || pi.status().running) throw new Error("The agent is busy. Stop it before starting another task.");
-      phase = "jev"; said = text; intent = undefined; declined = false; startedAt = Date.now();
+      phase = "jev"; said = text; fullUtterance = utterance; intent = undefined; declined = false; startedAt = Date.now(); rebuilding++;
       mine = { task: text, text: "", error: null, currentTool: "Jev is reading the request", approval: null, events: [] };
       abort = new AbortController(); settled = Promise.withResolvers<void>();
       const started = performance.now();
@@ -231,9 +245,12 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
       }
     },
     refine(text, utterance) {
+      if (phase !== "jev" && (phase !== "pi" || !pi.status().running)) return;
+      const goalChanged = text !== said;
+      if (!goalChanged && utterance === fullUtterance) return;
+      said = text; fullUtterance = utterance; mine.task = text;
       if (phase === "pi") return pi.refine(text, utterance);
-      if (phase !== "jev" || text === said) return;
-      said = text; mine.task = text;
+      if (!goalChanged) return;
       // jev/cua.ts reads the intent again at every step, so a refined one takes effect on the next.
       const mineIs = ++rebuilding;
       void buildIntent(text).then((next) => { if (next && mineIs === rebuilding && phase === "jev") intent = next; });

@@ -66,6 +66,10 @@ export type Listener = {
   hear(transcript: string): void;
   /** The speaker has finished. An optional final STT result replaces the partial atomically. */
   finish(transcript?: string): Promise<void>;
+  /** Enqueue one explicit, complete typed task without classifying speech boundaries. */
+  submit(text: string): Promise<void>;
+  /** Record an explicitly targeted correction and notify the task's owning agent. */
+  recordCorrection(hand: number, correction: string): Promise<boolean>;
   /** Discard only this recording, leaving earlier independent work running. */
   cancelUtterance(): void;
   /** Retry queued work after an external worker releases a hand. */
@@ -91,7 +95,13 @@ type Live = Task & {
   utterance: Utterance;
   requestPrefix: string;
   contextPrefix: string;
+  /** Stable context before this utterance refined an earlier task. */
+  prior?: TaskContext;
 };
+
+type TaskContext = Pick<Live, "id" | "request" | "startWord" | "startChar" | "hand" | "result" | "utterance" | "requestPrefix" | "contextPrefix">;
+type RecalledTask = TaskContext & { status: TaskStatus; source?: Live };
+const taskContext = (task: TaskContext): TaskContext => ({ id: task.id, request: task.request, startWord: task.startWord, startChar: task.startChar, hand: task.hand, result: task.result, utterance: task.utterance, requestPrefix: task.requestPrefix, contextPrefix: task.contextPrefix });
 
 type Utterance = { text: string; speaking: boolean; ended: ReturnType<typeof Promise.withResolvers<void>>; abort: AbortController };
 const newUtterance = (): Utterance => ({ text: "", speaking: false, ended: Promise.withResolvers<void>(), abort: new AbortController() });
@@ -112,15 +122,15 @@ export const SPEAKING_RISK_THRESHOLD = 0.25;
 
 const QUESTIONS = {
   relation: choice(
-    "How does the FIRST request in new_words relate to the existing tasks? Consider the first request if several arrived together. Opening an app followed by saying what to do in that app is one continuing task: opening notes then drafting, or opening a browser then searching/viewing something.",
+    "How does the FIRST request in new_words relate to the existing tasks? Consider the first request if several arrived together. Opening an app followed by saying what to do in that app is one continuing task. A correction can name any existing task; a short follow-up can continue a completed or failed task. Use its original target and recipient as context. A fresh repeat of a completed request is new_task.",
     {
       no_request:
         "`new_words` ask for nothing: filler, a greeting, thinking aloud, or the first words of a sentence that does not yet say what to do.",
       covered: "`new_words` only repeat what a task in `tasks` already says.",
       refines:
-        "The new words continue or correct the latest task: finish its sentence, add a detail, or add a step using that task's app or output.",
+        "The new words continue or correct an existing task: finish its sentence, add a constraint, change its recipient, or resume it using its app or output. 'Use my actual Chrome, not a sandbox' refines the browser task.",
       new_task: "The new words ask for a separate, independent job with its own target and purpose. Another desktop could work on it in parallel.",
-      retracts: "`new_words` take the latest task back: never mind, stop, cancel that, do not do it.",
+      retracts: "`new_words` take a task back: never mind, stop, cancel that, do not do it. A restriction on how to do it, such as 'do not use a sandbox', is a refinement, not cancellation of the task.",
     },
   ),
   startable: noul("Enough of the FIRST request in new_words has been said to start working: it is clear what to open first, even if details are still to come.", {
@@ -139,7 +149,7 @@ function cutPoints(text: string, isFinal: boolean) {
   // Streaming STT uses sentence punctuation for pauses and repairs, such as
   // "Open Pay? Paint". Only the final transcript may split on those marks.
   const boundaries = isFinal
-    ? /\s+(?:and|also|then|meanwhile|separately|plus)\b|[.!?;,。！？；，]\s*|另外|然后|同时/giu
+    ? /\s+(?:and|also|then|meanwhile|separately|plus)\b|(?:[.!?](?=\s|$)|[;,。！？；，])\s*|另外|然后|同时/giu
     : /\s+(?:and|also|then|meanwhile|separately|plus)\b|[;,；，]\s*|另外|然后|同时/giu;
   return [...text.matchAll(boundaries)]
     .map((match) => ({ at: match.index, before: text.slice(0, match.index).trim(), after: text.slice(match.index).trim() }))
@@ -154,7 +164,7 @@ function hasUnsettledSentence(text: string) {
   // A bare sentence boundary needs final STT confirmation. Explicit connectors
   // can still start independent work before release. Keep the words pending so
   // finish() can split genuine sentences even when no new words arrive then.
-  return [...text.matchAll(/[.!?。！？]+\s*([^.!?。！？]*)/gu)].some((match) => {
+  return [...text.matchAll(/(?:[.!?](?=\s|$)|[。！？])+\s*([^.!?。！？]*)/gu)].some((match) => {
     const after = match[1]!.trim();
     return /[\p{L}\p{N}]/u.test(after) && !/^(?:(?:and|also|then|meanwhile|separately|plus)\b|另外|然后|同时)/iu.test(after);
   });
@@ -181,23 +191,35 @@ export function createListener(deps: ListenDeps): Listener {
   let scheduling = Promise.resolve();
   let epoch = 0;
   let finalError: Error | null = null;
+  let addressed: Live | undefined;
+  let recovered: TaskContext[] = [];
   const currentPass = (version: number) => !abort.signal.aborted && version === epoch;
 
-  const open = () => tasks.findLast((t) => t.status === "waiting" || t.status === "running");
+  const recentTasks = (): RecalledTask[] => {
+    const eligible = tasks.filter((t) => !t.superseded && (t.status === "waiting" || t.status === "running" || t.result && ["done", "dry_run", "gave_up", "out_of_steps"].includes(t.result.status)));
+    // Keep running hands addressable even after several independent requests.
+    const running = eligible.filter((t) => t.status === "running");
+    const history = eligible.filter((t) => t.status !== "running").slice(-Math.max(1, 8 - running.length));
+    return [...history, ...running].sort((a, b) => a.id - b.id).map<RecalledTask>((task) => ({ ...taskContext(task), status: task.status, source: task }))
+      .concat(recovered.filter((task) => !eligible.some((live) => live.id === task.id)).map((task) => ({ ...task, status: "failed" as const, source: undefined })));
+  };
   const job = (task: Live): Job => ({
     intent: () => task.intent,
     signal: task.abort.signal,
     transcript: () => task.contextPrefix + task.utterance.text,
-    speechEnds: () => (task.utterance.speaking ? task.utterance.ended.promise : null),
+    // A fresh hold may change the recipient or cancel any occupied hand. Its
+    // barrier begins at key-down, before Jev can assign the first words.
+    speechEnds: () => utterance.speaking ? utterance.ended.promise : task.utterance.speaking ? task.utterance.ended.promise : null,
     onUpdate: (listener) => { task.listeners.add(listener); return () => { task.listeners.delete(listener); }; },
   });
 
   // ---- hands
 
-  async function freeHand(): Promise<Hand | undefined> {
+  async function freeHand(preferred: number | null): Promise<Hand | undefined> {
     const hands = await deps.hands();
     const busy = new Set(tasks.filter((t) => t.working).map((t) => t.hand));
-    return hands.find((h) => !busy.has(h.id) && !deps.unavailable?.(h));
+    const free = hands.filter((h) => !busy.has(h.id) && !deps.unavailable?.(h));
+    return free.find((h) => h.id === preferred) ?? free[0];
   }
 
   function start(task: Live, hand: Hand) {
@@ -232,7 +254,7 @@ export function createListener(deps: ListenDeps): Listener {
     const next = scheduling.then(async () => {
       for (const task of tasks.filter((t) => t.status === "waiting")) {
         if (abort.signal.aborted) return;
-        const hand = await freeHand();
+        const hand = await freeHand(task.hand);
         if (!hand) return;
         start(task, hand);
       }
@@ -270,17 +292,18 @@ export function createListener(deps: ListenDeps): Listener {
     return { intent: await parseIntent(deps.llm, request), route: "llm" };
   }
 
-  async function create(request: string, startWord: number, startChar: number, route: "jev" | "llm", isFinal: boolean, version: number) {
+  async function create(request: string, startWord: number, startChar: number, route: "jev" | "llm", isFinal: boolean, version: number, previous?: RecalledTask) {
     const built = await build(request, route, isFinal);
     if (!currentPass(version)) return;
+    const sameTurn = previous?.utterance === utterance;
     const task: Live = {
       id: tasks.length + 1,
       request,
-      startWord,
-      startChar,
+      startWord: sameTurn ? previous.startWord : startWord,
+      startChar: sameTurn ? previous.startChar : startChar,
       ...built,
       status: "waiting",
-      hand: null,
+      hand: previous?.hand ?? null,
       result: null,
       abort: new AbortController(),
       run: 0,
@@ -291,10 +314,14 @@ export function createListener(deps: ListenDeps): Listener {
       superseded: false,
       listeners: new Set(),
       utterance,
-      requestPrefix: "",
-      contextPrefix: "",
+      requestPrefix: previous ? sameTurn ? previous.requestPrefix : previous.request + "\n" : "",
+      contextPrefix: previous ? `${previous.contextPrefix}${sameTurn ? "" : previous.utterance.text}\n\nPrevious attempt: ${previous.result?.status ?? "interrupted"}: ${previous.result?.reason ?? "An unconfirmed spoken correction was replaced"}. Continue from the current state; inspect prior results and do not repeat completed sends or other completed actions.\nFollow-up: ` : "",
+      prior: previous && taskContext(previous),
     };
+    if (previous?.source) previous.source.superseded = true;
+    if (previous) recovered = recovered.filter((entry) => entry.id !== previous.id);
     tasks.push(task);
+    addressed = task;
     log(`task ${task.id} (${task.route}): ${JSON.stringify(task.intent.inputs)} ${task.intent.url ?? task.intent.launcher}`);
     await startWaiting();
     if (task.status === "waiting") log(`task ${task.id} is waiting for a free hand`);
@@ -302,6 +329,7 @@ export function createListener(deps: ListenDeps): Listener {
 
   async function refine(task: Live, request: string, isFinal: boolean, version: number) {
     if (task.utterance !== utterance) {
+      task.prior = taskContext(task);
       task.contextPrefix += task.utterance.text + "\n";
       task.requestPrefix = task.request + "\n";
       task.startChar = 0;
@@ -331,6 +359,7 @@ export function createListener(deps: ListenDeps): Listener {
     // The LLM knows what to write but sometimes not where to start. Jev's opening move already picked a site.
     if (built.intent.launcher === "browser" && !built.intent.url && before.launcher === "browser") built.intent.url = before.url;
     task.intent = built.intent; // the running loop reads this at its next step
+    addressed = task;
     task.route = built.route;
     task.stale = false;
     log(`task ${task.id} refined (${task.route}): ${JSON.stringify(task.intent.inputs)}`);
@@ -350,15 +379,22 @@ export function createListener(deps: ListenDeps): Listener {
     const beforeConsumed = consumed;
     let boundary: number | undefined;
     if (newWords) {
+      const candidates = recentTasks();
+      const latestTask = candidates.find((candidate) => candidate.source === addressed) ?? candidates.at(-1);
       const answers = await ask(
         {
           transcript: text,
           new_words: newWords,
           speaker_has_finished: isFinal,
-          tasks: tasks.filter((t) => !t.superseded).map((t) => ({ request: t.request, status: t.status })),
+          latest_task: latestTask ? `task_${latestTask.id}` : null,
+          tasks: candidates.map((t) => ({ id: `task_${t.id}`, hand: t.hand, request: t.request, status: t.status, result: t.result?.reason.slice(0, 500) ?? null })),
         },
         {
           ...QUESTIONS,
+          ...(candidates.length > 1 ? { target_task: choice(
+            "If new_words correct, continue, repeat or cancel an existing task, which one? Match the named app, recipient or purpose. Use latest for an unqualified 'that' or 'actually', and when the request is independent. Answer separately from whether it is a refinement, cancellation or new task.",
+            { latest: "The task in latest_task, or no existing task is addressed.", ...Object.fromEntries(candidates.map((task) => [`task_${task.id}`, `The tasks entry task_${task.id}, assigned to hand ${task.hand ?? "waiting"}.`])) },
+          ) } : {}),
           ...(cuts.length ? { cut: choice(
             "Does new_words contain MORE THAN ONE independent task that different desktops could work on at once? Choose the earliest offered boundary between them, otherwise none. A later step using the same app, a detail, a correction, quoted content or a dependency is ONE task. For example 'open notes and write a plan' stays together; 'open notes and also find a capybara photo' may split. Do not split a dependent step such as saving what was just written.",
             { none: "Keep these words together as one task.", ...Object.fromEntries(cuts.map((cut) => [cut.id, `Independent tasks: first ${JSON.stringify(cut.before)}, then ${JSON.stringify(cut.after)}.`])) },
@@ -374,7 +410,13 @@ export function createListener(deps: ListenDeps): Listener {
       }
       const relation = answers.relation.choice;
       const sure = isFinal || answers.relation.confidence >= MIN_RELATION_CONFIDENCE;
-      const current = open();
+      const target = answers.target_task;
+      const current = target && target.choice !== "latest" ? candidates.find((t) => `task_${t.id}` === target.choice) : latestTask;
+      const active = current?.source && (current.status === "waiting" || current.status === "running") ? current.source : undefined;
+      if ((relation === "refines" || relation === "retracts") && target && target.confidence < MIN_RELATION_CONFIDENCE) {
+        if (isFinal) throw new Error("Name the app or task you want to correct; this could refer to more than one hand.");
+        return;
+      }
       log(
         `heard ${JSON.stringify(newWords)}: ${relation} ${answers.relation.confidence.toFixed(2)}, startable ${answers.startable.noul.toFixed(2)}, route ${answers.route.choice}`,
       );
@@ -390,21 +432,34 @@ export function createListener(deps: ListenDeps): Listener {
         }
       } else if (!sure) {
         // not sure enough to change or drop a task on: wait for another word
-      } else if (relation === "covered") {
+      } else if (relation === "covered" && active) {
         consumed = text;
+      } else if (relation === "covered") {
+        // Asking again after completion is an explicit new request, not a
+        // duplicate that can be silently discarded because of old history.
+        if (!deferNewTask && startable) {
+          await create(newWords, consumed.split(/\s+/).filter(Boolean).length, consumed.length, answers.route.choice, isFinal, version);
+          if (currentPass(version)) consumed = text;
+        }
       } else if (relation === "retracts") {
         consumed = text;
-        if (current) {
-          current.abort.abort();
-          current.status = "cancelled";
-          log(`task ${current.id} taken back`);
+        if (active) {
+          active.abort.abort();
+          active.status = "cancelled";
+          log(`task ${active.id} taken back`);
           // Its hand is free once the loop on it has stopped; `settled` ends in startWaiting.
         }
       } else if (current) {
+        if (current.utterance === utterance && current !== latestTask) {
+          current.requestPrefix = current.request + "\n";
+          current.startChar = consumed.length;
+          if (active) { active.requestPrefix = current.requestPrefix; active.startChar = current.startChar; }
+        }
         const request = current.utterance === utterance
           ? current.requestPrefix + text.slice(current.startChar).trim()
           : current.request + "\n" + text.trim();
-        await refine(current, request, isFinal, version);
+        if (active) await refine(active, request, isFinal, version);
+        else await create(request, consumed.split(/\s+/).filter(Boolean).length, consumed.length, answers.route.choice, isFinal, version, current);
         if (currentPass(version)) consumed = text;
       }
     }
@@ -487,6 +542,7 @@ export function createListener(deps: ListenDeps): Listener {
     handled = { text: "", finished: false };
     consumed = "";
     finalError = null;
+    recovered = [];
   }
 
   function receive(transcript: string) {
@@ -499,6 +555,9 @@ export function createListener(deps: ListenDeps): Listener {
       utterance.abort.abort();
       utterance.abort = new AbortController();
       const old = tasks.filter((task) => task.utterance === utterance);
+      // Rewriting a later hold replaces its partial correction, not the
+      // original request/recipient. Keep that baseline for Jev to refer to.
+      recovered = [...new Map([...recovered, ...old.flatMap((task) => task.prior ? [task.prior] : [])].map((task) => [task.id, task])).values()];
       stopTasks(old);
       for (const task of old) task.superseded = true;
       consumed = "";
@@ -512,7 +571,10 @@ export function createListener(deps: ListenDeps): Listener {
   return {
     tasks,
     warm() {
-      if (!abort.signal.aborted) void ask("ready", { ready: noul("The text says ready.") }).catch(() => {});
+      if (!abort.signal.aborted) {
+        utterance.speaking = true;
+        void ask("ready", { ready: noul("The text says ready.") }).catch(() => {});
+      }
     },
     hear(transcript) {
       receive(transcript);
@@ -522,6 +584,36 @@ export function createListener(deps: ListenDeps): Listener {
     finish(transcript) {
       if (transcript !== undefined && !ending) receive(transcript);
       return ending ??= finishUtterance().finally(() => { ending = null; });
+    },
+    async submit(text) {
+      if (abort.signal.aborted) throw new Error("This listener was stopped.");
+      if (utterance.speaking || finished || ending) throw new Error("Finish the current recording before submitting a typed task.");
+      if (pump) await pump;
+      receive(text);
+      const submitting = utterance;
+      finished = true;
+      try { await create(latest, 0, 0, "llm", true, epoch); }
+      finally { complete(submitting); }
+    },
+    async recordCorrection(hand, correction) {
+      // Let an already pending speech classification settle before inserting a
+      // typed correction, so it cannot overwrite a newer explicit instruction.
+      if (pump) await pump;
+      const task = tasks.findLast((task) => task.hand === hand && task.status === "running" && !task.abort.signal.aborted);
+      if (!task || abort.signal.aborted) return false;
+      const suffix = `\nCorrection: ${correction}`;
+      const request = task.request + suffix;
+      if (request.length > 16_000) throw new Error("The task and correction exceed 16000 characters.");
+      task.request = request;
+      task.intent = { ...task.intent, goal: request };
+      if (task.utterance === utterance) {
+        task.requestPrefix = request + "\n";
+        task.startChar = latest.length;
+      }
+      if (task.prior) task.prior = { ...task.prior, request: task.prior.request + suffix, contextPrefix: task.prior.contextPrefix + suffix + "\n" };
+      addressed = task;
+      for (const listener of task.listeners) listener(task.intent);
+      return true;
     },
     cancelUtterance() {
       epoch++;
