@@ -6,6 +6,22 @@ const page = (): Snapshot => ({ kind: "browser", identity: "1:2:https://example.
   { key: "save", role: "button", name: "Save", within: "Notifications", address: { x: 3, y: 4 } },
 ] });
 
+test("attaching replaces the observation and invalidates old refs without falling back after a failure", async () => {
+  const targets: string[] = [];
+  let fail = false, actions = 0;
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => page(), act: async () => { actions++; },
+    attach: async target => { targets.push(target.mode); if (fail) throw new Error("Chrome unavailable"); } });
+  await computer.look({ what: "window" });
+  expect(computer.describe("computer_browser", { action: "attach", mode: "existing", window_id: 42, pid: 123 })).toMatchObject({ browserMode: "existing", window_id: 42, pid: 123 });
+  const observed = await computer.browser({ action: "attach", mode: "existing" });
+  expect(JSON.stringify(observed.content)).toContain("p2:0");
+  await expect(computer.act({ action: "click", ref: "p1:1" })).rejects.toThrow("stale");
+  fail = true;
+  await expect(computer.browser({ action: "attach", mode: "existing" })).rejects.toThrow("unavailable");
+  await expect(computer.act({ action: "click", ref: "p2:1" })).rejects.toThrow("Look");
+  expect(targets).toEqual(["existing", "existing"]); expect(actions).toBe(0);
+});
+
 test("an action returns fresh state and references; old or hidden refs never reach input", async () => {
   const state = page(), inputs: unknown[] = [];
   const computer = createSemanticComputer({ windows: async () => [], observe: async () => structuredClone(state), act: async (_s, action) => { inputs.push(action); state.texts = ["Search complete"]; } });

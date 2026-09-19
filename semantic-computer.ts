@@ -13,7 +13,8 @@ export const ActSchema = z.object({
   replace: z.boolean().optional(), direction: z.enum(["up", "down"]).optional(), amount: z.int().min(1).max(30).optional(),
   description: z.string().max(1000).optional(), ...projection,
 });
-export const BrowserSchema = ActSchema.extend({ action: z.enum(["tabs", "snapshot", "navigate", "click", "type", "key", "scroll"]), url: z.url().optional() });
+export const BrowserSchema = ActSchema.extend({ action: z.enum(["attach", "tabs", "snapshot", "navigate", "click", "type", "key", "scroll"]), url: z.url().optional(),
+  mode: z.enum(["existing", "private"]).optional(), window_id: z.int().positive().optional(), pid: z.int().positive().optional() });
 export type SemanticAction = z.infer<typeof ActSchema> | z.infer<typeof BrowserSchema>;
 export type Element = { key: string; role: string; name: string; value?: string; within?: string; editable?: boolean; address: Record<string, unknown> };
 export type PixelCapture = { window: { pid: number; containerId: number; title: string; ownerNonce?: string } | null; width: number; height: number; digest: string };
@@ -23,6 +24,7 @@ export type SemanticBackend = {
   windows(): Promise<unknown>;
   observe(options: { screenshot?: boolean; signal?: AbortSignal }): Promise<Snapshot>;
   act(snapshot: Snapshot, action: SemanticAction, element: Element | undefined, signal?: AbortSignal): Promise<void>;
+  attach?(target: { mode: "existing" | "private"; window_id?: number; pid?: number }, signal?: AbortSignal): Promise<void>;
 };
 
 const clean = (s: string, n = 140) => s.replace(/\s+/g, " ").trim().slice(0, n);
@@ -113,6 +115,7 @@ export function createSemanticComputer(backend: SemanticBackend, beforeInput: ()
       if (tool !== "computer_act" && tool !== "computer_browser") return undefined;
       const action = (tool === "computer_act" ? ActSchema : BrowserSchema).parse(args);
       if (["tabs", "snapshot"].includes(action.action)) return undefined;
+      if (action.action === "attach" && "mode" in action) return { browserMode: action.mode, window_id: action.window_id, pid: action.pid };
       const { snapshot, element } = resolved(action);
       return { window: snapshot.title, url: snapshot.url, ...(element ? { control: label(element) } : {}) };
     },
@@ -126,6 +129,15 @@ export function createSemanticComputer(backend: SemanticBackend, beforeInput: ()
     },
     act: (params: z.infer<typeof ActSchema>, signal?: AbortSignal) => act(params, signal),
     async browser(params: z.infer<typeof BrowserSchema>, signal?: AbortSignal) {
+      if (params.action === "attach") {
+        current = undefined; references.clear();
+        if (!backend.attach) throw new Error("Connecting an existing browser is unavailable on this desktop.");
+        if (!params.mode) throw new Error("attach requires mode: existing or private.");
+        beforeInput(); signal?.throwIfAborted();
+        await backend.attach({ mode: params.mode, window_id: params.window_id, pid: params.pid }, signal);
+        beforeInput(); signal?.throwIfAborted();
+        return look({ ...params, signal });
+      }
       if (["tabs", "snapshot"].includes(params.action)) {
         const result = await look({ ...params, signal });
         if (current?.kind !== "browser") throw new Error("The hand's active window is not its browser. Open the browser first.");
