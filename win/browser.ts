@@ -282,10 +282,10 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
   };
   return {
     async attach(signal?: AbortSignal, options: { allowPrepare?: boolean } = {}) {
-        try { await bind(signal); }
-        catch (error) {
-          signal?.throwIfAborted();
-          if (options.allowPrepare === false) throw error;
+      try { await bind(signal); }
+      catch (error) {
+        signal?.throwIfAborted();
+        if (options.allowPrepare === false) throw error;
         // Only an explicitly requested attach may prepare the signed-in browser.
         // Denial, cancellation, ambiguity and stale native identity are final.
         const message = error instanceof Error ? error.message : String(error);
