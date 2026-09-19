@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chromeEndpoint, discoverChromeEndpoint, ownsChromeEndpoint, sameChromeOwner, type ChromeListener } from "./chrome-endpoint";
+import { chromeEndpoint, chromeRendezvousEndpoint, discoverChromeEndpoint, ownsChromeEndpoint, sameChromeOwner, type ChromeListener } from "./chrome-endpoint";
 import type { NativeChromeMetadata } from "./chrome-native";
 
 const listener: ChromeListener = { address: "127.0.0.1", port: 9222 };
@@ -66,5 +66,55 @@ describe("OS-owned Chrome endpoint discovery", () => {
     for (const change of [{ pid: 91 }, { window_id: 1235 }, { ownerNonce: "0000000000000124" }, { processStartTicks: "639254016000000001" }]) {
       expect(sameChromeOwner(before, { ...before, ...change })).toBe(false);
     }
+  });
+
+  test("two-line rendezvous metadata only constructs a socket on its uniquely owned listener", () => {
+    for (const text of ["9222\n/devtools/browser/browser-fixture", "9222\n/devtools/browser/browser-fixture\n", "9222\r\n/devtools/browser/browser-fixture\r\n"]) {
+      expect(chromeRendezvousEndpoint(native(), text)).toEqual({ ...listener, url });
+    }
+    expect(chromeRendezvousEndpoint(native([{ address: "::1", port: 9222 }]), "9222\n/devtools/browser/browser-fixture"))
+      .toEqual({ address: "::1", port: 9222, url: "ws://[::1]:9222/devtools/browser/browser-fixture" });
+    expect(chromeRendezvousEndpoint(native([]), "9222\n/devtools/browser/browser-fixture")).toBeUndefined();
+    expect(chromeRendezvousEndpoint(native([{ address: "127.0.0.1", port: 9333 }]), "9222\n/devtools/browser/browser-fixture")).toBeUndefined();
+    expect(chromeRendezvousEndpoint(native([listener, { address: "::1", port: 9222 }]), "9222\n/devtools/browser/browser-fixture")).toBeUndefined();
+  });
+
+  test("malformed, oversized or redirected rendezvous metadata cannot create an endpoint", () => {
+    const path = "/devtools/browser/browser-fixture";
+    for (const text of [
+      "", "9222", path, `9222\n${path}\nextra`, `9222\n${url}`, `9222\n//127.0.0.1:9222${path}`, `9222\n/devtools/page/fixture`,
+      `9222\n${path}?token=x`, `9222\n${path}#x`, `9222\n${path}/../other`, `9222\n/devtools/browser/%66ixture`,
+      `9222\n/devtools/browser/${"x".repeat(129)}`, `9222\n${path}\0`, `9222\n${path}\n${"x".repeat(4096)}`,
+      `0\n${path}`, `65536\n${path}`, `-9222\n${path}`, `9.222e3\n${path}`, `9222.0\n${path}`, `9333\n${path}`,
+    ]) expect(chromeRendezvousEndpoint(native(), text)).toBeUndefined();
+  });
+
+  test("rendezvous fallback is opt-in and runs only after zero valid HTTP discoveries", async () => {
+    const order: string[] = [];
+    const endpoint = await discoverChromeEndpoint(native(), undefined, async seen => { order.push(`http:${seen.port}`); throw new Error("fixture HTTP 404"); },
+      async () => { order.push("rendezvous"); return "9222\n/devtools/browser/browser-fixture\n"; });
+    expect(endpoint).toEqual({ ...listener, url }); expect(order).toEqual(["http:9222", "rendezvous"]);
+    let fileReads = 0;
+    expect(await discoverChromeEndpoint(native(), undefined, async () => ({ webSocketDebuggerUrl: url }),
+      async () => { fileReads++; return "9222\n/devtools/browser/other"; })).toEqual({ ...listener, url });
+    expect(fileReads).toBe(0);
+    await expect(discoverChromeEndpoint(native([listener, { address: "127.0.0.1", port: 9223 }]), undefined,
+      async seen => ({ webSocketDebuggerUrl: `ws://${seen.address}:${seen.port}/devtools/browser/fixture` }),
+      async () => { fileReads++; return "9222\n/devtools/browser/browser-fixture"; })).rejects.toThrow("Multiple");
+    expect(fileReads).toBe(0);
+    await expect(discoverChromeEndpoint(native(), undefined, async () => ({}))).rejects.toThrow("no available");
+  });
+
+  test("missing or stale rendezvous data and cancellation never return an unverified fallback", async () => {
+    for (const contents of [undefined, "", "9333\n/devtools/browser/stale", "9222\n/devtools/page/not-browser"]) {
+      await expect(discoverChromeEndpoint(native(), undefined, async () => ({}), async () => contents)).rejects.toThrow("no available");
+    }
+    let reads = 0; const before = new AbortController(); before.abort();
+    await expect(discoverChromeEndpoint(native(), before.signal, async () => { reads++; return {}; }, async () => { reads++; return undefined; })).rejects.toThrow();
+    expect(reads).toBe(0);
+    const during = new AbortController();
+    await expect(discoverChromeEndpoint(native(), during.signal, async () => ({}), async () => {
+      during.abort(); return "9222\n/devtools/browser/browser-fixture";
+    })).rejects.toThrow();
   });
 });

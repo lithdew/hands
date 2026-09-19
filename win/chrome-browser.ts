@@ -1,6 +1,6 @@
 /** Direct signed-in Chrome control. No Cua calls or grants are used here. */
 import { connectChromeCdp, type ChromeCdp } from "./chrome-cdp";
-import { discoverChromeEndpoint, ownsChromeEndpoint, sameChromeOwner, type ChromeEndpoint } from "./chrome-endpoint";
+import { discoverChromeEndpoint, ownsChromeEndpoint, sameChromeOwner, readDefaultChromeRendezvous, type ChromeEndpoint } from "./chrome-endpoint";
 import type { NativeChromeMetadata } from "./chrome-native";
 import { collectorFunction, verifierFunction, verifyFocusFunction, type ChromeObservation } from "./chrome-observation";
 import { keyEvent, type ExistingBrowserInput, type ExistingBrowserSnapshot, type ExistingBrowserWindow, type ExistingCanvas, type ExistingDialog, type ExistingBrowserActivity } from "./browser";
@@ -271,7 +271,7 @@ export function directChromeBrowser(options: DirectChromeOptions): ExistingBrows
       if(settings?.allowPrepare===false)throw new Error("Attach the selected Chrome window to establish its direct connection. Startup does not request browser permission.");
       connection?.close(); connection=undefined; binding=undefined; activeSession=undefined; owner=undefined; endpoint=undefined; dialog=undefined; ready=false; pendingAck=undefined; deferredRelease=undefined;
       invalidate(); const {meta}=await native(signal); owner=meta;
-      endpoint=await (options.discover??discoverChromeEndpoint)(meta,signal);
+      endpoint=await (options.discover??((native,token)=>discoverChromeEndpoint(native,token,undefined,readDefaultChromeRendezvous)))(meta,signal);
       await native(signal); connection=await (options.connect??connectChromeCdp)(endpoint.url,{signal,timeoutMs:60000});
       connection.onEvent(event=>{
         if(event.method==="Target.detachedFromTarget"&&event.params.sessionId===activeSession){ready=false;invalidate();binding=undefined;activeSession=undefined;return;}
