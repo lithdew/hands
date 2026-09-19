@@ -51,6 +51,10 @@ export type Kit = {
   brief: string;
   /** Extra sources for research, beyond web search (arXiv for papers, the repo's own docs for a pitch). */
   sources?: (query: string) => Promise<Result[]>;
+  /** false: research never searches the web; the kit's own sources are all there is (a pitch may claim only what the repository's documents say). */
+  web?: boolean;
+  /** How many sources that came with their text a research step keeps, best first (default 24: abstracts. A kit whose sources are single passages keeps more). */
+  inHand?: number;
   /** The same, asked once for all of a step's queries: for a source that wants few, large requests (arXiv: one every three seconds). */
   sourcesAtOnce?: (queries: string[]) => Promise<Result[]>;
   /** After searching, before Jev sifts: make the results the kit's own (an arXiv link becomes arXiv's record with the whole abstract as `text`), or drop what it cannot use. */
@@ -213,12 +217,12 @@ export async function relay(task: string, ws: Workspace, deps: RelayDeps): Promi
     const queries = again ? again.queries.filter((q) => !step.queries.includes(q)).slice(0, MAX_QUERIES) : step.queries;
     if (again && !queries.length && !again.reread) return null;
     const none = () => [] as Result[];
-    const searched = (await Promise.all([...queries.flatMap((q) => [search(q), ...(kit.sources ? [kit.sources(q).catch(none)] : [])]), ...(kit.sourcesAtOnce && queries.length ? [kit.sourcesAtOnce(queries).catch(none)] : [])])).flat();
+    const searched = (await Promise.all([...queries.flatMap((q) => [...(kit.web === false ? [] : [search(q)]), ...(kit.sources ? [kit.sources(q).catch(none)] : [])]), ...(kit.sourcesAtOnce && queries.length ? [kit.sourcesAtOnce(queries).catch(none)] : [])])).flat();
     const found = kit.gather ? await kit.gather(searched).catch(() => searched) : searched;
     const unique = [...new Map(found.map((r) => [r.url, r])).values()].filter((r) => !before.some((s) => s.url === r.url));
     const results = await sift(ask, step.goal, unique.map((result) => ({ result, text: `${result.title}. ${result.snippet} (${result.url})` })), "search result");
     // A result that came with its text needs no fetch, so more of those can be kept than of pages to open.
-    const inHand = results.filter((r) => r.result.text).slice(0, IN_HAND_PER_STEP), toFetch = results.filter((r) => !r.result.text).slice(0, PAGES_PER_STEP);
+    const inHand = results.filter((r) => r.result.text).slice(0, kit.inHand ?? IN_HAND_PER_STEP), toFetch = results.filter((r) => !r.result.text).slice(0, PAGES_PER_STEP);
     trace.sifted += unique.length; trace.kept += inHand.length + toFetch.length;
     const pages = await Promise.all(toFetch.map(async ({ result, score }) => {
       const p = await page(result.url);
