@@ -62,6 +62,16 @@ describe("toCss", () => {
 });
 
 describe("browserInput", () => {
+  test("an unmatched or duplicate tab title never falls back to an arbitrary page", async () => {
+    const mismatch = fakeHelper({ title: "A different document" });
+    expect(await mismatch.input.handle("click", { x: 100, y: 200 }, mismatch.window)).toBe(false);
+    expect(mismatch.acts()).toHaveLength(0);
+    const duplicate = browserInput(async (line) => {
+      if (line.startsWith("http ")) return JSON.stringify(["a", "b"].map((id) => ({ type: "page", title: "Same", url: "https://example.test/", webSocketDebuggerUrl: `ws://127.0.0.1/${id}` })));
+      throw new Error("No input may be sent");
+    }, async () => 9);
+    expect(await duplicate.handle("type_text", { text: "hello" }, { containerId: 42, title: "Same - Google Chrome" })).toBe(false);
+  });
   test("a click in the page is a trusted press and release on the tab the window shows", async () => {
     const { input, window, sent, acts } = fakeHelper();
     expect(await input.handle("click", { x: 471, y: 205, button: "left" }, window)).toBe(true);

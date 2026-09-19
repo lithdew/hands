@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createOpenAI, outputJson, responsesBody, type LlmRequest } from "./openai";
 
 const req: LlmRequest = {
-  model: "gpt-test",
+  model: "gpt-5.6-luna",
   system: "You are terse.",
   user: "hello",
   schema: { name: "reply", schema: { type: "object" } },
@@ -16,7 +16,7 @@ describe("responsesBody", () => {
 
   test("asks for strict structured output", () => {
     const body = responsesBody(req) as any;
-    expect(body.model).toBe("gpt-test");
+    expect(body.model).toBe("gpt-5.6-luna");
     expect(body.instructions).toBe("You are terse.");
     expect(body.input[0].content).toEqual([{ type: "input_text", text: "hello" }]);
     expect(body.text.format).toEqual({ type: "json_schema", name: "reply", strict: true, schema: { type: "object" } });
@@ -70,7 +70,7 @@ describe("createOpenAI", () => {
 
   test("reports the status and body of a failed call", async () => {
     const llm = createOpenAI({ apiKey: "sk-test", fetch: async () => new Response("model not found", { status: 404 }) });
-    await expect(llm(req)).rejects.toThrow(/gpt-test failed \(404\): model not found/);
+    await expect(llm(req)).rejects.toThrow(/gpt-5.6-luna failed \(404\): model not found/);
   });
 
   test("names the missing key", () => {

@@ -3,15 +3,18 @@ import { z } from "zod";
 import { Agent, type AgentTool, type StreamFn } from "@earendil-works/pi-agent-core";
 import { createModels, type AssistantMessage, type ImageContent, type TSchema } from "@earendil-works/pi-ai";
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
-import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
 import { googleProvider } from "@earendil-works/pi-ai/providers/google";
 import { googleVertexProvider } from "@earendil-works/pi-ai/providers/google-vertex";
 import { appEnv, connectCua, debugLog, discoverApps, handState, launchInstalledApp, redact, rememberSecret, type CuaConnection, type Hand, type InstalledApp } from "./desktop";
 import { createJev, jevApiKey, type EntryType } from "./jev/jev";
+import { assertModel, modelEffort, tierPayload } from "./model-policy";
+import { LookSchema, ActSchema, BrowserSchema, type SemanticComputer } from "./semantic-computer";
+import { createNarrator, type NarratorOptions } from "./narrate";
+import { pixelInput } from "./coordinates";
 export { jevApiKey } from "./jev/jev";
 export { redact } from "./desktop";
 
-export const ProviderSchema = z.enum(["openai", "anthropic", "gemini"]);
+export const ProviderSchema = z.enum(["openai", "gemini"]);
 export type Provider = z.infer<typeof ProviderSchema>;
 export const ProviderSelectionSchema = z.enum(["auto", ...ProviderSchema.options]);
 export type ProviderSelection = z.infer<typeof ProviderSelectionSchema>;
@@ -19,11 +22,10 @@ export const EffortSchema = z.enum(["low", "medium", "high"]);
 export type Effort = z.infer<typeof EffortSchema>;
 const PROVIDERS = {
   openai: { id: "openai", keys: ["OPENAI_API_KEY", "OAI"], model: "gpt-5.6-luna", modelEnv: "OPENAI_MODEL" },
-  anthropic: { id: "anthropic", keys: ["ANTHROPIC_API_KEY", "ANT"], model: "claude-sonnet-5", modelEnv: "ANTHROPIC_MODEL" },
   gemini: { id: "google", keys: ["GOOGLE_CLOUD_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI"], model: "gemini-3.8-flash", modelEnv: "GEMINI_MODEL" },
 } as const;
 const models = createModels();
-for (const provider of [openaiProvider(), anthropicProvider(), googleProvider(), googleVertexProvider()]) models.setProvider(provider);
+for (const provider of [openaiProvider(), googleProvider(), googleVertexProvider()]) models.setProvider(provider);
 
 export function providerConfig(provider: Provider) {
   const info = PROVIDERS[provider];
@@ -32,6 +34,7 @@ export function providerConfig(provider: Provider) {
 }
 
 export function providerModel(provider: Provider, id = providerConfig(provider).model, geminiBackend = process.env.GEMINI_BACKEND ?? (process.env.GOOGLE_CLOUD_API_KEY ? "vertex" : "ai-studio")) {
+  assertModel(provider, id);
   const providerId = provider === "gemini" && geminiBackend === "vertex" ? "google-vertex" : PROVIDERS[provider].id;
   if (provider === "gemini" && !["vertex", "ai-studio"].includes(geminiBackend)) throw new Error("GEMINI_BACKEND must be vertex or ai-studio.");
   const model = models.getModel(providerId, id);
@@ -44,6 +47,14 @@ function providerError(provider: Provider, message = "") {
   return new Error(message.includes("API_KEY_SERVICE_BLOCKED")
     ? "Gemini key is blocked for this API (API_KEY_SERVICE_BLOCKED). Set GEMINI_BACKEND=vertex for a Vertex key, or ai-studio for an AI Studio key."
     : `${provider} request failed. Check the configured key, model, and connection.`);
+}
+
+/** Provider availability failures can change the model, never the task policy. */
+export function canRetryProvider(message: AssistantMessage): boolean {
+  if (message.stopReason !== "error" || message.content.some((c) => c.type === "toolCall" || (c.type === "text" ? c.text.trim() : c.thinking.trim()))) return false;
+  const error = message.errorMessage ?? "";
+  if (/safety|content.?filter|content.?policy|refusal/i.test(error)) return false;
+  return /API_KEY_SERVICE_BLOCKED|INVALID_API_KEY|UNAUTHENTICATED|PERMISSION_DENIED|MODEL_NOT_FOUND|RESOURCE_EXHAUSTED|rate.?limit|quota|\b(?:401|403|404|429|500|502|503|504)\b|timed? ?out|timeout|network|fetch failed|ECONNRESET|ECONNREFUSED/i.test(error);
 }
 
 function pngContent(bytes: Uint8Array): ImageContent {
@@ -61,15 +72,15 @@ export async function askModel(prompt: string, opts: ModelOptions = {}) {
   const model = providerModel(config.provider, opts.model ?? config.model);
   const timeout = AbortSignal.timeout(opts.timeoutMs ?? 30_000);
   // Gemini 3.8 rejects the SDK's implicit "minimal" thinking level.
-  const effort = EffortSchema.parse(opts.effort ?? "low");
+  const effort = modelEffort(model.id, EffortSchema.parse(opts.effort ?? "low"));
   const result = await models.completeSimple(model, { messages: [{ role: "user", timestamp: Date.now(), content: [{ type: "text", text: prompt }, ...(opts.image ? [pngContent(opts.image)] : [])] }] }, {
-    apiKey, reasoning: effort,
+    apiKey, reasoning: effort, onPayload: (payload) => tierPayload(config.provider, payload),
     maxTokens: opts.maxTokens ?? 2048, signal: opts.signal ? AbortSignal.any([opts.signal, timeout]) : timeout,
   });
   if (result.stopReason === "error" || result.stopReason === "aborted") throw providerError(config.provider, result.errorMessage);
   const text = result.content.filter((c) => c.type === "text").map((c) => c.text).join("\n").trim();
   if (!text) throw new Error(`${config.provider} returned no usable text.`);
-  return { provider: config.provider, model: model.id, text: redact(text), usage: result.usage };
+  return { provider: config.provider, model: model.id, text: redact(text), usage: result.usage, stopReason: result.stopReason, rawStopReason: result.rawStopReason };
 }
 
 /** Bash runs as the user, with GUI processes directed into this hand. Timeouts
@@ -121,17 +132,19 @@ export async function runBash(hand: Hand, command: string, opts: { cwd?: string;
 }
 
 export type PendingApproval = { id: string; tool: string; args: unknown; reason: string };
-export type AgentStatus = { running: boolean; selection: ProviderSelection; provider: Provider; model: string; effort: Effort; route: RouteDecision | null; task: string; text: string; error: string | null; currentTool: string | null; approval: PendingApproval | null; events: { time: number; text: string }[] };
+export type AgentStatus = { running: boolean; selection: ProviderSelection; provider: Provider; model: string; effort: Effort; route: RouteDecision | null; task: string; text: string; error: string | null; currentTool: string | null; narration?: string; approval: PendingApproval | null; events: { time: number; text: string }[] };
 export type DesktopAgentOptions = {
   hand: Hand; provider?: ProviderSelection; apiKey?: string; model?: string; cwd?: string;
   streamFn?: StreamFn;
+  narrate?: false | NarratorOptions["summarize"];
   gate?: (context: GateContext, options: GateOptions) => Promise<GateResult>;
   router?: typeof routeTask;
   jev?: typeof decideWithJev;
-  desktop?: { discover?: typeof discoverApps; launch?: typeof launchInstalledApp; state?: typeof handState; bash?: typeof runBash; cua?: typeof connectCua };
+  desktop?: { discover?: typeof discoverApps; launch?: typeof launchInstalledApp; state?: typeof handState; bash?: typeof runBash; cua?: typeof connectCua;
+    semantic?: (hand: Hand, beforeInput: () => void) => SemanticComputer; environment?: string };
 };
 
-const PointSchema = z.object({ x: z.int().min(0), y: z.int().min(0) });
+const PointSchema = z.object({ x: z.number().min(0), y: z.number().min(0) });
 const BatchActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("click"), ...PointSchema.shape, button: z.literal("left").optional() }),
   z.object({ action: z.literal("move"), ...PointSchema.shape }),
@@ -141,7 +154,8 @@ const BatchActionSchema = z.discriminatedUnion("action", [
 ]);
 export const ComputerSchema = z.object({
   action: z.enum(["screenshot", "click", "move", "scroll", "type", "key", "draw", "batch"]),
-  x: z.int().min(0).optional(), y: z.int().min(0).optional(),
+  x: z.number().min(0).optional(), y: z.number().min(0).optional(),
+  coordinate_space: z.enum(["pixels", "normalized_1000"]).optional().describe("Units for every point in this call, including batch members and stroke points. Set explicitly for coordinate input; omitted means screenshot pixels."),
   button: z.enum(["left", "right", "middle"]).optional(),
   dy: z.int().min(-100).max(100).optional(),
   text: z.string().max(8000).optional(), key: z.string().max(80).optional(),
@@ -155,6 +169,10 @@ const CuaWindowsSchema = z.object({ windows: z.array(z.object({
   window_id: z.int().nonnegative(), pid: z.int().positive().nullish(),
   app_name: z.string(), title: z.string(),
 })) });
+const PixelCaptureSchema = z.object({
+  window: z.object({ pid: z.int().positive(), containerId: z.int().positive(), title: z.string(), ownerNonce: z.string().regex(/^[a-f0-9]{16}$/).optional() }).nullable(),
+  width: z.int().positive(), height: z.int().positive(), digest: z.string().min(1),
+});
 
 export async function createDesktopAgent(opts: DesktopAgentOptions) {
   rememberSecret(opts.apiKey);
@@ -165,18 +183,39 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
   const model = providerModel(initial.provider, initial.model);
   const desktop = { discover: discoverApps, launch: launchInstalledApp, state: handState, bash: runBash, cua: connectCua, ...opts.desktop };
   let computer: Promise<CuaConnection> | undefined;
-  const cua = () => computer ??= desktop.cua(opts.hand);
+  const cua = () => {
+    if (!computer) {
+      const pending = desktop.cua(opts.hand);
+      computer = pending;
+      void pending.catch(() => { if (computer === pending) computer = undefined; });
+    }
+    return computer;
+  };
+  const unavailableUntil = new Map<string, number>();
+  const availableCandidates = () => candidates.filter((c) => (unavailableUntil.get(c.model) ?? 0) <= Date.now());
   const gate = opts.gate ?? checkAction;
   let catalog = await desktop.discover();
   const status: AgentStatus = { running: false, selection, provider: initial.provider, model: model.id, effort: initial.effort, route: null, task: "", text: "", error: null, currentTool: null, approval: null, events: [] };
+  const narrationProvider = providerConfig("openai").apiKey ? "openai" : "gemini";
+  const summarize = opts.narrate === false || process.env.PUK_NARRATION === "0" ? undefined : opts.narrate ?? (!opts.streamFn ? async (input, signal) => {
+    const answer = await askModel(input.prompt, { provider: narrationProvider, model: narrationProvider === "openai" ? "gpt-5.6-luna" : "gemini-3.8-flash", effort: "low", maxTokens: narrationProvider === "gemini" ? 1024 : 256, timeoutMs: 8000, signal });
+    if (answer.stopReason === "length") throw new Error("The caption exceeded its token budget.");
+    return answer.text;
+  } : undefined);
+  const narrator = summarize ? createNarrator({ summarize, onUpdate: (text) => { status.narration = redact(text); } }) : undefined;
+  const narrate = () => narrator?.update({ task: redact(status.task), events: status.events, phase: status.error ? "failed" : status.running ? "running" : "idle", approval: Boolean(status.approval) });
   let taskAbort: AbortController | undefined;
   let settleApproval: ((approved: boolean) => void) | undefined;
   let calls = 0, actions = 0;
   let denied = false;
   type Window = Awaited<ReturnType<typeof handState>>["windows"][number];
-  type Frame = { width: number; height: number; window?: Window };
+  type Frame = { width: number; height: number; window?: Window; digest: string };
   let lastScreen: Frame | undefined;
   let revision = 0, modelRevision = 0;
+  const semantic = desktop.semantic?.(opts.hand, () => {
+    taskAbort?.signal.throwIfAborted();
+    if (modelRevision !== revision) throw new Error("The instruction changed before input. Read the latest update first.");
+  });
   let routedRevision = -1, taskGoal = "", previousResult = "", fullUtterance: string | undefined;
   let changed = Promise.withResolvers<void>();
   let settled = Promise.withResolvers<void>();
@@ -189,7 +228,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       ? `${text}\n\nThis is one task from a spoken turn. Complete only this task; other tasks are handled separately. Use the full utterance below for corrections and constraints:\n${utterance}`
       : text;
   };
-  const log = (text: string) => { status.events.push({ time: Date.now(), text: redact(text).slice(0, 1000) }); status.events = status.events.slice(-30); };
+  const log = (text: string) => { status.events.push({ time: Date.now(), text: redact(text).slice(0, 1000) }); status.events = status.events.slice(-30); narrate(); };
   const result = (value: unknown) => ({ content: [{ type: "text" as const, text: redact(JSON.stringify(value)) }], details: {} });
   const tool = <T extends z.ZodType>(name: string, description: string, parameters: T, execute: (args: z.infer<T>, signal?: AbortSignal) => Promise<ReturnType<typeof result> | { content: ({ type: "text"; text: string } | ImageContent)[]; details: {} }>): AgentTool => {
     // Pi consumes JSON Schema; Zod remains the source of types and validation.
@@ -201,7 +240,14 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     return { name, label: name, description, parameters: jsonSchema as TSchema, executionMode: "sequential", execute: async (_id, args, signal) => { signal?.throwIfAborted(); return execute(parameters.parse(args), signal); } };
   };
   async function view() {
+    lastScreen = undefined;
+    semantic?.reset();
+    const before = await desktop.state(opts.hand);
     const response = await (await cua()).call("get_desktop_state", {}, taskAbort?.signal);
+    return bindScreenshot(response, before);
+  }
+  async function bindScreenshot(response: { content: readonly any[]; structuredContent?: unknown }, before?: Awaited<ReturnType<typeof desktop.state>>) {
+    lastScreen = undefined;
     const state = await desktop.state(opts.hand);
     const image = response.content.find((c) => c.type === "image" && c.mimeType === "image/png");
     if (!image || image.type !== "image") throw new Error("Cua did not return a desktop screenshot.");
@@ -209,8 +255,31 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     const buf = Buffer.from(bytes);
     pngContent(bytes);
     const focused = state.windows.filter((w) => w.focused);
-    lastScreen = { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20), window: focused.length === 1 ? focused[0] : undefined };
-    return { content: [{ type: "text" as const, text: redact(JSON.stringify({ ...state, width: lastScreen.width, height: lastScreen.height })) }, pngContent(bytes)], details: {} };
+    const frame: Frame = { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20), window: focused.length === 1 ? focused[0] : undefined, digest: Bun.hash(image.data).toString(16) };
+    const sameWindow = (a: { pid?: number; containerId?: number; title: string; ownerNonce?: string } | null | undefined, b: typeof a) => !a && !b || Boolean(a && b && a.pid === b.pid && a.containerId === b.containerId && a.title === b.title && a.ownerNonce === b.ownerNonce);
+    const binding = (response.structuredContent as { puk_snapshot?: unknown } | undefined)?.puk_snapshot;
+    if (binding !== undefined) {
+      const captured = PixelCaptureSchema.parse(binding);
+      if (captured.digest !== frame.digest || captured.width !== frame.width || captured.height !== frame.height || !sameWindow(captured.window, frame.window) || state.width !== frame.width || state.height !== frame.height) {
+        throw new Error("The screenshot no longer matches this hand's window. Capture it again before input.");
+      }
+    } else if (before) {
+      const earlier = before.windows.filter((w) => w.focused);
+      if (before.width !== state.width || before.height !== state.height || earlier.length !== focused.length || !sameWindow(earlier.length === 1 ? earlier[0] : undefined, frame.window)) {
+        throw new Error("The window changed while capturing the screenshot. Capture it again before input.");
+      }
+    } else throw new Error("This screenshot has no target binding. Use computer screenshot before pixel input.");
+    lastScreen = frame;
+    return { content: [{ type: "text" as const, text: redact(JSON.stringify({ ...state, width: lastScreen.width, height: lastScreen.height, coordinates: "Set coordinate_space: pixels for image pixels, or normalized_1000 for 0..1000 across each axis. One declaration covers the entire batch or drawing." })) }, pngContent(bytes)], details: {} };
+  }
+  async function semanticResult(pending: Promise<{ content: ({ type: "text"; text: string } | ImageContent)[]; details: Record<string, unknown> }>) {
+    lastScreen = undefined;
+    const result = await pending;
+    if (result.content.some((item) => item.type === "image") && result.details.puk_snapshot) {
+      const bound = await bindScreenshot({ content: result.content, structuredContent: { puk_snapshot: result.details.puk_snapshot } });
+      result.content.unshift(bound.content[0]!);
+    }
+    return result;
   }
   async function assertInputFrame(frame: Frame, signal?: AbortSignal) {
     const checkRevision = () => {
@@ -222,7 +291,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     checkRevision();
     const focused = state.windows.filter((w) => w.focused);
     const current = focused[0], previous = frame.window;
-    const sameWindow = previous?.pid && previous.containerId && current?.pid === previous.pid && current.containerId === previous.containerId && current.app === previous.app;
+    const sameWindow = previous?.pid && previous.containerId && current?.pid === previous.pid && current.containerId === previous.containerId && current.app === previous.app && current.title === previous.title && current.ownerNonce === previous.ownerNonce;
     if (state.width !== frame.width || state.height !== frame.height || focused.length !== 1 || !sameWindow) {
       throw new Error("The desktop resized or its focused window changed. Take a fresh screenshot before continuing.");
     }
@@ -251,6 +320,14 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     }
     throw new Error("A batch can contain only click, move, scroll, type, or key actions.");
   }
+  function resolvedInput(args: z.infer<typeof ComputerSchema>, frame: Frame) {
+    const hasCoordinates = ["click", "move", "scroll", "draw"].includes(args.action)
+      || args.action === "batch" && args.actions?.some((step) => ["click", "move", "scroll"].includes(step.action));
+    if (status.provider === "gemini" && hasCoordinates && args.coordinate_space !== "normalized_1000") {
+      throw new Error('Gemini computer input requires coordinate_space="normalized_1000", with x and y each spanning 0..1000 across the screenshot. Re-propose the coordinates in those units.');
+    }
+    return pixelInput(args, frame);
+  }
   async function draw(strokes: NonNullable<z.infer<typeof ComputerSchema>["strokes"]>, signal?: AbortSignal) {
     const frame = lastScreen!;
     const state = await assertInputFrame(frame, signal);
@@ -273,6 +350,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     const target = { pid: focused.pid!, window_id: matches[0]!.window_id };
     for (const stroke of strokes) {
       await assertInputFrame(frame, signal);
+      let complete = false;
       try {
         // Let each short pointer call settle before releasing. Cancelling an
         // in-flight press RPC could otherwise race its matching release.
@@ -283,7 +361,16 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
           const steps = Math.min(16, Math.max(1, Math.ceil(Math.hypot(p.x - previous.x, p.y - previous.y) / 6)));
           await driver.call("mouse_drag", { ...target, ...p, steps, duration_ms: steps * 8 });
         }
+        complete = true;
       } finally {
+        if (!complete || signal?.aborted || modelRevision !== revision) {
+          try { await driver.cancelPendingInput?.(); }
+          catch {
+            computer = undefined; lastScreen = undefined;
+            await driver.close();
+            throw new Error("Cua could not discard cancelled input; its connection was closed without flushing the buffered stroke.");
+          }
+        }
         // Release is cleanup, so it deliberately ignores the cancelled task's
         // signal. If it cannot be confirmed, close the private driver to drop
         // its virtual pointer instead of leaving a button held on the desktop.
@@ -300,6 +387,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     tool("apps", "Discover installed applications and currently open windows. Choose a suitable app yourself from its name, description and command; do not ask the user to name one when the task is clear. Refreshes the catalog.", z.object({}), async () => { catalog = await desktop.discover(); return result({ installed: catalog, desktop: await desktop.state(opts.hand) }); }),
     tool("jev", "Fast text-only classification and bounded choices. Batch independent decisions when that saves substantial reasoning. Put shared choices ONCE at the top level; questions then need only id and question. A question can override shared choices. With choices it returns a selected id and confidence; without choices it returns a 0-to-1 probability. It cannot see screenshots, execute actions or approve them. Do small obvious classifications yourself: a tool round trip has overhead.", JevToolSchema, async (args, signal) => result(await (opts.jev ?? decideWithJev)(args, { signal }))),
     tool("open_app", "Open OR FOCUS an installed application by its exact discovered id inside the agent desktop. An already open matching app is focused and reused, so use this tool for focusing too. Browser launches use a separate profile. Verify the resulting window with computer screenshot.", z.object({ id: z.string() }), async ({ id }) => {
+      semantic?.reset();
       const app = catalog.find((a) => a.id === id);
       if (!app) throw new Error("Unknown application. Use apps to discover installed applications.");
       return result({ opened: app.name, pid: await desktop.launch(opts.hand, app) });
@@ -309,6 +397,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       if (args.action === "screenshot") return view();
       const state = await desktop.state(opts.hand);
       if (!lastScreen || lastScreen.width !== state.width || lastScreen.height !== state.height) throw new Error("The desktop needs a fresh screenshot before input (it may have resized).");
+      args = resolvedInput(args, lastScreen);
       signal?.throwIfAborted();
       const driver = await cua();
       signal?.throwIfAborted();
@@ -336,16 +425,23 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
         }
       } else {
         const step = prepareInput(args, lastScreen);
+        await assertInputFrame(lastScreen, signal);
         await driver.call(step.name, step.args, signal);
       }
       signal?.throwIfAborted();
       await Bun.sleep(180);
       return view();
     }),
+    ...(semantic ? [
+      tool("computer_look", "Observe this hand: windows lists its windows; window reads compact labelled controls and visible text; screen also returns an image. Optional query narrows the result. Read window before acting. References expire at the next observation. Use screenshot=true when text is insufficient. An attached bound image is already valid for computer pixel input.", LookSchema, (args, signal) => semanticResult(semantic.look(args, signal))),
+      tool("computer_act", "Act on a current ref from computer_look: click, type (replace by default), set_value, key, scroll. All actions stay in this hand and return fresh state plus current refs, so verify that result before requesting another look. Use computer screenshot/draw/batch for pixels or canvases; open_app to launch or focus an app.", ActSchema, (args, signal) => semanticResult(semantic.act(args, signal))),
+      tool("computer_browser", "Read and operate this hand's current browser page over persistent CDP. tabs/snapshot reads compact UI text and refs; navigate uses an http(s) URL; click/type/key/scroll return fresh state. Observe first, use only the latest refs, and verify the returned state. This adapter targets the hand's current page, not arbitrary user tabs.", BrowserSchema, (args, signal) => semanticResult(semantic.browser(args, signal))),
+    ] : []),
   ];
   async function actionContext(tool: string, args: unknown, task = status.task): Promise<GateContext> {
     const app = tool === "open_app" ? catalog.find((a) => a.id === (args as { id?: string }).id) : undefined;
-    return { task: live ? `${task}\nLatest spoken context (may be unfinished): ${live.transcript()}` : task, observation: redact(JSON.stringify(await desktop.state(opts.hand))), action: { tool, args, ...(app ? { installedApp: app } : {}), ...(tool === "bash" ? { workingDirectory: (args as { cwd?: string }).cwd ?? opts.cwd ?? process.cwd() } : {}) }, recentActions: status.events.slice(-6).filter((e) => e.text.startsWith("Running")).map((e) => e.text) };
+    const resolved = tool === "computer" && lastScreen ? { resolvedPixels: resolvedInput(ComputerSchema.parse(args), lastScreen), screenshot: lastScreen } : {};
+    return { task: live ? `${task}\nLatest spoken context (may be unfinished): ${live.transcript()}` : task, observation: redact(JSON.stringify(await desktop.state(opts.hand))), action: { tool, args, ...resolved, ...(semantic ? { observedTarget: semantic.describe(tool, args) } : {}), ...(app ? { installedApp: app } : {}), ...(tool === "bash" ? { workingDirectory: (args as { cwd?: string }).cwd ?? opts.cwd ?? process.cwd() } : {}) }, recentActions: status.events.slice(-6).filter((e) => e.text.startsWith("Running")).map((e) => e.text) };
   }
   async function evaluateAction(tool: string, args: unknown, options: GateOptions) {
     const context = await actionContext(tool, args);
@@ -357,11 +453,13 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
   async function chooseModel(signal?: AbortSignal) {
     const choosingRevision = revision;
     status.currentTool = "Choosing model and effort";
-    const route = RouteDecisionSchema.parse(await (opts.router ?? routeTask)(taskGoal, candidates, {
+    const available = availableCandidates();
+    if (!available.length) throw new Error("The configured models are temporarily unavailable. Check their connection or credentials and try again.");
+    const route = RouteDecisionSchema.parse(await (opts.router ?? routeTask)(taskGoal, available, {
       signal, context: fullUtterance ? JSON.stringify({ previous: previousResult, utterance: fullUtterance }) : previousResult,
     }));
     signal?.throwIfAborted();
-    if (!candidates.some((c) => c.id === route.id && c.provider === route.provider && c.model === route.model && c.effort === route.effort)) throw new Error("The router selected an unavailable model or effort.");
+    if (!available.some((c) => c.id === route.id && c.provider === route.provider && c.model === route.model && c.effort === route.effort)) throw new Error("The router selected an unavailable model or effort.");
     status.route = route; status.provider = route.provider; status.model = route.model; status.effort = route.effort;
     agent.state.model = providerModel(route.provider, route.model);
     agent.state.thinkingLevel = route.effort;
@@ -374,8 +472,9 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       "You are Puk, a capable desktop and Bash agent. Complete the user's task using the PC and explain the result briefly.",
       "Discover installed apps and choose appropriate tools yourself. A request such as 'open my notes' does not require the user to specify an app if an appropriate installed app exists. Reuse an already opened app when possible.",
       `Your desktop is hand ${opts.hand.id}. All computer input is confined to it. Bash shares the user's files and permissions; default directory is ${opts.cwd ?? process.cwd()}.`,
-      "The agent desktop is nested Sway. open_app focuses an already open matching app without launching a duplicate. Use it to switch apps; there is no need to discover the host compositor or probe Hyprland. Bash already has SWAYSOCK set to the nested desktop.",
-      "Use Bash for efficient file and command work; use the computer tool for GUI work. Capture a screenshot before GUI input, verify results, and account for changing output dimensions when the preview is expanded.",
+      desktop.environment ?? "The agent desktop is nested Sway. open_app focuses an already open matching app without launching a duplicate. Use it to switch apps; there is no need to discover the host compositor or probe Hyprland. Bash already has SWAYSOCK set to the nested desktop.",
+      "Use Bash for efficient file and command work; use computer tools for GUI work. Observe the current window before GUI input. Use fresh labelled references when available, or a screenshot before pixel input. Verify results and account for changing output dimensions when the preview is expanded.",
+      ...(semantic ? ["Prefer computer_look and computer_act for labelled native controls, and computer_browser for web pages. Their action results already contain fresh state and current refs: read those instead of reflexively taking another screenshot. Ask for an image when labels are missing or visual evidence is needed. Never reuse a ref from an earlier observation. A changed state is evidence to inspect, not automatic proof of success."] : []),
       "For freehand drawing, select the app's pencil/brush, plan a few visible shapes as point paths, then use computer draw with bounded stroke batches. It holds the mouse button through each path. You choose coordinates from the screenshot; Jev can classify independent choices and checks the exact batch, but cannot invent coordinates or see the canvas. Inspect the result before the next batch. Do not paste an image or draw through code when the user asked for freehand strokes.",
       "Batch known steps on the same observed screen with computer batch, at most 8 actions per call. For example, click a visible color field, ctrl+a, type its value; or choose a preset swatch, select fill, then click the region. Prefer available preset colors unless the user requires exact shades. Stop a batch before a new dialog/page needs inspection, and verify the final screenshot. Split drawings into at most 8 strokes per draw call.",
       "When asked to show, open, find or view something, make it visible in the agent desktop and inspect the result. Image markdown or an unverified URL in chat does not fulfill 'show me a photo'. Browse through the visible browser using computer; do not replace browsing with repeated curl/download attempts.",
@@ -393,8 +492,13 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       modelRevision = contextRevision;
       const model = agent.state.model!;
       const request = { ...options, apiKey: opts.apiKey ?? providerConfig(status.provider).apiKey, reasoning: status.effort,
+        onPayload: async (payload: unknown) => tierPayload(status.provider, await options?.onPayload?.(payload, model) ?? payload),
         maxTokens: status.effort === "high" ? 16_384 : status.effort === "medium" ? 8192 : 4096 };
-      return opts.streamFn ? opts.streamFn(model, context, request) : models.streamSimple(model, context, request);
+      const coordinateContract = status.provider === "gemini"
+        ? 'Your computer input contract requires coordinate_space="normalized_1000": x and y each range from 0 to 1000 across the full screenshot. Set that field explicitly for clicks, moves, scrolls, batches and drawings. Pixel or omitted units are rejected for Gemini. The harness converts your declared coordinates using the bound screenshot dimensions.'
+        : 'For computer coordinates, set coordinate_space="pixels" and use actual screenshot pixels. If deliberately using 0..1000 coordinates, set coordinate_space="normalized_1000". The declaration applies to every point in a batch or drawing; omitted units always mean pixels.';
+      const groundedContext = { ...context, systemPrompt: `${context.systemPrompt ?? ""}\n${coordinateContract}` };
+      return opts.streamFn ? opts.streamFn(model, groundedContext, request) : models.streamSimple(model, groundedContext, request);
     },
     getApiKey: () => opts.apiKey ?? providerConfig(status.provider).apiKey,
     transformContext: async (messages) => {
@@ -408,7 +512,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     beforeToolCall: async ({ toolCall, args }, signal) => {
       debugLog("agent.tool.proposed", { hand: opts.hand.id, tool: toolCall.name, args });
       if (denied || ++calls > 120) return { block: true, terminate: true, reason: denied ? "The user declined this action. Stop and wait for another request." : "The 120-tool limit was reached. Summarize progress and wait for another request." };
-      if (["apps", "jev"].includes(toolCall.name) || (toolCall.name === "computer" && (args as { action: string }).action === "screenshot")) return;
+      if (["apps", "jev", "computer_look"].includes(toolCall.name) || (toolCall.name === "computer" && (args as { action: string }).action === "screenshot") || (toolCall.name === "computer_browser" && ["tabs", "snapshot"].includes((args as { action: string }).action))) return;
       if (modelRevision !== revision) return { block: true, reason: "The spoken instruction changed. Read the queued update before acting." };
       if (++actions > 30) return { block: true, terminate: true, reason: "The 30-action limit was reached. Summarize progress and wait for another request. Screenshots and discovery do not count as actions." };
       status.currentTool = `Checking ${toolCall.name}`;
@@ -436,19 +540,50 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       log(verdict.reason);
       if (verdict.decision === "blocked") { status.error = verdict.reason; denied = true; return { block: true, terminate: true, reason: verdict.reason }; }
       const approved = await new Promise<boolean>((resolve) => {
-        const finish = (yes: boolean) => { signal?.removeEventListener("abort", abort); settleApproval = undefined; status.approval = null; resolve(yes); };
+        const finish = (yes: boolean) => { signal?.removeEventListener("abort", abort); settleApproval = undefined; status.approval = null; narrate(); resolve(yes); };
         const abort = () => finish(false);
         settleApproval = finish;
         status.approval = { id: crypto.randomUUID(), tool: toolCall.name, args: JSON.parse(redact(JSON.stringify(args))), reason: "Jev flagged this action for review. Approval applies only to these exact arguments." };
+        narrate();
         signal?.addEventListener("abort", abort, { once: true });
         if (signal?.aborted) abort();
       });
       if (checkedRevision !== revision && !signal?.aborted) return { block: true, reason: "The instruction changed. The previous approval expired; reconsider using the latest update." };
       if (!approved) { denied = true; return { block: true, terminate: true, reason: "Action declined or cancelled. Stop and wait for another request." }; }
+      if (toolCall.name === "computer" && lastScreen) {
+        const reviewed = lastScreen;
+        await assertInputFrame(reviewed, signal);
+        await view();
+        if (lastScreen?.digest !== reviewed.digest || checkedRevision !== revision) {
+          lastScreen = undefined;
+          return { block: true, reason: "The screen or instruction changed during review. Take a fresh screenshot and propose a new action." };
+        }
+      }
       status.currentTool = toolCall.name;
       // Desktop state may change while the user reviews; input tools validate dimensions again.
     },
   });
+  async function recoverUnavailableModel() {
+    // Retry only an empty, failed model response. Completed tools stay in the
+    // transcript; no action, partial answer, denial or cancelled task is replayed.
+    while (selection === "auto" && !taskAbort?.signal.aborted && !denied) {
+      const last = agent.state.messages.at(-1);
+      if (last?.role !== "assistant" || !canRetryProvider(last as AssistantMessage)) return;
+      const failed = status.model;
+      unavailableUntil.set(failed, Date.now() + 5 * 60_000);
+      const available = availableCandidates();
+      const next = available.find((c) => c.difficulty === status.route?.difficulty)
+        ?? available.find((c) => c.difficulty === "standard") ?? available[0];
+      if (!next) return;
+      status.route = { ...next, confidence: 0, latencyMs: 0, fallback: true, reason: `${failed} is unavailable; continuing with an allowed model.` };
+      status.provider = next.provider; status.model = next.model; status.effort = next.effort; status.error = null;
+      agent.state.model = providerModel(next.provider, next.model);
+      agent.state.thinkingLevel = next.effort;
+      agent.state.messages = agent.state.messages.slice(0, -1);
+      log(`Provider fallback: ${failed} → ${next.model} · ${next.effort} effort`);
+      await agent.continue();
+    }
+  }
   agent.subscribe((event) => {
     if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") {
       const delta = event.assistantMessageEvent.delta;
@@ -462,6 +597,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     }
     if (event.type === "tool_execution_start") {
       let detail = event.toolName === "open_app" ? `: ${event.args.id}` : "";
+      if (["computer_look", "computer_act", "computer_browser"].includes(event.toolName)) detail = `: ${event.args.action ?? event.args.what}`;
       if (event.toolName === "computer") {
         const args = ComputerSchema.safeParse(event.args);
         if (args.success) detail = `: ${args.data.action}${args.data.action === "batch" ? ` (${args.data.actions?.length ?? 0} steps)` : args.data.action === "draw" ? ` (${args.data.strokes?.length ?? 0} strokes)` : ""}`;
@@ -478,6 +614,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
   function stop() {
     if (status.running && !taskAbort?.signal.aborted) log("Stopped by you");
     taskAbort?.abort(); changed.resolve(); settleApproval?.(false); agent.clearAllQueues(); agent.abort();
+    narrator?.stop();
   }
   return {
     agent,
@@ -489,7 +626,8 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       if (utterance !== undefined) utterance = TaskTextSchema.parse(utterance);
       const task = instruction(text, utterance);
       const previous = redact(JSON.stringify({ task: status.task, result: status.text.slice(-2000), error: status.error }));
-      status.running = true; status.task = task; status.text = ""; status.error = null; status.currentTool = null; calls = actions = 0; denied = false; lastScreen = undefined;
+      status.running = true; status.task = task; status.text = ""; status.error = null; status.currentTool = null; calls = actions = 0; denied = false; lastScreen = undefined; semantic?.reset();
+      narrator?.reset(); narrate();
       live = speaking; revision = modelRevision = 0; changed = Promise.withResolvers<void>();
       taskGoal = text; fullUtterance = utterance; previousResult = previous; routedRevision = -1;
       settled = Promise.withResolvers<void>();
@@ -499,12 +637,14 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
         await chooseModel(taskAbort.signal);
         agent.clearAllQueues(); // Updates received during routing are already in status.task.
         await agent.prompt(`${status.task}${opened.length ? `\n\nAlready launched while you were speaking: ${opened.join(", ")}. Inspect and reuse these windows.` : ""}`);
+        await recoverUnavailableModel();
         // Keep the same worker attached to its task while speech continues.
         // Pi consumes steer() updates during a run; an idle worker wakes here.
         while (live && !taskAbort.signal.aborted && !denied && !status.error) {
           if (revision > modelRevision) {
             agent.clearAllQueues();
             await agent.prompt(`Updated instruction: ${status.task}\nContinue from the current desktop; do not repeat completed steps.`);
+            await recoverUnavailableModel();
           } else {
             const speech = live.speechEnds();
             if (!speech) break;
@@ -513,7 +653,13 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
         }
       }
       catch (error) { if (!taskAbort.signal.aborted) status.error = redact(error instanceof Error ? error.message : "Agent task failed.").slice(0, 1000); }
-      finally { clearTimeout(deadline); live = undefined; taskAbort = undefined; status.running = false; status.currentTool = null; settleApproval?.(false); settled.resolve(); }
+      finally {
+        clearTimeout(deadline); live = undefined;
+        const cancelled = taskAbort.signal.aborted;
+        taskAbort = undefined; status.running = false; status.currentTool = null; settleApproval?.(false);
+        if (cancelled) narrator?.stop(); else narrate();
+        settled.resolve();
+      }
     },
     refine(text: string, utterance?: string) {
       const next = instruction(text, utterance);
@@ -607,8 +753,8 @@ export const RouteDecisionSchema = RouteCandidateSchema.extend({
 export type RouteDecision = z.infer<typeof RouteDecisionSchema>;
 const ROUTE_DESCRIPTIONS = {
   routine: "A clear single step, opening an app, reading a file, a simple command, or a short straightforward reply. Prefer the lowest latency and cost.",
-  standard: "Several straightforward steps, drafting useful content, ordinary desktop work, or a bounded investigation with some reasoning.",
-  complex: "A difficult debugging or coding problem, subtle analysis, many dependent steps, ambiguous evidence, or recovery after repeated failures. Spend more reasoning effort on the complete task.",
+  standard: "Visual screen interpretation, several straightforward steps, drafting useful content, ordinary desktop work, or a bounded investigation.",
+  complex: "A difficult debugging or coding problem, subtle analysis, many dependent steps, ambiguous evidence, or recovery after repeated failures. Use the stronger model while keeping low reasoning effort.",
 } as const;
 
 /** Only configured providers and catalog models can enter the router. A provider
@@ -631,16 +777,16 @@ export function routeCandidates(selection: ProviderSelection = "auto", opts: { m
     for (const difficulty of ["routine", "standard", "complex"] as const) {
       const model = difficulty === "routine" ? fast : difficulty === "complex" ? strong : pinned || config.model;
       resolve(provider, model); // Surface an explicit configuration typo before accepting a task.
-      const effort: Effort = difficulty === "routine" ? "low" : difficulty === "standard" ? "medium" : "high";
+      const effort: Effort = "low";
       candidates.push({ id: `${provider}_${difficulty}`, provider, model, effort, difficulty });
     }
   }
-  if (!candidates.length) throw new Error("No agent provider is configured. Add an OpenAI, Anthropic, or Gemini key to .env.");
+  if (!candidates.length) throw new Error("No agent provider is configured. Add an OpenAI or Gemini key to .env.");
   if (selection === "auto") {
     // Three meaningful tiers instead of asking Jev to distinguish nine nearly
     // equivalent profiles. Explicit provider/model choices are still honored.
     return (["routine", "standard", "complex"] as const).map((difficulty) => {
-      const preferred: Provider[] = difficulty === "standard" ? ["anthropic", "openai", "gemini"] : difficulty === "complex" ? ["openai", "anthropic", "gemini"] : ["openai", "gemini", "anthropic"];
+      const preferred: Provider[] = difficulty === "standard" ? ["gemini", "openai"] : ["openai", "gemini"];
       return preferred.map((provider) => candidates.find((c) => c.provider === provider && c.difficulty === difficulty)).find(Boolean)!;
     });
   }

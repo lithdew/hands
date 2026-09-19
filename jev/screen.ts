@@ -22,12 +22,12 @@
 //
 //   runScreens(hand, intent, deps, opts)   same contract as cua.ts `runIntent`
 
-import type { Hand } from "../desktop";
+import { debugLog, type Hand } from "../desktop";
 import { argumentsFor, describeAction, elementLabels, isLooping, jevState, KEYS, MOVES, type Action, type Deps, type RunOptions, type RunResult, type StepRecord } from "./cua";
 import { assessRisk, needsApproval, type Risk } from "./gate";
 import { COMPOSE_LABEL, composeText, type Intent } from "./intent";
 import { choice, noul, type Answers, type ChoiceResponse, type NoulResponse, type Questions } from "./jev";
-import { describeElement, type Observation, type UiElement } from "./observe";
+import { describeElement, withVisionElements, type Observation, type UiElement } from "./observe";
 import { choosePlanner, makePlan, type Plan } from "./planner";
 
 // ---------------------------------------------------------------- types
@@ -69,7 +69,7 @@ function strongest(picks: ChoiceResponse[]): { choice: string; confidence: numbe
   return real ?? { choice: NONE, confidence: Math.min(...picks.map((p) => p.confidence)) };
 }
 /** Things that are only on screen while something is open and waiting for an answer. */
-const POPUP_ROLES = /^(option|menu ?item|listitem|gridcell)$/i, POPUP_CONTAINERS = /calendar|picker|suggestion|menu|listbox/i;
+const POPUP_ROLES = /^(option|menu ?item|listitem|gridcell)$/i, POPUP_CONTAINERS = /calendar|picker|suggestion|listbox|menu(?! ?bar)/i; // a menu bar is always there; it is not an open menu
 
 const preview = (text: string, max = 80) => { const flat = text.replace(/\s+/g, " ").trim(); return flat.length > max ? `${flat.slice(0, max)}...` : flat; };
 const same = (a: string, b: string) => a.replace(/\s+/g, " ").trim().toLowerCase() === b.replace(/\s+/g, " ").trim().toLowerCase();
@@ -182,6 +182,7 @@ export async function decideScreen(deps: Pick<Deps, "ask" | "llm">, hand: Hand, 
   // The keys, if every one of them found its control. One that did not means this is not the keypad yet: decide as usual.
   if (keys.length && parts.length === 1 && !popup) {
     const picks = keys.map((_, i) => per[`press_${i}`]!), found = picks.map((pick) => obs.elements.find((el) => el.id === pick.choice));
+    debugLog("jev.presses", keys.map((key, i) => `${key} -> ${found[i]?.name ?? picks[i]!.choice} (${picks[i]!.confidence.toFixed(2)})`));
     if (found.every(Boolean) && picks.every((pick) => pick.confidence >= CLICK_AT)) {
       return { kind: "act", doubts, actions: found.map((target, i) => ({ kind: "click", target: target!, button: "left", count: 1, press: entered + i })) };
     }
@@ -244,13 +245,17 @@ export async function runScreens(hand: Hand, goal: Intent | (() => Intent), deps
   const steps: StepRecord[] = [];
   let planned: string | null = null, carried: Observation | null = null, heldBack = 0;
   let observationRetries = opts.maxObservationRetries ?? 1;
+  let sighted: { fingerprint: string; elements: Plan["elements"] } | null = null;
   const end = (status: RunResult["status"], reason: string): RunResult => ({ status, reason, steps });
 
   for (let n = 1; n <= maxSteps; n++) {
     if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
     const intent = current(), instructionAtDecision = JSON.stringify(intent);
-    const obs = carried ?? (await look(hand));
+    let obs = carried ?? (await look(hand));
     carried = null;
+    // What the planner saw stays in Jev's list for as long as the screen it saw is still there. Without this a plan
+    // changes nothing Jev can pick from (marks.eval.ts: 1 of 20 right after a plan, 19 of 20 with its elements merged).
+    if (sighted && sighted.fingerprint === obs.fingerprint) obs = withVisionElements(obs, sighted.elements, hand);
 
     const decision = await decideScreen(deps, hand, intent, obs, memory);
     if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
@@ -277,6 +282,7 @@ export async function runScreens(hand: Hand, goal: Intent | (() => Intent), deps
       const plan = await makePlan(deps.llm, which, hand, { intent, history: memory.history, knownElements: Object.values(elementLabels(obs.elements, hand)), reason: decision.reason, screenshotPng: await deps.screenshot!(hand) });
       if (plan.blocked) return end("gave_up", plan.blocked);
       memory.plan = plan; planned = obs.fingerprint;
+      sighted = { fingerprint: obs.fingerprint, elements: plan.elements };
       memory.history.push(`asked the ${which} planner: ${preview(plan.situation, 160)}`);
       continue;
     }

@@ -63,13 +63,48 @@ export function spansOf(text: string, limit = MAX_CHOICES - 1): string[] {
   return [...spans];
 }
 
+/** Literal alternatives include long suffixes and quoted phrases, so code does
+ * not silently make queries longer than six words impossible for Jev to select.
+ * Keep programming punctuation (C++, std::vector) and original internal spacing.
+ */
+export function literalSpansOf(text: string, limit = MAX_CHOICES - 1): string[] {
+  const spans = new Set<string>();
+  const add = (value: string) => {
+    const trimmed = value.trim().replace(/^["“”]+|["“”.,!?]+$/gu, "");
+    if (spans.size < limit && /[\p{L}\p{N}]/u.test(trimmed)) spans.add(trimmed);
+  };
+  for (const quoted of text.matchAll(/"([^"\n]+)"|“([^”\n]+)”|'([^'\n]+)'/gu)) add(quoted[1] ?? quoted[2] ?? quoted[3]!);
+  const words = [...text.matchAll(/\S+/gu)].slice(-SPAN_WINDOW);
+  // Preserve whole queries first, before a cap can discard the long options.
+  for (const word of words) add(text.slice(word.index));
+  for (let n = 1; n <= MAX_SPAN_WORDS; n++) for (let i = 0; i + n <= words.length; i++) {
+    const first = words[i]!, last = words[i + n - 1]!;
+    add(text.slice(first.index, last.index! + last[0].length));
+  }
+  return [...spans];
+}
+
+/** Only explicit http(s) URLs; Jev selects among these, it never invents one. */
+export function suppliedUrls(text: string): Record<string, { url: string; description: string }> {
+  const urls = new Map<string, string>();
+  for (const match of text.matchAll(/https?:\/\/[^\s<>"“”]+/giu)) {
+    const literal = match[0].replace(/[.,!?;)'\]]+$/u, "");
+    const url = URL.parse(literal);
+    if (!url || !["http:", "https:"].includes(url.protocol) || url.username || url.password) continue;
+    if (urls.size >= 8) break;
+    urls.set(url.href, literal);
+  }
+  return Object.fromEntries([...urls].map(([url], i) => [`supplied_url_${i}`, { url, description: `The URL explicitly supplied in request: ${url}` }]));
+}
+
 // ---------------------------------------------------------------- build
 
 /** An Intent from Jev's picks alone, or null when the request is not that simple. */
-export async function quickIntent(ask: Ask, said: string): Promise<Intent | null> {
+export async function quickIntent(ask: Ask, said: string, options: { legacy?: boolean } = {}): Promise<Intent | null> {
   const request = said.trim();
-  const spans = spansOf(request);
+  const spans = options.legacy ? spansOf(request) : literalSpansOf(request);
   if (spans.length === 0) return null;
+  const sites: Record<string, { url: string; description: string }> = { ...SITES, ...(options.legacy ? {} : suppliedUrls(request)) };
 
   const a = await ask(
     { request },
@@ -80,13 +115,15 @@ export async function quickIntent(ask: Ask, said: string): Promise<Intent | null
         files: "The file manager, to find or open a file or folder on this computer.",
         none: "Nothing. The request is about what is already open on screen.",
       }),
-      site: choice("Which website is `request` about?", {
-        ...Object.fromEntries(Object.entries(SITES).map(([name, s]) => [name, s.description])),
+      site: choice(options.legacy ? "Which website is `request` about?" : "Which website should be opened to carry out `request`? A URL to visit is the destination; a URL mentioned as a search query is not the destination.", {
+        ...Object.fromEntries(Object.entries(sites).map(([name, s]) => [name, s.description])),
         [OTHER_SITE]: "A specific website or web app that is not in this list.",
         [NO_SITE]: "No website. The request is not about the web.",
       }),
       text: choice(
-        "Which exact words of `request` would be typed into a search box or field? Pick the thing being searched for or entered, without the command words around it.",
+        options.legacy
+          ? "Which exact words of `request` would be typed into a search box or field? Pick the thing being searched for or entered, without the command words around it."
+          : "Which exact words of `request` must be entered into a search box or content field AFTER the destination website is opened? A URL to visit is handled by navigation, so choose nothing_to_type for opening a URL. For searches, preserve the complete query without command words.",
         {
           ...Object.fromEntries(spans.map((s) => [s, null])),
           [NOTHING]: "Nothing. The request only names a site or app to open, or the speaker has not yet said the words to type.",
@@ -103,11 +140,13 @@ export async function quickIntent(ask: Ask, said: string): Promise<Intent | null
   const picked: string = a.text.choice; // span labels are only known at run time, so the type is a plain string
   let typed = picked !== NOTHING && a.text.confidence >= MIN_CONFIDENCE ? picked : null;
   // "open youtube": Jev tends to pick the site's own name as the words to type. Nobody searches YouTube for "youtube".
-  if (typed && site.replace(/_/g, " ").includes(typed.toLowerCase())) typed = null;
+  if (typed && (options.legacy ? site.replace(/_/g, " ").includes(typed.toLowerCase()) : site.replace(/_/g, " ") === typed.toLowerCase())) typed = null;
+  // A selected destination is already handled by navigation, not by a page field.
+  if (!options.legacy && typed && sites[site] && sites[site].url === URL.parse(typed)?.href) typed = null;
   return {
     goal: request,
     launcher,
-    url: launcher === "browser" && site in SITES ? SITES[site as keyof typeof SITES].url : null,
+    url: launcher === "browser" && site in sites ? sites[site]!.url : null,
     inputs: typed ? { search_query: typed } : {},
     doneWhen: `The screen shows the result of what was asked: ${JSON.stringify(request)}`,
     avoid: [],

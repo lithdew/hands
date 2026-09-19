@@ -40,7 +40,7 @@ describe("decideScreen", () => {
     const jev = fakeJev((name) => ({ [`fill_${to}`]: "recipient", [`fill_${subject}`]: "subject", [`fill_${body}`]: "body", next_0: send, move: "type" })[name]);
     const decision = await decideScreen({ ask: jev.ask, llm }, SIM_HAND, EMAIL, obs, { history: [], plan: null });
     expect(jev.calls).toHaveLength(1);
-    expect(decision.kind === "act" && decision.actions.map(describeScreenAction).map((d) => d.split(" in window")[0])).toEqual([
+    expect(decision.kind === "act" && decision.actions.map(describeScreenAction).map((d) => d.split(/ in (?:window )?"/)[0])).toEqual([
       'type recipient ("sam.rivera@example.com") into text field "To recipients"', 'type subject ("Reminder") into text field "Subject"', 'type body ("See you at ten.") into text field "Message Body"', 'click button "Send"',
     ]);
     expect(Object.keys(jev.calls[0]!.questions)).not.toContain(`fill_${send}`); // only text fields get a fill question
@@ -70,7 +70,7 @@ describe("decideScreen", () => {
     const script = (dateIsRight: number): Script => (name) => ({ [`right_${date}`]: dateIsRight, [`set_${time}`]: "8:00 PM", [`set_${party}`]: "4 people", [`fill_${term}`]: "restaurant_or_cuisine", next_0: go, move: "type" })[name];
 
     const fixFirst = await decideScreen({ ask: fakeJev(script(0.1)).ask, llm }, SIM_HAND, table, world.look(), { history: [], plan: null });
-    expect(fixFirst.kind === "act" && fixFirst.actions.map(describeScreenAction).map((d) => d.split(" in window")[0])).toEqual(['click dropdown "Date"']);
+    expect(fixFirst.kind === "act" && fixFirst.actions.map(describeScreenAction).map((d) => d.split(/ in (?:window )?"/)[0])).toEqual(['click dropdown "Date"']);
 
     const batch = await decideScreen({ ask: fakeJev(script(0.9)).ask, llm }, SIM_HAND, table, world.look(), { history: [], plan: null });
     expect(batch.kind === "act" && batch.actions.map((a) => a.kind)).toEqual(["type", "select", "select", "click"]);
@@ -114,7 +114,7 @@ describe("runScreens", () => {
       return undefined;
     });
     await runScreens(SIM_HAND, named, depsFor(world, jev.ask, []), { maxPlans: 0 });
-    expect(world.acted.map((d) => d.split(" in window")[0])).toEqual(['type recipient ("Sam") into text field "To recipients"']); // the suggestions opened: Subject was not typed over them
+    expect(world.acted.map((d) => d.split(/ in (?:window )?"/)[0])).toEqual(['type recipient ("Sam") into text field "To recipients"']); // the suggestions opened: Subject was not typed over them
     expect(world.gmail.compose?.suggest.length).toBeGreaterThan(0);
   });
 
@@ -156,11 +156,47 @@ describe("press sequences", () => {
     expect(Object.keys(jev.decisions()[1]!.questions).filter((q) => q.startsWith("press_"))).toEqual([]); // entered keys are not asked about again
   });
 
+  test("a window's menu bar is not an open menu: the keys are still entered in one go", async () => {
+    const pad = keypad();
+    // Every classic Windows window has these in its title bar.
+    const withTitleBar = (): Observation => { const seen = pad.look(); return { ...seen, elements: [{ ...seen.elements[0]!, id: "n90", role: "menu", name: "System", within: "System Menu Bar" }, ...seen.elements] }; };
+    const jev = fakeJev((name, q) => {
+      if (name === "goal_met") return pad.pressed.includes("Equals") ? 0.95 : 0;
+      if (/^press_/.test(name)) return withTitleBar().elements.find((el) => el.name === NAMES[/enter "(.+?)" now/.exec(q.instructions)![1]!])!.id;
+      return undefined;
+    });
+    await runScreens(SIM_HAND, intent, { ask: jev.ask, llm, sleep: async () => {}, settleMs: 0, screenshot: async () => new Uint8Array(), approve: async () => true, observe: async () => withTitleBar(),
+      perform: async (_hand, action: ScreenAction) => { if (action.kind === "click") pad.press(action.target.name); } });
+    expect(pad.pressed).toEqual(["One", "Two", "Multiply by", "Three", "One", "Equals"]);
+    expect(jev.decisions()).toHaveLength(2);
+  });
+
   test("a key with no button means this is not the keypad yet: nothing is half entered", async () => {
     const pad = keypad();
     const jev = fakeJev((name) => (name === "press_0" ? "n7" : name === "move" ? "ask_planner" : undefined)); // only the first key is found
     await runScreens(SIM_HAND, intent, { ask: jev.ask, llm, sleep: async () => {}, settleMs: 0, screenshot: async () => new Uint8Array(), approve: async () => true, observe: async () => pad.look(),
       perform: async (_hand, action: ScreenAction) => { if (action.kind === "click") pad.press(action.target.name); } }, { maxPlans: 0 });
     expect(pad.pressed).toEqual([]);
+  });
+});
+
+describe("approval", () => {
+  test("an approval is spent if the screen moved on while the user was deciding: Jev looks again instead of acting on it", async () => {
+    const world = new World(); world.open(`https://mail.google.com/mail/?${new URLSearchParams({ view: "cm", to: EMAIL.inputs.recipient!, su: EMAIL.inputs.subject!, body: EMAIL.inputs.body! })}`);
+    let asked = 0;
+    const jev = fakeJev((name, _q, state) => {
+      if (name === "irreversible") return /click button "Send"/.test(state.action) ? 0.9 : 0.02;
+      if (name === "goal_met") return world.gmail.sent.length ? 0.95 : 0;
+      if (name === "move") return "click";
+      if (name === "target_0" || name === "next_0") return world.gmail.compose ? idOf(world, "send") : undefined;
+      return undefined;
+    });
+    const result = await runScreens(SIM_HAND, EMAIL, { ask: jev.ask, llm, sleep: async () => {}, settleMs: 0, screenshot: async () => new Uint8Array(), observe: async () => world.look(),
+      perform: async (_hand, action: ScreenAction) => world.act(action, describeScreenAction(action)),
+      // While the first approval is pending, the page changes under it (the subject is edited).
+      approve: async () => { if (++asked === 1) world.act({ kind: "type", target: world.look().elements.find((el) => el.name === "Subject")!, input: "subject", text: "Changed meanwhile", submit: false }, ""); return true; } });
+    expect(asked).toBe(2); // asked again, about the screen as it now is
+    expect(result.status).toBe("done");
+    expect(world.gmail.sent).toHaveLength(1);
   });
 });

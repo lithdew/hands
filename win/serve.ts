@@ -4,7 +4,8 @@
  *
  * Runs the unchanged panel server from hotkey.ts with Windows parts plugged
  * into its dependency seams: virtual-desktop hands and Cua (win/desktop.ts),
- * a native microphone, a held-key listener and picture-in-picture previews.
+ * a native microphone, a held-key listener, picture-in-picture previews and
+ * the caption shown while the key is held (win/hud.ts; PUK_HUD=0 skips it).
  *
  * hotkey.ts serves /desktop.png and /desktop/* through pip.ts (Hyprland), and
  * those routes are not injectable. So the panel server listens on a private
@@ -20,8 +21,25 @@ import { debugLog, subprocessEnv, type Hand } from "../desktop";
 import { isLocalRequest, servePuk, startRecording } from "../hotkey";
 import type { HandState } from "../pip";
 import { createJevFirstAgent } from "./jev";
-import { capture, driver, ensureHelper, getHand, handFor, helper, listHands, signInAll, signInStatus, startHands, warmBrowser, windowsDesktop } from "./desktop";
+import { capture, closeWindowsDesktop, driver, ensureHelper, getHand, handFor, helper, listHands, signInAll, signInStatus, startHands, warmBrowser, windowsDesktop } from "./desktop";
 import { loginTargets } from "./session";
+import { createHud, hudEnabled, type HudStatus } from "./hud";
+
+/** The Windows control page; the shared panel.html stays for Linux. Same CSP as hotkey.ts sends for its page. */
+const WIN_PANEL = Bun.file(new URL("./panel.html", import.meta.url));
+export const PANEL_CSP = "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'";
+export async function panelResponse(request: Request): Promise<Response | null> {
+  const path = new URL(request.url).pathname;
+  if (request.method !== "GET" || (path !== "/" && path !== "/index.html")) return null;
+  return new Response(await WIN_PANEL.text(), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Content-Security-Policy": PANEL_CSP } });
+}
+
+/** Preview caption: `task · title`, the dot omitted when either half is empty. PipForm splits on the
+ * wire-inserted middle dot, so any U+00B7 inside the halves becomes a hyphen first. */
+export function previewLabel(task: string, title: string): string {
+  const clean = (s: string) => s.replace(/·/g, "-").replace(/\s+/g, " ").trim();
+  return [clean(task), clean(title)].filter(Boolean).join(" · ").slice(0, 120);
+}
 
 /** F1..F24, or a Windows virtual-key number. */
 export function virtualKey(name = "F8"): number {
@@ -40,59 +58,96 @@ async function* lines(stream: ReadableStream<Uint8Array>) {
   }
 }
 
+/** Register cleanup immediately after acquiring each resource, so a failure in
+ * any later startup stage closes the same resources as normal shutdown. */
+export function serverResources(closeDesktop: () => void | Promise<void> = closeWindowsDesktop) {
+  const close: (() => void | Promise<void>)[] = [closeDesktop];
+  let closing: Promise<void> | undefined;
+  return {
+    add(dispose: () => void | Promise<void>) { close.push(dispose); },
+    close() {
+      return closing ??= (async () => {
+        for (const dispose of close.toReversed()) {
+          try { await dispose(); } catch (error) { debugLog("win.shutdown", String(error)); }
+        }
+      })();
+    },
+  };
+}
+
 if (import.meta.main) {
+  const resources = serverResources();
+  const shutdown = async (code = 0) => {
+    // A blocked RPC must not keep a failed server alive through helper pipes.
+    await Promise.race([resources.close(), Bun.sleep(2000)]);
+    process.exit(code);
+  };
   try {
     const exe = await ensureHelper();
     const hands = await startHands(Math.max(1, Math.min(4, Number(process.argv[2] ?? process.env.PUK_HANDS ?? 2) || 2)));
-    const native = (mode: string[]) => Bun.spawn([exe, ...mode], { env: subprocessEnv(), stdin: "pipe", stdout: "pipe", stderr: "pipe" });
+    const native = (mode: string[]) => {
+      const proc = Bun.spawn([exe, ...mode], { env: subprocessEnv(), stdin: "pipe", stdout: "pipe", stderr: "pipe" });
+      resources.add(() => { try { proc.stdin.end(); } catch { /* already stopped */ } });
+      return proc;
+    };
 
     // Previews: one line per hand per second; the helper draws, and reports clicks.
     const pip = native(["pip"]);
-    const label = (s: string) => s.replace(/\s+/g, " ").slice(0, 60);
     // A short task would otherwise blink its preview on and off: hold the result a moment.
     const busyUntil = new Map<number, number>();
+    const captions = new Map<number, string>(), tasks = new Map<number, string>(), tools = new Map<number, string>();
     async function paint(hand: Hand, state: HandState) {
       const front = (await windowsDesktop.state(hand)).windows.find((w) => w.focused);
       if (state !== "idle") busyUntil.set(hand.id, Date.now() + 6000);
       const shown = state === "idle" && Date.now() < (busyUntil.get(hand.id) ?? 0) ? "done" : state;
-      pip.stdin.write(`hand ${hand.id} ${front?.containerId ?? 0} ${shown} ${label(front?.title ?? "")}\n`);
+      // Before the hand has a window, the current tool is the only thing to say about it.
+      const title = captions.get(hand.id) || front?.title || (front ? "" : tools.get(hand.id)) || "";
+      pip.stdin.write(`hand ${hand.id} ${front?.containerId ?? 0} ${shown} ${previewLabel(shown === "idle" ? "" : tasks.get(hand.id) ?? "", title)}\n`);
       await pip.stdin.flush();
     }
-
-    // The first task should not pay for PowerShell's app listing or a driver starting.
-    void windowsDesktop.discover().catch(() => {});
-    for (const hand of hands) void driver(hand).catch(() => {});
-    if (process.env.PUK_WIN_PREWARM !== "0") void (async () => { for (const hand of hands) await warmBrowser(hand).catch((e) => debugLog("win.prewarm", String(e))); })();
+    // The F8 caption: what the user sees while holding the key, without looking at the browser.
+    const hudProc = hudEnabled() ? native(["hud"]) : null;
+    // flush() can reject once the card has exited; an unhandled rejection would take the whole server down with it.
+    const { hudLine, hudListening, hudDelta, hudFinishing, hudCancelled, driveHud, hudEpoch } = createHud(hudProc && ((line) => { hudProc.stdin.write(line + "\n"); Promise.resolve(hudProc.stdin.flush()).catch(() => {}); }));
 
     const inner = await servePuk({
       port: 0, handId: hands[0]!.id,
       dependencies: {
         hand: getHand, hands: listHands, handState: paint,
-        // Jev drives the browser itself and opens apps; the vision agent takes what Jev cannot (win/jev.ts).
+        // Jev drives the browser and opens apps; Pi takes the remaining work.
         agent: (opts) => createJevFirstAgent(opts),
-        record: (opts) => startRecording({ ...opts, capture: () => {
+        // Words reach the caption the moment they arrive, not on the next poll.
+        record: (opts) => startRecording({ ...opts, onDelta: (delta) => { opts?.onDelta?.(delta); hudDelta(delta); }, capture: () => {
           const mic = native(["mic"]);
           // The helper stops when its stdin closes; signals do not cross WSL interop.
           return { stdout: mic.stdout, stderr: mic.stderr, exited: mic.exited, kill: (signal) => { if (signal === "SIGKILL") mic.kill(); else mic.stdin.end(); } };
         } }),
       },
     });
+    resources.add(() => inner.close());
     const local = (path: string, init?: RequestInit) => inner.server.fetch(new Request(`${inner.server.url.origin}${path}`, init));
     const selected = async () => (await getHand(Number(((await (await local("/status")).json()) as { hand?: number }).hand))) ?? hands[0]!;
 
     // servePuk repaints once a second. A preview that appears the moment a hand
     // starts is most of what makes it feel alive, so look more often.
-    type Worker = { hand: number; agent: { running: boolean; error: string | null; approval: unknown } };
+    type Worker = { hand: number; agent: { running: boolean; error: string | null; approval: unknown; narration?: string; task: string; currentTool: string | null } };
     const quick = setInterval(async () => {
       try {
-        const { workers } = (await (await local("/status")).json()) as { workers: Worker[] };
-        for (const { hand: id, agent } of workers) {
+        const at = hudEpoch();
+        const status = (await (await local("/status")).json()) as HudStatus & { workers: Worker[] };
+        for (const { hand: id, agent } of status.workers) {
+          if (agent.narration) captions.set(id, agent.narration); else captions.delete(id);
+          if (agent.currentTool) tools.set(id, agent.currentTool); else tools.delete(id);
+          // agent.task outlives the run; keep the last one so the 6 s done hold still names it.
+          if (agent.running || agent.approval) tasks.set(id, agent.task);
           const hand = hands.find((h) => h.id === id);
           if (hand) await paint(hand, agent.approval ? "review" : agent.running ? "working" : agent.error ? "error" : "idle");
         }
+        driveHud(status, at);
       } catch { /* shutting down */ }
     }, 300);
     quick.unref();
+    resources.add(() => clearInterval(quick));
 
     // Entering a hand is a desktop switch; the same control brings the user back.
     let cameFrom: string | undefined;
@@ -112,6 +167,8 @@ if (import.meta.main) {
       async fetch(request) {
         if (!isLocalRequest(request)) return new Response("Local requests only", { status: 403 });
         const path = new URL(request.url).pathname;
+        const page = await panelResponse(request);
+        if (page) return page;
         if (request.method === "GET" && path === "/desktop.png") {
           try { return new Response(Buffer.from(await capture(await selected(), true), "base64"), { headers: { "Content-Type": "image/png", "Cache-Control": "no-store" } }); }
           catch { return new Response("Desktop unavailable", { status: 503 }); }
@@ -138,28 +195,28 @@ if (import.meta.main) {
         return inner.server.fetch(request);
       },
     });
+    resources.add(() => { server.stop(true); });
 
     // Hold to speak. Ctrl+Alt+Esc stops everything, as on Omarchy.
     const key = process.env.PUK_HOTKEY ?? "F8";
     const hotkey = native(["hotkey", String(virtualKey(key))]);
     void (async () => {
       for await (const line of lines(hotkey.stdout)) {
-        if (line === "down") inner.controller.down();
-        else if (line === "up") inner.controller.up();
-        else if (line === "cancel") await local("/stop", { method: "POST" });
+        // A refused hold (previous recording still finishing, no key) used to be silent; the caption says why.
+        if (line === "down") { if (inner.controller.down()) hudListening(); else hudLine(`error ${inner.controller.status().lastError ?? "Voice capture is not ready."}`); }
+        else if (line === "up") { if (inner.controller.up()) hudFinishing(); }
+        else if (line === "cancel") { hudCancelled(); await local("/stop", { method: "POST" }); }
       }
     })();
 
+    // Do not launch background work until all startup resources are ready. A
+    // failed bind or hotkey must not leave a browser-prewarm task still spawning.
+    void windowsDesktop.discover().catch(() => {});
+    for (const hand of hands) void driver(hand).catch(() => {});
+    if (process.env.PUK_WIN_PREWARM !== "0") void (async () => { for (const hand of hands) await warmBrowser(hand).catch((e) => debugLog("win.prewarm", String(e))); })();
+
     console.log(`Puk is ready at ${server.url} with ${hands.length} hand${hands.length > 1 ? "s" : ""} (hold ${key} to speak, release to send).`);
-    const shutdown = async () => {
-      clearInterval(quick);
-      server.stop(true);
-      for (const proc of [pip, hotkey]) proc.stdin.end();
-      await inner.close();
-      (await helper()).close();
-      process.exit();
-    };
-    process.on("SIGINT", shutdown);
-    process.on("SIGTERM", shutdown);
-  } catch (error) { console.error(error instanceof Error ? error.message : "Puk could not start."); process.exitCode = 1; }
+    process.on("SIGINT", () => { void shutdown(); });
+    process.on("SIGTERM", () => { void shutdown(); });
+  } catch (error) { console.error(error instanceof Error ? error.message : "Puk could not start."); await shutdown(1); }
 }

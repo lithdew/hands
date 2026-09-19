@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "start": "bun hotkey.ts",
+    "start:win": "bun win/serve.ts 2",
     "desktop": "bun desktop.ts up 2",
     "check": "tsc --noEmit",
     "test": "bun test",

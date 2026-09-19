@@ -414,6 +414,45 @@ describe("listener integration races", () => {
     jobs[1]!.end();
     await l.idle();
   });
+
+  test("cancelling a final classification aborts that request without stopping an earlier utterance", async () => {
+    const entered = Promise.withResolvers<AbortSignal>();
+    const jev = fakeJev((name) => ({ relation: "new_task", startable: 0.99, route: "jev" })[name]);
+    const { l, jobs } = listener({ buildIntent: literal, ask: async (state, questions, options) => {
+      if (typeof state === "object" && state !== null && "speaker_has_finished" in state && state.speaker_has_finished && "new_words" in state && state.new_words === "and count the files") {
+        entered.resolve(options!.signal!);
+        await new Promise((_, reject) => options!.signal!.addEventListener("abort", () => reject(new Error("Aborted")), { once: true }));
+      }
+      return jev.ask(state, questions);
+    } });
+    l.hear("Read notes"); await settle(); await l.finish();
+    l.hear("Open files"); await settle();
+    const finishing = l.finish("Open files and count the files");
+    const signal = await entered.promise;
+    l.cancelUtterance();
+    expect(signal.aborted).toBe(true);
+    await finishing;
+    expect(jobs.map((job) => job.job.signal.aborted)).toEqual([false, true]);
+    l.hear("Open calculator"); await l.finish();
+    expect(jobs).toHaveLength(3);
+    expect(jobs[0]!.job.transcript()).toBe("Read notes");
+    expect(jobs[2]!.job.transcript()).toBe("Open calculator");
+    jobs.forEach((job) => job.end()); await l.idle();
+  });
+
+  test("queued work can use an externally released hand before another voice worker finishes", async () => {
+    let occupied = true;
+    const jev = fakeJev((name) => ({ relation: "new_task", startable: 0.99, route: "jev" })[name]);
+    const { l, jobs } = listener({ ask: jev.ask, buildIntent: literal, unavailable: (hand) => hand.id === 1 && occupied });
+    l.hear("Open notes"); await settle();
+    await l.finish("Open notes and open files");
+    expect(jobs.map((job) => job.hand)).toEqual([2]);
+    expect(l.tasks.map((task) => task.status)).toEqual(["running", "waiting"]);
+    occupied = false;
+    await l.schedule();
+    expect(jobs.map((job) => job.hand)).toEqual([2, 1]);
+    jobs.forEach((job) => job.end()); await l.idle();
+  });
 });
 
 describe("Jev task cut points", () => {
@@ -428,9 +467,39 @@ describe("Jev task cut points", () => {
     l.hear("Open notes. Also find a capybara photo in the browser.");
     await until(() => jobs.length === 2);
     expect(jobs.map((j) => j.hand)).toEqual([1, 2]);
-    expect(jobs.map((j) => j.job.intent().goal)).toEqual(["Open notes", ". Also find a capybara photo in the browser."]);
+    expect(jobs.map((j) => j.job.intent().goal)).toEqual(["Open notes.", "Also find a capybara photo in the browser."]);
     expect(jobs.every((j) => j.job.speechEnds())).toBe(true);
     await l.finish(); jobs.forEach((j) => j.end()); await l.idle();
+  });
+  test.each(["?", "!", ".", "？", "！", "。"])("a partial speech repair at %s does not launch two tasks", async (punctuation) => {
+    const jev = fakeJev((name) => ({ relation: "new_task", route: "jev", startable: 1, cut: "none" })[name]);
+    const { l, jobs } = listener({ ask: jev.ask, buildIntent });
+    l.hear(`Open Pay${punctuation} Paint`);
+    await settle();
+    expect(jobs).toHaveLength(0); // Ambiguous STT punctuation waits for the final words.
+    await l.finish("Open Paint");
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]!.job.intent().goal).toBe("Open Paint");
+    jobs[0]!.end(); await l.idle();
+  });
+  test("a bare sentence boundary remains available when the same transcript becomes final", async () => {
+    const jev = fakeJev((name, state) => name === "cut" ? state.new_words.startsWith("Open notes.") ? "cut_0" : "none" : ({ relation: "new_task", route: "jev", startable: 1 })[name]);
+    const { l, jobs } = listener({ ask: jev.ask, buildIntent });
+    l.hear("Open notes. Open calculator.");
+    await settle();
+    expect(jobs).toHaveLength(0);
+    await l.finish("Open notes. Open calculator.");
+    expect(jobs.map((job) => job.hand)).toEqual([1, 2]);
+    expect(jobs.map((job) => job.job.intent().goal)).toEqual(["Open notes", ". Open calculator."]);
+    jobs.forEach((job) => job.end()); await l.idle();
+  });
+  test("punctuation cannot postpone a spoken cancellation until release", async () => {
+    const jev = fakeJev((name, state) => ({ relation: state.new_words?.includes("Never mind") ? "retracts" : "new_task", route: "jev", startable: 1 })[name]);
+    const { l, jobs } = listener({ ask: jev.ask, buildIntent });
+    l.hear("Open notes"); await until(() => jobs.length === 1);
+    l.hear("Open notes. Never mind"); await until(() => jobs[0]!.job.signal.aborted);
+    expect(l.tasks[0]!.status).toBe("cancelled");
+    await l.finish(); await l.idle();
   });
   test("a connector alone is never offered as a task to split off", async () => {
     const jev = fakeJev((name) => name === "relation" ? "new_task" : name === "route" ? "jev" : name === "startable" ? 1 : undefined);

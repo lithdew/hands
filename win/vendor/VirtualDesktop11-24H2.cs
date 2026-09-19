@@ -600,7 +600,8 @@ namespace VirtualDesktop
 			}
 		}
 
-		public void MoveWindow(IntPtr hWnd)
+		// Puk uses exactWindow to forbid moving another window outside its checked ownership.
+		public void MoveWindow(IntPtr hWnd, bool exactWindow = false)
 		{ // move window to this desktop
 			int processId;
 			if (hWnd == IntPtr.Zero) throw new ArgumentNullException();
@@ -628,6 +629,7 @@ namespace VirtualDesktop
 				}
 				catch
 				{ // could not move active window, try main window (or whatever Windows thinks is the main window)
+					if (exactWindow) throw;
 					DesktopManager.ApplicationViewCollection.GetViewForHwnd(System.Diagnostics.Process.GetProcessById(processId).MainWindowHandle, out view);
 					DesktopManager.VirtualDesktopManagerInternal.MoveViewToDesktop(view, ivd);
 				}

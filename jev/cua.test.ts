@@ -182,6 +182,56 @@ describe("runIntent", () => {
     expect(sh.input().at(-1)).toEqual(["wlrctl", "pointer", "click", "left"]);
   });
 
+  test("a changed screen expires approval before the proposed input can run", async () => {
+    const jev = fakeJev((name) => ({ move: "click", target: "e2", spends_money: 0.8 })[name]);
+    const sh = fakeExec();
+    let approvals = 0;
+    const changed = { ...home, fingerprint: "different-controls" };
+    const result = await runIntent(hand, intent, deps({ ask: jev.ask, observe: screens(home, changed), approve: async () => { approvals++; return true; } }, sh.exec), { maxSteps: 1 });
+    expect(result.status).toBe("out_of_steps");
+    expect(approvals).toBe(1);
+    expect(sh.input()).toEqual([]);
+  });
+
+  test("a corrected instruction expires approval even if the screen is unchanged", async () => {
+    let current = intent;
+    const jev = fakeJev((name) => ({ move: "click", target: "e2", spends_money: 0.8 })[name]);
+    const sh = fakeExec();
+    const result = await runIntent(hand, () => current, deps({ ask: jev.ask, observe: screens(home), approve: async () => {
+      current = { ...intent, avoid: ["Do not click Search."] };
+      return true;
+    } }, sh.exec), { maxSteps: 1 });
+    expect(result.status).toBe("out_of_steps");
+    expect(sh.input()).toEqual([]);
+  });
+
+  test("a correction arriving during an allowed gate prevents the old input", async () => {
+    let current = intent;
+    const jev = fakeJev((name) => {
+      if (name === "irreversible") current = { ...intent, inputs: { search_query: "otters" } };
+      return { move: "type", input: "search_query", field: "e1" }[name];
+    });
+    const sh = fakeExec();
+    const result = await runIntent(hand, () => current, deps({ ask: jev.ask, observe: screens(home) }, sh.exec), { maxSteps: 1 });
+    expect(result.status).toBe("out_of_steps");
+    expect(sh.input()).toEqual([]);
+  });
+
+  test("a completion decision cannot finish an instruction corrected while Jev was answering", async () => {
+    let current = intent;
+    const jev = fakeJev((name) => {
+      if (name === "goal_met") {
+        current = { ...intent, goal: "Search Wikipedia for otters.", doneWhen: "The Otter article is open." };
+        return 0.99;
+      }
+      return { move: "done" }[name];
+    });
+    const sh = fakeExec();
+    const result = await runIntent(hand, () => current, deps({ ask: jev.ask, observe: screens(article) }, sh.exec), { maxSteps: 1 });
+    expect(result.status).toBe("out_of_steps");
+    expect(sh.input()).toEqual([]);
+  });
+
   test("a safe action does not bother the user", async () => {
     const jev = fakeJev((name, { state }) => {
       if (name === "goal_met") return state.history.length ? 0.9 : 0;
@@ -258,6 +308,39 @@ describe("runIntent", () => {
     });
     expect(model.calls).toHaveLength(1);
     expect(result.status).toBe("out_of_steps");
+  });
+
+  test("an uncertain wait observes again and can finish without a planner", async () => {
+    let looks = 0;
+    const jev = fakeJev((name) => ({ move: { choice: "wait", confidence: 0.2 }, goal_met: looks > 1 ? .95 : 0 })[name]);
+    const model = fakeLlm({});
+    const sh = fakeExec();
+    const result = await runIntent(hand, intent, deps({ ask: jev.ask, llm: model.llm, observe: async () => { looks++; return home; } }, sh.exec));
+    expect(result.status).toBe("done");
+    expect(looks).toBe(2);
+    expect(model.calls).toHaveLength(0);
+    expect(sh.input()).toEqual([]);
+  });
+
+  test("changing screens cannot indefinitely retry an uncertain wait", async () => {
+    let looks = 0;
+    const jev = fakeJev((name) => ({ move: { choice: "wait", confidence: 0.2 }, planner: "quick" })[name]);
+    const model = fakeLlm({ situation: "No readable progress", steps: [], elements: [], blocked: "Need help" });
+    const result = await runIntent(hand, intent, deps({ ask: jev.ask, llm: model.llm, observe: async () => ({ ...home, fingerprint: String(++looks) }) }, fakeExec().exec));
+    expect(result.status).toBe("gave_up");
+    expect(looks).toBe(2);
+    expect(model.calls).toHaveLength(1);
+  });
+
+  test("cancelling during a passive retry prevents another observation or action", async () => {
+    const abort = new AbortController();
+    let looks = 0;
+    const jev = fakeJev((name) => ({ move: { choice: "wait", confidence: 0.2 } })[name]);
+    const sh = fakeExec();
+    const result = await runIntent(hand, intent, deps({ ask: jev.ask, observe: async () => { looks++; return home; }, sleep: async () => { abort.abort(); } }, sh.exec), { signal: abort.signal });
+    expect(result.status).toBe("cancelled");
+    expect(looks).toBe(1);
+    expect(sh.input()).toEqual([]);
   });
 
   test("when no element fits, that is a reason to ask the planner", async () => {

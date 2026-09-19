@@ -38,6 +38,8 @@ export type Task = {
 export type Job = {
   intent: () => Intent;
   signal: AbortSignal;
+  /** This task's spoken context; another independent utterance cannot replace it. */
+  transcript: () => string;
   /** A promise while the speaker is still talking, null once they have finished. */
   speechEnds: () => Promise<void> | null;
   /** Notify a running worker when Jev refines this task. */
@@ -51,6 +53,8 @@ export type ListenDeps = {
   /** An existing agent can own planning; it need not pay for a second intent LLM. */
   buildIntent?: (request: string, route: "jev" | "llm", final: boolean) => Intent | Promise<Intent>;
   hands: () => Promise<Hand[]>;
+  /** Work started outside this listener can also own a hand. */
+  unavailable?: (hand: Hand) => boolean;
   work: Work;
   log?: (line: string) => void;
 };
@@ -62,6 +66,10 @@ export type Listener = {
   hear(transcript: string): void;
   /** The speaker has finished. An optional final STT result replaces the partial atomically. */
   finish(transcript?: string): Promise<void>;
+  /** Discard only this recording, leaving earlier independent work running. */
+  cancelUtterance(): void;
+  /** Retry queued work after an external worker releases a hand. */
+  schedule(): Promise<void>;
   /** Stop this listener and its queued/running tasks. Late replies are discarded. */
   cancel(): void;
   /** Resolves when no task is waiting or running. */
@@ -80,7 +88,13 @@ type Live = Task & {
   working: boolean;
   superseded: boolean;
   listeners: Set<(intent: Intent) => void>;
+  utterance: Utterance;
+  requestPrefix: string;
+  contextPrefix: string;
 };
+
+type Utterance = { text: string; speaking: boolean; ended: ReturnType<typeof Promise.withResolvers<void>>; abort: AbortController };
+const newUtterance = (): Utterance => ({ text: "", speaking: false, ended: Promise.withResolvers<void>(), abort: new AbortController() });
 
 // ---------------------------------------------------------------- config
 
@@ -121,14 +135,29 @@ const QUESTIONS = {
 
 /** Candidate boundaries are only options. Jev decides whether the following
  * phrase is independent, or is another step/detail/correction of the same task. */
-function cutPoints(text: string) {
-  return [...text.matchAll(/\s+(?:and|also|then|meanwhile|separately|plus)\b|[.!?;,。！？；，]\s*|另外|然后|同时/giu)]
+function cutPoints(text: string, isFinal: boolean) {
+  // Streaming STT uses sentence punctuation for pauses and repairs, such as
+  // "Open Pay? Paint". Only the final transcript may split on those marks.
+  const boundaries = isFinal
+    ? /\s+(?:and|also|then|meanwhile|separately|plus)\b|[.!?;,。！？；，]\s*|另外|然后|同时/giu
+    : /\s+(?:and|also|then|meanwhile|separately|plus)\b|[;,；，]\s*|另外|然后|同时/giu;
+  return [...text.matchAll(boundaries)]
     .map((match) => ({ at: match.index, before: text.slice(0, match.index).trim(), after: text.slice(match.index).trim() }))
     .filter((cut) => {
       const content = cut.before.replace(/\b(?:and|also|then|meanwhile|separately|plus|please)\b|另外|然后|同时/giu, "");
       return /[\p{L}\p{N}]/u.test(content) && /[\p{L}\p{N}]/u.test(cut.after);
     })
     .slice(0, 12).map((cut, i) => ({ id: `cut_${i}`, ...cut }));
+}
+
+function hasUnsettledSentence(text: string) {
+  // A bare sentence boundary needs final STT confirmation. Explicit connectors
+  // can still start independent work before release. Keep the words pending so
+  // finish() can split genuine sentences even when no new words arrive then.
+  return [...text.matchAll(/[.!?。！？]+\s*([^.!?。！？]*)/gu)].some((match) => {
+    const after = match[1]!.trim();
+    return /[\p{L}\p{N}]/u.test(after) && !/^(?:(?:and|also|then|meanwhile|separately|plus)\b|另外|然后|同时)/iu.test(after);
+  });
 }
 
 // ---------------------------------------------------------------- listener
@@ -138,7 +167,7 @@ export function createListener(deps: ListenDeps): Listener {
   const tasks: Live[] = [];
   const abort = new AbortController();
   const ask: Ask = (state, questions, options) => deps.ask(state, questions, {
-    ...options, signal: options?.signal ? AbortSignal.any([abort.signal, options.signal]) : abort.signal,
+    ...options, signal: AbortSignal.any([abort.signal, utterance.abort.signal, ...(options?.signal ? [options.signal] : [])]),
   });
 
   // One utterance: from the first word to finish().
@@ -146,13 +175,11 @@ export function createListener(deps: ListenDeps): Listener {
   let finished = false;
   let handled = { text: "", finished: false };
   let consumed = ""; // transcript prefix already turned into a task, or taken back
-  let speech = Promise.withResolvers<void>();
-  let speaking = false;
+  let utterance = newUtterance();
   let pump: Promise<void> | null = null;
   let ending: Promise<void> | null = null;
   let scheduling = Promise.resolve();
   let epoch = 0;
-  let utteranceStart = 0;
   let finalError: Error | null = null;
   const currentPass = (version: number) => !abort.signal.aborted && version === epoch;
 
@@ -160,7 +187,8 @@ export function createListener(deps: ListenDeps): Listener {
   const job = (task: Live): Job => ({
     intent: () => task.intent,
     signal: task.abort.signal,
-    speechEnds: () => (speaking ? speech.promise : null),
+    transcript: () => task.contextPrefix + task.utterance.text,
+    speechEnds: () => (task.utterance.speaking ? task.utterance.ended.promise : null),
     onUpdate: (listener) => { task.listeners.add(listener); return () => { task.listeners.delete(listener); }; },
   });
 
@@ -169,7 +197,7 @@ export function createListener(deps: ListenDeps): Listener {
   async function freeHand(): Promise<Hand | undefined> {
     const hands = await deps.hands();
     const busy = new Set(tasks.filter((t) => t.working).map((t) => t.hand));
-    return hands.find((h) => !busy.has(h.id));
+    return hands.find((h) => !busy.has(h.id) && !deps.unavailable?.(h));
   }
 
   function start(task: Live, hand: Hand) {
@@ -262,6 +290,9 @@ export function createListener(deps: ListenDeps): Listener {
       working: false,
       superseded: false,
       listeners: new Set(),
+      utterance,
+      requestPrefix: "",
+      contextPrefix: "",
     };
     tasks.push(task);
     log(`task ${task.id} (${task.route}): ${JSON.stringify(task.intent.inputs)} ${task.intent.url ?? task.intent.launcher}`);
@@ -270,6 +301,12 @@ export function createListener(deps: ListenDeps): Listener {
   }
 
   async function refine(task: Live, request: string, isFinal: boolean, version: number) {
+    if (task.utterance !== utterance) {
+      task.contextPrefix += task.utterance.text + "\n";
+      task.requestPrefix = task.request + "\n";
+      task.startChar = 0;
+      task.utterance = utterance;
+    }
     task.request = request;
     // The LLM is slow and the sentence is still moving: rebuild once, when it has stopped.
     if (!deps.buildIntent && task.route === "llm" && !isFinal) return void (task.stale = true);
@@ -306,9 +343,10 @@ export function createListener(deps: ListenDeps): Listener {
   // ---- one pass over the transcript
 
   async function pass(text: string, isFinal: boolean, version: number) {
+    const deferNewTask = !isFinal && hasUnsettledSentence(text);
     let newWords = text.slice(consumed.length).trim();
     const pendingFrom = text.indexOf(newWords, consumed.length);
-    const cuts = cutPoints(newWords);
+    const cuts = cutPoints(newWords, isFinal);
     const beforeConsumed = consumed;
     let boundary: number | undefined;
     if (newWords) {
@@ -345,7 +383,7 @@ export function createListener(deps: ListenDeps): Listener {
       if (relation === "no_request") {
         // keep the words: they may turn out to be the start of a request
       } else if (relation === "new_task" || (relation === "refines" && !current)) {
-        if (startable && (!current || sure)) {
+        if (!deferNewTask && startable && (!current || sure)) {
           const startWord = consumed.split(/\s+/).filter(Boolean).length;
           await create(newWords, startWord, consumed.length, answers.route.choice, isFinal, version);
           if (currentPass(version)) consumed = text;
@@ -363,7 +401,10 @@ export function createListener(deps: ListenDeps): Listener {
           // Its hand is free once the loop on it has stopped; `settled` ends in startWaiting.
         }
       } else if (current) {
-        await refine(current, text.slice(current.startChar).trim(), isFinal, version);
+        const request = current.utterance === utterance
+          ? current.requestPrefix + text.slice(current.startChar).trim()
+          : current.request + "\n" + text.trim();
+        await refine(current, request, isFinal, version);
         if (currentPass(version)) consumed = text;
       }
     }
@@ -393,7 +434,7 @@ export function createListener(deps: ListenDeps): Listener {
         log(`listen: ${err instanceof Error ? err.message : err}`); // the next word gets another try
         if (now.finished) {
           finalError = err instanceof Error ? err : new Error(String(err));
-          stopTasks(tasks, "failed"); // never release a partial intent after final triage failed
+          stopTasks(tasks.filter((task) => task.utterance === utterance), "failed"); // Do not release partial intents, or stop an earlier independent utterance.
         }
       }
       if (currentPass(version)) handled = now;
@@ -420,25 +461,32 @@ export function createListener(deps: ListenDeps): Listener {
 
   async function finishUtterance() {
     if (abort.signal.aborted) return;
+    const completing = utterance;
     finished = true;
     try {
-      while (!abort.signal.aborted && (handled.text !== latest || !handled.finished)) await kick();
+      while (!abort.signal.aborted && utterance === completing && (handled.text !== latest || !handled.finished)) await kick();
+      if (utterance !== completing) return;
       if (finalError) throw finalError;
-      for (const task of tasks.filter((t) => t.status === "running")) {
+      for (const task of tasks.filter((t) => t.status === "running" && t.utterance === completing)) {
         for (const listener of task.listeners) listener(task.intent);
       }
     } finally {
       // Only validated final intents reach workers; failed/cancelled ones are aborted first.
-      speaking = false;
-      speech.resolve();
-      speech = Promise.withResolvers<void>();
-      latest = "";
-      finished = false;
-      handled = { text: "", finished: false };
-      consumed = "";
-      utteranceStart = tasks.length;
-      finalError = null;
+      complete(completing);
     }
+  }
+
+  function complete(completing = utterance) {
+    completing.speaking = false;
+    completing.ended.resolve();
+    completing.abort.abort();
+    if (utterance !== completing) return;
+    utterance = newUtterance();
+    latest = "";
+    finished = false;
+    handled = { text: "", finished: false };
+    consumed = "";
+    finalError = null;
   }
 
   function receive(transcript: string) {
@@ -448,13 +496,16 @@ export function createListener(deps: ListenDeps): Listener {
       // STT can revise earlier words, not just append. Their old word offsets
       // are no longer meaningful; rebuild from the corrected utterance.
       epoch++;
-      const old = tasks.slice(utteranceStart);
+      utterance.abort.abort();
+      utterance.abort = new AbortController();
+      const old = tasks.filter((task) => task.utterance === utterance);
       stopTasks(old);
       for (const task of old) task.superseded = true;
       consumed = "";
       handled = { text: "", finished: false };
     }
-    speaking = true;
+    utterance.speaking = true;
+    utterance.text = transcript;
     latest = transcript;
   }
 
@@ -472,12 +523,17 @@ export function createListener(deps: ListenDeps): Listener {
       if (transcript !== undefined && !ending) receive(transcript);
       return ending ??= finishUtterance().finally(() => { ending = null; });
     },
+    cancelUtterance() {
+      epoch++;
+      stopTasks(tasks.filter((task) => task.utterance === utterance));
+      complete();
+    },
+    schedule: () => startWaiting(),
     cancel() {
       epoch++;
       abort.abort();
       stopTasks(tasks);
-      speaking = false;
-      speech.resolve();
+      complete();
     },
     async idle() {
       while (tasks.some((t) => t.working)) await Promise.all(tasks.filter((t) => t.working).map((t) => t.settled));

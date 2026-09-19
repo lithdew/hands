@@ -374,6 +374,8 @@ export async function getHand(id: number): Promise<Hand | null> {
 // The agent uses the real Cua MCP server. Native helpers below remain useful
 // for desktop lifecycle, the CLI, and Chi's standalone experiment.
 export type CuaConnection = {
+  /** Discard buffered input on cancellation; actual held buttons are still released. */
+  cancelPendingInput?: () => void | Promise<void>;
   call(name: string, args?: Record<string, unknown>, signal?: AbortSignal): Promise<Awaited<ReturnType<Client["callTool"]>>>;
   close(): Promise<void>;
 };
@@ -638,7 +640,7 @@ export async function handState(hand: Hand, exec: Exec = defaultExec) {
   const socket = join(RUNTIME_DIR, `sway-ipc.${process.getuid?.() ?? 1000}.${hand.pid}.sock`);
   const res = await run(exec, ["swaymsg", "-s", socket, "-t", "get_tree", "-r"], handEnv(hand));
   const tree = JSON.parse(new TextDecoder().decode(res.stdout));
-  const windows: { app: string; title: string; focused: boolean; pid?: number; containerId?: number }[] = [];
+  const windows: { app: string; title: string; focused: boolean; pid?: number; containerId?: number; ownerNonce?: string }[] = [];
   let width = 0, height = 0;
   function walk(node: any) {
     if (node.type === "output" && node.name !== "__i3") { width = node.rect.width; height = node.rect.height; }

@@ -1,0 +1,1064 @@
+{
+  "title": "Jev contract evals, 2026-09-19",
+  "note": "Copied from ignored live-run metadata and summaries. Synthetic one-step fixtures; three repeats are not independent tasks. See jev-evals.md for methodology and limitations.",
+  "runs": [
+    {
+      "directory": "out/evals/jev-development",
+      "metadata": {
+        "date": "2026-09-19T12:27:32.912Z",
+        "suite": "all",
+        "split": "development",
+        "rounds": 3,
+        "seed": 20260919,
+        "concurrency": 1,
+        "jobs": 321,
+        "platform": "win32",
+        "bun": "1.4.2",
+        "model": "jev-1.13.0",
+        "warmup": {
+          "ms": 892.9107000000001,
+          "ok": true
+        },
+        "hashes": {
+          "jev/cua.ts": "0f0a402b37246bfa1b8ec5ef724b1bb2b06412365ec2158ef2620142f48352c0",
+          "jev/contracts.ts": "ed0afa3aa2ad3eadb3837db05c340577777eaf4ac9a80dda14f2d1ff8d22160b",
+          "jev/quick.ts": "bc223b3f500cc80de644363a2811d28b565544aa9ff6d3157bb8411e5dc01ec3",
+          "jev/eval-fixtures.ts": "110a3578d39235f7aa72042a04db4cc7506939d960e07a5e935674a221090f23",
+          "jev/eval.ts": "7ef7cb8c4499f0003f0f26e5b3390bd13977f34e5bcb34599525e53b3ca9ce36",
+          "jev/gate.ts": "ee28a6e4aa9302cb0d68c66caf2b3de2d22bd1ba65d98ba9fc4eb3740463a84c"
+        },
+        "note": "Synthetic observations. Real Jev; mocked writer and actions except optional --llm intent suite. Existing independent exact-action gate retained. No automatic retries. Errors remain in denominators; latency uses nearest-rank percentiles. Input bytes are serialized state + questions, excluding HTTP headers. Cold probe excluded from aggregate latencies."
+      },
+      "results": {
+        "completed": 321,
+        "planned": 321,
+        "summary": [
+          {
+            "id": "decisions/actions",
+            "n": 54,
+            "correct": 54,
+            "direct": 52,
+            "errors": 0,
+            "handoffs": 7,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 329,
+            "decisionP95Ms": 400,
+            "totalP50Ms": 634,
+            "totalP95Ms": 736,
+            "gateP50Ms": 319,
+            "meanDecisionBytes": 3219,
+            "meanDecisionTokens": 1515,
+            "inputTokens": 99254
+          },
+          {
+            "id": "decisions/evidence",
+            "n": 54,
+            "correct": 54,
+            "direct": 48,
+            "errors": 0,
+            "handoffs": 9,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 329,
+            "decisionP95Ms": 386,
+            "totalP50Ms": 627,
+            "totalP95Ms": 720,
+            "gateP50Ms": 324,
+            "meanDecisionBytes": 4374,
+            "meanDecisionTokens": 1777,
+            "inputTokens": 111417
+          },
+          {
+            "id": "decisions/fanout",
+            "n": 54,
+            "correct": 45,
+            "direct": 42,
+            "errors": 0,
+            "handoffs": 15,
+            "unnecessaryHandoffs": 6,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 320,
+            "decisionP95Ms": 372,
+            "totalP50Ms": 629,
+            "totalP95Ms": 739,
+            "gateP50Ms": 328,
+            "meanDecisionBytes": 4485,
+            "meanDecisionTokens": 1822,
+            "inputTokens": 102672
+          },
+          {
+            "id": "decisions/scores",
+            "n": 54,
+            "correct": 54,
+            "direct": 51,
+            "errors": 0,
+            "handoffs": 6,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 348,
+            "decisionP95Ms": 465,
+            "totalP50Ms": 661,
+            "totalP95Ms": 792,
+            "gateP50Ms": 323,
+            "meanDecisionBytes": 21263,
+            "meanDecisionTokens": 4623,
+            "inputTokens": 258358
+          },
+          {
+            "id": "decisions/compact",
+            "n": 54,
+            "correct": 45,
+            "direct": 42,
+            "errors": 0,
+            "handoffs": 15,
+            "unnecessaryHandoffs": 6,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 327,
+            "decisionP95Ms": 410,
+            "totalP50Ms": 636,
+            "totalP95Ms": 770,
+            "gateP50Ms": 328,
+            "meanDecisionBytes": 4220,
+            "meanDecisionTokens": 1722,
+            "inputTokens": 98193
+          },
+          {
+            "id": "intent/quick",
+            "n": 24,
+            "correct": 9,
+            "direct": 9,
+            "errors": 0,
+            "handoffs": 6,
+            "unnecessaryHandoffs": 6,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 318,
+            "decisionP95Ms": 370,
+            "totalP50Ms": 318,
+            "totalP95Ms": 370,
+            "gateP50Ms": null,
+            "meanDecisionBytes": 2250,
+            "meanDecisionTokens": 1016,
+            "inputTokens": 24378
+          },
+          {
+            "id": "latency/8-elements-1-questions",
+            "n": 3,
+            "correct": 3,
+            "direct": 3,
+            "errors": 0,
+            "handoffs": 0,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 349,
+            "decisionP95Ms": 1477,
+            "totalP50Ms": 350,
+            "totalP95Ms": 1477,
+            "gateP50Ms": null,
+            "meanDecisionBytes": 535,
+            "meanDecisionTokens": 514,
+            "inputTokens": 1542
+          },
+          {
+            "id": "latency/80-elements-32-questions",
+            "n": 3,
+            "correct": 3,
+            "direct": 3,
+            "errors": 0,
+            "handoffs": 0,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 784,
+            "decisionP95Ms": 935,
+            "totalP50Ms": 784,
+            "totalP95Ms": 935,
+            "gateP50Ms": null,
+            "meanDecisionBytes": 73297,
+            "meanDecisionTokens": 47428,
+            "inputTokens": 142284
+          },
+          {
+            "id": "latency/8-elements-32-questions",
+            "n": 3,
+            "correct": 3,
+            "direct": 3,
+            "errors": 0,
+            "handoffs": 0,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 334,
+            "decisionP95Ms": 426,
+            "totalP50Ms": 335,
+            "totalP95Ms": 426,
+            "gateP50Ms": null,
+            "meanDecisionBytes": 9299,
+            "meanDecisionTokens": 5102,
+            "inputTokens": 15306
+          },
+          {
+            "id": "latency/150-elements-1-questions",
+            "n": 3,
+            "correct": 3,
+            "direct": 3,
+            "errors": 0,
+            "handoffs": 0,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 332,
+            "decisionP95Ms": 359,
+            "totalP50Ms": 332,
+            "totalP95Ms": 359,
+            "gateP50Ms": null,
+            "meanDecisionBytes": 8394,
+            "meanDecisionTokens": 5249,
+            "inputTokens": 15746
+          },
+          {
+            "id": "latency/150-elements-9-questions",
+            "n": 3,
+            "correct": 3,
+            "direct": 3,
+            "errors": 0,
+            "handoffs": 0,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 672,
+            "decisionP95Ms": 697,
+            "totalP50Ms": 673,
+            "totalP95Ms": 698,
+            "gateP50Ms": null,
+            "meanDecisionBytes": 42084,
+            "meanDecisionTokens": 27643,
+            "inputTokens": 82930
+          },
+          {
+            "id": "latency/150-elements-32-questions",
+            "n": 3,
+            "correct": 0,
+            "direct": 0,
+            "errors": 3,
+            "handoffs": 0,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 442,
+            "decisionP95Ms": 450,
+            "totalP50Ms": 442,
+            "totalP95Ms": 451,
+            "gateP50Ms": null,
+            "meanDecisionBytes": 138967,
+            "meanDecisionTokens": 0,
+            "inputTokens": 0
+          },
+          {
+            "id": "latency/80-elements-1-questions",
+            "n": 3,
+            "correct": 3,
+            "direct": 3,
+            "errors": 0,
+            "handoffs": 0,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 338,
+            "decisionP95Ms": 343,
+            "totalP50Ms": 338,
+            "totalP95Ms": 343,
+            "gateP50Ms": null,
+            "meanDecisionBytes": 4414,
+            "meanDecisionTokens": 2809,
+            "inputTokens": 8426
+          },
+          {
+            "id": "latency/80-elements-9-questions",
+            "n": 3,
+            "correct": 3,
+            "direct": 3,
+            "errors": 0,
+            "handoffs": 0,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 395,
+            "decisionP95Ms": 437,
+            "totalP50Ms": 395,
+            "totalP95Ms": 437,
+            "gateP50Ms": null,
+            "meanDecisionBytes": 22184,
+            "meanDecisionTokens": 14323,
+            "inputTokens": 42970
+          },
+          {
+            "id": "latency/8-elements-9-questions",
+            "n": 3,
+            "correct": 3,
+            "direct": 3,
+            "errors": 0,
+            "handoffs": 0,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 323,
+            "decisionP95Ms": 375,
+            "totalP50Ms": 324,
+            "totalP95Ms": 375,
+            "gateP50Ms": null,
+            "meanDecisionBytes": 2791,
+            "meanDecisionTokens": 1698,
+            "inputTokens": 5094
+          }
+        ]
+      }
+    },
+    {
+      "directory": "out/evals/jev-holdout",
+      "metadata": {
+        "date": "2026-09-19T12:39:13.282Z",
+        "suite": "decisions",
+        "split": "holdout",
+        "rounds": 3,
+        "seed": 20260919,
+        "concurrency": 1,
+        "jobs": 180,
+        "platform": "win32",
+        "bun": "1.4.2",
+        "model": "jev-1.13.0",
+        "warmup": {
+          "ms": 927.5746000000001,
+          "ok": true
+        },
+        "hashes": {
+          "jev/cua.ts": "0f0a402b37246bfa1b8ec5ef724b1bb2b06412365ec2158ef2620142f48352c0",
+          "jev/contracts.ts": "ed0afa3aa2ad3eadb3837db05c340577777eaf4ac9a80dda14f2d1ff8d22160b",
+          "jev/quick.ts": "4ce520b5309642e1e6440f4fb286e160ff6b226647e57f6ac7ee8afacf84dd31",
+          "jev/eval-fixtures.ts": "110a3578d39235f7aa72042a04db4cc7506939d960e07a5e935674a221090f23",
+          "jev/eval.ts": "2cab1bd4f7d9a1e1b47b0ee66a6a7d65790d25b4f7388618d6f1438568f023e0",
+          "jev/gate.ts": "ee28a6e4aa9302cb0d68c66caf2b3de2d22bd1ba65d98ba9fc4eb3740463a84c"
+        },
+        "note": "Synthetic observations. Real Jev; mocked writer and actions except optional --llm intent suite. Existing independent exact-action gate retained. No automatic retries. Errors remain in denominators; latency uses nearest-rank percentiles. Input bytes are serialized state + questions, excluding HTTP headers. Cold probe excluded from aggregate latencies."
+      },
+      "results": {
+        "completed": 180,
+        "planned": 180,
+        "summary": [
+          {
+            "id": "decisions/compact",
+            "n": 36,
+            "correct": 33,
+            "direct": 27,
+            "errors": 0,
+            "handoffs": 6,
+            "unnecessaryHandoffs": 3,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 351,
+            "decisionP95Ms": 420,
+            "totalP50Ms": 670,
+            "totalP95Ms": 830,
+            "gateP50Ms": 340,
+            "meanDecisionBytes": 3853,
+            "meanDecisionTokens": 1554,
+            "inputTokens": 66888
+          },
+          {
+            "id": "decisions/actions",
+            "n": 36,
+            "correct": 29,
+            "direct": 28,
+            "errors": 0,
+            "handoffs": 9,
+            "unnecessaryHandoffs": 7,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 349,
+            "decisionP95Ms": 429,
+            "totalP50Ms": 650,
+            "totalP95Ms": 709,
+            "gateP50Ms": 327,
+            "meanDecisionBytes": 2708,
+            "meanDecisionTokens": 1260,
+            "inputTokens": 57545
+          },
+          {
+            "id": "decisions/scores",
+            "n": 36,
+            "correct": 36,
+            "direct": 33,
+            "errors": 0,
+            "handoffs": 0,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 412,
+            "decisionP95Ms": 537,
+            "totalP50Ms": 757,
+            "totalP95Ms": 910,
+            "gateP50Ms": 336,
+            "meanDecisionBytes": 17224,
+            "meanDecisionTokens": 3760,
+            "inputTokens": 152820
+          },
+          {
+            "id": "decisions/fanout",
+            "n": 36,
+            "correct": 33,
+            "direct": 27,
+            "errors": 0,
+            "handoffs": 6,
+            "unnecessaryHandoffs": 3,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 343,
+            "decisionP95Ms": 459,
+            "totalP50Ms": 661,
+            "totalP95Ms": 799,
+            "gateP50Ms": 333,
+            "meanDecisionBytes": 3906,
+            "meanDecisionTokens": 1584,
+            "inputTokens": 67899
+          },
+          {
+            "id": "decisions/evidence",
+            "n": 36,
+            "correct": 36,
+            "direct": 29,
+            "errors": 0,
+            "handoffs": 2,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 351,
+            "decisionP95Ms": 431,
+            "totalP50Ms": 670,
+            "totalP95Ms": 771,
+            "gateP50Ms": 321,
+            "meanDecisionBytes": 3876,
+            "meanDecisionTokens": 1572,
+            "inputTokens": 72888
+          }
+        ]
+      }
+    },
+    {
+      "directory": "out/evals/jev-intent-live",
+      "metadata": {
+        "date": "2026-09-19T12:36:30.895Z",
+        "suite": "intent",
+        "split": "development",
+        "rounds": 3,
+        "seed": 20260919,
+        "concurrency": 1,
+        "jobs": 72,
+        "platform": "win32",
+        "bun": "1.4.2",
+        "model": "jev-1.13.0",
+        "warmup": {
+          "ms": 837.8638999999998,
+          "ok": true
+        },
+        "hashes": {
+          "jev/cua.ts": "0f0a402b37246bfa1b8ec5ef724b1bb2b06412365ec2158ef2620142f48352c0",
+          "jev/contracts.ts": "ed0afa3aa2ad3eadb3837db05c340577777eaf4ac9a80dda14f2d1ff8d22160b",
+          "jev/quick.ts": "955743d49b2967dec9e88c0e1bcccdafd4befe7b928ac50c87ad3795388beff8",
+          "jev/eval-fixtures.ts": "110a3578d39235f7aa72042a04db4cc7506939d960e07a5e935674a221090f23",
+          "jev/eval.ts": "2cab1bd4f7d9a1e1b47b0ee66a6a7d65790d25b4f7388618d6f1438568f023e0",
+          "jev/gate.ts": "ee28a6e4aa9302cb0d68c66caf2b3de2d22bd1ba65d98ba9fc4eb3740463a84c"
+        },
+        "note": "Synthetic observations. Real Jev; mocked writer and actions except optional --llm intent suite. Existing independent exact-action gate retained. No automatic retries. Errors remain in denominators; latency uses nearest-rank percentiles. Input bytes are serialized state + questions, excluding HTTP headers. Cold probe excluded from aggregate latencies."
+      },
+      "results": {
+        "completed": 72,
+        "planned": 72,
+        "summary": [
+          {
+            "id": "intent/literal",
+            "n": 24,
+            "correct": 18,
+            "direct": 18,
+            "errors": 0,
+            "handoffs": 0,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 333,
+            "decisionP95Ms": 408,
+            "totalP50Ms": 333,
+            "totalP95Ms": 408,
+            "gateP50Ms": null,
+            "meanDecisionBytes": 2369,
+            "meanDecisionTokens": 1050,
+            "inputTokens": 25194
+          },
+          {
+            "id": "intent/llm",
+            "n": 24,
+            "correct": 24,
+            "direct": 24,
+            "errors": 0,
+            "handoffs": 0,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 1589,
+            "decisionP95Ms": 2080,
+            "totalP50Ms": 1589,
+            "totalP95Ms": 2080,
+            "gateP50Ms": null,
+            "meanDecisionBytes": null,
+            "meanDecisionTokens": null,
+            "inputTokens": 0
+          },
+          {
+            "id": "intent/quick",
+            "n": 24,
+            "correct": 9,
+            "direct": 9,
+            "errors": 0,
+            "handoffs": 6,
+            "unnecessaryHandoffs": 6,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 330,
+            "decisionP95Ms": 417,
+            "totalP50Ms": 330,
+            "totalP95Ms": 417,
+            "gateP50Ms": null,
+            "meanDecisionBytes": 2250,
+            "meanDecisionTokens": 1016,
+            "inputTokens": 24378
+          }
+        ]
+      }
+    },
+    {
+      "directory": "out/evals/jev-intent-final",
+      "metadata": {
+        "date": "2026-09-19T12:44:17.445Z",
+        "suite": "intent",
+        "split": "development",
+        "rounds": 3,
+        "seed": 20260919,
+        "concurrency": 1,
+        "jobs": 48,
+        "platform": "win32",
+        "bun": "1.4.2",
+        "model": "jev-1.13.0",
+        "warmup": {
+          "ms": 890.5755999999999,
+          "ok": true
+        },
+        "hashes": {
+          "jev/cua.ts": "b7f91004adcac2dfc717f0fd7d5d6af8ca69e44a0c8366c5111d105446b6aa32",
+          "jev/contracts.ts": "ed0afa3aa2ad3eadb3837db05c340577777eaf4ac9a80dda14f2d1ff8d22160b",
+          "jev/quick.ts": "18c888266098fd764cfd1bd910b15b84f6f20e7c2e2ff5059354933ae2258449",
+          "jev/eval-fixtures.ts": "110a3578d39235f7aa72042a04db4cc7506939d960e07a5e935674a221090f23",
+          "jev/eval.ts": "2cab1bd4f7d9a1e1b47b0ee66a6a7d65790d25b4f7388618d6f1438568f023e0",
+          "jev/gate.ts": "ee28a6e4aa9302cb0d68c66caf2b3de2d22bd1ba65d98ba9fc4eb3740463a84c"
+        },
+        "note": "Synthetic observations. Real Jev; mocked writer and actions except optional --llm intent suite. Existing independent exact-action gate retained. No automatic retries. Errors remain in denominators; latency uses nearest-rank percentiles. Input bytes are serialized state + questions, excluding HTTP headers. Cold probe excluded from aggregate latencies."
+      },
+      "results": {
+        "completed": 48,
+        "planned": 48,
+        "summary": [
+          {
+            "id": "intent/quick",
+            "n": 24,
+            "correct": 9,
+            "direct": 9,
+            "errors": 0,
+            "handoffs": 6,
+            "unnecessaryHandoffs": 6,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 325,
+            "decisionP95Ms": 384,
+            "totalP50Ms": 325,
+            "totalP95Ms": 384,
+            "gateP50Ms": null,
+            "meanDecisionBytes": 2250,
+            "meanDecisionTokens": 1016,
+            "inputTokens": 24378
+          },
+          {
+            "id": "intent/literal",
+            "n": 24,
+            "correct": 24,
+            "direct": 24,
+            "errors": 0,
+            "handoffs": 0,
+            "unnecessaryHandoffs": 0,
+            "wrongActions": 0,
+            "falseAllows": 0,
+            "decisionP50Ms": 323,
+            "decisionP95Ms": 389,
+            "totalP50Ms": 323,
+            "totalP95Ms": 389,
+            "gateP50Ms": null,
+            "meanDecisionBytes": 2600,
+            "meanDecisionTokens": 1095,
+            "inputTokens": 26274
+          }
+        ]
+      }
+    }
+  ],
+  "groundingDiagnostics": [
+    {
+      "directory": "out/evals/grounding-smoke",
+      "data": {
+        "metadata": {
+          "date": "2026-09-19T13:33:28.613Z",
+          "screenshot": {
+            "path": "out/evals/grounding-smoke/paint-undo-sanitized.png",
+            "width": 1342,
+            "height": 891,
+            "sha256": "61e8045c791e2b4ed4b225b042988e1895d898342a868234043eb4bf7e292fe0",
+            "sanitization": "Paint account/avatar region and complete document canvas masked locally, then visually inspected. Image dimensions and all 1763 pixels in the Undo acceptance rectangle match the original. Only this UI-only copy is sent."
+          },
+          "groundTruth": {
+            "target": "Undo button (white curved left arrow in Paint's top toolbar)",
+            "centerPixels": {
+              "x": 416,
+              "y": 72
+            },
+            "manualAcceptanceBoundsPixels": {
+              "left": 395,
+              "right": 437,
+              "top": 51,
+              "bottom": 91
+            },
+            "note": "Visually confirmed approximate center and conservative acceptance rectangle. This is not an inspected native hitbox."
+          },
+          "calls": 6,
+          "concurrency": 6,
+          "repeatsPerCondition": 1,
+          "maxTokens": 256,
+          "timeoutMs": 30000,
+          "effort": "low",
+          "modelRoute": "Existing ai.askModel generic image+text completion; no computer_use tool enabled",
+          "geminiBackend": "vertex",
+          "requestedOpenAiServiceTier": "priority",
+          "servedTierRecorded": false,
+          "sourceHashes": {
+            "ai.ts": "273a1184c2e3829b4a21daf8307d55a53084811c9676298a5d34108c021045a5",
+            "model-policy.ts": "df7dfddf9cbc111c330cf6e7c8d382aca9e35a72796cdc6dc74aa1f8ded61ba4",
+            "out/research/grounding-smoke.ts": "785d3e17986addfd327db7054a1e244c0b2a7c517d032dd96b41c3f159187f5c"
+          },
+          "source": {
+            "url": "https://ai.google.dev/gemini-api/docs/computer-use",
+            "inspected": "2026-09-19",
+            "note": "Google documents 0..1000 coordinates for the dedicated Computer Use tool. That does not establish automatic normalization in our generic image API."
+          },
+          "limitations": "Six image-grounding probes on one icon; one response per model/coordinate instruction. Concurrent request latencies are diagnostic, not a latency benchmark. No UI input or actual hit testing. No automatic retries."
+        },
+        "results": [
+          {
+            "provider": "openai",
+            "model": "gpt-5.6-luna",
+            "coordinateSpace": "pixels",
+            "latencyMs": 2993,
+            "prompt": "This screenshot of Microsoft Paint is exactly 1342 pixels wide and 891 pixels high. Locate the center of the Undo button in the top toolbar, the curved arrow pointing left between Share and Redo. Do not perform any action.\nReturn the actual screenshot pixel coordinates, with origin (0,0) at its top-left. x must be in 0..1341, y in 0..890.\nReturn only one JSON object: {\"x\": number, \"y\": number, \"coordinate_space\": \"pixels\"}. Do not include prose or markdown.",
+            "rawAnswer": "{\"x\":416,\"y\":72,\"coordinate_space\":\"pixels\"}",
+            "parsedCoordinates": {
+              "x": 416,
+              "y": 72,
+              "coordinate_space": "pixels"
+            },
+            "geometry": {
+              "coordinateSpaceMatches": true,
+              "asRawPixels": {
+                "x": 416,
+                "y": 72,
+                "centerErrorPixels": 0,
+                "withinManualBounds": true
+              },
+              "asNormalized1000": {
+                "x": 558.2719999999999,
+                "y": 64.152,
+                "centerErrorPixels": 142.5,
+                "withinManualBounds": false
+              },
+              "requestedInterpretation": {
+                "x": 416,
+                "y": 72,
+                "centerErrorPixels": 0,
+                "withinManualBounds": true
+              }
+            },
+            "usage": {
+              "input": 3,
+              "output": 88,
+              "cacheRead": 0,
+              "cacheWrite": 1529,
+              "reasoning": 68,
+              "totalTokens": 1620,
+              "cost": {
+                "input": 1.2000000000000002E-06,
+                "output": 0.00021119999999999998,
+                "cacheRead": 0,
+                "cacheWrite": 0.0007645,
+                "total": 0.0009769
+              }
+            }
+          },
+          {
+            "provider": "gemini",
+            "model": "gemini-3.8-flash",
+            "coordinateSpace": "normalized_1000",
+            "latencyMs": 3611,
+            "prompt": "This screenshot of Microsoft Paint is exactly 1342 pixels wide and 891 pixels high. Locate the center of the Undo button in the top toolbar, the curved arrow pointing left between Share and Redo. Do not perform any action.\nReturn coordinates normalized independently to 0..1000 on each axis, with origin (0,0) at the image's top-left. Convert x_pixel using x_pixel/1342*1000 and y_pixel using y_pixel/891*1000.\nReturn only one JSON object: {\"x\": number, \"y\": number, \"coordinate_space\": \"normalized_1000\"}. Do not include prose or markdown.",
+            "rawAnswer": "```json\n{\"x\": 310,",
+            "parseError": "JSON Parse error: Property name must be a string literal",
+            "usage": {
+              "input": 1265,
+              "output": 252,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "reasoning": 241,
+              "totalTokens": 1517,
+              "cost": {
+                "input": 0.00094875,
+                "output": 0.000945,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0.00189375
+              }
+            }
+          },
+          {
+            "provider": "openai",
+            "model": "gpt-6-astra",
+            "coordinateSpace": "pixels",
+            "latencyMs": 2319,
+            "prompt": "This screenshot of Microsoft Paint is exactly 1342 pixels wide and 891 pixels high. Locate the center of the Undo button in the top toolbar, the curved arrow pointing left between Share and Redo. Do not perform any action.\nReturn the actual screenshot pixel coordinates, with origin (0,0) at its top-left. x must be in 0..1341, y in 0..890.\nReturn only one JSON object: {\"x\": number, \"y\": number, \"coordinate_space\": \"pixels\"}. Do not include prose or markdown.",
+            "rawAnswer": "{\"x\":416,\"y\":73,\"coordinate_space\":\"pixels\"}",
+            "parsedCoordinates": {
+              "x": 416,
+              "y": 73,
+              "coordinate_space": "pixels"
+            },
+            "geometry": {
+              "coordinateSpaceMatches": true,
+              "asRawPixels": {
+                "x": 416,
+                "y": 73,
+                "centerErrorPixels": 1,
+                "withinManualBounds": true
+              },
+              "asNormalized1000": {
+                "x": 558.2719999999999,
+                "y": 65.04299999999999,
+                "centerErrorPixels": 142.4,
+                "withinManualBounds": false
+              },
+              "requestedInterpretation": {
+                "x": 416,
+                "y": 73,
+                "centerErrorPixels": 1,
+                "withinManualBounds": true
+              }
+            },
+            "usage": {
+              "input": 3,
+              "output": 18,
+              "cacheRead": 0,
+              "cacheWrite": 1529,
+              "reasoning": 0,
+              "totalTokens": 1550,
+              "cost": {
+                "input": 3.0000000000000004E-05,
+                "output": 0.0009000000000000001,
+                "cacheRead": 0,
+                "cacheWrite": 0.0191125,
+                "total": 0.0200425
+              }
+            }
+          },
+          {
+            "provider": "openai",
+            "model": "gpt-5.6-luna",
+            "coordinateSpace": "normalized_1000",
+            "latencyMs": 3412,
+            "prompt": "This screenshot of Microsoft Paint is exactly 1342 pixels wide and 891 pixels high. Locate the center of the Undo button in the top toolbar, the curved arrow pointing left between Share and Redo. Do not perform any action.\nReturn coordinates normalized independently to 0..1000 on each axis, with origin (0,0) at the image's top-left. Convert x_pixel using x_pixel/1342*1000 and y_pixel using y_pixel/891*1000.\nReturn only one JSON object: {\"x\": number, \"y\": number, \"coordinate_space\": \"normalized_1000\"}. Do not include prose or markdown.",
+            "rawAnswer": "{\"x\":310,\"y\":81.93,\"coordinate_space\":\"normalized_1000\"}",
+            "parsedCoordinates": {
+              "x": 310,
+              "y": 81.93,
+              "coordinate_space": "normalized_1000"
+            },
+            "geometry": {
+              "coordinateSpaceMatches": true,
+              "asRawPixels": {
+                "x": 310,
+                "y": 81.93,
+                "centerErrorPixels": 106.5,
+                "withinManualBounds": false
+              },
+              "asNormalized1000": {
+                "x": 416.02,
+                "y": 72.99963,
+                "centerErrorPixels": 1,
+                "withinManualBounds": true
+              },
+              "requestedInterpretation": {
+                "x": 416.02,
+                "y": 72.99963,
+                "centerErrorPixels": 1,
+                "withinManualBounds": true
+              }
+            },
+            "usage": {
+              "input": 3,
+              "output": 155,
+              "cacheRead": 0,
+              "cacheWrite": 1548,
+              "reasoning": 130,
+              "totalTokens": 1706,
+              "cost": {
+                "input": 1.2000000000000002E-06,
+                "output": 0.000372,
+                "cacheRead": 0,
+                "cacheWrite": 0.000774,
+                "total": 0.0011472
+              }
+            }
+          },
+          {
+            "provider": "gemini",
+            "model": "gemini-3.8-flash",
+            "coordinateSpace": "pixels",
+            "latencyMs": 3788,
+            "prompt": "This screenshot of Microsoft Paint is exactly 1342 pixels wide and 891 pixels high. Locate the center of the Undo button in the top toolbar, the curved arrow pointing left between Share and Redo. Do not perform any action.\nReturn the actual screenshot pixel coordinates, with origin (0,0) at its top-left. x must be in 0..1341, y in 0..890.\nReturn only one JSON object: {\"x\": number, \"y\": number, \"coordinate_space\": \"pixels\"}. Do not include prose or markdown.",
+            "rawAnswer": "{\"x\": 310, \"y\":",
+            "parseError": "JSON Parse error: Unexpected EOF",
+            "usage": {
+              "input": 1233,
+              "output": 252,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "reasoning": 241,
+              "totalTokens": 1485,
+              "cost": {
+                "input": 0.00092475,
+                "output": 0.000945,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0.0018697499999999999
+              }
+            }
+          },
+          {
+            "provider": "openai",
+            "model": "gpt-6-astra",
+            "coordinateSpace": "normalized_1000",
+            "latencyMs": 2192,
+            "prompt": "This screenshot of Microsoft Paint is exactly 1342 pixels wide and 891 pixels high. Locate the center of the Undo button in the top toolbar, the curved arrow pointing left between Share and Redo. Do not perform any action.\nReturn coordinates normalized independently to 0..1000 on each axis, with origin (0,0) at the image's top-left. Convert x_pixel using x_pixel/1342*1000 and y_pixel using y_pixel/891*1000.\nReturn only one JSON object: {\"x\": number, \"y\": number, \"coordinate_space\": \"normalized_1000\"}. Do not include prose or markdown.",
+            "rawAnswer": "{\"x\":310,\"y\":82,\"coordinate_space\":\"normalized_1000\"}",
+            "parsedCoordinates": {
+              "x": 310,
+              "y": 82,
+              "coordinate_space": "normalized_1000"
+            },
+            "geometry": {
+              "coordinateSpaceMatches": true,
+              "asRawPixels": {
+                "x": 310,
+                "y": 82,
+                "centerErrorPixels": 106.5,
+                "withinManualBounds": false
+              },
+              "asNormalized1000": {
+                "x": 416.02,
+                "y": 73.062,
+                "centerErrorPixels": 1.1,
+                "withinManualBounds": true
+              },
+              "requestedInterpretation": {
+                "x": 416.02,
+                "y": 73.062,
+                "centerErrorPixels": 1.1,
+                "withinManualBounds": true
+              }
+            },
+            "usage": {
+              "input": 3,
+              "output": 21,
+              "cacheRead": 0,
+              "cacheWrite": 1548,
+              "reasoning": 0,
+              "totalTokens": 1572,
+              "cost": {
+                "input": 3.0000000000000004E-05,
+                "output": 0.0010500000000000002,
+                "cacheRead": 0,
+                "cacheWrite": 0.01935,
+                "total": 0.02043
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "directory": "out/evals/grounding-smoke/gemini-1024",
+      "data": {
+        "metadata": {
+          "date": "2026-09-19T13:39:01.296Z",
+          "screenshot": {
+            "path": "out/evals/grounding-smoke/paint-undo-sanitized.png",
+            "width": 1342,
+            "height": 891,
+            "sha256": "61e8045c791e2b4ed4b225b042988e1895d898342a868234043eb4bf7e292fe0",
+            "sanitization": "Paint account/avatar region and complete document canvas masked locally, then visually inspected. Image dimensions and all 1763 pixels in the Undo acceptance rectangle match the original. Only this UI-only copy is sent."
+          },
+          "groundTruth": {
+            "target": "Undo button (white curved left arrow in Paint's top toolbar)",
+            "centerPixels": {
+              "x": 416,
+              "y": 72
+            },
+            "manualAcceptanceBoundsPixels": {
+              "left": 395,
+              "right": 437,
+              "top": 51,
+              "bottom": 91
+            },
+            "note": "Visually confirmed approximate center and conservative acceptance rectangle. This is not an inspected native hitbox."
+          },
+          "modelRoute": "Existing ai.askModel generic image+text completion; no computer_use tool enabled",
+          "provider": "gemini",
+          "model": "gemini-3.8-flash",
+          "geminiBackend": "vertex",
+          "calls": 2,
+          "concurrency": 2,
+          "repeatsPerCondition": 1,
+          "effort": "low",
+          "maxTokens": 1024,
+          "timeoutMs": 30000,
+          "prompts": "Exactly the prior two Gemini prompts; only maxTokens changes from256 to1024.",
+          "sourceHashes": {
+            "ai.ts": "418266f7c8a8c4d693362d636f78a0dce6338346d7e8026f66703de2cbcc2ef1",
+            "out/research/grounding-smoke-gemini-1024.ts": "5aabda175abed49c2951c3d41873cd1001e018526f6abd613cd641ece579cf03"
+          },
+          "limitations": "Two separately authorized follow-up calls on one icon after truncated256-token outputs. Not a model benchmark. No retries and no UI actions. Only the approved masked UI image is uploaded."
+        },
+        "results": [
+          {
+            "provider": "gemini",
+            "model": "gemini-3.8-flash",
+            "maxTokens": 1024,
+            "coordinateSpace": "pixels",
+            "prompt": "This screenshot of Microsoft Paint is exactly 1342 pixels wide and 891 pixels high. Locate the center of the Undo button in the top toolbar, the curved arrow pointing left between Share and Redo. Do not perform any action.\nReturn the actual screenshot pixel coordinates, with origin (0,0) at its top-left. x must be in 0..1341, y in 0..890.\nReturn only one JSON object: {\"x\": number, \"y\": number, \"coordinate_space\": \"pixels\"}. Do not include prose or markdown.",
+            "latencyMs": 3953,
+            "rawAnswer": "{\"x\": 310, \"y\": 82, \"coordinate_space\": \"pixels\"}",
+            "parsedCoordinates": {
+              "x": 310,
+              "y": 82,
+              "coordinate_space": "pixels"
+            },
+            "geometry": {
+              "coordinateSpaceMatches": true,
+              "asRawPixels": {
+                "x": 310,
+                "y": 82,
+                "centerErrorPixels": 106.5,
+                "withinManualBounds": false
+              },
+              "asNormalized1000": {
+                "x": 416.02,
+                "y": 73.062,
+                "centerErrorPixels": 1.1,
+                "withinManualBounds": true
+              },
+              "requestedInterpretation": {
+                "x": 310,
+                "y": 82,
+                "centerErrorPixels": 106.5,
+                "withinManualBounds": false
+              }
+            },
+            "usage": {
+              "input": 1233,
+              "output": 374,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "reasoning": 351,
+              "totalTokens": 1607,
+              "cost": {
+                "input": 0.00092475,
+                "output": 0.0014025,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0.0023272500000000003
+              }
+            },
+            "visibleOutputTokens": 23
+          },
+          {
+            "provider": "gemini",
+            "model": "gemini-3.8-flash",
+            "maxTokens": 1024,
+            "coordinateSpace": "normalized_1000",
+            "prompt": "This screenshot of Microsoft Paint is exactly 1342 pixels wide and 891 pixels high. Locate the center of the Undo button in the top toolbar, the curved arrow pointing left between Share and Redo. Do not perform any action.\nReturn coordinates normalized independently to 0..1000 on each axis, with origin (0,0) at the image's top-left. Convert x_pixel using x_pixel/1342*1000 and y_pixel using y_pixel/891*1000.\nReturn only one JSON object: {\"x\": number, \"y\": number, \"coordinate_space\": \"normalized_1000\"}. Do not include prose or markdown.",
+            "latencyMs": 6059,
+            "rawAnswer": "{\"x\": 309, \"y\": 83, \"coordinate_space\": \"normalized_1000\"}",
+            "parsedCoordinates": {
+              "x": 309,
+              "y": 83,
+              "coordinate_space": "normalized_1000"
+            },
+            "geometry": {
+              "coordinateSpaceMatches": true,
+              "asRawPixels": {
+                "x": 309,
+                "y": 83,
+                "centerErrorPixels": 107.6,
+                "withinManualBounds": false
+              },
+              "asNormalized1000": {
+                "x": 414.678,
+                "y": 73.953,
+                "centerErrorPixels": 2.4,
+                "withinManualBounds": true
+              },
+              "requestedInterpretation": {
+                "x": 414.678,
+                "y": 73.953,
+                "centerErrorPixels": 2.4,
+                "withinManualBounds": true
+              }
+            },
+            "usage": {
+              "input": 1265,
+              "output": 687,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "reasoning": 659,
+              "totalTokens": 1952,
+              "cost": {
+                "input": 0.00094875,
+                "output": 0.00257625,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0.003525
+              }
+            },
+            "visibleOutputTokens": 28
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -434,17 +434,19 @@ function speechAsk(relation: (state: any) => string = (state) => state.tasks.len
 function voiceHarness(over: Partial<Parameters<typeof createVoiceListener>[0]> = {}, run?: (text: string) => Promise<void>) {
   const prompts: { text: string; hand: number; utterance?: string }[] = [];
   const updates: { text: string; hand: number; utterance?: string }[] = [], stops: number[] = [];
+  const contexts: { hand: number; live?: { speechEnds(): Promise<void> | null; transcript(): string } }[] = [];
   const runtimes = new Map<number, ReturnType<typeof makeRuntime>>();
   let active = 0, maxActive = 0;
   function makeRuntime(id: number) {
     let stopped = Promise.withResolvers<void>();
     let running = false;
     return {
-      async prompt(text: string, _opened?: string[], utterance?: string, live?: { speechEnds(): Promise<void> | null }) {
+      async prompt(text: string, _opened?: string[], utterance?: string, live?: { speechEnds(): Promise<void> | null; transcript(): string }) {
         if (running) throw new Error("Overlapping work on one hand");
         running = true; stopped = Promise.withResolvers<void>();
         maxActive = Math.max(maxActive, ++active);
         prompts.push({ text, hand: id, utterance });
+        contexts.push({ hand: id, live });
         try {
           await Promise.race([Promise.resolve(run?.(text)).then(() => live?.speechEnds()), stopped.promise]);
         } finally { running = false; active--; }
@@ -463,7 +465,7 @@ function voiceHarness(over: Partial<Parameters<typeof createVoiceListener>[0]> =
     ...over,
   });
   voice.begin();
-  return { voice, prompts, updates, stops, maxActive: () => maxActive };
+  return { voice, prompts, updates, stops, contexts, maxActive: () => maxActive };
 }
 
 describe("Live Jev listener with Pi workers", () => {
@@ -578,6 +580,103 @@ describe("Live Jev listener with Pi workers", () => {
     expect(voice.status()).toMatchObject({ error: "worker unavailable", busy: false });
   });
 
+  test("a second hold uses a free hand and preserves the first task's approval context", async () => {
+    const held = Promise.withResolvers<void>();
+    const hands = [1, 2].map((id) => ({ id, pid: id, display: `test-${id}`, width: 800, height: 600 }));
+    const { voice, prompts, updates, stops, contexts, maxActive } = voiceHarness({ hands: async () => hands, ask: speechAsk(() => "new_task") }, () => held.promise);
+    try {
+      voice.hear("Read my notes"); await until(() => prompts.length === 1);
+      await voice.finish("Read my notes");
+      expect(voice.status().busy).toBe(true);
+      voice.begin(); voice.hear("Open calculator"); await until(() => prompts.length === 2);
+      expect(prompts.map((prompt) => prompt.hand)).toEqual([1, 2]);
+      expect(contexts[0]!.live!.speechEnds()).toBeNull();
+      expect(contexts[0]!.live!.transcript()).toBe("Read my notes");
+      expect(contexts[1]!.live!.speechEnds()).toBeInstanceOf(Promise);
+      expect(contexts[1]!.live!.transcript()).toBe("Open calculator");
+      expect(stops).toEqual([]);
+      expect(updates).toEqual([]);
+      await voice.finish("Open calculator");
+      held.resolve(); await voice.idle();
+      expect(maxActive()).toBe(2);
+      expect(voice.status().busy).toBe(false);
+      expect(voice.status().tasks.map((task) => task.status)).toEqual(["done", "done"]);
+    } finally { voice.cancel(); held.resolve(); await voice.idle(); }
+  });
+
+  test("cancelling a later recording stops only work from that recording", async () => {
+    const held = Promise.withResolvers<void>();
+    const hands = [1, 2].map((id) => ({ id, pid: id, display: `test-${id}`, width: 800, height: 600 }));
+    const { voice, prompts, stops } = voiceHarness({ hands: async () => hands, ask: speechAsk(() => "new_task") }, () => held.promise);
+    try {
+      voice.hear("Read my notes"); await until(() => prompts.length === 1);
+      await voice.finish("Read my notes");
+      voice.begin(); voice.hear("Open calculator"); await until(() => prompts.length === 2);
+      voice.cancelRecording();
+      await until(() => stops.length === 1);
+      expect(stops).toEqual([2]);
+      expect(voice.status().tasks.map((task) => task.status)).toEqual(["running", "cancelled"]);
+      expect(voice.status().busy).toBe(true);
+      voice.begin(); await voice.finish("");
+      expect(stops).toEqual([2]);
+      held.resolve(); await voice.idle();
+      expect(voice.status().busy).toBe(false);
+    } finally { voice.cancel(); held.resolve(); await voice.idle(); }
+  });
+
+  test("a failed later final transcript leaves earlier independent work running", async () => {
+    const held = Promise.withResolvers<void>();
+    const hands = [1, 2].map((id) => ({ id, pid: id, display: `test-${id}`, width: 800, height: 600 }));
+    const answer = speechAsk(() => "new_task");
+    const { voice, prompts, stops } = voiceHarness({ hands: async () => hands, ask: async (state, questions) => {
+      if (typeof state === "object" && state !== null && "speaker_has_finished" in state && state.speaker_has_finished) throw new Error("final classification failed");
+      return answer(state, questions);
+    } }, () => held.promise);
+    try {
+      voice.hear("Read my notes"); await until(() => prompts.length === 1);
+      await voice.finish("Read my notes");
+      voice.begin(); voice.hear("Open calculator"); await until(() => prompts.length === 2);
+      await expect(voice.finish("Open calculator and add two numbers")).rejects.toThrow("final classification failed");
+      expect(stops).toEqual([2]);
+      expect(voice.status().tasks.map((task) => task.status)).toEqual(["running", "failed"]);
+      held.resolve(); await voice.idle();
+      expect(voice.status().busy).toBe(false);
+    } finally { voice.cancel(); held.resolve(); await voice.idle(); }
+  });
+
+  test("a later hold can refine an active task without discarding its original instruction", async () => {
+    const held = Promise.withResolvers<void>();
+    const { voice, prompts, updates, contexts } = voiceHarness({ ask: speechAsk((state) => state.tasks.length ? "refines" : "new_task") }, () => held.promise);
+    try {
+      voice.hear("Read my notes"); await until(() => prompts.length === 1);
+      await voice.finish("Read my notes");
+      voice.begin(); voice.hear("And summarize them"); await until(() => updates.length === 1);
+      expect(updates[0]!.text).toBe("Read my notes\nAnd summarize them");
+      expect(contexts[0]!.live!.speechEnds()).toBeInstanceOf(Promise);
+      await voice.finish("And summarize them in one sentence");
+      expect(updates.at(-1)).toMatchObject({ text: "Read my notes\nAnd summarize them in one sentence", utterance: "Read my notes\nAnd summarize them in one sentence" });
+      expect(prompts).toHaveLength(1);
+      expect(contexts[0]!.live!.speechEnds()).toBeNull();
+      held.resolve(); await voice.idle();
+    } finally { voice.cancel(); held.resolve(); await voice.idle(); }
+  });
+
+  test("voice scheduling skips a hand occupied by a task started elsewhere", async () => {
+    const hands = [1, 2].map((id) => ({ id, pid: id, display: `test-${id}`, width: 800, height: 600 }));
+    const { voice, prompts } = voiceHarness({ hands: async () => hands, unavailable: (hand) => hand.id === 1 });
+    await voice.finish("Open calculator"); await voice.idle();
+    expect(prompts.map((prompt) => prompt.hand)).toEqual([2]);
+  });
+
+  test("a new hold after all work completes does not inherit covered tasks or stale busy state", async () => {
+    const { voice, prompts } = voiceHarness({ ask: speechAsk((state) => state.tasks.length ? "covered" : "new_task") });
+    await voice.finish("Open notes"); await voice.idle();
+    expect(voice.status().busy).toBe(false);
+    voice.begin(); await voice.finish("Open notes"); await voice.idle();
+    expect(prompts.map((prompt) => prompt.text)).toEqual(["Open notes", "Open notes"]);
+    expect(voice.status().busy).toBe(false);
+  });
+
   test("Stop cancels active and queued tasks, then a new hold can start", async () => {
     const { voice, prompts, stops } = voiceHarness({ ask: speechAsk(() => "new_task") });
     voice.hear("Read my notes"); await until(() => prompts.length === 1);
@@ -599,11 +698,12 @@ describe("Puk multi-worker HTTP panel", () => {
     const opened: number[] = [];
     const previewStates = new Map<number, string>();
     let delta: ((text: string) => void) | undefined;
+    let finalTranscript = "Open my notes and open calculator";
     const app = await servePuk({ port: 0, provider: "openai", dependencies: {
       hand: async (id) => hands.find((h) => h.id === id) ?? null, hands: async () => hands,
       handState: async (hand, state) => { previewStates.set(hand.id, state); },
       ask: speechAsk(() => "new_task"),
-      record: (options) => { delta = options?.onDelta; return { stop: async () => "Open my notes and open calculator", cancel() {} }; },
+      record: (options) => { delta = options?.onDelta; return { stop: async () => finalTranscript, cancel() {} }; },
       agent: async (opts) => {
         let turn = 0;
         const runtime = await createDesktopAgent({ ...opts, apiKey: "test", desktop: {
@@ -654,6 +754,10 @@ describe("Puk multi-worker HTTP panel", () => {
       await app.controller.settled();
       await until(() => [...runtimes.values()].filter((r) => r.status().approval).length === 2);
       const approvals = (await state()).approvals;
+      expect((await post("/hotkey/down")).status).toBe(202);
+      await app.controller.settled();
+      expect((await state()).lastError).toContain("All hands are busy");
+      expect((await state()).approvals.map((a: any) => a.id)).toEqual(approvals.map((a: any) => a.id));
       await until(() => previewStates.get(1) === "review" && previewStates.get(2) === "review", 2000);
       expect(approvals.map((a: any) => a.hand).sort()).toEqual([1, 2]);
       const second = approvals.find((a: any) => a.hand === 2);
@@ -661,6 +765,16 @@ describe("Puk multi-worker HTTP panel", () => {
       await runtimes.get(2)!.idle();
       expect(opened).toEqual([2]);
       expect((await post("/approve", { id: second.id, approved: true })).status).toBe(409);
+      // The other hand still awaits approval. An empty second recording must
+      // be accepted on this free hand without dismissing that older approval.
+      finalTranscript = "";
+      expect((await post("/hotkey/down")).status).toBe(202);
+      await until(() => app.controller.status().state === "recording");
+      expect((await state()).lastError).toBeNull();
+      expect((await post("/hotkey/up")).status).toBe(202);
+      await app.controller.settled();
+      expect(runtimes.get(1)!.status().approval?.id).toBe(approvals.find((a: any) => a.hand === 1).id);
+      expect(runtimes.get(1)!.status().running).toBe(true);
       expect((await state()).state).toBe("idle");
       expect((await post("/hand", { hand: 2 })).status).toBe(200);
       expect((await state()).hand).toBe(2);

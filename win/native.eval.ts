@@ -19,9 +19,12 @@ import { observeNative, performNative, releaseNative } from "./uia";
 const whereAmI = async (phase: string) => console.log(`   [${phase}] desktop ${await ask("where")}, focus ${await ask("fg")}`);
 const only = process.argv.slice(2).map((a) => a.toLowerCase());
 
+const A = 11 + (Math.floor(Date.now() / 1000) % 79), B = 13 + (Math.floor(Date.now() / 7000) % 61);
 const TASKS: { app: string; said: string; done(texts: string, elements: { name: string; value: string }[]): boolean }[] = [
   // A UWP application: frozen by Windows while hidden until win/uia.ts wakes it. Six keys, mapped in one Jev request.
-  { app: "Calculator", said: "type in 12*31", done: (texts) => /Display is 372/.test(texts) },
+  // Different numbers every run: Calculator resumes its suspended process, still showing the last result, and a
+  // display that already reads the answer is rightly "done" with nothing pressed.
+  { app: "Calculator", said: `type in ${A}*${B}`, done: (texts) => new RegExp(`Display is ${(A * B).toLocaleString("en-US")}(\\D|$)`).test(texts) },
   { app: "Paint", said: "make red the main colour", done: (_t, els) => els.some((e) => /^Color 1: Red/i.test(e.name)) },
   { app: "Character Map", said: "put the word hello in the characters to copy box", done: (_t, els) => els.some((e) => /characters to copy/i.test(e.name) && e.value === "hello") },
 ];

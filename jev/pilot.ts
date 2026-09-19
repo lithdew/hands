@@ -29,7 +29,8 @@ import { runScreens, type ScreenDeps } from "./screen";
 // ---------------------------------------------------------------- types
 
 export type Tier = "recipe" | "learned" | "quick" | "plan";
-export type PilotTask = { intent: Intent; start: string; shape: string; wantsAnswer: boolean };
+/** `start`: where to go first, or null to work on whatever the hand has open. */
+export type PilotTask = { intent: Intent; start: string | null; shape: string; wantsAnswer: boolean };
 export type Understood = { by: Tier; detail: string; tasks: PilotTask[]; /** Set when a plan could be learned from once it has worked. */ teach?: () => Promise<void> };
 export type PilotResult = { by: Tier; detail: string; status: RunResult["status"]; reason: string; runs: RunResult[]; wantsAnswer: boolean; /** Resolves when background learning is over. Never rejects. */ learning: Promise<void> };
 
@@ -39,6 +40,8 @@ export type PilotDeps = ScreenDeps & {
   /** Go to a url in the hand. The start of every task; a deep link is most of some tasks. */
   open: (hand: Hand, url: string) => Promise<void>;
   today?: () => Date;
+  /** The loop that drives a task. Default: screen.ts `runScreens`. A seam for tests. */
+  drive?: typeof runScreens;
   /** Title of the window the user is looking at, for requests that point at it. Only the planner is told. */
   onScreen?: () => Promise<string | null>;
 };
@@ -88,8 +91,8 @@ export function createPilot(deps: PilotDeps) {
     for (const task of u.tasks) {
       if (opts.signal?.aborted) break;
       log(`task: ${task.intent.goal}`);
-      await deps.open(hand, task.start);
-      runs.push(await runScreens(hand, () => task.intent, deps, opts)); // read at every look: a caller may refine `task.intent` in place
+      if (task.start) await deps.open(hand, task.start);
+      runs.push(await (deps.drive ?? runScreens)(hand, () => task.intent, deps, opts)); // read at every look: a caller may refine `task.intent` in place
       if (runs.at(-1)!.status !== "done") break;
     }
     const last = runs.at(-1), done = runs.length === u.tasks.length && last?.status === "done";

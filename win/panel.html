@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>hands</title>
+<style>
+/* ------------------------------------------------------------------ tokens */
+:root{
+  color-scheme:dark;
+  --bg:#0a0b0f;--panel:#10121a;--panel-2:#161925;--panel-3:#1c2030;--well:#07080c;
+  --line:#1f2333;--line-2:#2a3044;--line-3:#3a4160;
+  --text:#e7eaf3;--muted:#8a92a8;--faint:#545c72;
+  --blue:#7aa2f7;--green:#9ece6a;--amber:#e0af68;--red:#f7768e;
+  --blue-rgb:122,162,247;--green-rgb:158,206,106;--amber-rgb:224,175,104;--red-rgb:247,118,142;--faint-rgb:84,92,114;
+  /* Hand identity, badge and tags only; rings stay state-coloured like the corner previews. */
+  --hand-1:#7aa2f7;--hand-2:#bb9af7;--hand-3:#73daca;--hand-4:#ff9e64;
+  /* Windows-native stack, no external fetch: the page ships under hotkey.ts's default-src 'self' CSP. */
+  --sans:"Segoe UI Variable Text","Segoe UI",Inter,system-ui,sans-serif;
+  --display:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
+  --mono:"Cascadia Code","Cascadia Mono",Consolas,ui-monospace,monospace;
+  --r:10px;--r-lg:14px;
+  --drawer:340px;
+}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{
+  margin:0;height:100vh;display:grid;grid-template-rows:auto minmax(0,1fr);
+  background:var(--bg);color:var(--text);font:14px/1.45 var(--sans);overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+button,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default;opacity:.4}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+svg{display:block;flex:none}
+kbd{display:inline-block;padding:1px 6px;border-radius:5px;background:var(--panel-3);border:1px solid var(--line-3);border-bottom-width:2px;font:11px/1.5 var(--mono);color:var(--text);white-space:nowrap}
+[data-hand="1"]{--h:var(--hand-1)}[data-hand="2"]{--h:var(--hand-2)}[data-hand="3"]{--h:var(--hand-3)}[data-hand="4"]{--h:var(--hand-4)}
+
+/* --------------------------------------------------------------- top bar */
+.top{display:flex;align-items:center;gap:14px;height:48px;padding:0 16px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:9px;font-weight:600;letter-spacing:-.01em;font-size:15px}
+.brand svg{color:var(--blue)}
+.brand small{font-weight:400;color:var(--faint);margin-left:2px}
+.pill{display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 12px 0 10px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line);font-size:13px;color:var(--text);white-space:nowrap}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none}
+.pill[data-tone=live] i{background:var(--green);animation:pulse 1.4s infinite;--p-rgb:var(--green-rgb)}
+.pill[data-tone=busy] i{background:var(--blue);animation:pulse 1.8s infinite;--p-rgb:var(--blue-rgb)}
+.pill[data-tone=review] i{background:var(--amber)}
+.pill[data-tone=off] i{background:var(--red)}
+.top .gap{flex:1}
+#model{font:12px/1 var(--mono);color:var(--faint);white-space:nowrap}
+#model:empty{display:none}
+/* The chevron is two gradients, not a data: image: the CSP's default-src 'self' has no img-src data:. */
+select{
+  height:32px;padding:0 30px 0 12px;border-radius:var(--r);border:1px solid var(--line-2);background-color:var(--panel-2);
+  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 16px) 55%,calc(100% - 11px) 55%;background-size:5px 5px;background-repeat:no-repeat;
+  appearance:none;color:var(--text);font-size:13px
+}
+select:hover{border-color:var(--line-3)}
+.btn{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border-radius:var(--r);border:1px solid var(--line-2);background:var(--panel-2);font-size:13px;font-weight:500;transition:background .15s,border-color .15s,color .15s}
+.btn:hover:not(:disabled){background:var(--panel-3);border-color:var(--line-3)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover:not(:disabled){background:var(--panel-2);color:var(--text);border-color:var(--line)}
+.btn.danger{color:var(--red)}
+.btn.danger:hover:not(:disabled){border-color:rgba(var(--red-rgb),.5);background:rgba(var(--red-rgb),.08)}
+body.busy #stop{border-color:rgba(var(--red-rgb),.45);background:rgba(var(--red-rgb),.08)}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#0b1220;font-weight:600}
+.btn.primary:hover:not(:disabled){background:#8fb1ff;border-color:#8fb1ff}
+
+/* ------------------------------------------------------------------ frame */
+.main{display:grid;grid-template-columns:minmax(0,1fr) var(--drawer);gap:0 16px;padding:0 16px 20px;min-height:0}
+.deck{display:flex;flex-direction:column;gap:12px;min-height:0;padding-top:12px}
+
+/* --------------------------------------------------------- stage (hero) */
+.stage{flex:1 1 auto;min-height:96px;overflow:auto;display:flex;flex-direction:column;padding:6px 6px 4px;scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+/* Centred while idle so the column has no void; anchored to the bottom only while words stream so the tail follows. */
+.stage-in{margin:auto 0;display:grid;gap:18px}
+.stage[data-mode=listening] .stage-in,.stage[data-mode=finishing] .stage-in{margin:auto 0 0}
+.eyebrow{display:flex;align-items:center;gap:8px;font:500 12px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);min-height:12px}
+.eyebrow:empty{display:none}
+.eyebrow::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--faint);flex:none}
+.stage[data-mode=listening] .eyebrow{color:var(--green)}
+.stage[data-mode=listening] .eyebrow::before{background:var(--green);animation:pulse 1.4s infinite;--p-rgb:var(--green-rgb)}
+.stage[data-mode=finishing] .eyebrow{color:var(--blue)}
+.stage[data-mode=finishing] .eyebrow::before{background:var(--blue);animation:pulse 1.4s infinite;--p-rgb:var(--blue-rgb)}
+#voice{
+  margin:0;max-width:72ch;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--display);
+  font-size:19px;line-height:1.4;font-weight:400;color:var(--muted);letter-spacing:-.005em;
+  transition:font-size .25s ease,color .25s ease;
+}
+#voice:empty{display:none}
+.stage[data-mode=listening] #voice,.stage[data-mode=finishing] #voice{
+  font-size:clamp(26px,2.6vw,42px);line-height:1.22;font-weight:500;color:var(--text);letter-spacing:-.015em;
+}
+.stage[data-mode=listening] #voice::after{
+  content:"";display:inline-block;width:.09em;height:.95em;margin-left:.08em;vertical-align:-.12em;
+  background:var(--green);border-radius:1px;animation:caret 1s steps(2,end) infinite;
+}
+.stage[data-mode=listening] #voice:empty{display:block}
+.stage[data-mode=listening] #voice:empty::after{margin-left:0}
+.placeholder{display:none;color:var(--faint);font:500 clamp(20px,2vw,30px)/1.3 var(--display);letter-spacing:-.01em;margin:0;max-width:72ch}
+.placeholder kbd{font-size:.55em;vertical-align:.25em;padding:2px 8px}
+.stage.empty .placeholder{display:block}
+.reply{display:grid;gap:6px}
+.reply:has(#answer:empty){display:none}
+.reply-head{display:flex;align-items:center;gap:8px;font:500 12px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+#answer{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.55;color:var(--text);max-width:72ch}
+
+/* -------------------------------------------------------- command strip */
+.cmd{
+  display:flex;align-items:flex-end;gap:8px;padding:6px 6px 6px 14px;
+  border:1px solid var(--line-2);border-radius:var(--r-lg);background:var(--panel);
+  transition:border-color .2s,box-shadow .2s;
+}
+.cmd:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px rgba(var(--blue-rgb),.14)}
+body.listening .cmd,body.listening .cmd:focus-within{border-color:var(--green);box-shadow:0 0 0 3px rgba(var(--green-rgb),.16)}
+.cmd .prompt-mark{color:var(--blue);font:600 15px/1 var(--mono);padding-bottom:13px}
+textarea#prompt{
+  flex:1;min-width:0;border:0;background:transparent;resize:none;outline:0;
+  font:16px/1.4 var(--sans);color:var(--text);padding:9px 0;min-height:40px;max-height:160px;
+}
+textarea#prompt::placeholder{color:var(--faint)}
+.cmd .btn{height:36px}
+#send{width:36px;padding:0;justify-content:center;border-radius:var(--r)}
+#send span{display:none}
+#hold{touch-action:none;user-select:none;-webkit-user-select:none;padding-right:8px;gap:8px}
+#hold kbd{margin-left:2px}
+#hold[aria-pressed=true]{background:rgba(var(--green-rgb),.14);border-color:var(--green);color:var(--green)}
+#hold[aria-pressed=true] kbd{border-color:rgba(var(--green-rgb),.5);color:var(--green);background:transparent}
+.sub{display:flex;align-items:flex-start;gap:12px;min-height:0}
+#error{margin:0;flex:1;color:var(--red);font-size:13px;overflow-wrap:anywhere}
+#error:empty{display:none}
+#queue{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
+#queue:empty{display:none}
+.chip{display:inline-flex;align-items:center;gap:7px;max-width:100%;height:24px;padding:0 9px 0 7px;border-radius:999px;border:1px solid var(--line);background:var(--panel);font-size:12px;color:var(--muted);white-space:nowrap}
+.chip b{font-weight:500;color:var(--h,var(--text));transition:color .4s}
+.chip i{width:6px;height:6px;border-radius:50%;background:var(--faint);flex:none}
+.chip[data-status=running] i{background:var(--blue);animation:pulse 1.8s infinite;--p-rgb:var(--blue-rgb)}
+.chip[data-status=waiting] i{background:var(--amber)}
+.chip[data-status=done] i{background:var(--green)}
+.chip[data-status=failed] i{background:var(--red)}
+.chip[data-status=done],.chip[data-status=cancelled]{opacity:.6}
+.chip span{overflow:hidden;text-overflow:ellipsis}
+.chip.arrive{animation:arrive .4s ease-out}
+
+/* ----------------------------------------------------------- tile wall */
+.wall{display:grid;gap:10px}
+#tiles{
+  display:grid;grid-template-columns:repeat(var(--n,1),minmax(0,1fr));gap:12px;
+  max-width:calc(var(--n,1) * 660px + (var(--n,1) - 1) * 12px);
+}
+/* The card is the slot: the role=tab tile and its toolbar row are siblings, so Enter on the tab never hits the button. */
+.slot{
+  --c:var(--faint);--c-rgb:var(--faint-rgb);
+  display:flex;flex-direction:column;min-width:0;container-type:inline-size;
+  border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);overflow:hidden;transition:border-color .2s,background .2s;
+}
+.slot[data-state=working]{--c:var(--blue);--c-rgb:var(--blue-rgb)}
+.slot[data-state=review]{--c:var(--amber);--c-rgb:var(--amber-rgb)}
+.slot[data-state=error]{--c:var(--red);--c-rgb:var(--red-rgb)}
+.slot[data-state=finished]{--c:var(--green);--c-rgb:var(--green-rgb)}
+.slot:hover{border-color:var(--line-3)}
+.slot[data-selected=true]{border-color:var(--line-3);background:var(--panel-2);box-shadow:0 0 0 1px var(--line-3)}
+.slot[data-selected=true]:not([data-state=idle]){border-color:rgba(var(--c-rgb),.7);box-shadow:0 0 0 1px rgba(var(--c-rgb),.35)}
+.tile{position:relative;display:flex;flex-direction:column;min-width:0;cursor:pointer;text-align:left}
+.tile:focus-visible{outline-offset:-2px;border-radius:var(--r-lg) var(--r-lg) 0 0}
+.tile::before{content:"";position:absolute;inset:0 0 auto 0;height:2px;background:var(--c);opacity:0;transition:opacity .2s}
+.slot:not([data-state=idle]) .tile::before{opacity:1}
+.tile-head{display:flex;align-items:center;gap:8px;padding:9px 12px 7px;font-size:13px}
+.tile-name{font-weight:600;letter-spacing:-.005em;color:var(--h,var(--text))}
+.tile-state{margin-left:auto;font:500 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--c)}
+.slot[data-state=idle] .tile-state{color:var(--faint)}
+.ring{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none;--p-rgb:var(--c-rgb)}
+.slot[data-state=working] .ring{animation:pulse 1.6s infinite}
+/* The frame is 16:9 like /desktop.png, sized from the clamped height, and centred over an opaque well. */
+.tile-view{position:relative;display:flex;justify-content:center;background:var(--well);overflow:hidden}
+.tile-frame{position:relative;flex:none;height:min(30vh,340px,56.25cqw);aspect-ratio:16/9}
+.tile-blank{position:absolute;inset:0;display:grid;place-items:center;color:var(--faint);font-size:12.5px;
+  background:radial-gradient(circle at 50% 50%,rgba(var(--c-rgb),.10),transparent 60%),
+             repeating-linear-gradient(0deg,transparent 0 23px,rgba(255,255,255,.025) 23px 24px),
+             repeating-linear-gradient(90deg,transparent 0 23px,rgba(255,255,255,.025) 23px 24px)}
+#preview{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
+#preview:not([data-ok]){display:none}
+.tile-view:has(#preview[data-ok]) .tile-blank{display:none}
+.tile-open{
+  position:absolute;right:8px;top:8px;z-index:1;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:999px;
+  background:rgba(7,8,12,.78);border:1px solid rgba(255,255,255,.1);color:var(--text);font-size:12px;font-weight:500;
+  opacity:0;transform:translateY(-3px);transition:opacity .15s,transform .15s;pointer-events:none;
+}
+.slot[data-selected=true] .tile-view:hover .tile-open,.slot[data-selected=true] .tile:focus-visible .tile-open{opacity:1;transform:none}
+.tile-foot{display:grid;gap:2px;padding:8px 12px 4px;min-width:0}
+.tile-now{font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot[data-state=idle] .tile-now{color:var(--muted)}
+.tile-task{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:17px}
+.tile-task:empty::before{content:"—";color:var(--faint)}
+.tile-bar{display:flex;justify-content:flex-end;padding:0 6px 6px}
+.tile-enter{height:28px;padding:0 10px;font-size:12px}
+
+/* -------------------------------------------------------- footer strip */
+.foot{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:6px 0 4px}
+.hints{display:flex;flex-wrap:wrap;gap:6px 16px;margin-left:auto;font-size:12px;line-height:1.6;color:var(--muted);align-items:center}
+.hints span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.hints kbd{font-size:10.5px}
+
+/* --------------------------------------------------------------- drawer */
+.drawer{display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line);padding:12px 0 0 16px;gap:14px}
+.drawer h2{margin:0;font:500 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px}
+.drawer h2 .count{margin-left:auto;color:var(--faint);letter-spacing:0}
+.review{display:grid;gap:10px}
+.review:has(#approvals:empty){display:none}
+.review h2{color:var(--amber)}
+#approvals{display:grid;gap:10px}
+.card{
+  border:1px solid rgba(var(--amber-rgb),.45);border-radius:var(--r-lg);background:linear-gradient(180deg,rgba(var(--amber-rgb),.08),transparent 70%),var(--panel);
+  padding:12px 12px 10px;display:grid;gap:8px;
+}
+.card-head{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+.card-head .ring{background:var(--amber)}
+.card-hand{color:var(--h,var(--text))}
+.card-head span{margin-left:auto;font:500 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--amber);white-space:nowrap}
+.card p{margin:0;color:var(--text);font-size:13px;overflow-wrap:anywhere}
+.card pre{margin:0;padding:9px 10px;border-radius:var(--r);background:var(--well);border:1px solid var(--line);white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 var(--mono);color:#c5cce0;max-height:180px;overflow:auto}
+.card .row{display:flex;gap:8px}
+.card .row .primary{flex:1;background:var(--amber);border-color:var(--amber)}
+.card .row .primary:hover{background:#ebc07f;border-color:#ebc07f}
+.activity{display:flex;flex-direction:column;min-height:0;flex:1;gap:10px}
+#events{flex:1;min-height:0;overflow:auto;display:grid;align-content:start;gap:0;font-size:12.5px;scrollbar-width:thin;scrollbar-color:var(--line-2) transparent;padding-right:4px}
+#events:empty::before{content:"Tool calls and decisions appear here as the hands work.";color:var(--faint);padding:6px 0;display:block}
+.event{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:0 10px;padding:7px 0;border-bottom:1px solid var(--line);color:var(--muted);overflow-wrap:anywhere;align-items:baseline}
+.event:last-child{border-bottom:0}
+.event time{font:11px/1.6 var(--mono);color:var(--faint)}
+.event .tag{font:500 11px/1.6 var(--mono);color:var(--h,var(--text));padding:0 5px;border-radius:4px;background:color-mix(in srgb,var(--h,var(--muted)) 16%,transparent);align-self:baseline}
+.event:first-child{color:var(--text)}
+
+/* -------------------------------------------------------------- motion */
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(var(--p-rgb,var(--blue-rgb)),.55)}70%{box-shadow:0 0 0 6px rgba(var(--p-rgb,var(--blue-rgb)),0)}100%{box-shadow:0 0 0 0 rgba(var(--p-rgb,var(--blue-rgb)),0)}}
+@keyframes caret{50%{opacity:0}}
+@keyframes arrive{from{transform:translateX(-8px);opacity:.4}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------------------------------------------------------- responsive */
+@media (min-width:1200px){#send{width:auto;padding:0 12px 0 10px}#send span{display:inline}}
+@media (max-width:1400px){:root{--drawer:300px}}
+/* A laptop with taskbar and browser chrome: let the page scroll rather than clip the buttons. */
+@media (max-height:700px){
+  body{height:auto;min-height:100vh;overflow:auto}
+  .tile-frame{height:min(26vh,340px,56.25cqw)}
+  #events{max-height:320px}
+}
+@media (max-width:1000px){
+  body{height:auto;min-height:100vh;overflow:auto}
+  .main{grid-template-columns:1fr}
+  .drawer{border-left:0;border-top:1px solid var(--line);padding:14px 0 0;margin-top:14px}
+  #events{max-height:320px}
+  .stage{min-height:160px}
+  .tile-frame{height:auto;width:100%}
+}
+</style>
+
+<header class="top">
+  <div class="brand">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="9" width="4.5" height="12" rx="1.5"/><rect x="9.75" y="3" width="4.5" height="18" rx="1.5"/><rect x="16.5" y="12" width="4.5" height="9" rx="1.5"/></svg>
+    hands <small>on Windows</small>
+  </div>
+  <span class="pill" id="state" data-tone="idle" role="status" aria-live="polite"><i></i>Connecting…</span>
+  <span class="gap"></span>
+  <span id="model" title="Model and effort of the selected hand"></span>
+  <select id="provider" aria-label="Model provider">
+    <option value="auto">Auto · Jev chooses</option>
+    <option value="openai">OpenAI</option>
+    <option value="gemini">Gemini</option>
+  </select>
+  <button type="button" id="stop" class="btn ghost danger" title="Stop capture and every hand (Ctrl+Alt+Esc)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2.5"/></svg>
+    Stop <kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>Esc</kbd>
+  </button>
+</header>
+
+<div class="main">
+<section class="deck" aria-label="Command">
+  <div class="stage empty" id="stage" data-mode="empty">
+    <div class="stage-in">
+      <p class="placeholder">Hold <kbd>F8</kbd> and say what you want done, or type it below.<br>Free hands pick tasks up as you speak.</p>
+      <div class="eyebrow" id="eyebrow"></div>
+      <p id="voice" aria-live="polite"></p>
+      <div class="reply">
+        <div class="reply-head"><span id="answer-head"></span></div>
+        <p id="answer" aria-live="polite"></p>
+      </div>
+    </div>
+  </div>
+
+  <form id="task" class="cmd" autocomplete="off">
+    <span class="prompt-mark" aria-hidden="true">›</span>
+    <textarea id="prompt" rows="1" placeholder="Tell the hands what to do… Enter sends, Shift+Enter for a new line" maxlength="16000" aria-label="Task"></textarea>
+    <button type="button" id="hold" class="btn" aria-pressed="false" aria-label="Hold to speak">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>
+      <span id="hold-label">Hold to speak</span><kbd>F8</kbd>
+    </button>
+    <button type="submit" id="send" class="btn primary" aria-label="Run task" title="Run task (Enter)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
+      <span>Run</span>
+    </button>
+  </form>
+  <div class="sub">
+    <div id="queue" aria-label="Spoken tasks"></div>
+    <p id="error" role="alert"></p>
+  </div>
+
+  <div class="wall">
+    <div id="tiles" role="tablist" aria-label="Hands" style="--n:1"></div>
+    <div class="foot">
+      <button type="button" id="enter" class="btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
+        <span id="enter-label">Enter hand</span>
+      </button>
+      <button type="button" id="back" class="btn ghost">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m11 18-6-6 6-6"/></svg>
+        Back to my desktop
+      </button>
+      <div class="hints">
+        <span><kbd>F8</kbd> hold to speak, release to send</span>
+        <span>While you hold <kbd>F8</kbd> the transcript also appears at the bottom of your screen.</span>
+        <span><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>Esc</kbd> stop everything</span>
+        <span>Click a corner preview to step into that hand, click again to come back</span>
+        <span>Drag a preview to move it</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<aside class="drawer" aria-label="Activity">
+  <section class="review">
+    <h2>Needs you <span class="count" id="approval-count"></span></h2>
+    <div id="approvals"></div>
+  </section>
+  <section class="activity">
+    <h2>Activity <span class="count" id="event-count"></span></h2>
+    <div id="events"></div>
+  </section>
+</aside>
+</div>
+
+<div id="stash" hidden><img id="preview" alt="Live view of the selected hand's desktop"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const preview = $('preview');
+let held = false, refreshing = false, shotAt = 0, shownHand = null, selectedHand = null, stoppedAt = 0;
+const wasRunning = new Map(), finishedAt = new Map(), prevHand = new Map();
+
+/* ------------------------------------------------------------- transport */
+async function post(path, body) {
+  const response = await fetch(path, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {})
+  });
+  const data = await response.json();
+  if (!response.ok) throw Error(data.error || 'Request failed');
+  return data;
+}
+function act(path, body) {
+  return post(path, body).then(refresh).catch(e => { $('error').textContent = e.message; });
+}
+
+/* --------------------------------------------------------- command strip */
+const prompt = $('prompt');
+function grow() { prompt.style.height = 'auto'; prompt.style.height = Math.min(prompt.scrollHeight, 160) + 'px'; }
+prompt.oninput = grow;
+prompt.onkeydown = e => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!$('send').disabled) $('task').requestSubmit(); }
+};
+$('task').onsubmit = e => {
+  e.preventDefault();
+  post('/task', { text: prompt.value })
+    .then(() => { prompt.value = ''; grow(); return refresh(); })
+    .catch(err => { $('error').textContent = err.message; });
+};
+
+/* ---------------------------------------------------------- hold to speak */
+const hold = $('hold');
+function release() { if (held) { held = false; act('/hotkey/up'); } }
+hold.onpointerdown = e => {
+  if (hold.disabled) return;
+  e.preventDefault(); held = true; hold.setPointerCapture(e.pointerId); act('/hotkey/down');
+};
+hold.onpointerup = release;
+hold.onpointercancel = () => { held = false; act('/hotkey/cancel'); };
+window.addEventListener('blur', release);
+window.addEventListener('pagehide', () => { if (held) navigator.sendBeacon('/hotkey/cancel', ''); });
+hold.onkeydown = e => {
+  if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat) { e.preventDefault(); held = true; act('/hotkey/down'); }
+};
+hold.onkeyup = e => { if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); release(); } };
+
+/* ------------------------------------------------------------- controls */
+$('stop').onclick = () => { held = false; stoppedAt = Date.now(); act('/stop'); };
+$('enter').onclick = () => act('/desktop/enter');
+$('back').onclick = () => act('/desktop/back');
+$('provider').onchange = () => act('/provider', { provider: $('provider').value });
+preview.onload = () => { preview.dataset.ok = '1'; };
+preview.onerror = () => { delete preview.dataset.ok; };
+/* Entering a hand selects it first, so stepping into hand 2 needs no prior click. A refused switch leaves the selection alone. */
+async function enterHand(id) {
+  try {
+    if (id !== selectedHand) await post('/hand', { hand: id });
+    await post('/desktop/enter');
+    await refresh();
+  } catch (e) { $('error').textContent = e.message; }
+}
+
+/* -------------------------------------------------------------- helpers */
+const stateOf = agent => agent.approval ? 'review' : agent.running ? 'working' : agent.error ? 'error' : 'idle';
+/* One vocabulary for the tile, the pill, the approval card and the corner preview's chip. */
+const STATE_WORD = { review: 'needs approval', working: 'working', error: 'stopped', finished: 'finished', idle: 'idle' };
+const labelOf = (agent, state) => ({ review: 'Needs your approval', working: agent.currentTool ? 'Working · ' + agent.currentTool : 'Working', error: 'Stopped with an error', finished: 'Finished', idle: 'Idle' })[state];
+const clock = ms => new Date(ms).toLocaleTimeString([], { hour12: false });
+/* Write only on change: keeps aria-live quiet and mutation-free polls cheap. */
+function setText(node, text) { if (node.textContent !== text) node.textContent = text; }
+function setState(text, tone) { setText($('state').lastChild, text); $('state').dataset.tone = tone; }
+function el(tag, className, text) { const node = document.createElement(tag); if (className) node.className = className; if (text != null) node.textContent = text; return node; }
+/* A hand that just finished keeps a green 'finished' for 6 s, like the corner preview. Stop from this page is not a finish. */
+function tileState(w) {
+  const state = stateOf(w.agent), was = wasRunning.get(w.hand);
+  wasRunning.set(w.hand, w.agent.running);
+  if (was && !w.agent.running && !w.agent.error && Date.now() - stoppedAt > 1500) finishedAt.set(w.hand, Date.now());
+  return state === 'idle' && Date.now() - (finishedAt.get(w.hand) || 0) < 6000 ? 'finished' : state;
+}
+
+/* Keyed reconciliation: keeps focus, hover and running animations on tiles, chips and approval buttons across the 600 ms poll. */
+function reconcile(container, items, keyOf, create, update) {
+  const existing = new Map([...container.children].map(node => [node.dataset.key, node]));
+  const next = items.map(item => {
+    const key = String(keyOf(item));
+    let node = existing.get(key);
+    if (!node) { node = create(item); node.dataset.key = key; }
+    existing.delete(key);
+    update(node, item);
+    return node;
+  });
+  for (const node of existing.values()) node.remove();
+  next.forEach((node, i) => { if (container.children[i] !== node) container.insertBefore(node, container.children[i] || null); });
+}
+
+/* ---------------------------------------------------------------- tiles */
+const ENTER_ICON = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>';
+const isSelected = tile => tile.getAttribute('aria-pressed') === 'true';
+function select(tile) { if (!isSelected(tile)) act('/hand', { hand: Number(tile.dataset.hand) }); }
+function makeTile() {
+  const slot = el('div', 'slot');
+  slot.setAttribute('role', 'presentation');
+  const tile = el('div', 'tile');
+  tile.setAttribute('role', 'tab'); tile.tabIndex = 0;
+  const head = el('div', 'tile-head');
+  head.append(el('i', 'ring'), el('b', 'tile-name'), el('span', 'tile-state'));
+  const view = el('div', 'tile-view');
+  const blank = el('div', 'tile-blank'); blank.append(el('span'));
+  const open = el('span', 'tile-open');
+  open.innerHTML = ENTER_ICON;
+  open.append(document.createTextNode('Enter desktop'));
+  view.append(blank, el('div', 'tile-frame'), open);
+  const foot = el('div', 'tile-foot');
+  foot.append(el('span', 'tile-now'), el('span', 'tile-task'));
+  tile.append(head, view, foot);
+  const bar = el('div', 'tile-bar');
+  const enter = el('button', 'btn ghost tile-enter');
+  enter.type = 'button'; enter.innerHTML = ENTER_ICON; enter.append(document.createTextNode('Enter desktop'));
+  enter.onclick = () => enterHand(Number(tile.dataset.hand));
+  bar.append(enter);
+  slot.append(tile, bar);
+  // Click selects the hand; clicking the selected hand's live view steps into its desktop, like the corner preview.
+  tile.onclick = () => select(tile);
+  view.onclick = e => { if (isSelected(tile)) { e.stopPropagation(); act('/desktop/enter'); } };
+  tile.onkeydown = e => {
+    if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+      e.preventDefault();
+      const tabs = [...$('tiles').querySelectorAll('.tile')], i = tabs.indexOf(tile);
+      const next = tabs[(i + (e.code === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+      next.focus(); select(next);
+    } else if (e.code === 'Enter' || e.code === 'Space') {
+      e.preventDefault();
+      if (isSelected(tile) && e.code === 'Enter') act('/desktop/enter'); else select(tile);
+    }
+  };
+  return slot;
+}
+function updateTile(slot, w, s) {
+  const tile = slot.firstElementChild, state = tileState(w), selected = w.hand === s.hand;
+  slot.dataset.state = state; slot.dataset.selected = String(selected);
+  tile.dataset.hand = w.hand;
+  tile.setAttribute('aria-pressed', String(selected));
+  tile.setAttribute('aria-selected', String(selected));
+  tile.setAttribute('aria-label', 'Hand ' + w.hand + ', ' + labelOf(w.agent, state) + (selected ? '. Selected; press Enter to step into its desktop.' : '. Press Enter to select.'));
+  const name = tile.querySelector('.tile-name');
+  name.dataset.hand = w.hand; setText(name, 'Hand ' + w.hand);
+  setText(tile.querySelector('.tile-state'), STATE_WORD[state]);
+  setText(tile.querySelector('.tile-now'), labelOf(w.agent, state));
+  const spoken = s.listener.tasks.find(t => t.hand === w.hand && (t.status === 'running' || t.status === 'waiting'));
+  setText(tile.querySelector('.tile-task'), (w.agent.running && w.agent.task) || spoken?.request || (state === 'error' && w.agent.error) || '');
+  const frame = tile.querySelector('.tile-frame');
+  if (selected && preview.parentElement !== frame) {
+    frame.append(preview);
+    // A frame that finished loading before it was re-parented has no load event left to fire.
+    if (preview.complete && preview.naturalWidth > 0 && shownHand === w.hand) preview.dataset.ok = '1';
+  }
+  setText(tile.querySelector('.tile-blank span'), selected
+    ? (state === 'idle' || state === 'finished' ? 'Idle · nothing on screen yet' : 'Waiting for a window…')
+    : 'Select to watch');
+  slot.querySelector('.tile-enter').setAttribute('aria-label', 'Enter the desktop of hand ' + w.hand);
+}
+
+/* ------------------------------------------------------------ approvals */
+function makeCard() {
+  const card = el('div', 'card');
+  const head = el('div', 'card-head');
+  head.append(el('i', 'ring'), el('b', 'card-hand'), el('span', null, STATE_WORD.review));
+  const reason = el('p', 'reason'), action = el('pre', 'action');
+  const row = el('div', 'row');
+  const approve = el('button', 'btn primary', 'Approve'), decline = el('button', 'btn', 'Decline');
+  approve.type = decline.type = 'button';
+  approve.onclick = () => act('/approve', { id: card.dataset.key, approved: true });
+  decline.onclick = () => act('/approve', { id: card.dataset.key, approved: false });
+  row.append(approve, decline);
+  card.append(head, reason, action, row);
+  return card;
+}
+function updateCard(card, approval) {
+  const who = card.querySelector('.card-hand');
+  who.dataset.hand = approval.hand; setText(who, 'Hand ' + approval.hand + ' wants to');
+  setText(card.querySelector('.reason'), approval.reason);
+  setText(card.querySelector('.action'), approval.tool + '\n' + JSON.stringify(approval.args, null, 2));
+}
+
+/* ---------------------------------------------------------- spoken tasks */
+function makeChip() {
+  const chip = el('span', 'chip');
+  chip.append(el('i'), el('b'), el('span'));
+  chip.onanimationend = () => chip.classList.remove('arrive');
+  return chip;
+}
+function updateChip(chip, t) {
+  const where = t.hand ? 'Hand ' + t.hand : 'Queued', who = chip.querySelector('b');
+  chip.dataset.status = t.status;
+  who.dataset.hand = t.hand || ''; setText(who, where);
+  setText(chip.querySelector('span'), t.status + ' · ' + t.request);
+  chip.title = where + ' · ' + t.status + ' · ' + t.request;
+  // A queued task that just found a hand slides in once; the class leaves on animationend so the poll cannot replay it.
+  // A throttled background tab never fires animationend, so a timer takes the class off as well.
+  if (prevHand.get(t.id) === null && t.hand) { chip.classList.add('arrive'); setTimeout(() => chip.classList.remove('arrive'), 1000); }
+  prevHand.set(t.id, t.hand);
+}
+
+/* -------------------------------------------------------------- refresh */
+async function refresh() {
+  if (refreshing) return;
+  refreshing = true;
+  try {
+    const response = await fetch('/status');
+    if (!response.ok) throw Error('hands is unavailable');
+    const s = await response.json(), a = s.agent;
+    const listening = s.state !== 'idle', busy = s.busy || s.listener.busy;
+    const working = s.workers.filter(w => w.agent.running);
+    const approval = s.approvals[0];
+    selectedHand = s.hand;
+    if (s.held) setState(s.state === 'starting' ? 'Starting microphone…' : 'Listening' + (working.length ? ' · ' + working.length + ' working' : '…'), 'live');
+    else if (s.state === 'transcribing') setState('Finishing transcript…', 'live');
+    else if (approval) setState(s.approvals.length > 1 ? s.approvals.length + ' actions need approval' : 'Needs approval · hand ' + approval.hand, 'review');
+    else if (busy) setState(working.length > 1 ? working.length + ' hands working' : 'Working' + (working[0]?.agent.currentTool ? ' · ' + working[0].agent.currentTool : '…'), 'busy');
+    else setState('Ready', 'idle');
+    document.body.classList.toggle('listening', Boolean(s.held));
+    document.body.classList.toggle('busy', Boolean(busy || listening));
+
+    // Controls
+    $('provider').value = a.selection;
+    setText($('model'), a.model + ' · ' + a.effort + ' effort');
+    $('provider').disabled = $('send').disabled = busy || listening;
+    // Workers start during a hold. Keep the button enabled until release.
+    hold.disabled = !listening && busy;
+    setText($('hold-label'), s.held ? 'Release to send' : 'Hold to speak');
+    hold.setAttribute('aria-pressed', String(Boolean(s.held)));
+    setText($('error'), s.lastError || a.error || s.listener.error || '');
+
+    // Stage: the transcript is the hero while F8 is held; the selected hand's reply sits under it.
+    const stage = $('stage');
+    stage.dataset.mode = s.held ? 'listening' : (s.state === 'transcribing' || s.state === 'dispatching') ? 'finishing' : s.partialTranscript ? 'heard' : 'empty';
+    setText($('eyebrow'), s.held ? (s.state === 'starting' ? 'Starting microphone' : 'Listening · release F8 to send')
+      : s.state === 'transcribing' ? 'Finishing transcript' : s.state === 'dispatching' ? 'Handing off' : s.partialTranscript ? 'You said' : '');
+    setText($('voice'), s.partialTranscript || '');
+    setText($('answer'), a.text);
+    setText($('answer-head'), 'Hand ' + s.hand);
+    stage.classList.toggle('empty', !s.partialTranscript && !a.text && !s.held);
+    if (s.held) stage.scrollTop = stage.scrollHeight;
+
+    // Spoken tasks: queued or assigned, one chip each, all of them.
+    reconcile($('queue'), s.listener.tasks, t => t.id, makeChip, updateChip);
+    for (const id of prevHand.keys()) if (!s.listener.tasks.some(t => t.id === id)) prevHand.delete(id);
+
+    // Preview: the old hand's frame must not appear inside the new tile, so drop it before the tiles re-parent the image.
+    if (shownHand !== s.hand) { shownHand = null; delete preview.dataset.ok; }
+    if ((shownHand === null || Date.now() - shotAt > 1500) && !document.hidden) {
+      shownHand = s.hand; shotAt = Date.now(); preview.src = '/desktop.png?t=' + shotAt;
+    }
+
+    // Tile wall
+    $('tiles').style.setProperty('--n', Math.max(1, s.workers.length));
+    reconcile($('tiles'), s.workers, w => w.hand, makeTile, (slot, w) => updateTile(slot, w, s));
+    if (!preview.isConnected) $('stash').append(preview);
+    setText($('enter-label'), 'Enter hand ' + s.hand);
+
+    // Drawer: every pending approval, each naming its hand, and one feed across all hands.
+    reconcile($('approvals'), s.approvals, ap => ap.id, makeCard, updateCard);
+    setText($('approval-count'), s.approvals.length ? String(s.approvals.length) : '');
+    const feed = s.workers.flatMap(w => w.agent.events.map(e => ({ hand: w.hand, time: e.time, text: e.text })))
+      .sort((x, y) => x.time - y.time).slice(-30).reverse();
+    $('events').replaceChildren(...feed.map(e => {
+      const row = el('div', 'event');
+      const tag = el('span', 'tag', 'H' + e.hand); tag.dataset.hand = e.hand;
+      row.append(el('time', null, clock(e.time)), tag, el('span', null, e.text));
+      return row;
+    }));
+    setText($('event-count'), feed.length ? String(feed.length) : '');
+  } catch (e) { setState('Disconnected', 'off'); $('error').textContent = e.message; }
+  finally { refreshing = false; }
+}
+setInterval(refresh, 600);
+refresh();
+</script>
+</html>

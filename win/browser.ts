@@ -86,7 +86,10 @@ export function browserInput(ask: Ask, port: (reread?: boolean) => Promise<numbe
     const targets: { type: string; title: string; url: string; webSocketDebuggerUrl?: string }[] = JSON.parse(listed);
     const pages = targets.filter((t) => t.type === "page" && t.webSocketDebuggerUrl && !t.url.startsWith("devtools://"));
     // The window is titled after its active tab: "Capybara - Wikipedia - Google Chrome".
-    const ws = (pages.find((t) => t.title && window.title.startsWith(t.title)) ?? pages[0])?.webSocketDebuggerUrl;
+    const title = window.title.replace(/\s+-\s+(?:Google Chrome|Microsoft Edge|Chromium|Brave)$/u, "");
+    const matches = pages.filter((t) => t.title === title);
+    if (matches.length > 1 || (!matches.length && pages.length > 1)) throw new Error("The browser tab is ambiguous. Select a uniquely titled tab before continuing.");
+    const ws = (matches[0] ?? (pages.length === 1 ? pages[0] : undefined))?.webSocketDebuggerUrl;
     if (!ws) return null;
     if (!prepared.has(ws)) {
       // Without this a page that is not the OS focus shows no caret and drops some key events.
