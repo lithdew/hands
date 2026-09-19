@@ -521,7 +521,7 @@ describe("Pi agent runtime", () => {
 });
 
 describe("screenshot target binding", () => {
-  const window = { app: "paint", title: "Blank canvas", focused: true, pid: 12345, containerId: 7 };
+  const window = { app: "paint", title: "Blank canvas", focused: true, pid: 12345, containerId: 7, ownerNonce: "0123456789abcdef" };
   const state = () => ({ width: 800, height: 600, windows: [{ ...window }] });
   const image = () => ({ type: "image" as const, mimeType: "image/png", data: fakePng() });
   const capture = (): PixelCapture => ({ window: { ...window }, width: 800, height: 600, digest: Bun.hash(fakePng()).toString(16) });
@@ -556,13 +556,15 @@ describe("screenshot target binding", () => {
     } finally { await runtime.close(); }
   });
 
-  test.each(["digest", "pid", "window", "title", "width", "height"] as const)("mismatched %s metadata rejects semantic and Cua images and clears the old frame", async (mismatch) => {
+  test.each(["digest", "pid", "window", "title", "ownerNonce", "missing ownerNonce", "width", "height"] as const)("mismatched %s metadata rejects semantic and Cua images and clears the old frame", async (mismatch) => {
     for (const source of ["semantic", "cua"] as const) {
       const invalid = capture();
       if (mismatch === "digest") invalid.digest = "mismatched-image";
       if (mismatch === "pid") invalid.window = { ...invalid.window!, pid: 54321 };
       if (mismatch === "window") invalid.window = { ...invalid.window!, containerId: 8 };
       if (mismatch === "title") invalid.window = { ...invalid.window!, title: "A different canvas" };
+      if (mismatch === "ownerNonce") invalid.window = { ...invalid.window!, ownerNonce: "fedcba9876543210" };
+      if (mismatch === "missing ownerNonce") delete invalid.window!.ownerNonce;
       if (mismatch === "width") invalid.width = 900;
       if (mismatch === "height") invalid.height = 700;
       let screenshots = 0, inputs = 0;
@@ -599,6 +601,31 @@ describe("screenshot target binding", () => {
         expect(inputs).toBe(0);
       } finally { await runtime.close(); }
     }
+  });
+
+  test("a changed owner nonce expires a pixel action after its gate approves the same PID, HWND and title", async () => {
+    let ownerNonce = window.ownerNonce, inputs = 0, checks = 0;
+    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+      desktop: { ...fakeDesktop, state: async () => ({ width: 800, height: 600, windows: [{ ...window, ownerNonce }] }),
+        cua: async () => {
+          const driver = await fakeCua(() => { inputs++; })();
+          return { ...driver, call: async (name, args, signal) => {
+            const response = await driver.call(name, args, signal);
+            return name === "get_desktop_state" ? { ...response, structuredContent: { puk_snapshot: capture() } } : response;
+          } };
+        },
+      }, gate: async () => { checks++; ownerNonce = "fedcba9876543210"; return allow; },
+      streamFn: scriptedModel([{ name: "computer", arguments: { action: "screenshot" } }, click]),
+    });
+    try {
+      await runtime.prompt("Click the control observed in this canvas");
+      const results = runtime.agent.state.messages.filter((message) => message.role === "toolResult");
+      expect(results[0]!.isError).toBe(false);
+      expect(checks).toBe(1);
+      expect(results[1]!.isError).toBe(true);
+      expect(JSON.stringify(results[1])).toContain("focused window changed");
+      expect(inputs).toBe(0);
+    } finally { await runtime.close(); }
   });
 
   test("a legacy screenshot that retargets while capture is in flight cannot authorize input", async () => {

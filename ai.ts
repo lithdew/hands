@@ -170,7 +170,7 @@ const CuaWindowsSchema = z.object({ windows: z.array(z.object({
   app_name: z.string(), title: z.string(),
 })) });
 const PixelCaptureSchema = z.object({
-  window: z.object({ pid: z.int().positive(), containerId: z.int().positive(), title: z.string() }).nullable(),
+  window: z.object({ pid: z.int().positive(), containerId: z.int().positive(), title: z.string(), ownerNonce: z.string().regex(/^[a-f0-9]{16}$/).optional() }).nullable(),
   width: z.int().positive(), height: z.int().positive(), digest: z.string().min(1),
 });
 
@@ -256,7 +256,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     pngContent(bytes);
     const focused = state.windows.filter((w) => w.focused);
     const frame: Frame = { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20), window: focused.length === 1 ? focused[0] : undefined, digest: Bun.hash(image.data).toString(16) };
-    const sameWindow = (a: { pid?: number; containerId?: number; title: string } | null | undefined, b: typeof a) => !a && !b || Boolean(a && b && a.pid === b.pid && a.containerId === b.containerId && a.title === b.title);
+    const sameWindow = (a: { pid?: number; containerId?: number; title: string; ownerNonce?: string } | null | undefined, b: typeof a) => !a && !b || Boolean(a && b && a.pid === b.pid && a.containerId === b.containerId && a.title === b.title && a.ownerNonce === b.ownerNonce);
     const binding = (response.structuredContent as { puk_snapshot?: unknown } | undefined)?.puk_snapshot;
     if (binding !== undefined) {
       const captured = PixelCaptureSchema.parse(binding);
@@ -291,7 +291,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     checkRevision();
     const focused = state.windows.filter((w) => w.focused);
     const current = focused[0], previous = frame.window;
-    const sameWindow = previous?.pid && previous.containerId && current?.pid === previous.pid && current.containerId === previous.containerId && current.app === previous.app && current.title === previous.title;
+    const sameWindow = previous?.pid && previous.containerId && current?.pid === previous.pid && current.containerId === previous.containerId && current.app === previous.app && current.title === previous.title && current.ownerNonce === previous.ownerNonce;
     if (state.width !== frame.width || state.height !== frame.height || focused.length !== 1 || !sameWindow) {
       throw new Error("The desktop resized or its focused window changed. Take a fresh screenshot before continuing.");
     }

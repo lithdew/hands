@@ -217,6 +217,21 @@ describe("runIntent", () => {
     expect(sh.input()).toEqual([]);
   });
 
+  test("a completion decision cannot finish an instruction corrected while Jev was answering", async () => {
+    let current = intent;
+    const jev = fakeJev((name) => {
+      if (name === "goal_met") {
+        current = { ...intent, goal: "Search Wikipedia for otters.", doneWhen: "The Otter article is open." };
+        return 0.99;
+      }
+      return { move: "done" }[name];
+    });
+    const sh = fakeExec();
+    const result = await runIntent(hand, () => current, deps({ ask: jev.ask, observe: screens(article) }, sh.exec), { maxSteps: 1 });
+    expect(result.status).toBe("out_of_steps");
+    expect(sh.input()).toEqual([]);
+  });
+
   test("a safe action does not bother the user", async () => {
     const jev = fakeJev((name, { state }) => {
       if (name === "goal_met") return state.history.length ? 0.9 : 0;

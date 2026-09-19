@@ -463,6 +463,8 @@ export async function runIntent(
     if (seen && seen.fingerprint === obs.fingerprint) obs = withVisionElements(obs, seen.elements, hand);
 
     const decision = await (deps.decide ?? decide)(deps, hand, intent, obs, memory);
+    if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
+    if (JSON.stringify(current()) !== instructionAtDecision) continue;
     if (decision.kind === "done") return end("done", intent.doneWhen);
 
     if (decision.kind === "escalate") {

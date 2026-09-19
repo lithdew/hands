@@ -87,7 +87,7 @@ export function pageObservation(dump: PageDump, frames: string[], geometry: { ar
     rect: { x: left + px(e.x), y: top + px(e.y), w: Math.max(1, px(e.w)), h: Math.max(1, px(e.h)) },
   }));
   const texts = [`page: ${dump.title}`, `address: ${dump.url}`, ...(dump.ready === "complete" ? [] : ["the page is still loading"]), ...dump.texts];
-  const seen = JSON.stringify([dump.url, dump.title, dump.ready, elements.map((e) => [e.role, e.name, e.value, e.focused, e.rect.y]), dump.texts]);
+  const seen = JSON.stringify([dump.url, dump.title, dump.ready, elements.map((e) => [e.role, e.name, e.value, e.focused, e.editable, e.within, e.rect]), dump.texts]);
   return { elements, texts, frames, fingerprint: Bun.hash(seen).toString(16) };
 }
 

@@ -22,6 +22,9 @@ describe("pageObservation", () => {
     expect(at(dump)).toBe(at(structuredClone(dump)));
     expect(at({ ...dump, elements: [{ ...field, value: "capybara" }, link] })).not.toBe(at(dump));
     expect(at({ ...dump, elements: [{ ...field, y: -200 }, link] })).not.toBe(at(dump));
+    expect(at({ ...dump, elements: [{ ...field, x: 600 }, link] })).not.toBe(at(dump));
+    expect(at({ ...dump, elements: [{ ...field, w: 600 }, link] })).not.toBe(at(dump));
+    expect(at({ ...dump, elements: [{ ...field, within: "different form" }, link] })).not.toBe(at(dump));
     expect(at({ ...dump, url: "https://en.wikipedia.org/wiki/Capybara" })).not.toBe(at(dump));
   });
 });

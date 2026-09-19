@@ -8,7 +8,7 @@
  * (`discover`, `launch`, `state`, `bash`, `cua`), so ai.ts and hotkey.ts run
  * unchanged. It works from native Windows Bun and from WSL through interop.
  *
- * Hands never take the user's screen, pointer or keyboard. Native windows get
+ * By default hands leave the user's screen, pointer and keyboard alone. Native windows get
  * Cua's background input (UI Automation and posted messages); the hand's
  * browser is driven over DevTools (win/browser.ts), which needs no focus. What
  * Windows refuses to deliver in the background fails with an explanation. Set
@@ -31,6 +31,7 @@ const WSL = process.platform === "linux";
 const ROOT = join(import.meta.dir, "..");
 const OUT = join(ROOT, "out", "win");
 const SOURCES = [join(import.meta.dir, "helper.cs"), join(import.meta.dir, "vendor", "VirtualDesktop11-24H2.cs")];
+let desktopClosing = false;
 /** What the agent sees for a hand with no window yet. */
 const EMPTY = { width: 1280, height: 800 };
 
@@ -77,7 +78,7 @@ type Helper = { ask(line: string): Promise<string>; close(): void };
 export function createHelper(exe: string): Helper {
   const proc = Bun.spawn([exe, "serve"], { env: subprocessEnv(), stdin: "pipe", stdout: "pipe", stderr: "ignore" });
   const reader = proc.stdout.getReader(), decoder = new TextDecoder();
-  let buffered = "", queue: Promise<unknown> = Promise.resolve();
+  let buffered = "", queue: Promise<unknown> = Promise.resolve(), closed = false;
   async function line(): Promise<string> {
     for (;;) {
       const end = buffered.indexOf("\n");
@@ -89,6 +90,7 @@ export function createHelper(exe: string): Helper {
   }
   return {
     ask(request) {
+      if (closed) return Promise.reject(new Error("The Windows helper is closed."));
       if (/[\r\n]/.test(request)) throw new Error("Helper requests are single lines.");
       const reply = queue.then(async () => {
         proc.stdin.write(`${request}\n`); await proc.stdin.flush();
@@ -99,12 +101,23 @@ export function createHelper(exe: string): Helper {
       queue = reply.catch(() => {});
       return reply;
     },
-    close() { try { proc.stdin.end(); } catch { /* already gone */ } },
+    close() { closed = true; try { proc.stdin.end(); } catch { /* already gone */ } },
   };
 }
 
 let shared: Promise<Helper> | undefined;
-export const helper = () => shared ??= ensureHelper().then(createHelper);
+export function helper() {
+  if (desktopClosing) return Promise.reject(new Error("The Windows desktop runtime is closing."));
+  if (!shared) {
+    const pending = ensureHelper().then((exe) => {
+      if (desktopClosing) throw new Error("The Windows desktop runtime is closing.");
+      return createHelper(exe);
+    });
+    shared = pending;
+    pending.catch(() => { if (shared === pending) shared = undefined; });
+  }
+  return shared;
+}
 const ask = async (line: string) => (await helper()).ask(line);
 
 // ---------------------------------------------------------------- hands
@@ -130,41 +143,77 @@ export async function stopHands(): Promise<void> {
   for (const hand of await listHands()) await ask(`remove ${hand.display}`);
 }
 
-type RawWindow = { app: string; title: string; focused: boolean; pid: number; containerId: number; iconic?: boolean; rect: [number, number, number, number] };
+export type RawWindow = { app: string; title: string; focused: boolean; pid: number; containerId: number; ownerNonce?: string; iconic?: boolean; rect: [number, number, number, number] };
+const sameWindowFrame = (a: RawWindow, b: RawWindow) => a.pid === b.pid && a.containerId === b.containerId && a.ownerNonce === b.ownerNonce
+  && a.app === b.app && a.title === b.title && a.rect[2] === b.rect[2] && a.rect[3] === b.rect[3];
 /** What Cua last captured for a hand. ai.ts compares `state().width/height` with the PNG it was given. */
-const frames = new Map<number, { window: number; rect: string; width: number; height: number }>();
+const frames = new Map<number, { window: number; pid: number; ownerNonce?: string; rect: string; width: number; height: number }>();
 
-/** Window handles each hand owns. The shell can pull an activated window onto the
- * user's desktop, so membership is tracked here and the helper moves strays back. */
-const owned = new Map<number, Set<number>>();
-/** The window each hand is working in. Stacking order cannot say: switching
- * desktops and activating windows reshuffle it. */
-const active = new Map<number, number>();
+export type WindowOwner = { pid: number; nonce: string };
+type WindowEnumeration = { windows: RawWindow[]; retired_window_ids: number[] };
 
-/** Pure: which window is in front, given what the hand had before. */
+/** `before` contains owners that the helper has not confirmed retired. A missing
+ * active owner stays selected, with no focused row, until it returns or retires. */
 export function frontWindow(found: number[], before: ReadonlySet<number>, current?: number): number | undefined {
   // A window the hand did not have a moment ago is a dialog or a new page: it takes over.
   const opened = found.find((id) => !before.has(id));
   if (opened !== undefined && before.size) return opened;
-  return current !== undefined && found.includes(current) ? current : found[0];
+  return current !== undefined && before.has(current) ? current : found[0];
 }
 
-async function windows(hand: Hand): Promise<RawWindow[]> {
-  const mine = owned.get(hand.id) ?? new Set<number>();
-  const found: RawWindow[] = JSON.parse(await ask(`state ${hand.display}|${[...mine].join(",")}`)).windows;
-  const front = frontWindow(found.map((w) => w.containerId), mine, active.get(hand.id));
-  if (front === undefined) active.delete(hand.id); else active.set(hand.id, front);
-  // Dialogs and windows an app opened by itself join the hand; closed ones leave.
-  owned.set(hand.id, new Set(found.map((w) => w.containerId)));
-  return found.map((w) => ({ ...w, focused: w.containerId === front }));
+/** Serialize the whole enumerate/commit operation, not just helper RPCs. The
+ * panel, screenshots and input all read this state concurrently. */
+export function createWindowTracker(enumerate: (hand: Hand, owners: ReadonlyMap<number, WindowOwner>) => Promise<WindowEnumeration>) {
+  type TrackedHand = { owners: Map<number, WindowOwner>; active?: number; queue: Promise<unknown> };
+  const hands = new Map<number, TrackedHand>();
+  const queued = <T>(hand: Hand, work: (tracked: TrackedHand) => Promise<T>): Promise<T> => {
+    const tracked = hands.get(hand.id) ?? { owners: new Map<number, WindowOwner>(), queue: Promise.resolve() };
+    hands.set(hand.id, tracked);
+    const result = tracked.queue.then(() => work(tracked));
+    tracked.queue = result.catch(() => {});
+    return result;
+  };
+  const refresh = async (hand: Hand, tracked: TrackedHand, selected?: RawWindow) => {
+    const response = await enumerate(hand, new Map([...tracked.owners].map(([id, owner]) => [id, { ...owner }])));
+    if (!Array.isArray(response.windows) || !Array.isArray(response.retired_window_ids)) throw new Error("The Windows helper did not verify window ownership.");
+    const retained = new Map(tracked.owners), retired = new Set(response.retired_window_ids), seen = new Set<number>();
+    for (const id of retired) retained.delete(id);
+    for (const window of response.windows) {
+      const previous = retained.get(window.containerId);
+      if (!Number.isSafeInteger(window.containerId) || window.containerId <= 0 || !Number.isSafeInteger(window.pid) || window.pid <= 0
+        || !window.ownerNonce || !/^[0-7][0-9a-f]{15}$/.test(window.ownerNonce) || /^0+$/.test(window.ownerNonce)
+        || retired.has(window.containerId) || seen.has(window.containerId)
+        || previous && (previous.pid !== window.pid || previous.nonce !== window.ownerNonce)) {
+        throw new Error("The Windows helper returned a changed or unverified window identity. Take a fresh observation before acting.");
+      }
+      seen.add(window.containerId);
+    }
+    if (selected && !response.windows.some((window) => window.containerId === selected.containerId && window.pid === selected.pid
+      && (selected.ownerNonce === undefined || window.ownerNonce === selected.ownerNonce))) {
+      throw new Error("The requested application's window is no longer available. Take a fresh observation before acting.");
+    }
+    const front = selected?.containerId ?? frontWindow(response.windows.map((w) => w.containerId), new Set(retained.keys()), tracked.active);
+    for (const window of response.windows) retained.set(window.containerId, { pid: window.pid, nonce: window.ownerNonce! });
+    tracked.owners = retained;
+    tracked.active = front;
+    return response.windows.map((window) => ({ ...window, focused: window.containerId === front }));
+  };
+  return {
+    read: (hand: Hand) => queued(hand, (tracked) => refresh(hand, tracked)),
+    // App selection uses the same queue and obtains the nonce before any input.
+    select: (hand: Hand, window: RawWindow) => queued(hand, (tracked) => refresh(hand, tracked, window)),
+  };
 }
 
-const NOTE = `This hand is a Windows virtual desktop working in the background while the user works on theirs. The computer tool shows and drives only its front window, in that window's own pixels; open_app opens an app or brings its window to the front. Prefer the browser: it takes every input, including freehand strokes in a web canvas such as jspaint.app. Native apps accept clicks on real controls and typed text, but their canvases ignore background pointer strokes. To go to a site, press ctrl+l, type the address, press enter. ${WSL ? "Bash runs in WSL: call Windows programs as powershell.exe -NoProfile -Command '...' and find the user's files under /mnt/c/Users." : "The bash tool runs PowerShell here."}`;
+const windowTracker = createWindowTracker(async (hand, owners) => JSON.parse(await ask(`state ${hand.display}|${[...owners].map(([id, owner]) => `${id}:${owner.pid}:${owner.nonce}`).join(",")}`)));
+const windows = (hand: Hand) => windowTracker.read(hand);
+
+const NOTE = `This hand is a Windows virtual desktop. The computer tool shows and drives only its front window, in that window's own pixels; open_app opens an app or brings its window to the front. Use the application the user requested. ${process.env.PUK_WIN_BORROW === "1" ? "Foreground input is enabled: native canvas strokes temporarily show this hand's desktop and use the real pointer, then return to the user's desktop. Native controls still use background input when supported." : "This hand works in the background while the user works on theirs. Native apps accept clicks on supported controls and typed text; native canvases may ignore background strokes. Browser canvases support background drawing. Explain a native app limitation before switching applications."} To go to a site, press ctrl+l, type the address, press enter. ${WSL ? "Bash runs in WSL: call Windows programs as powershell.exe -NoProfile -Command '...' and find the user's files under /mnt/c/Users." : "The bash tool runs PowerShell here."}`;
 
 export async function handState(hand: Hand) {
   const all = await windows(hand), front = all.find((w) => w.focused), frame = frames.get(hand.id);
   const size = !front ? EMPTY
-    : frame?.window === front.containerId && frame.rect === front.rect.slice(2).join("x") ? frame
+    : frame?.window === front.containerId && frame.pid === front.pid && frame.ownerNonce === front.ownerNonce && frame.rect === front.rect.slice(2).join("x") ? frame
     : { width: front.rect[2], height: front.rect[3] };
   return { width: size.width, height: size.height, windows: all.map(({ rect: _, iconic: __, ...w }) => w), platform: NOTE };
 }
@@ -190,7 +239,31 @@ function onScreen<T>(hand: Hand, work: () => Promise<T>): Promise<T> {
 // ---------------------------------------------------------------- Cua
 
 type Raw = { call: CuaConnection["call"]; close(): Promise<void> };
-const drivers = new Map<number, Promise<Raw>>();
+/** A failed or closed transport must not remain the connection for a hand. A
+ * late close from the old transport must not evict its replacement either. */
+export function createDriverPool(connect: (hand: Hand, closed: () => void) => Promise<Raw>) {
+  const drivers = new Map<number, Promise<Raw>>();
+  return {
+    get(hand: Hand): Promise<Raw> {
+      let pending = drivers.get(hand.id);
+      if (!pending) {
+        const forget = () => { if (drivers.get(hand.id) === pending) drivers.delete(hand.id); };
+        pending = connect(hand, forget).then((raw) => ({
+          call: raw.call,
+          async close() { forget(); await raw.close(); },
+        }));
+        drivers.set(hand.id, pending);
+        pending.catch(forget);
+      }
+      return pending;
+    },
+    async close() {
+      const pending = [...drivers.values()];
+      drivers.clear();
+      await Promise.allSettled(pending.map(async (connection) => (await connection).close()));
+    },
+  };
+}
 
 async function cuaDriver(): Promise<string> {
   const installed = `${(await windowsFolders()).local}\\Programs\\Cua\\cua-driver\\bin\\cua-driver.exe`;
@@ -199,36 +272,32 @@ async function cuaDriver(): Promise<string> {
   return path;
 }
 
+/** Drivers belong to the server, not to an individual Jev/Pi facade. */
+const driverPool = createDriverPool(async (_hand, closed) => {
+  const client = new Client({ name: "puk", version: "0.1" }, { jsonSchemaValidator: new AjvJsonSchemaValidator(new Ajv({ strict: false, logger: false })) });
+  client.onclose = closed;
+  const transport = new StdioClientTransport({
+    // The grant lets Cua attach over CDP to a browser it did not launch. The
+    // facade below only ever aims it at the hand's own profile.
+    command: await cuaDriver(), args: ["mcp", "--grant", "existing-profile"], stderr: "pipe",
+    env: { ...subprocessEnv(), CUA_DRIVER_RS_TELEMETRY_ENABLED: "false", ...(WSL ? { WSLENV: "CUA_DRIVER_RS_TELEMETRY_ENABLED" } : {}) },
+  });
+  transport.stderr?.on("data", (chunk) => debugLog("cua.stderr", String(chunk)));
+  if (desktopClosing) throw new Error("The Windows desktop runtime is closing.");
+  try { await client.connect(transport, { timeout: 15_000 }); await client.listTools(); }
+  catch (error) { await client.close().catch(() => {}); throw error; }
+  return {
+    async call(name, args = {}, signal) {
+      signal?.throwIfAborted();
+      const response = await client.callTool({ name, arguments: args }, { signal, timeout: 30_000 });
+      if (response.isError) throw new Error(redact(response.content.filter((c) => c.type === "text").map((c) => c.text).join("\n")));
+      return response;
+    },
+    close: () => client.close(),
+  };
+});
 /** One private driver per hand, shared by the agent's computer tool and open_app. */
-export function driver(hand: Hand): Promise<Raw> {
-  let raw = drivers.get(hand.id);
-  if (!raw) {
-    raw = (async () => {
-      const client = new Client({ name: "puk", version: "0.1" }, { jsonSchemaValidator: new AjvJsonSchemaValidator(new Ajv({ strict: false, logger: false })) });
-      const transport = new StdioClientTransport({
-        // The grant lets Cua attach over CDP to a browser it did not launch. The
-        // facade below only ever aims it at the hand's own profile.
-        command: await cuaDriver(), args: ["mcp", "--grant", "existing-profile"], stderr: "pipe",
-        env: { ...subprocessEnv(), CUA_DRIVER_RS_TELEMETRY_ENABLED: "false", ...(WSL ? { WSLENV: "CUA_DRIVER_RS_TELEMETRY_ENABLED" } : {}) },
-      });
-      transport.stderr?.on("data", (chunk) => debugLog("cua.stderr", String(chunk)));
-      try { await client.connect(transport, { timeout: 15_000 }); await client.listTools(); }
-      catch (error) { await client.close(); throw error; }
-      return {
-        async call(name, args = {}, signal) {
-          signal?.throwIfAborted();
-          const response = await client.callTool({ name, arguments: args }, { signal, timeout: 30_000 });
-          if (response.isError) throw new Error(redact(response.content.filter((c) => c.type === "text").map((c) => c.text).join("\n")));
-          return response;
-        },
-        close: () => client.close(),
-      };
-    })();
-    drivers.set(hand.id, raw);
-    raw.catch(() => { if (drivers.get(hand.id) === raw) drivers.delete(hand.id); });
-  }
-  return raw;
-}
+export const driver = (hand: Hand): Promise<Raw> => desktopClosing ? Promise.reject(new Error("The Windows desktop runtime is closing.")) : driverPool.get(hand);
 
 const pngSize = (base64: string) => { const b = Buffer.from(base64.slice(0, 64), "base64"); return { width: b.readUInt32BE(16), height: b.readUInt32BE(20) }; };
 const image = (data: string) => ({ content: [{ type: "image" as const, data, mimeType: "image/png" }] }) as unknown as Awaited<ReturnType<CuaConnection["call"]>>;
@@ -240,8 +309,13 @@ const relays = new Map<number, Promise<Helper>>();
 export function handBrowser(hand: Hand) {
   // Its own helper process: a page that stops answering must not hold up window
   // state, launches or the other hands, which all share the main helper.
-  const relay = relays.get(hand.id) ?? ensureHelper().then(createHelper);
+  if (desktopClosing) throw new Error("The Windows desktop runtime is closing.");
+  const relay = relays.get(hand.id) ?? ensureHelper().then((exe) => {
+    if (desktopClosing) throw new Error("The Windows desktop runtime is closing.");
+    return createHelper(exe);
+  });
   relays.set(hand.id, relay);
+  relay.catch(() => { if (relays.get(hand.id) === relay) { relays.delete(hand.id); pages.delete(hand.id); } });
   const page = pages.get(hand.id) ?? browserInput(async (line) => (await relay).ask(line), (reread) => devtoolsPort(hand, reread),
     (where, error) => debugLog("win.devtools", { hand: hand.id, where, error: error instanceof Error ? error.message : String(error) }));
   pages.set(hand.id, page);
@@ -255,25 +329,58 @@ export async function browserWindow(hand: Hand) {
 /** The hand's front window, with its frame on screen. */
 export const frontOf = async (hand: Hand) => (await windows(hand)).find((w) => w.focused) ?? null;
 
-/** PNG of the hand's front window, or a placeholder. The helper's own capture
+export type BoundCapture = { data: string; window: RawWindow | null };
+
+/** The window passed to grab is the image's owner, even if focus changes while
+ * grab awaits an RPC. Reject changed ownership rather than relabeling pixels. */
+export async function bindWindowCapture(front: () => Promise<RawWindow | null>, grab: (window: RawWindow | null) => Promise<string>): Promise<BoundCapture> {
+  const window = await front();
+  // Copy the native identity before the asynchronous grab: test/backends must
+  // not be able to relabel this image by mutating the object afterward.
+  const captured = window ? { ...window, rect: [...window.rect] as RawWindow["rect"] } : null;
+  const data = await grab(captured);
+  const current = await front();
+  const same = captured === null ? current === null : current !== null && sameWindowFrame(current, captured);
+  if (!same) throw new Error("The hand's window changed while capturing it. Take a fresh observation before acting.");
+  return { data, window: captured };
+}
+
+/** PNG of the hand's front window, with the exact native target that owns it.
+ * The helper's own capture
  * takes about 100 ms; Cua's takes 0.5 to 2.5 s and queues behind whatever else
  * the driver is doing, such as the five seconds it settles after a launch.
  * `preview` captures do not count as what the agent last saw. */
-export async function capture(hand: Hand, preview = false): Promise<string> {
-  const front = (await windows(hand)).find((w) => w.focused);
-  if (!front) {
+export async function captureBound(hand: Hand, preview = false): Promise<BoundCapture> {
+  try {
+    const captured = await bindWindowCapture(() => frontOf(hand), async (window) => {
+      if (!window) return ask(`blank ${EMPTY.width} ${EMPTY.height} Hand ${hand.id} has no available active window. Use open_app to select an app.`);
+      return ask(`grab ${window.containerId}`).catch(async () => {
+        // Minimized, or a window that will not draw itself on request. The
+        // fallback keeps the same target; it never follows newly changed focus.
+        const response = await (await driver(hand)).call("get_window_state", { pid: window.pid, window_id: window.containerId, include_accessibility_tree: false });
+        const shot = response.content.find((c) => c.type === "image");
+        if (!shot || shot.type !== "image") throw new Error("Cua did not return a window screenshot.");
+        return shot.data;
+      });
+    });
+    if (!preview) {
+      const { window, data } = captured;
+      if (window) frames.set(hand.id, { window: window.containerId, pid: window.pid, ownerNonce: window.ownerNonce, rect: window.rect.slice(2).join("x"), ...pngSize(data) });
+      else frames.delete(hand.id);
+    }
+    return captured;
+  } catch (error) {
     if (!preview) frames.delete(hand.id);
-    return ask(`blank ${EMPTY.width} ${EMPTY.height} Hand ${hand.id} is empty. Use open_app to start an app.`);
+    throw error;
   }
-  const data = await ask(`grab ${front.containerId}`).catch(async () => {
-    // Minimized, or a window that will not draw itself on request.
-    const response = await (await driver(hand)).call("get_window_state", { pid: front.pid, window_id: front.containerId, include_accessibility_tree: false });
-    const shot = response.content.find((c) => c.type === "image");
-    if (!shot || shot.type !== "image") throw new Error("Cua did not return a window screenshot.");
-    return shot.data;
-  });
-  if (!preview) frames.set(hand.id, { window: front.containerId, rect: front.rect.slice(2).join("x"), ...pngSize(data) });
-  return data;
+}
+
+/** Compatibility for the panel and callers that need only the PNG. */
+export const capture = async (hand: Hand, preview = false): Promise<string> => (await captureBound(hand, preview)).data;
+
+/** Association metadata travels with the exact image, never a later state(). */
+export function capturedImage(captured: BoundCapture): Awaited<ReturnType<CuaConnection["call"]>> {
+  return { ...image(captured.data), structuredContent: { puk_snapshot: { window: captured.window, ...pngSize(captured.data), digest: Bun.hash(captured.data).toString(16) } } };
 }
 
 /**
@@ -282,47 +389,69 @@ export async function capture(hand: Hand, preview = false): Promise<string> {
  * them into Windows calls against the hand's front window.
  */
 export async function connectCua(hand: Hand): Promise<CuaConnection> {
-  const raw = await driver(hand);
+  await driver(hand);
+  // Reacquire after transport closure. An input error is returned as-is and is
+  // never replayed: the next tool call can establish a new connection.
+  const raw = { call: (async (name, args, signal) => (await driver(hand)).call(name, args, signal)) as CuaConnection["call"] };
   const browser = handBrowser(hand);
   const borrow = process.env.PUK_WIN_BORROW === "1";
-  let stroke: { x: number; y: number }[] = [], untouched = "";
+  let stroke: { x: number; y: number }[] = [], untouched = "", closed = false;
+  let strokeWindow: RawWindow | undefined;
+  const clearStroke = () => { stroke = []; strokeWindow = undefined; untouched = ""; };
   const front = async () => {
-    const w = (await windows(hand)).find((x) => x.focused);
-    if (!w) throw new Error("This hand has no window. Use open_app first, then take a screenshot.");
+    const w = (await windows(hand).catch((error) => { clearStroke(); throw error; })).find((x) => x.focused);
+    if (!w) { clearStroke(); throw new Error("This hand's active window is unavailable. Take a fresh observation or explicitly select an app with open_app."); }
     return w;
+  };
+  const requireSameWindow = async (observed: RawWindow) => {
+    const current = await front();
+    if (!sameWindowFrame(current, observed)) {
+      throw new Error("The hand's window changed before foreground input. Take a fresh observation before continuing.");
+    }
   };
   return {
     async call(name, args = {}, signal) {
+      if (closed) throw new Error("This computer connection is closed.");
       signal?.throwIfAborted();
-      if (name === "get_desktop_state") return image(await capture(hand));
+      if (name === "get_desktop_state") return capturedImage(await captureBound(hand));
       if (name === "list_windows") {
         const all = await windows(hand);
         return { content: [], structuredContent: { windows: all.map((w) => ({ window_id: w.containerId, pid: w.pid, app_name: w.app, title: w.title })) } } as unknown as Awaited<ReturnType<CuaConnection["call"]>>;
       }
       const w = await front(), target = { pid: w.pid, window_id: w.containerId };
+      if (strokeWindow && !sameWindowFrame(w, strokeWindow)) {
+        clearStroke();
+        throw new Error("The hand's window changed during a buffered stroke. Take a fresh observation before drawing again.");
+      }
       if (w.pid === browsers.get(hand.id) && await browser.handle(name, args, w)) return image("");
       // The agent cursor is an overlay in screen space; it is decoration, never a reason to fail.
       if (name === "move_cursor") return raw.call(name, { x: w.rect[0] + Number(args.x), y: w.rect[1] + Number(args.y) }, signal).catch(() => image(""));
       if (name === "mouse_button_down") {
         stroke = [{ x: Number(args.x), y: Number(args.y) }];
+        strokeWindow = { ...w, rect: [...w.rect] };
         untouched = borrow ? "" : await capture(hand, true).catch(() => "");
         return image("");
       }
-      if (name === "mouse_drag") { stroke.push({ x: Number(args.x), y: Number(args.y) }); return image(""); }
+      if (name === "mouse_drag") {
+        if (!strokeWindow) throw new Error("Start a native stroke with mouse_button_down before dragging.");
+        stroke.push({ x: Number(args.x), y: Number(args.y) }); return image("");
+      }
       if (name === "mouse_button_up") {
         // Cua has no press and release on Windows, so a stroke is a chain of drags
         // that share end points. Posted drags reach classic canvases; Paint and
         // other XAML canvases drop them without an error, hence the note to the model.
-        const points = stroke; stroke = [];
+        const points = stroke; stroke = []; strokeWindow = undefined;
+        if (points.length < 2) return image("");
         const draw = async (mode: Record<string, unknown>) => {
           let last = image("");
           for (let i = 1; i < points.length; i++) {
+            signal?.throwIfAborted();
             const a = points[i - 1]!, b = points[i]!;
-            last = await raw.call("drag", { ...target, from_x: a.x, from_y: a.y, to_x: b.x, to_y: b.y, steps: Math.min(16, Math.max(2, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 6))), duration_ms: 60, ...mode });
+            last = await raw.call("drag", { ...target, from_x: a.x, from_y: a.y, to_x: b.x, to_y: b.y, steps: Math.min(16, Math.max(2, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 6))), duration_ms: 60, ...mode }, signal);
           }
           return last;
         };
-        if (borrow) return onScreen(hand, () => draw({ delivery_mode: "foreground" }));
+        if (borrow) return onScreen(hand, async () => { signal?.throwIfAborted(); await requireSameWindow(w); return draw({ delivery_mode: "foreground" }); });
         const drawn = await draw({});
         await Bun.sleep(150);
         // Say so, or the model redraws the same cat until its action budget is gone.
@@ -339,11 +468,14 @@ export async function connectCua(hand: Hand): Promise<CuaConnection> {
       catch (error) {
         if (!refused(error)) throw error;
         debugLog("win.refused", { hand: hand.id, name, app: w.app });
-        if (borrow) return onScreen(hand, () => raw.call(name, { ...request, delivery_mode: "foreground" }, signal));
+        if (borrow) return onScreen(hand, async () => { signal?.throwIfAborted(); await requireSameWindow(w); return raw.call(name, { ...request, delivery_mode: "foreground" }, signal); });
         throw new Error(`Windows does not deliver this input to ${w.app} while it works in the background. Do this step in the browser, another app or Bash instead.`);
       }
     },
-    async close() { drivers.delete(hand.id); await raw.close(); },
+    // Pi closes its facade after an interrupted stroke. Jev and the semantic
+    // tools still use this hand's driver, so only discard the facade's state.
+    cancelPendingInput: clearStroke,
+    async close() { closed = true; clearStroke(); },
   };
 }
 
@@ -355,7 +487,9 @@ const JUNK = /uninstall|readme|release notes|documentation|website|\bhelp\b|lice
 const appIds = new Map<string, string>();
 
 /** The Start menu, which also lists Store apps. `argv` carries the AppID for `launchInstalledApp`. */
-const NATIVE_CANVAS: Record<string, string> = { paint: "Native canvas: strokes cannot reach it while this hand works in the background. To draw, open the browser and use jspaint.app." };
+const NATIVE_CANVAS: Record<string, string> = { paint: process.env.PUK_WIN_BORROW === "1"
+  ? "Native canvas: foreground strokes are enabled and temporarily show the hand's desktop."
+  : "Native canvas: background strokes may be ignored. Microsoft Paint requires foreground input for drawing." };
 let catalog: { at: number; apps: Promise<InstalledApp[]> } | undefined;
 
 /** The agent asks for this at the start of every task, and PowerShell takes about
@@ -386,10 +520,69 @@ async function readStartMenu(): Promise<InstalledApp[]> {
   }).slice(0, 250);
 }
 
-const opened = new Map<number, Map<string, number>>();
+const opened = new Map<number, Map<string, RawWindow>>();
 /** The process behind each hand's browser; its windows are driven over DevTools. */
 const browsers = new Map<number, number>();
 const profile = async (hand: Hand) => `${(await windowsFolders()).local}\\Puk\\hands\\${hand.id}\\browser`;
+
+type BrowserProcess = { pid: number; executable?: string | null; commandLine?: string | null };
+const windowsPath = (path: string) => path.replaceAll("/", "\\").replace(/\\+$/, "").toLowerCase();
+
+/** Parse Windows command-line quoting, including a quoted value inside an
+ * option. Matching substrings of a command line could select another profile. */
+function commandArguments(line: string): string[] {
+  const args: string[] = [];
+  let value = "", quoted = false, started = false, slashes = 0;
+  for (const char of line) {
+    if (char === "\\") { slashes++; started = true; continue; }
+    if (char === '"') {
+      value += "\\".repeat(Math.floor(slashes / 2));
+      if (slashes % 2) value += '"'; else quoted = !quoted;
+      slashes = 0; started = true; continue;
+    }
+    value += "\\".repeat(slashes); slashes = 0;
+    if (/\s/.test(char) && !quoted) {
+      if (started) args.push(value);
+      value = ""; started = false;
+    } else { value += char; started = true; }
+  }
+  value += "\\".repeat(slashes);
+  if (quoted) return []; // Malformed or truncated input cannot establish ownership.
+  if (started) args.push(value);
+  return args;
+}
+
+export function isPrivateBrowser(process: BrowserProcess, executable: string, privateProfile: string): boolean {
+  if (!Number.isInteger(process.pid) || process.pid <= 0 || !process.executable || !process.commandLine || windowsPath(process.executable) !== windowsPath(executable)) return false;
+  const args = commandArguments(process.commandLine);
+  if (args.some((arg) => arg === "--type" || arg.startsWith("--type="))) return false;
+  const profiles = args.flatMap((arg, index) => arg.startsWith("--user-data-dir=") ? [arg.slice(16)] : arg === "--user-data-dir" ? [args[index + 1] ?? ""] : []);
+  return profiles.length === 1 && windowsPath(profiles[0]!) === windowsPath(privateProfile);
+}
+
+/** Window adoption requires the process we actually launched. In particular a
+ * newly opened user Chrome window must never win a title or size heuristic. */
+export function launchedBrowserWindow<T extends { pid: number; rect: [number, number, number, number] }>(fresh: T[], pid: number): T | undefined {
+  if (!Number.isInteger(pid) || pid <= 0) return undefined;
+  return fresh.filter((window) => window.pid === pid).toSorted((a, b) => b.rect[2] * b.rect[3] - a.rect[2] * a.rect[3])[0];
+}
+
+async function privateBrowsers(executable: string, privateProfile: string): Promise<BrowserProcess[]> {
+  const listed = JSON.parse(await text(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+    "Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('chrome.exe', 'msedge.exe') } | Select-Object @{Name='pid';Expression={$_.ProcessId}},@{Name='executable';Expression={$_.ExecutablePath}},@{Name='commandLine';Expression={$_.CommandLine}} | ConvertTo-Json -Compress"]) || "[]") as BrowserProcess | BrowserProcess[];
+  const processes = Array.isArray(listed) ? listed : [listed];
+  return processes.filter((process) => isPrivateBrowser(process, executable, privateProfile));
+}
+
+async function stopPrivateBrowser(executable: string, privateProfile: string): Promise<void> {
+  const quote = (value: string) => `'${value.replaceAll("'", "''")}'`;
+  for (const process of await privateBrowsers(executable, privateProfile)) {
+    // Verify the same command again at the moment of termination, so a PID
+    // recycled between discovery and cleanup cannot select an unrelated app.
+    await text(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+      `$candidate = Get-CimInstance Win32_Process -Filter "ProcessId = ${process.pid}"; if ($candidate.ExecutablePath -eq ${quote(process.executable!)} -and $candidate.CommandLine -ceq ${quote(process.commandLine!)}) { Stop-Process -Id $candidate.ProcessId -ErrorAction Stop }`]);
+  }
+}
 
 const ports = new Map<number, number>();
 /** Chrome writes its DevTools port to a file. From WSL that file takes about a
@@ -404,7 +597,9 @@ async function devtoolsPort(hand: Hand, reread = false): Promise<number | null> 
 }
 
 async function browserCommand(hand: Hand) {
-  const { programs, local } = await windowsFolders();
+  const { programs } = await windowsFolders();
+  const flags = process.env.PUK_WIN_BROWSER_FLAGS?.split(/\s+/).filter(Boolean) ?? [];
+  if (flags.some((flag) => /^--(?:user-data-dir|remote-debugging-port)(?:=|$)/i.test(flag))) throw new Error("PUK_WIN_BROWSER_FLAGS cannot replace the hand's private profile or DevTools port.");
   const candidates = [...programs.map((p) => `${p}\\Google\\Chrome\\Application\\chrome.exe`), ...programs.map((p) => `${p}\\Microsoft\\Edge\\Application\\msedge.exe`)];
   for (const path of candidates) {
     if (await Bun.file(await fromWindows(path)).exists()) return {
@@ -417,7 +612,7 @@ async function browserCommand(hand: Hand) {
         // a page by its frames: measured here, a hidden page got 0 animation frames and
         // 0 timer ticks a second, and YouTube needed a minute to load. Unpaced: 43 and 99.
         "--disable-gpu-vsync", "--disable-frame-rate-limit", "--disable-background-timer-throttling",
-        ...(process.env.PUK_WIN_BROWSER_FLAGS?.split(/\s+/).filter(Boolean) ?? []), "--new-window", "about:blank"],
+        ...flags, "--new-window", "about:blank"],
     };
   }
   throw new Error("No Chrome or Edge installation was found.");
@@ -435,6 +630,7 @@ const warming = new Map<number, Promise<unknown>>();
 export function warmBrowser(hand: Hand): Promise<unknown> {
   const started = warming.get(hand.id) ?? launchInstalledApp(hand, { id: "browser", name: "Web browser" } as unknown as InstalledApp, true);
   warming.set(hand.id, started);
+  started.catch(() => { if (warming.get(hand.id) === started) warming.delete(hand.id); });
   return started;
 }
 
@@ -451,12 +647,13 @@ export async function launchInstalledApp(hand: Hand, app: InstalledApp, warmingU
 }
 
 async function launchOne(hand: Hand, app: InstalledApp): Promise<number> {
-  const mine = opened.get(hand.id) ?? new Map<string, number>();
+  const mine = opened.get(hand.id) ?? new Map<string, RawWindow>();
   opened.set(hand.id, mine);
   // Chrome, Edge or "browser": the hand has one, and it is usually open already.
   const key = BROWSER.test(app.name) ? "browser" : app.id;
-  const existing = (await windows(hand)).find((w) => w.containerId === mine.get(key));
-  if (existing) { active.set(hand.id, existing.containerId); await ask(`raise ${existing.containerId}`); return existing.pid; }
+  const remembered = mine.get(key);
+  const existing = (await windows(hand)).find((w) => remembered && w.containerId === remembered.containerId && w.pid === remembered.pid && w.ownerNonce === remembered.ownerNonce);
+  if (existing) { await windowTracker.select(hand, existing); await ask(`raise ${existing.containerId}`); return existing.pid; }
 
   const before = new Set((JSON.parse(await ask("state")).windows as RawWindow[]).map((w) => w.containerId));
   const focus = await ask("fg");
@@ -468,8 +665,25 @@ async function launchOne(hand: Hand, app: InstalledApp): Promise<number> {
     const { path, additional_arguments } = await browserCommand(hand);
     // A browser left over from an earlier run would adopt the launch and leave two
     // identical windows, which Cua refuses to tell apart. The profile is this hand's alone.
-    await text(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*\\Puk\\hands\\${hand.id}\\browser*' -and $_.CommandLine -notlike '*--type=*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }`]).catch(() => {});
-    Bun.spawn([await fromWindows(path), ...additional_arguments], { env: subprocessEnv(), stdin: "ignore", stdout: "ignore", stderr: "ignore" }).unref();
+    await stopPrivateBrowser(path, await profile(hand));
+    if (desktopClosing) throw new Error("The Windows desktop runtime is closing.");
+    const spawned = Bun.spawn([await fromWindows(path), ...additional_arguments], { env: subprocessEnv(), stdin: "ignore", stdout: "ignore", stderr: "ignore" });
+    pid = spawned.pid;
+    spawned.unref();
+    if (WSL) {
+      // WSL returns an interop wrapper PID. Resolve the native PID from the
+      // exact profile we just launched; a fresh unrelated Chrome never qualifies.
+      pid = 0;
+      const deadline = Date.now() + 5000;
+      do {
+        const matching = await privateBrowsers(path, await profile(hand));
+        if (matching.length > 1) throw new Error("Multiple processes claim this hand's private browser profile.");
+        pid = matching[0]?.pid ?? 0;
+        if (pid) break;
+        await Bun.sleep(100);
+      } while (Date.now() < deadline && !desktopClosing);
+      if (!pid) throw new Error("Could not identify this hand's private Windows browser process.");
+    }
     ports.delete(hand.id);
   } else {
     // Not awaited: Cua keeps "settling" for about five seconds after the window
@@ -495,17 +709,16 @@ async function launchOne(hand: Hand, app: InstalledApp): Promise<number> {
     const fresh = seen.windows.filter((w) => !before.has(w.containerId) && (w.iconic || (w.rect[2] > 200 && w.rect[3] > 150)));
     // The largest: a browser recovering from a crash also shows a small "restore pages" bubble.
     const largest = (list: RawWindow[]) => list.toSorted((a, b) => b.rect[2] * b.rect[3] - a.rect[2] * a.rect[3])[0];
-    created = fresh.find((w) => announced.includes(w.containerId)) ?? fresh.find((w) => pid && w.pid === pid) ?? largest(fresh.filter(resembles))
-      ?? (i >= 40 ? fresh[0] : undefined);
+    created = key === "browser" ? launchedBrowserWindow(fresh, pid)
+      : fresh.find((w) => announced.includes(w.containerId)) ?? fresh.find((w) => pid && w.pid === pid) ?? largest(fresh.filter(resembles));
   }
   if (failed) throw failed;
   if (!created) throw new Error(`${app.name} started but did not open a window.`);
   await ask(`move ${created.containerId} ${hand.display}`);
   await ask(`place ${created.containerId} 40 40 ${Math.min(1360, display.width - 120)} ${Math.min(900, display.height - 160)}`);
   await ask(`focus ${focus}`);
-  (owned.get(hand.id) ?? owned.set(hand.id, new Set()).get(hand.id)!).add(created.containerId);
-  active.set(hand.id, created.containerId);
-  mine.set(key, created.containerId);
+  const selected = await windowTracker.select(hand, created);
+  mine.set(key, selected.find((w) => w.focused)!);
   if (BROWSER.test(app.name)) browsers.set(hand.id, created.pid);
   void boost(created.pid);
   return created.pid;
@@ -523,7 +736,21 @@ export async function runPowerShell(_hand: Hand, command: string, opts: { cwd?: 
 }
 
 /** Pass as `createDesktopAgent({ desktop })`. */
-export const windowsDesktop = { discover: discoverApps, launch: launchInstalledApp, state: handState, cua: connectCua, ...(WSL ? {} : { bash: runPowerShell }) };
+export const windowsDesktop = {
+  discover: discoverApps, launch: launchInstalledApp, state: handState, cua: connectCua,
+  environment: `You operate a Windows virtual desktop belonging to this hand. Use open_app to open or select an application in this hand. Native controls can be observed through Windows accessibility and driven with scoped references. ${WSL ? "The bash tool runs Bash in WSL; call Windows programs through powershell.exe and use /mnt/c for Windows files." : "The bash tool executes PowerShell on Windows; use PowerShell commands and Windows paths."}`,
+  ...(WSL ? {} : { bash: runPowerShell }),
+};
+
+/** Close only resources created by this process. This also runs after partial
+ * startup, without creating a new helper just to shut it down. */
+export async function closeWindowsDesktop(): Promise<void> {
+  desktopClosing = true;
+  clearTimeout(giveBack);
+  const helpers = [...relays.values(), ...(shared ? [shared] : [])];
+  shared = undefined; relays.clear(); pages.clear(); ports.clear();
+  await Promise.allSettled([driverPool.close(), ...helpers.map(async (pending) => (await pending).close())]);
+}
 
 // ---------------------------------------------------------------- cli
 
@@ -535,5 +762,5 @@ if (import.meta.main) {
     else if (command === "list") console.log((await listHands()).map((h) => h.display).join("\n") || "No hands. Run: bun win/desktop.ts up");
     else console.log("usage: bun win/desktop.ts up [n] | list | down");
   } catch (error) { console.error(error instanceof Error ? error.message : error); process.exitCode = 1; }
-  (await helper()).close();
+  await closeWindowsDesktop();
 }

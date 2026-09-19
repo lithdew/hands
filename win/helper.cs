@@ -5,7 +5,7 @@
 //   puk-win mic            raw PCM (24 kHz, mono, s16le) on stdout until stdin closes
 //   puk-win hotkey <vk>    prints "down" / "up" for the held key, "cancel" for Ctrl+Alt+Esc
 //   puk-win serve          one reply line per stdin line:
-//                            state [desktop[|hwnd,hwnd]]  JSON windows; with a name, that hand's windows (strays reclaimed)
+//                            state [desktop[|hwnd:pid:nonce,...]]  JSON windows + retired_window_ids; only verified strays reclaimed
 //                            shot <maxWidth>      base64 PNG of the visible screen
 //                            grab <hwnd>          base64 PNG of one window, on any desktop; "error blank" if it would not draw
 //                            ensure <desktop>     create the named virtual desktop if missing
@@ -199,6 +199,8 @@ public static class PukWin
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int max);
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr GetProp(IntPtr hwnd, string name);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool SetProp(IntPtr hwnd, string name, IntPtr data);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
     [DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
     [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
@@ -237,44 +239,105 @@ public static class PukWin
         return d;
     }
 
-    static readonly Dictionary<string, HashSet<long>> owned = new Dictionary<string, HashSet<long>>();
+    sealed class WindowOwner
+    {
+        public uint pid;
+        public long nonce;
+    }
+    // Window properties die with the window, unlike HWNDs and process IDs, both
+    // of which Windows can reuse. The property name is private to this helper.
+    static readonly string ownerProperty = "Puk.Owner." + Guid.NewGuid().ToString("N");
+    static readonly Dictionary<string, Dictionary<long, WindowOwner>> owned = new Dictionary<string, Dictionary<long, WindowOwner>>();
     static IntPtr userFocus = IntPtr.Zero;
+
+    static bool SameOwner(IntPtr hwnd, WindowOwner owner)
+    {
+        uint pid;
+        return IsWindow(hwnd) && GetWindowThreadProcessId(hwnd, out pid) != 0
+            && pid == owner.pid && owner.nonce > 0 && GetProp(hwnd, ownerProperty).ToInt64() == owner.nonce;
+    }
+
+    static WindowOwner MarkOwner(IntPtr hwnd)
+    {
+        uint pid;
+        if (!IsWindow(hwnd) || GetWindowThreadProcessId(hwnd, out pid) == 0 || pid == 0) return null;
+        long nonce = GetProp(hwnd, ownerProperty).ToInt64();
+        if (nonce == 0)
+        {
+            do { nonce = BitConverter.ToInt64(Guid.NewGuid().ToByteArray(), 0) & long.MaxValue; } while (nonce == 0);
+            if (!SetProp(hwnd, ownerProperty, new IntPtr(nonce))) return null;
+        }
+        WindowOwner owner = new WindowOwner { pid = pid, nonce = nonce };
+        return SameOwner(hwnd, owner) ? owner : null;
+    }
 
     static bool Owned(IntPtr hwnd)
     {
-        foreach (HashSet<long> set in owned.Values) if (set.Contains(hwnd.ToInt64())) return true;
+        foreach (Dictionary<long, WindowOwner> set in owned.Values)
+        {
+            WindowOwner owner;
+            if (set.TryGetValue(hwnd.ToInt64(), out owner) && SameOwner(hwnd, owner)) return true;
+        }
         return false;
     }
 
-    /** With "<desktop>|<hwnd,hwnd>": that hand's windows, front one marked focused.
+    /** With "<desktop>|<hwnd:pid:nonce,...>": that hand's windows, including a
+     *  window-lifetime nonce; retired_window_ids confirms dead/recycled owners.
      *  Activating a window that sits on another virtual desktop makes the shell
      *  reassign it to the current one (Cua's UIA clicks do this), so a hand's
-     *  windows are the handles it owns plus whatever else is on its desktop,
-     *  and strays are moved back here before they are listed. */
+     *  verified strays are moved back before listing. An enumeration omission
+     *  alone never retires an owner. */
     static string State(string request)
     {
         string desktopName = request;
+        Dictionary<long, WindowOwner> mine = null;
         if (request != null && request.IndexOf('|') >= 0)
         {
             desktopName = request.Substring(0, request.IndexOf('|'));
-            HashSet<long> mine = new HashSet<long>();
-            foreach (string id in request.Substring(request.IndexOf('|') + 1).Split(',')) { long h; if (long.TryParse(id, out h)) mine.Add(h); }
+            mine = new Dictionary<long, WindowOwner>();
+            foreach (string entry in request.Substring(request.IndexOf('|') + 1).Split(','))
+            {
+                if (entry.Length == 0) continue;
+                string[] parts = entry.Split(':');
+                long id, nonce;
+                uint pid;
+                if (parts.Length != 3 || !long.TryParse(parts[0], out id) || id <= 0
+                    || !uint.TryParse(parts[1], out pid) || pid == 0 || parts[2].Length != 16
+                    || !long.TryParse(parts[2], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out nonce) || nonce <= 0)
+                    throw new Exception("Window ownership requires HWND, PID and a window-lifetime nonce.");
+                mine[id] = new WindowOwner { pid = pid, nonce = nonce };
+            }
             owned[desktopName] = mine;
         }
         Desktop desktop = desktopName == null ? null : Need(desktopName);
-        IntPtr active = GetForegroundWindow();
-        if (desktop != null && owned.ContainsKey(desktopName))
+        if (desktop != null && mine == null)
         {
-            foreach (long id in owned[desktopName])
+            if (!owned.TryGetValue(desktopName, out mine)) mine = new Dictionary<long, WindowOwner>();
+            owned[desktopName] = mine;
+        }
+        HashSet<long> retired = new HashSet<long>();
+        IntPtr active = GetForegroundWindow();
+        if (desktop != null)
+        {
+            foreach (KeyValuePair<long, WindowOwner> entry in new List<KeyValuePair<long, WindowOwner>>(mine))
             {
-                IntPtr hwnd = new IntPtr(id);
+                IntPtr hwnd = new IntPtr(entry.Key);
+                if (!SameOwner(hwnd, entry.Value)) { retired.Add(entry.Key); mine.Remove(entry.Key); continue; }
                 try
                 {
-                    if (!IsWindow(hwnd) || desktop.HasWindow(hwnd)) continue;
+                    if (desktop.HasWindow(hwnd)) continue;
+                    // HasWindow calls into the shell. Verify again immediately
+                    // before moving; a reused handle must never be reclaimed.
+                    if (!SameOwner(hwnd, entry.Value)) { retired.Add(entry.Key); mine.Remove(entry.Key); continue; }
                     desktop.MoveWindow(hwnd);
-                    if (hwnd == active) Focus(userFocus);
+                    if (hwnd == active && SameOwner(hwnd, entry.Value)) Focus(userFocus);
                 }
-                catch (Exception) { }
+                catch (Exception)
+                {
+                    // A transient shell failure leaves ownership intact only
+                    // while Win32 still verifies the same living window.
+                    if (!SameOwner(hwnd, entry.Value)) { retired.Add(entry.Key); mine.Remove(entry.Key); }
+                }
             }
         }
         active = GetForegroundWindow();
@@ -289,7 +352,31 @@ public static class PukWin
             if ((GetWindowLongPtr(hwnd, -20).ToInt64() & 0x80) != 0) return true; // WS_EX_TOOLWINDOW
             if (desktop != null)
             {
+                long id = hwnd.ToInt64();
+                if (retired.Contains(id)) return true;
                 try { if (!desktop.HasWindow(hwnd) || Desktop.IsWindowPinned(hwnd)) return true; } catch (Exception) { return true; }
+                WindowOwner owner;
+                if (mine.TryGetValue(id, out owner))
+                {
+                    if (!SameOwner(hwnd, owner)) { retired.Add(id); mine.Remove(id); return true; }
+                }
+                else
+                {
+                    // Another hand may be reclaiming this very window. Do not
+                    // make one live window belong to two hands.
+                    foreach (KeyValuePair<string, Dictionary<long, WindowOwner>> hand in owned)
+                    {
+                        WindowOwner other;
+                        if (hand.Key != desktopName && hand.Value.TryGetValue(id, out other) && SameOwner(hwnd, other)) return true;
+                    }
+                    owner = MarkOwner(hwnd);
+                    if (owner == null) return true;
+                    // It was not owned before, so enrol only while it is still
+                    // on this hand. Unverified off-desktop windows are not moved.
+                    try { if (!desktop.HasWindow(hwnd) || Desktop.IsWindowPinned(hwnd)) return true; } catch (Exception) { return true; }
+                    if (!SameOwner(hwnd, owner)) return true;
+                    mine[id] = owner;
+                }
                 if (foreground == IntPtr.Zero) foreground = hwnd;
                 found.Add(hwnd);
                 return true;
@@ -305,19 +392,31 @@ public static class PukWin
         bool first = true;
         foreach (IntPtr hwnd in found)
         {
+            WindowOwner owner = null;
+            if (desktop != null && (!mine.TryGetValue(hwnd.ToInt64(), out owner) || !SameOwner(hwnd, owner)))
+            {
+                retired.Add(hwnd.ToInt64()); mine.Remove(hwnd.ToInt64()); continue;
+            }
             uint pid;
             GetWindowThreadProcessId(hwnd, out pid);
             string app = "";
             try { app = Process.GetProcessById((int)pid).ProcessName; } catch (Exception) { }
+            string title = Title(hwnd);
+            RECT r = Frame(hwnd);
+            bool iconic = IsIconic(hwnd);
+            if (owner != null && !SameOwner(hwnd, owner)) { retired.Add(hwnd.ToInt64()); mine.Remove(hwnd.ToInt64()); continue; }
             if (!first) b.Append(',');
             first = false;
-            b.Append("{\"app\":").Append(Json(app)).Append(",\"title\":").Append(Json(Title(hwnd)))
+            b.Append("{\"app\":").Append(Json(app)).Append(",\"title\":").Append(Json(title))
              .Append(",\"focused\":").Append(hwnd == foreground ? "true" : "false")
              .Append(",\"pid\":").Append(pid).Append(",\"containerId\":").Append(hwnd.ToInt64());
-            RECT r = Frame(hwnd);
-            b.Append(",\"iconic\":").Append(IsIconic(hwnd) ? "true" : "false");
+            if (owner != null) b.Append(",\"ownerNonce\":").Append(Json(owner.nonce.ToString("x16")));
+            b.Append(",\"iconic\":").Append(iconic ? "true" : "false");
             b.Append(",\"rect\":[").Append(r.left).Append(',').Append(r.top).Append(',').Append(r.right - r.left).Append(',').Append(r.bottom - r.top).Append("]}");
         }
+        b.Append("],\"retired_window_ids\":[");
+        first = true;
+        foreach (long id in retired) { if (!first) b.Append(','); first = false; b.Append(id); }
         return b.Append("]}").ToString();
     }
 
