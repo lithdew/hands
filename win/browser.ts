@@ -13,7 +13,7 @@
  * The address bar cannot be typed into from the background, so text aimed at
  * it becomes a navigation.
  */
-import type { CuaConnection } from "../desktop";
+import { debugLog, type CuaConnection } from "../desktop";
 export type Ask = (line: string) => Promise<string>;
 export type BrowserWindow = { containerId: number; title: string };
 type Rect = [x: number, y: number, w: number, h: number];
@@ -221,6 +221,9 @@ export type ExistingBrowserWindow = BrowserWindow & { pid: number; ownerNonce?: 
 type ExistingRef = { ref: string; role: string; name: string; value?: string; states?: Record<string, unknown>; actions?: string[]; visibility?: string };
 type ExistingTab = { tab_id: string; title: string; url: string; active: boolean | null };
 type ExistingPage = { target_id: string; tab_id: string; title: string; url: string; tabs: ExistingTab[]; refs: ExistingRef[]; outline: string; snapshot_id: string; window: ExistingBrowserWindow };
+type ExistingBinding = { target_id: string; tab: ExistingTab; tabs: ExistingTab[]; window: ExistingBrowserWindow };
+export type ExistingDialog = { target_id: string; tab_id: string; title: string; url: string; window: ExistingBrowserWindow } &
+  ({ present: false } | { present: true; dialog_id: string; kind: "alert" | "confirm" | "prompt" | "beforeunload" | "other" });
 type ExistingAction = { action: string; url?: string; text?: string; replace?: boolean; key?: string; direction?: string; amount?: number };
 const sameExistingWindow = (a: ExistingBrowserWindow, b: ExistingBrowserWindow, frame = false) => a.pid === b.pid
   && a.containerId === b.containerId && a.ownerNonce === b.ownerNonce
@@ -231,13 +234,38 @@ const sameExistingWindow = (a: ExistingBrowserWindow, b: ExistingBrowserWindow, 
 const chromeNewTabUrls = new Set(["chrome://newtab/", "chrome://new-tab-page/"]);
 const sameBrowserUrl = (a: string | undefined, b: string | undefined) => a === b || typeof a === "string" && typeof b === "string" && chromeNewTabUrls.has(a) && chromeNewTabUrls.has(b);
 
+export type ExistingBrowserTiming = {
+  phase: "native_check" | "bind_rpc" | "snapshot_rpc" | "action_rpc" | "prepare_rpc";
+  sequence: number;
+  event: "start" | "end";
+  durationMs?: number;
+  outcome?: "ok" | "failed" | "cancelled";
+};
+type ExistingBrowserDiagnostics = { timing?: (event: ExistingBrowserTiming) => void; now?: () => number };
+
 export function existingBrowserInput(call: CuaConnection["call"], current: () => Promise<ExistingBrowserWindow>, session = `puk-existing-${crypto.randomUUID()}`,
-  beforePrepare?: (window: ExistingBrowserWindow) => Promise<void>) {
+  beforePrepare?: (window: ExistingBrowserWindow) => Promise<void>, diagnostics: ExistingBrowserDiagnostics = {}) {
   let closed = false;
   let healthy = true;
   let currentPage: ExistingPage | undefined;
+  let lastBinding: ExistingBinding | undefined;
+  let currentDialog: ExistingDialog | undefined;
   let generation = 0;
-  const check = async (signal?: AbortSignal, expected?: ExistingBrowserWindow, frame = false) => {
+  let timingSequence = 0;
+  const now = diagnostics.now ?? (() => performance.now());
+  const emitTiming = (event: ExistingBrowserTiming) => {
+    // The event is constructed only from fixed phase labels, counters and time.
+    // Never include arguments, window identity, URL, title, refs or errors.
+    try { (diagnostics.timing ?? ((value) => debugLog("win.browser.phase", value)))(event); } catch { /* Diagnostics cannot affect input semantics. */ }
+  };
+  const timed = async <T>(phase: ExistingBrowserTiming["phase"], signal: AbortSignal | undefined, work: () => Promise<T>): Promise<T> => {
+    const sequence = ++timingSequence, started = now();
+    emitTiming({ phase, sequence, event: "start" });
+    let outcome: ExistingBrowserTiming["outcome"] = "failed";
+    try { const result = await work(); outcome = "ok"; return result; }
+    finally { emitTiming({ phase, sequence, event: "end", durationMs: Math.max(0, Math.round(now() - started)), outcome: signal?.aborted ? "cancelled" : outcome }); }
+  };
+  const check = async (signal?: AbortSignal, expected?: ExistingBrowserWindow, frame = false) => timed("native_check", signal, async () => {
     signal?.throwIfAborted();
     if (closed) throw new Error("This existing-browser binding has been released. Attach and look again.");
     const window = await current();
@@ -245,8 +273,9 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     if (closed) throw new Error("This existing-browser binding has been released. Attach and look again.");
     if (!window.ownerNonce || expected && !sameExistingWindow(window, expected, frame)) throw new Error("The existing Chrome window changed. Attach or look again before acting.");
     return { ...window, rect: [...window.rect] as Rect };
-  };
-  const invoke = async (name: string, args: Record<string, unknown>, signal?: AbortSignal) => {
+  });
+  const invoke = async (name: string, args: Record<string, unknown>, signal?: AbortSignal) => timed(
+    name === "get_browser_state" ? args.target_id ? "snapshot_rpc" : "bind_rpc" : name === "browser_prepare" ? "prepare_rpc" : "action_rpc", signal, async () => {
     signal?.throwIfAborted();
     if (closed) throw new Error("This existing-browser binding has been released. Attach and look again.");
     let reply: Awaited<ReturnType<CuaConnection["call"]>>;
@@ -256,7 +285,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
       // Never revive or replay an input here: the next explicit attach must
       // retire this label, re-attest the window and obtain a fresh binding.
       if (/session (?:has ended|'[^']*' has ended)|persistent Cua connection is disconnected|Cua transport closed/i.test(String(error))) {
-        healthy = false; currentPage = undefined; generation++;
+        healthy = false; currentPage = undefined; currentDialog = undefined; lastBinding = undefined; generation++;
       }
       throw error;
     }
@@ -276,7 +305,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
       route: state?.route, delivery: state?.delivery,
     })}`);
     return state;
-  };
+  });
   const bind = async (signal?: AbortSignal) => {
     const window = await check(signal);
     const result = await invoke("get_browser_state", { pid: window.pid, window_id: window.containerId }, signal);
@@ -289,11 +318,22 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     if (active.length !== 1 || tabs.filter((tab) => tab.title === active[0]?.title).length !== 1) {
       throw new Error("Cua could not identify one uniquely titled active tab in this Chrome window. Select a tab and observe again.");
     }
-    return { target_id: result.target_id, tab: active[0]!, tabs, window };
+    lastBinding = { target_id: result.target_id, tab: active[0]!, tabs, window };
+    return lastBinding;
+  };
+  const dialogCall = async (args: Record<string, unknown>, signal?: AbortSignal) => {
+    try { return await invoke("browser_dialog", { ...args, delivery_mode: "background" }, signal); }
+    catch (error) {
+      signal?.throwIfAborted();
+      // Cua still performs its own exact-tab and live-URL authorization. A
+      // modal can block that attestation too; never bypass it with raw CDP.
+      throw new Error(`Cua could not ${args.action === "inspect" ? "inspect" : "resolve"} the page dialog. Exact-tab/URL attestation must succeed; no alternate input was sent. Inspect again before any resolution retry. Cause: ${String(error)}`);
+    }
   };
   return {
     healthy: () => healthy && !closed,
     async attach(signal?: AbortSignal, options: { allowPrepare?: boolean } = {}) {
+      currentPage = undefined; currentDialog = undefined; generation++;
       try {
         try { await bind(signal); }
         catch (error) {
@@ -329,7 +369,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     },
     async snapshot(signal?: AbortSignal): Promise<ExistingPage> {
       const observedGeneration = ++generation;
-      currentPage = undefined;
+      currentPage = undefined; currentDialog = undefined;
       const bound = await bind(signal);
       const result = await invoke("get_browser_state", { target_id: bound.target_id, tab_id: bound.tab.tab_id, snapshot_format: "semantic_v2", include_screenshot: false }, signal);
       const page = result.page as { title?: string; url?: string } | undefined;
@@ -368,6 +408,47 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
       currentPage = observation;
       return observation;
     },
+    async inspectDialog(signal?: AbortSignal): Promise<ExistingDialog> {
+      const observedGeneration = ++generation;
+      currentPage = undefined; currentDialog = undefined;
+      // A dialog can block DOM/AX reads after an input timed out. Retain only
+      // the last exact binding, never its element refs, and require the native
+      // window identity/title/frame to remain the same. Cua re-attests the tab.
+      const bound = lastBinding ?? await bind(signal);
+      await check(signal, bound.window, true);
+      const result = await dialogCall({ target_id: bound.target_id, tab_id: bound.tab.tab_id, action: "inspect" }, signal);
+      await check(signal, bound.window, true);
+      if (result.target_id !== bound.target_id || result.tab_id !== bound.tab.tab_id || typeof result.present !== "boolean"
+        || result.present && (typeof result.dialog_id !== "string" || !result.dialog_id || result.dialog_id.length > 100
+          || !["alert", "confirm", "prompt", "beforeunload", "other"].includes(String(result.kind)))) {
+        throw new Error("Cua did not return a current dialog for the exact bound tab. Inspect again before resolving it.");
+      }
+      const observed: ExistingDialog = { target_id: bound.target_id, tab_id: bound.tab.tab_id, title: bound.tab.title, url: bound.tab.url,
+        window: bound.window, ...(result.present ? { present: true, dialog_id: result.dialog_id as string, kind: result.kind as Extract<ExistingDialog, { present: true }>["kind"] } : { present: false }) };
+      if (observedGeneration !== generation) throw new Error("A newer observation replaced this dialog inspection. Inspect again.");
+      currentDialog = observed;
+      return observed;
+    },
+    async resolveDialog(observed: ExistingDialog, operation: "accept" | "dismiss", dialogId: string, signal?: AbortSignal, beforeInput = () => {}) {
+      if (currentDialog !== observed || !observed.present || observed.dialog_id !== dialogId) throw new Error("The dialog inspection is stale or its id does not match. Inspect the current dialog first.");
+      if (operation !== "accept" && operation !== "dismiss") throw new Error("A dialog resolution must be accept or dismiss.");
+      try {
+        beforeInput(); signal?.throwIfAborted();
+        await check(signal, observed.window, true);
+        // Bind reads tab metadata rather than the blocked DOM. It proves the
+        // same active page, while the old IDs still own the observed dialog.
+        const active = await bind(signal);
+        if (active.tab.title !== observed.title || !sameBrowserUrl(active.tab.url, observed.url)) throw new Error("The active Chrome tab changed after dialog inspection or approval. Inspect again.");
+        await check(signal, observed.window, true);
+        beforeInput(); signal?.throwIfAborted();
+        if (currentDialog !== observed) throw new Error("The dialog inspection changed while resolution was being prepared. Inspect again.");
+        currentDialog = undefined; currentPage = undefined; generation++;
+        const result = await dialogCall({ target_id: observed.target_id, tab_id: observed.tab_id, action: operation, dialog_id: dialogId }, signal);
+        if (result.target_id !== observed.target_id || result.tab_id !== observed.tab_id || result.dialog_id !== dialogId
+          || result.kind !== observed.kind || result.action !== operation) throw new Error("Cua did not confirm this exact dialog resolution. Inspect again; do not replay the request.");
+        signal?.throwIfAborted(); beforeInput();
+      } catch (error) { currentDialog = undefined; currentPage = undefined; generation++; throw error; }
+    },
     async act(observed: ExistingPage, action: ExistingAction, reference?: string, signal?: AbortSignal, beforeInput = () => {}) {
       if (currentPage !== observed) throw new Error("The browser observation is stale or does not belong to this binding. Look again.");
       const ref = reference ? observed.refs.find((entry) => entry.ref === reference) : undefined;
@@ -382,7 +463,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
       await check(signal, observed.window, true);
       beforeInput(); signal?.throwIfAborted();
       if (currentPage !== observed) throw new Error("The browser observation changed while input was being prepared. Look again.");
-      currentPage = undefined; // No failed or cancelled mutation may be replayed.
+      currentPage = undefined; currentDialog = undefined; generation++; // No failed or cancelled mutation may be replayed.
       const target = { target_id: observed.target_id, tab_id: observed.tab_id };
       if (action.action === "navigate") {
         if (!action.url || !/^https?:\/\//i.test(action.url)) throw new Error("Browser navigation needs an http(s) URL.");
@@ -401,8 +482,8 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
         // to the exact HWND; a background refusal never switches desktops.
         const keys = (action.key ?? "").toLowerCase().split("+").map((key) => key.trim()).filter(Boolean);
         if (!keys.length) throw new Error("A key or chord is required.");
-        const reply = await call(keys.length > 1 ? "hotkey" : "press_key", { pid: observed.window.pid, window_id: observed.window.containerId, session,
-          ...(keys.length > 1 ? { keys } : { key: keys[0] }) }, signal);
+        const reply = await timed("action_rpc", signal, () => call(keys.length > 1 ? "hotkey" : "press_key", { pid: observed.window.pid, window_id: observed.window.containerId, session,
+          ...(keys.length > 1 ? { keys } : { key: keys[0] }) }, signal));
         if (reply.isError) throw new Error(`Cua refused existing Chrome keyboard input: ${JSON.stringify(reply.content)}`);
       } else throw new Error(`Unsupported existing-browser action: ${action.action}`);
       signal?.throwIfAborted(); beforeInput();
@@ -415,7 +496,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     async close() {
       closed = true;
       generation++;
-      currentPage = undefined;
+      currentPage = undefined; currentDialog = undefined; lastBinding = undefined;
       // Session cleanup releases only Cua's grant/connection; it does not own or
       // terminate the existing browser process.
       await call("end_session", { session }).catch(() => {});

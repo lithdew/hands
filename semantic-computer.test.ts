@@ -1,10 +1,98 @@
 import { expect, test } from "bun:test";
-import { createSemanticComputer, diffLines, type Snapshot } from "./semantic-computer";
+import { BrowserSchema, createSemanticComputer, diffLines, type DialogObservation, type Snapshot } from "./semantic-computer";
 
 const page = (): Snapshot => ({ kind: "browser", identity: "1:2:https://example.test", title: "Search", url: "https://example.test/", texts: ["Ready"], binding: {}, elements: [
   { key: "search", role: "textbox", name: "Search", value: "", editable: true, address: { x: 1, y: 2 } },
   { key: "save", role: "button", name: "Save", within: "Notifications", address: { x: 3, y: 4 } },
 ] });
+
+const alertDialog = (): DialogObservation => ({ present: true, dialog_id: "dialog-7", kind: "alert", window: "Search", url: "https://example.test/", binding: {} });
+
+test("browser dialog schema requires an explicit operation and current id only for resolution", () => {
+  for (const invalid of [{ action: "dialog" }, { action: "dialog", operation: "accept" }, { action: "dialog", operation: "dismiss" },
+    { action: "dialog", operation: "inspect", dialog_id: "old" }, { action: "snapshot", operation: "accept", dialog_id: "old" }]) {
+    expect(BrowserSchema.safeParse(invalid).success).toBe(false);
+  }
+  expect(BrowserSchema.safeParse({ action: "dialog", operation: "inspect" }).success).toBe(true);
+  expect(BrowserSchema.safeParse({ action: "dialog", operation: "accept", dialog_id: "dialog-7" }).success).toBe(true);
+});
+
+test("read-only dialog inspection survives a failed page read and exposes observed context to the action gate", async () => {
+  let reads = 0, checks = 0, inputs = 0;
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => { reads++; throw new Error("DOM blocked by alert"); }, act: async () => { inputs++; },
+    inspectDialog: async () => alertDialog(), resolveDialog: async () => { inputs++; } }, () => { checks++; });
+  await expect(computer.browser({ action: "snapshot" })).rejects.toThrow("DOM blocked");
+  expect(computer.describe("computer_browser", { action: "dialog", operation: "inspect" })).toBeUndefined();
+  const inspection = await computer.browser({ action: "dialog", operation: "inspect" });
+  expect(inspection.details.dialog).toEqual({ present: true, dialog_id: "dialog-7", kind: "alert" });
+  expect(computer.describe("computer_browser", { action: "dialog", operation: "accept", dialog_id: "dialog-7" })).toMatchObject({
+    window: "Search", url: "https://example.test/", observedDialog: { dialog_id: "dialog-7", kind: "alert", messageAvailable: false }, evidencePolicy: expect.stringContaining("not authorization") });
+  expect(checks).toBe(0); expect(inputs).toBe(0); expect(reads).toBe(1);
+});
+
+test("dialog inspection expires all DOM refs; explicit resolution returns a fresh page observation", async () => {
+  const calls: string[] = [];
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => { calls.push("observe"); return page(); }, act: async () => { calls.push("act"); },
+    inspectDialog: async () => { calls.push("inspect"); return alertDialog(); }, resolveDialog: async (_observed, operation) => { calls.push(operation); } });
+  await computer.browser({ action: "snapshot" });
+  await computer.browser({ action: "dialog", operation: "inspect" });
+  await expect(computer.browser({ action: "click", ref: "p1:1" })).rejects.toThrow("Look");
+  const result = await computer.browser({ action: "dialog", operation: "dismiss", dialog_id: "dialog-7" });
+  expect(calls).toEqual(["observe", "inspect", "dismiss", "observe"]);
+  expect(result.details.dialog).toEqual({ resolved: true, operation: "dismiss", dialog_id: "dialog-7", kind: "alert" });
+  expect(JSON.stringify(result.content)).toContain("p2:1");
+  await expect(computer.browser({ action: "dialog", operation: "dismiss", dialog_id: "dialog-7" })).rejects.toThrow("Inspect the current dialog");
+  await computer.browser({ action: "click", ref: "p2:1" });
+});
+
+test("a newer observation, no dialog, failed inspect, or reset revokes the dialog capability", async () => {
+  for (const replacement of ["snapshot", "windows", "absent", "failed", "reset"]) {
+    let state = alertDialog(), fail = false, inputs = 0;
+    const computer = createSemanticComputer({ windows: async () => [], observe: async () => page(), act: async () => {},
+      inspectDialog: async () => { if (fail) throw new Error("inspect refused"); return state; }, resolveDialog: async () => { inputs++; } });
+    await computer.browser({ action: "dialog", operation: "inspect" });
+    if (replacement === "reset") computer.reset();
+    if (replacement === "snapshot") await computer.browser({ action: "snapshot" });
+    if (replacement === "windows") await computer.look({ what: "windows" });
+    if (replacement === "absent") { state = { present: false, window: "Search", binding: {} }; await computer.browser({ action: "dialog", operation: "inspect" }); }
+    if (replacement === "failed") { fail = true; await expect(computer.browser({ action: "dialog", operation: "inspect" })).rejects.toThrow("refused"); }
+    await expect(computer.browser({ action: "dialog", operation: "accept", dialog_id: "dialog-7" })).rejects.toThrow("Inspect the current dialog");
+    expect(inputs).toBe(0);
+  }
+});
+
+test("a changed instruction or cancellation prevents dialog input and requires a fresh inspection", async () => {
+  for (const cancelled of [true, false]) {
+    let changed = false, inputs = 0;
+    const computer = createSemanticComputer({ windows: async () => [], observe: async () => page(), act: async () => {},
+      inspectDialog: async () => alertDialog(), resolveDialog: async () => { inputs++; } }, () => { if (changed) throw new Error("instruction changed"); });
+    await computer.browser({ action: "dialog", operation: "inspect" }); changed = !cancelled;
+    await expect(computer.browser({ action: "dialog", operation: "accept", dialog_id: "dialog-7" }, cancelled ? AbortSignal.abort() : undefined)).rejects.toThrow();
+    changed = false;
+    await expect(computer.browser({ action: "dialog", operation: "accept", dialog_id: "dialog-7" })).rejects.toThrow("Inspect the current dialog");
+    expect(inputs).toBe(0);
+  }
+});
+
+test("resolution success with a failed page refresh is reported accurately and never replayed", async () => {
+  let inputs = 0;
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => { throw new Error("page still loading"); }, act: async () => {},
+    inspectDialog: async () => alertDialog(), resolveDialog: async () => { inputs++; } });
+  await computer.browser({ action: "dialog", operation: "inspect" });
+  await expect(computer.browser({ action: "dialog", operation: "accept", dialog_id: "dialog-7" })).rejects.toThrow("confirmed the alert dialog was accepted, but the fresh page observation failed");
+  await expect(computer.browser({ action: "dialog", operation: "accept", dialog_id: "dialog-7" })).rejects.toThrow("Inspect the current dialog");
+  expect(inputs).toBe(1);
+});
+
+test("late dialog inspection cannot override a correction reset", async () => {
+  let complete: (value: DialogObservation) => void = () => {};
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => page(), act: async () => {},
+    inspectDialog: () => new Promise(resolve => { complete = resolve; }), resolveDialog: async () => { throw new Error("must not input"); } });
+  const inspection = computer.browser({ action: "dialog", operation: "inspect" });
+  computer.reset(); complete(alertDialog());
+  await expect(inspection).rejects.toThrow("newer observation");
+  expect(() => computer.describe("computer_browser", { action: "dialog", operation: "accept", dialog_id: "dialog-7" })).toThrow("Inspect the current dialog");
+});
 
 test("attaching replaces the observation and invalidates old refs without falling back after a failure", async () => {
   const targets: string[] = [];

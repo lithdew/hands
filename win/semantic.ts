@@ -6,7 +6,7 @@
 import type { Hand, InstalledApp } from "../desktop";
 import { createSemanticComputer, type Element, type PixelCapture, type Snapshot } from "../semantic-computer";
 import { attachExistingBrowser, browserTarget, browserWindow, captureBound, capturedImage, detachExistingBrowser, driver, existingBrowser, existingBrowserCandidates, frontOf, handBrowser, handState, launchInstalledApp, type RawWindow } from "./desktop";
-import type { ExistingBrowserSnapshot } from "./browser";
+import type { ExistingBrowserSnapshot, ExistingDialog } from "./browser";
 import { observeHand, pageSettled } from "./observe";
 
 type NativeElement = { element_index: number; element_token?: string; role: string; label?: string; value?: string; enabled?: boolean; actions?: string[]; parent_index?: number };
@@ -71,6 +71,24 @@ export function semanticComputer(hand: Hand, beforeInput: () => void = () => {})
         await launchInstalledApp(hand, { id: "browser", name: "Web browser" } as InstalledApp);
       }
       beforeInput(); signal?.throwIfAborted();
+    },
+    async inspectDialog(signal) {
+      if (browserTarget(hand).mode !== "existing") throw new Error("Page dialog inspection requires this hand's attached existing Chrome window.");
+      const browser = existingBrowser(hand);
+      if (!browser) throw new Error("The existing Chrome connection is unavailable. Attach it again.");
+      const observed = await browser.inspectDialog(signal);
+      // Keep the opaque capability and connection identity private to the
+      // backend. A reconnection must not resolve a previous session's dialog.
+      return { window: observed.window.title, url: observed.url, binding: { browser, existingDialog: observed },
+        ...(observed.present ? { present: true as const, dialog_id: observed.dialog_id, kind: observed.kind } : { present: false as const }) };
+    },
+    async resolveDialog(observed, operation, signal) {
+      beforeInput(); signal?.throwIfAborted();
+      const browser = existingBrowser(hand);
+      if (browserTarget(hand).mode !== "existing" || !browser || browser !== observed.binding.browser) throw new Error("The existing Chrome connection changed after dialog inspection. Inspect again.");
+      const dialog = observed.binding.existingDialog as ExistingDialog | undefined;
+      if (!observed.present || !dialog?.present || dialog.dialog_id !== observed.dialog_id) throw new Error("Inspect the current page dialog before resolving it.");
+      await browser.resolveDialog(dialog, operation, observed.dialog_id, signal, beforeInput);
     },
     async observe(options): Promise<Snapshot> {
       options.signal?.throwIfAborted();
