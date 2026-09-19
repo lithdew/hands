@@ -322,9 +322,9 @@ public static class PukWin
         EnumWindows(delegate (IntPtr hwnd, IntPtr unused)
         {
             if (!IsWindowVisible(hwnd) || Title(hwnd).Length == 0 || Owned(hwnd) || (GetWindowLongPtr(hwnd, -20).ToInt64() & 0x80) != 0) return true;
-            int cloaked = 0;
-            DwmGetWindowAttribute(hwnd, 14, out cloaked, 4);
-            if (cloaked != 0) return true;
+            // A real browser on the user's other virtual desktop is cloaked by
+            // DWM but remains an eligible non-owning target. Puk's own windows
+            // are excluded by ownership and, in TypeScript, its exact PIDs.
             uint pid;
             GetWindowThreadProcessId(hwnd, out pid);
             try { if (!string.Equals(Process.GetProcessById((int)pid).ProcessName, "chrome", StringComparison.OrdinalIgnoreCase)) return true; }

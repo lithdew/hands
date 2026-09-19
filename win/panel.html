@@ -31,6 +31,7 @@ body{
 button,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 button:disabled{cursor:default;opacity:.4}
+[hidden]{display:none!important}
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 svg{display:block;flex:none}
 kbd{display:inline-block;padding:1px 6px;border-radius:5px;background:var(--panel-3);border:1px solid var(--line-3);border-bottom-width:2px;font:11px/1.5 var(--mono);color:var(--text);white-space:nowrap}
@@ -271,6 +272,10 @@ textarea#prompt::placeholder{color:var(--faint)}
     <option value="openai">OpenAI</option>
     <option value="gemini">Gemini</option>
   </select>
+  <select id="browser-mode" aria-label="Browser for selected hand" title="Browser for selected hand">
+    <option value="private">Hand browser</option>
+    <option value="existing">My Chrome</option>
+  </select>
   <button type="button" id="stop" class="btn ghost danger" title="Stop capture and every hand (Ctrl+Alt+Esc)">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2.5"/></svg>
     Stop <kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>Esc</kbd>
@@ -302,6 +307,7 @@ textarea#prompt::placeholder{color:var(--faint)}
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
       <span>Run</span>
     </button>
+    <button type="button" id="correct" class="btn" hidden>Correct hand</button>
   </form>
   <div class="sub">
     <div id="queue" aria-label="Spoken tasks"></div>
@@ -346,8 +352,9 @@ textarea#prompt::placeholder{color:var(--faint)}
 
 <script>
 const $ = id => document.getElementById(id);
-const preview = $('preview');
+let preview = $('preview');
 let held = false, refreshing = false, shotAt = 0, shownHand = null, selectedHand = null, stoppedAt = 0;
+let pendingShot = null, shownTarget = null, selectedTarget = null, browserChanging = false, browserError = null;
 const wasRunning = new Map(), finishedAt = new Map(), prevHand = new Map();
 
 /* ------------------------------------------------------------- transport */
@@ -376,6 +383,11 @@ $('task').onsubmit = e => {
     .then(() => { prompt.value = ''; grow(); return refresh(); })
     .catch(err => { $('error').textContent = err.message; });
 };
+$('correct').onclick = () => {
+  post('/refine', { hand: selectedHand, text: prompt.value })
+    .then(() => { prompt.value = ''; grow(); return refresh(); })
+    .catch(err => { $('error').textContent = err.message; });
+};
 
 /* ---------------------------------------------------------- hold to speak */
 const hold = $('hold');
@@ -398,8 +410,37 @@ $('stop').onclick = () => { held = false; stoppedAt = Date.now(); act('/stop'); 
 $('enter').onclick = () => act('/desktop/enter');
 $('back').onclick = () => act('/desktop/back');
 $('provider').onchange = () => act('/provider', { provider: $('provider').value });
-preview.onload = () => { preview.dataset.ok = '1'; };
-preview.onerror = () => { delete preview.dataset.ok; };
+$('browser-mode').onchange = async () => {
+  const hand = selectedHand, mode = $('browser-mode').value;
+  browserChanging = true; browserError = null; invalidatePreview();
+  $('browser-mode').disabled = $('send').disabled = hold.disabled = true;
+  try { await post('/browser', { hand, mode }); }
+  catch (e) { browserError = { hand, message: e.message }; }
+  finally { browserChanging = false; await refresh(); }
+};
+// Keep this wire shape aligned with previewTargetKey in win/serve.ts.
+const previewTargetKey = (hand, browser) => JSON.stringify(browser?.mode === 'existing'
+  ? [hand, browser.mode, browser.pid, browser.window_id, browser.ownerNonce] : [hand, 'private']);
+function invalidatePreview() {
+  if (pendingShot) { pendingShot.onload = pendingShot.onerror = null; pendingShot.removeAttribute('src'); pendingShot = null; }
+  shownHand = shownTarget = null; delete preview.dataset.ok;
+}
+function loadPreview(hand, target) {
+  const candidate = new Image();
+  pendingShot = candidate; shotAt = Date.now();
+  candidate.onload = () => {
+    if (pendingShot !== candidate) return;
+    pendingShot = null;
+    if (selectedHand !== hand || selectedTarget !== target || browserChanging) return;
+    shownHand = hand; shownTarget = target;
+    candidate.id = 'preview'; candidate.alt = preview.alt; candidate.dataset.ok = '1';
+    // Insert the already loaded element; assigning its URL to the old image can
+    // briefly retain that image's previous pixels or make a second request.
+    preview.replaceWith(candidate); preview = candidate;
+  };
+  candidate.onerror = () => { if (pendingShot === candidate) { pendingShot = null; delete preview.dataset.ok; } };
+  candidate.src = '/desktop.png?hand=' + hand + '&target=' + encodeURIComponent(target) + '&t=' + shotAt;
+}
 /* Entering a hand selects it first, so stepping into hand 2 needs no prior click. A refused switch leaves the selection alone. */
 async function enterHand(id) {
   try {
@@ -573,12 +614,20 @@ async function refresh() {
     // Controls
     $('provider').value = a.selection;
     setText($('model'), a.model + ' · ' + a.effort + ' effort');
-    $('provider').disabled = $('send').disabled = busy || listening;
+    $('provider').disabled = $('send').disabled = busy || listening || browserChanging;
+    const browser = s.workers.find(w => w.hand === s.hand)?.browser;
+    const nextTarget = previewTargetKey(s.hand, browser);
+    if (selectedTarget !== nextTarget) { selectedTarget = nextTarget; invalidatePreview(); }
+    if (!browserChanging) $('browser-mode').value = browser?.mode || 'private';
+    $('browser-mode').disabled = a.running || listening || browserChanging;
+    $('correct').hidden = !a.running;
+    $('correct').disabled = listening;
+    setText($('correct'), 'Correct hand ' + s.hand);
     // Workers start during a hold. Keep the button enabled until release.
-    hold.disabled = !listening && busy;
+    hold.disabled = s.state === 'transcribing' || s.state === 'dispatching' || browserChanging;
     setText($('hold-label'), s.held ? 'Release to send' : 'Hold to speak');
     hold.setAttribute('aria-pressed', String(Boolean(s.held)));
-    setText($('error'), s.lastError || a.error || s.listener.error || '');
+    setText($('error'), s.lastError || a.error || s.listener.error || (browserError?.hand === s.hand ? browserError.message : '') || browser?.error || '');
 
     // Stage: the transcript is the hero while F8 is held; the selected hand's reply sits under it.
     const stage = $('stage');
@@ -596,16 +645,14 @@ async function refresh() {
     for (const id of prevHand.keys()) if (!s.listener.tasks.some(t => t.id === id)) prevHand.delete(id);
 
     // Preview: the old hand's frame must not appear inside the new tile, so drop it before the tiles re-parent the image.
-    if (shownHand !== s.hand) { shownHand = null; delete preview.dataset.ok; }
-    if ((shownHand === null || Date.now() - shotAt > 1500) && !document.hidden) {
-      shownHand = s.hand; shotAt = Date.now(); preview.src = '/desktop.png?t=' + shotAt;
-    }
+    if (shownHand !== s.hand || shownTarget !== selectedTarget) { shownHand = null; shownTarget = null; delete preview.dataset.ok; }
+    if (!pendingShot && !browserChanging && (shownHand === null || Date.now() - shotAt > 1000) && !document.hidden) loadPreview(s.hand, selectedTarget);
 
     // Tile wall
     $('tiles').style.setProperty('--n', Math.max(1, s.workers.length));
     reconcile($('tiles'), s.workers, w => w.hand, makeTile, (slot, w) => updateTile(slot, w, s));
     if (!preview.isConnected) $('stash').append(preview);
-    setText($('enter-label'), 'Enter hand ' + s.hand);
+    setText($('enter-label'), browser?.mode === 'existing' ? 'Show my Chrome' : 'Enter hand ' + s.hand);
 
     // Drawer: every pending approval, each naming its hand, and one feed across all hands.
     reconcile($('approvals'), s.approvals, ap => ap.id, makeCard, updateCard);

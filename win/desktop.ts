@@ -250,6 +250,16 @@ export function createExistingBrowserTargets<T extends { close(): Promise<void> 
     attach(hand: Hand, choice: BrowserChoice = {}, signal?: AbortSignal) {
       return serial(async () => {
         signal?.throwIfAborted();
+        const previous = bindings.get(hand.id);
+        if (previous?.ready && previous.connection && (choice.window_id === undefined || choice.window_id === previous.window.containerId)
+          && (choice.pid === undefined || choice.pid === previous.window.pid)) {
+          // A new task often starts with attach even though this exact window
+          // is still connected. Prove its lifetime again without revoking the
+          // session and making Chrome repeat setup/consent.
+          if (!await read(hand)) throw new Error("The attached Chrome window is unavailable. Observe its current window before attaching again.");
+          signal?.throwIfAborted();
+          return;
+        }
         const eligible = (await backend.candidates()).filter((window) => verifiedIdentity(window)
           && (choice.window_id === undefined || window.containerId === choice.window_id) && (choice.pid === undefined || window.pid === choice.pid));
         signal?.throwIfAborted();
@@ -258,8 +268,7 @@ export function createExistingBrowserTargets<T extends { close(): Promise<void> 
         for (const [id, bound] of bindings) if (id !== hand.id && (bound.window.pid === window.pid || bound.window.containerId === window.containerId)) {
           throw new Error(`This Chrome process is already attached to hand ${id}. Release that hand's browser first.`);
         }
-        const previous = bindings.get(hand.id);
-        if (previous) { await previous.connection?.close(); await backend.release(hand); }
+        if (previous) { previous.ready = false; await previous.connection?.close(); await backend.release(hand); }
         signal?.throwIfAborted();
         const bound: Binding = { window: { ...window, rect: [...window.rect] }, ready: false };
         bindings.set(hand.id, bound);
@@ -307,7 +316,8 @@ const existingTargets = createExistingBrowserTargets<ExistingBrowserInput>({
   read: async (hand, window) => JSON.parse(await ask(`external-read ${borrowedRequest(hand, window)}`)),
   release: async (hand) => { await ask(`external-release ${hand.display}`); },
   async prepare(hand, current, signal) {
-    const input = existingBrowserInput(async (name, args, callSignal) => (await driver(hand)).call(name, args, callSignal), current);
+    const input = existingBrowserInput(async (name, args, callSignal) => (await driver(hand)).call(name, args, callSignal), current,
+      `puk-existing-${hand.id}-${crypto.randomUUID()}`, async () => focusExistingBrowser(hand));
     try { await input.attach(signal); return input; }
     catch (error) { await input.close(); throw error; }
   },

@@ -212,7 +212,7 @@ describe("existing browser target ownership", () => {
   const chrome = (id = 901, pid = 82): RawWindow => ({ app: "chrome", title: "Inbox - Google Chrome", focused: true, pid, containerId: id,
     ownerNonce: id.toString(16).padStart(16, "0"), rect: [40, 40, 1360, 900] });
   function fixture() {
-    let available = [chrome()], current: RawWindow | null = chrome(), failed = false;
+    let available = [chrome()], current: RawWindow | null = chrome(), failed = false, preparations = 0;
     const calls: string[] = [];
     let validate: (() => Promise<RawWindow>) | undefined;
     let reading: Promise<RawWindow | null> | undefined;
@@ -221,9 +221,9 @@ describe("existing browser target ownership", () => {
       claim: async (hand, window) => { calls.push(`claim ${hand.id} ${window.containerId}`); },
       read: async () => reading ?? current,
       release: async (hand) => { calls.push(`release ${hand.id}`); },
-      prepare: async (_hand, checked, signal) => { validate = checked; signal?.throwIfAborted(); if (failed) throw new Error("Cua permission denied"); return { close: async () => { calls.push("end session"); } }; },
+      prepare: async (_hand, checked, signal) => { preparations++; validate = checked; signal?.throwIfAborted(); if (failed) throw new Error("Cua permission denied"); return { close: async () => { calls.push("end session"); } }; },
     });
-    return { targets, calls, validate: () => validate!(), fail: () => { failed = true; }, found: (windows: RawWindow[]) => { available = windows; },
+    return { targets, calls, preparations: () => preparations, validate: () => validate!(), fail: () => { failed = true; }, found: (windows: RawWindow[]) => { available = windows; },
       current: (window: RawWindow | null) => { current = window; }, reading: (promise: Promise<RawWindow | null>) => { reading = promise; } };
   }
 
@@ -246,6 +246,34 @@ describe("existing browser target ownership", () => {
     f.found([{ ...chrome(), ownerNonce: undefined }]);
     await expect(f.targets.attach(hand, { window_id: 901 })).rejects.toThrow("No matching");
     expect(f.targets.target(hand)).toEqual({ mode: "private" });
+  });
+
+  test("repeated attachment reuses the exact live connection without closing or preparing it again", async () => {
+    const f = fixture(); await f.targets.attach(hand);
+    const connected = f.targets.connection(hand);
+    // A second Chrome window does not make reusing our already bound one ambiguous.
+    f.found([chrome(), chrome(902)]);
+    await f.targets.attach(hand);
+    await f.targets.attach(hand, { window_id: 901, pid: 82 });
+    expect(f.targets.connection(hand)).toBe(connected);
+    expect(f.preparations()).toBe(1);
+    expect(f.calls).toEqual(["claim 1 901"]);
+    f.current(chrome(902));
+    await f.targets.attach(hand, { window_id: 902 });
+    expect(f.preparations()).toBe(2);
+    expect(f.calls).toEqual(["claim 1 901", "end session", "release 1", "claim 1 902"]);
+    expect(f.targets.target(hand)).toMatchObject({ mode: "existing", window_id: 902, ready: true });
+  });
+
+  test("idempotent attach still refuses a closed window, changed PID or recycled nonce", async () => {
+    for (const changed of [null, { ...chrome(), pid: 99 }, { ...chrome(), ownerNonce: "0000000000000002" }]) {
+      const f = fixture(); await f.targets.attach(hand);
+      f.current(changed);
+      await expect(f.targets.attach(hand)).rejects.toThrow();
+      expect(f.preparations()).toBe(1);
+      expect(f.calls).toEqual(["claim 1 901"]);
+      expect(f.targets.target(hand).mode).toBe("existing");
+    }
   });
 
   test("failed preparation keeps explicit existing mode and refuses sandbox fallback", async () => {

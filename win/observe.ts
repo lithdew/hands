@@ -62,16 +62,19 @@ export const READ_PAGE = `(() => {
     const name = nameOf(el);
     if (!name && !editable) continue;
     picked.push({ role, name, editable, focused: document.activeElement === el, within: within(el),
-      value: role === "password field" ? "" : clean(el.value !== undefined && typeof el.value === "string" ? el.value : ""),
+      inDialog: Boolean(el.closest("[role=dialog],dialog")),
+      value: role === "password field" ? "" : (typeof el.value === "string" ? el.value : el.isContentEditable ? el.innerText : "").replace(/\\s+/g, " ").trim().slice(0, 400),
       x: r.left, y: r.top, w: r.width, h: r.height });
   }
-  const rank = (e) => (e.editable ? 0 : e.role === "link" ? 2 : 1);
+  const rank = (e) => (e.inDialog ? -4 : 0) + (e.editable ? 0 : e.role === "link" ? 2 : 1);
   picked.sort((a, b) => rank(a) - rank(b));
   const texts = [];
-  for (const el of document.querySelectorAll("h1,h2,h3,[role=heading],p,li,td,[role=alert],[role=status]")) {
+  const textNodes = [...new Set([...document.querySelectorAll("[role=alert],[role=status],[role=dialog],dialog"), ...document.querySelectorAll("h1,h2,h3,[role=heading],p,li,td")])];
+  for (const el of textNodes) {
     if (texts.length >= 14) break;
     const r = el.getBoundingClientRect();
-    if (r.height < 4 || r.bottom <= 0 || r.top >= innerHeight) continue;
+    const style = getComputedStyle(el);
+    if (r.height < 4 || r.bottom <= 0 || r.top >= innerHeight || r.right <= 0 || r.left >= innerWidth || style.visibility === "hidden" || style.display === "none" || Number(style.opacity) === 0) continue;
     const t = (el.innerText || "").replace(/\\s+/g, " ").trim();
     if (t.length > 3) texts.push(t.slice(0, 200));
   }

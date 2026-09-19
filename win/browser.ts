@@ -219,8 +219,14 @@ type ExistingAction = { action: string; url?: string; text?: string; replace?: b
 const sameExistingWindow = (a: ExistingBrowserWindow, b: ExistingBrowserWindow, frame = false) => a.pid === b.pid
   && a.containerId === b.containerId && a.ownerNonce === b.ownerNonce
   && (!frame || a.title === b.title && a.rect[2] === b.rect[2] && a.rect[3] === b.rect[3]);
+// Chrome reports its New Tab alias through Target.getTargets and the backing
+// document through DOM.getDocument. This is the only observed equivalence;
+// ordinary URLs, including their query and fragment, remain exact comparisons.
+const chromeNewTabUrls = new Set(["chrome://newtab/", "chrome://new-tab-page/"]);
+const sameBrowserUrl = (a: string | undefined, b: string | undefined) => a === b || typeof a === "string" && typeof b === "string" && chromeNewTabUrls.has(a) && chromeNewTabUrls.has(b);
 
-export function existingBrowserInput(call: CuaConnection["call"], current: () => Promise<ExistingBrowserWindow>, session = `puk-existing-${crypto.randomUUID()}`) {
+export function existingBrowserInput(call: CuaConnection["call"], current: () => Promise<ExistingBrowserWindow>, session = `puk-existing-${crypto.randomUUID()}`,
+  beforePrepare?: (window: ExistingBrowserWindow) => Promise<void>) {
   let closed = false;
   let currentPage: ExistingPage | undefined;
   let generation = 0;
@@ -269,6 +275,11 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
         const message = error instanceof Error ? error.message : String(error);
         if (/denied|declined|cancelled|canceled|aborted|rejected/i.test(message) || !/browser_(?:requires_setup|consent_required)\b/.test(message)) throw error;
         const window = await check(signal);
+        // Windows exposes the browser-owned setup/consent UI reliably only
+        // when visible. This hook is exclusive to an explicit attachment, and
+        // visits the exact browser's own desktop before Cua can activate it.
+        await beforePrepare?.(window);
+        await check(signal, window);
         await invoke("browser_prepare", { pid: window.pid, window_id: window.containerId, strategy: { kind: "existing_profile" }, allow_launch: false }, signal);
         await check(signal, window);
         await bind(signal);
@@ -282,8 +293,25 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
       const page = result.page as { title?: string; url?: string } | undefined;
       const snapshot = result.snapshot as { id?: string; format?: string } | undefined;
       if (result.mode !== "snapshot" || result.target_id !== bound.target_id || result.tab_id !== bound.tab.tab_id
-        || snapshot?.format !== "semantic_v2" || !snapshot.id || !page || page.title !== bound.tab.title || page.url !== bound.tab.url || !Array.isArray(result.refs)) {
-        throw new Error("The visible Chrome tab changed while observing it. Take a fresh snapshot.");
+        || snapshot?.format !== "semantic_v2" || !snapshot.id || !page || page.title !== bound.tab.title || !sameBrowserUrl(page.url, bound.tab.url) || !Array.isArray(result.refs)) {
+        // Diagnose contract/version/internal-page aliases without logging any
+        // page outline, control values or references. URLs omit credentials and
+        // query/fragment contents, which may carry account/session information.
+        const label = (value: unknown) => typeof value === "string" ? value.slice(0, 200) : null;
+        const safeUrl = (value: unknown) => {
+          if (typeof value !== "string") return null;
+          try {
+            const url = new URL(value); url.username = ""; url.password = "";
+            if (url.search) url.search = "?redacted";
+            if (url.hash) url.hash = "#redacted";
+            return url.href.slice(0, 400);
+          } catch { return "<invalid URL>"; }
+        };
+        const metadata = { mode: label(result.mode), target_matches: result.target_id === bound.target_id, tab_matches: result.tab_id === bound.tab.tab_id,
+          format: label(snapshot?.format), has_snapshot_id: Boolean(snapshot?.id), has_refs_array: Array.isArray(result.refs),
+          bound_title: label(bound.tab.title), bound_url: safeUrl(bound.tab.url), page_title: label(page?.title), page_url: safeUrl(page?.url),
+          titles_match: page?.title === bound.tab.title, urls_match: page?.url === bound.tab.url };
+        throw new Error(`The visible Chrome tab changed while observing it. Take a fresh snapshot. Browser snapshot metadata: ${JSON.stringify(metadata)}`);
       }
       await check(signal, bound.window, true);
       const seen = new Set<string>();
@@ -292,7 +320,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
         seen.add(ref.ref);
         return true;
       }).map((ref) => ({ ...ref, name: typeof ref.name === "string" ? ref.name : "", value: typeof ref.value === "string" ? ref.value : undefined }));
-      const observation: ExistingPage = { target_id: bound.target_id, tab_id: bound.tab.tab_id, title: page.title, url: page.url,
+      const observation: ExistingPage = { target_id: bound.target_id, tab_id: bound.tab.tab_id, title: page.title, url: page.url!,
         tabs: bound.tabs, refs, outline: typeof result.outline === "string" ? result.outline : "", snapshot_id: snapshot.id, window: bound.window };
       if (observedGeneration !== generation) throw new Error("A newer browser observation replaced this one. Use the newest snapshot.");
       currentPage = observation;
@@ -308,7 +336,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
       // Cua mints new opaque tab IDs on every bind. Compare the freshly proved
       // active page, then dispatch with the old IDs that own the observed ref.
       const active = await bind(signal);
-      if (active.tab.title !== observed.title || active.tab.url !== observed.url) throw new Error("The active Chrome tab changed after observation or approval. Look again.");
+      if (active.tab.title !== observed.title || !sameBrowserUrl(active.tab.url, observed.url)) throw new Error("The active Chrome tab changed after observation or approval. Look again.");
       await check(signal, observed.window, true);
       beforeInput(); signal?.throwIfAborted();
       if (currentPage !== observed) throw new Error("The browser observation changed while input was being prepared. Look again.");
