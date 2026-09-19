@@ -174,7 +174,17 @@ export async function previewArtifacts(options: PreviewOptions): Promise<Preview
               video.currentTime=target;await wait(video,"seeked",()=>!video.seeking&&video.readyState>=2);
               const before=video.currentTime;await video.play();await wait(video,"timeupdate",()=>video.currentTime>before+.1);video.pause();
               const tracks=[];for(const track of [...video.querySelectorAll("track")] as any[]){track.track.mode="hidden";await wait(track,"load",()=>track.readyState===2);tracks.push({loaded:track.readyState===2,cues:track.track.cues?.length??0});}
-              observed.push({passed:video.videoWidth>0&&video.videoHeight>0,duration:video.duration,width:video.videoWidth,height:video.videoHeight,time:video.currentTime,tracks});
+              const probe={passed:video.videoWidth>0&&video.videoHeight>0,duration:video.duration,width:video.videoWidth,height:video.videoHeight,time:video.currentTime,tracks};
+              // A paused native player keeps its control bar over the bottom of
+              // the picture, so a screenshot would grade the browser chrome and
+              // not the frame. Resume unattended playback a little before the
+              // inspected time: Chromium hides idle controls after about three
+              // seconds, and the frame then sits at the requested moment.
+              const dwellMs=3400;
+              video.currentTime=Math.max(0,target-dwellMs/1000-.2);await wait(video,"seeked",()=>!video.seeking&&video.readyState>=2);
+              const resumedAt=performance.now();await video.play();
+              await new Promise<void>(resolve=>{const tick=()=>{const elapsed=performance.now()-resumedAt;if(video.ended||elapsed>=dwellMs&&video.currentTime>=target-.05||elapsed>=dwellMs+4000)resolve();else setTimeout(tick,50);};tick();});
+              observed.push({...probe,presented:{time:video.currentTime,playing:!video.paused&&!video.ended}});
             }catch(error){video.pause();observed.push({passed:false,error:String(error)});}
           }return observed;
         }, options.videoTimeSeconds);
@@ -184,6 +194,7 @@ export async function previewArtifacts(options: PreviewOptions): Promise<Preview
         check(`${label}-images`, state.images.every(image => image.loaded), state.images.some(image => !image.loaded) ? `Unloaded visible images: ${state.images.filter(image => !image.loaded).map(image => image.src).join(", ")}` : `${state.images.length} visible image(s) loaded`);
         const screenshot = join(outputDir, `${label}.png`);
         await page.screenshot({ path: screenshot, fullPage: false, animations: "disabled" });
+        if(videos.length)await page.evaluate(()=>{for(const video of (globalThis as any).document.querySelectorAll("video"))video.pause();});
         result.screenshots.push(screenshot);
         for (const link of state.links) {
           if (!link.href || /^(?:mailto:|tel:)/i.test(link.href)) continue;

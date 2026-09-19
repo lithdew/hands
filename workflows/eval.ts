@@ -41,7 +41,12 @@ if (import.meta.main) {
       if(!ids.length)throw new Error("--evidence requires at least one inspected Hands run UUID.");
       const evidence=await inspectedRunEvidence(resolve("out/artifacts"),ids);
       input.evidenceAssets=evidence.assets;
-      input.context += `\nVerified independently inspected Hands output evidence: ${JSON.stringify(evidence.records)}`;
+      // The specialist context is bounded, so the demonstration evidence goes
+      // ahead of the long repository excerpts instead of after them, where a
+      // second artifact's record was silently cut off.
+      const record=`\nVerified independently inspected Hands output evidence: ${JSON.stringify(evidence.records)}\n`;
+      const repository=input.context!.indexOf("\nRepository evidence ");
+      input.context=repository>=0?`${input.context!.slice(0,repository)}${record}${input.context!.slice(repository)}`:`${input.context}${record}`;
     }
     const abort = new AbortController(); process.on("SIGINT", () => abort.abort()); input.signal = abort.signal;
     input.onEvent = event => console.log(JSON.stringify(event));
