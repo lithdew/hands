@@ -101,7 +101,19 @@ export async function inspectedRunEvidence(root:string,ids:string[],options:{cro
       catch(error){imageRecord.note=`Focused crop unavailable, original preview used: ${String(error instanceof Error?error.message:error).slice(0,300)}`;}
     }
     const key=`artifact-${records.length+1}`;assets[key]=chosen;
-    records.push({imageId:key,runId:id,kind:manifest.kind,summary:manifest.summary,elapsedMs:manifest.elapsedMs,checks:manifest.checks,image:imageRecord,inspection});
+    records.push({imageId:key,runId:id,kind:manifest.kind,summary:manifest.summary,elapsedMs:manifest.elapsedMs,checks:compactChecks(manifest.checks),image:imageRecord,inspection:compactInspection(inspection)});
   }
   return{assets,records};
+}
+
+/** The records ride inside a bounded specialist context. Keep every verdict,
+ * finding, advisory and preferred-image description; drop file hash lists and
+ * housekeeping fields that only the runtime needs, and shorten check details. */
+function compactChecks(checks:unknown):unknown {
+  return Array.isArray(checks)?checks.map(check=>check&&typeof check==="object"?{...check,detail:typeof (check as {detail?:unknown}).detail==="string"?(check as {detail:string}).detail.slice(0,160):undefined}:check):checks;
+}
+const INSPECTION_HOUSEKEEPING=new Set(["inspectedFiles","artifactIntegrity","artifactManifestModified","scratchCleanup","privateHandoffFiles","schemaVersion"]);
+function compactInspection(inspection:unknown):unknown {
+  if(!inspection||typeof inspection!=="object"||Array.isArray(inspection))return inspection;
+  return Object.fromEntries(Object.entries(inspection).filter(([key])=>!INSPECTION_HOUSEKEEPING.has(key)));
 }
