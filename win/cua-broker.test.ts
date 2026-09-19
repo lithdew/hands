@@ -250,12 +250,16 @@ describe("broker client cancellation", () => {
 });
 
 describe("broker authentication and process identity", () => {
-  test.skipIf(process.platform !== "win32")("Windows directory ACL setup works with all module autoload disabled", async () => {
+  test.skipIf(process.platform !== "win32")("Windows directory ACL setup works without WRITE_OWNER or module autoload", async () => {
     const directory = await mkdtemp(join(tmpdir(), "puk-broker-acl-"));
     try {
       const ps = join(process.env.WINDIR ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+      // The workspace grants Modify to this directory's owner, unlike a normal
+      // temporary directory's FullControl. Setting its owner again requires
+      // WRITE_OWNER; replacing just its DACL is allowed to the existing owner.
+      const limited = "$p=$env:PUK_BROKER_PRIVATE_DIR; $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User; $limited=[System.Security.AccessControl.DirectorySecurity]::new(); $limited.SetAccessRuleProtection($true,$false); $limited.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new($sid,'Modify','ContainerInherit,ObjectInherit','None','Allow')); $limited.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new([System.Security.Principal.SecurityIdentifier]::new('S-1-5-18'),'FullControl','ContainerInherit,ObjectInherit','None','Allow')); [System.IO.Directory]::SetAccessControl($p,$limited)";
       const inspect = "$actual=[System.IO.Directory]::GetAccessControl($p); if(!$actual.AreAccessRulesProtected){throw 'Inherited access was retained'}; if($actual.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid.Value){throw 'Wrong directory owner'}; $rules=$actual.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier]); if($rules.Count -ne 2){throw 'Unexpected directory access rules'}; foreach($rule in $rules){if($rule.IdentityReference.Value -notin @($sid.Value,'S-1-5-18') -or $rule.AccessControlType -ne 'Allow' -or $rule.FileSystemRights -ne 'FullControl'){throw 'Unexpected directory access'}}; [Console]::WriteLine('private-acl-ok')";
-      const result = await promisify(execFile)(ps, ["-NoProfile", "-NonInteractive", "-Command", `$PSModuleAutoloadingPreference='None'; ${BROKER_DIRECTORY_ACL_SCRIPT}; ${inspect}`], {
+      const result = await promisify(execFile)(ps, ["-NoProfile", "-NonInteractive", "-Command", `$PSModuleAutoloadingPreference='None'; $ErrorActionPreference='Stop'; ${limited}; ${BROKER_DIRECTORY_ACL_SCRIPT}; ${BROKER_DIRECTORY_ACL_SCRIPT}; ${inspect}`], {
         windowsHide: true, timeout: 10_000, env: { ...subprocessEnv(), PUK_BROKER_PRIVATE_DIR: directory },
       });
       expect(result.stdout.trim()).toBe("private-acl-ok");

@@ -194,7 +194,34 @@ async function identity(driver: string): Promise<Identity> {
 
 /** Windows PowerShell can inherit a PowerShell 7 module path. Use only .NET
  * APIs here so securing the broker never depends on cmdlet module autoload. */
-export const BROKER_DIRECTORY_ACL_SCRIPT = "$ErrorActionPreference='Stop'; $p=$env:PUK_BROKER_PRIVATE_DIR; $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=[System.Security.AccessControl.DirectorySecurity]::new(); $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false); foreach($s in @($sid,[System.Security.Principal.SecurityIdentifier]::new('S-1-5-18'))){$r=[System.Security.AccessControl.FileSystemAccessRule]::new($s,'FullControl','ContainerInherit,ObjectInherit','None','Allow'); $acl.AddAccessRule($r)}; [System.IO.Directory]::SetAccessControl($p,$acl)";
+export const BROKER_DIRECTORY_ACL_SCRIPT = `
+$ErrorActionPreference='Stop'
+$p=$env:PUK_BROKER_PRIVATE_DIR
+$sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User
+$current=[System.IO.Directory]::GetAccessControl($p)
+if($current.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid.Value){throw 'The broker directory belongs to another Windows user'}
+$isPrivate={param($candidate)
+  $rules=$candidate.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])
+  $valid=$candidate.AreAccessRulesProtected -and $rules.Count -eq 2
+  $mine=$false; $system=$false
+  foreach($rule in $rules){
+    if($rule.IdentityReference.Value -eq $sid.Value){$mine=$true}
+    elseif($rule.IdentityReference.Value -eq 'S-1-5-18'){$system=$true}
+    else{$valid=$false}
+    if($rule.AccessControlType -ne 'Allow' -or $rule.FileSystemRights -ne 'FullControl' -or $rule.IsInherited -or $rule.InheritanceFlags -ne 'ContainerInherit,ObjectInherit' -or $rule.PropagationFlags -ne 'None'){$valid=$false}
+  }
+  return $valid -and $mine -and $system
+}
+if(!(&$isPrivate $current)){
+  $acl=[System.Security.AccessControl.DirectorySecurity]::new()
+  $acl.SetAccessRuleProtection($true,$false)
+  foreach($s in @($sid,[System.Security.Principal.SecurityIdentifier]::new('S-1-5-18'))){
+    $r=[System.Security.AccessControl.FileSystemAccessRule]::new($s,'FullControl','ContainerInherit,ObjectInherit','None','Allow')
+    $acl.AddAccessRule($r)
+  }
+  [System.IO.Directory]::SetAccessControl($p,$acl)
+  if(!(&$isPrivate ([System.IO.Directory]::GetAccessControl($p)))){throw 'The broker directory permissions could not be verified'}
+}`;
 
 async function protectDirectory() {
   await mkdir(DIRECTORY, { recursive: true, mode: 0o700 });
