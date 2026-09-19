@@ -1,13 +1,35 @@
 import { expect, test } from "bun:test";
 import { createSemanticComputer, type Element, type Snapshot } from "../semantic-computer";
 import type { ExistingBrowserSnapshot } from "./browser";
-import { existingBrowserElements } from "./semantic";
+import { existingBrowserElements, existingBrowserTexts } from "./semantic";
 
 type Ref = ExistingBrowserSnapshot["refs"][number];
 const control = (ref: string, role: string, name: string, extra: Partial<Ref> = {}): Ref => ({
   ref, role, name, actions: ["click"], visibility: "in_viewport", ...extra,
 });
 const text = (result: { content: { type: string; text?: string }[] }) => result.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
+
+test("cached continuation content is bounded read-only evidence and never creates input aliases", async () => {
+  const texts = existingBrowserTexts({ outline: "Other page text", content: [{ role: "statictext", name: "recipient@example.test" }],
+    coverage: { complete: false, selectedNodes: 600, totalNodes: 900, omitted: { budget: 300 }, continuation: "limit-reached" } });
+  const snapshot: Snapshot = { identity: "browser", kind: "browser", title: "Draft", texts, elements: [], binding: {} };
+  let inputs = 0;
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => snapshot, act: async () => { inputs++; } });
+  const observed = await computer.browser({ action: "snapshot" });
+  expect(text(observed)).toContain("incomplete"); expect(text(observed)).toContain("600/900");
+  expect(text(observed)).toContain("cached continuation limit-reached"); expect(text(observed)).toContain("recipient@example.test");
+  expect(text(observed)).toContain("has no input references"); expect(observed.details.refs).toBe(0);
+  await expect(computer.browser({ action: "click", ref: "p1:0" })).rejects.toThrow("stale"); expect(inputs).toBe(0);
+  const large = existingBrowserTexts({ outline: "line\n".repeat(500), content: Array.from({ length: 600 }, (_, i) => ({ role: "text", name: i === 599 ? "late-recipient@example.test" : "x".repeat(1000), value: "y".repeat(1000) })) });
+  expect(large.length).toBeLessThanOrEqual(640); expect(Buffer.byteLength(large.join("\n"))).toBeLessThan(300_000);
+  let reads = 0;
+  const bounded = createSemanticComputer({ windows: async () => [], observe: async () => { reads++; return { ...snapshot, texts: large }; }, act: async () => {} });
+  const first = await bounded.browser({ action: "snapshot" });
+  expect(Buffer.byteLength(text(first))).toBeLessThan(7000); expect(text(first)).not.toContain("late-recipient@example.test");
+  expect(text(first)).toContain("[name truncated]");
+  const queried = await bounded.browser({ action: "query", query: "late-recipient@example.test" });
+  expect(text(queried)).toContain("late-recipient@example.test"); expect(queried.details.refs).toBe(0); expect(reads).toBe(1);
+});
 
 test("a long inbox retains editable fields and unique buttons inside the observation budget, with exact source refs", async () => {
   const body = "First line\n\n" + "Complete unmodified draft text. ".repeat(60);

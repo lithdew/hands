@@ -51,7 +51,7 @@ describe("persistent Cua ownership", () => {
     expect(closes).toBe(1);
   });
 
-  test("closing an idle client during a preview lets that read drain and preserves Chrome's session", async () => {
+  for (const read of ["get_window_state", "get_session", "get_screen_size"]) test(`closing an idle client during ${read} lets that read drain and preserves Chrome's session`, async () => {
     const entered = deferred<void>(), preview = deferred<typeof reply>();
     let closes = 0, readSignal: AbortSignal | undefined;
     const core = createBrokerCore(async () => ({
@@ -60,7 +60,7 @@ describe("persistent Cua ownership", () => {
     }));
     const first = createBrokerClient(wireFor(core)); await first.connect();
     const hand = first.hand(1, () => {}), session = await hand.browserSession();
-    const pending = hand.call("get_window_state", {});
+    const pending = hand.call(read, { session });
     await entered.promise;
     const stopped = pending.catch((error: unknown) => error);
     await hand.close();

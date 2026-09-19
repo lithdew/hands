@@ -341,7 +341,7 @@ textarea#prompt::placeholder{color:var(--faint)}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>
       <span id="hold-label">Hold to speak</span><kbd>F8</kbd>
     </button>
-    <button type="submit" id="send" class="btn primary" aria-label="Run task" title="Run task (Enter)">
+    <button type="submit" id="send" class="btn primary" aria-label="Run task" title="Run task (Enter)" disabled>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
       <span>Run</span>
     </button>
@@ -400,16 +400,42 @@ let preview = $('preview');
 let held = false, refreshing = false, shotAt = 0, shownHand = null, selectedHand = null, stoppedAt = 0;
 let pendingShot = null, shownTarget = null, selectedTarget = null, browserChanging = false, browserError = null;
 let selectedArtifact = null, artifactPreviewKey = null, artifactPreviewReady = false;
+let runtimeInstanceId = null, runtimeRevision = 0, taskSubmitting = false, taskError = '';
 const artifactPreview = $('artifact-preview');
 const wasRunning = new Map(), finishedAt = new Map(), prevHand = new Map();
 
 /* ------------------------------------------------------------- transport */
+function observeRuntime(runtime) {
+  const next = typeof runtime?.instanceId === 'string' && /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/.test(runtime.instanceId) ? runtime.instanceId : null;
+  if (runtimeInstanceId && next && runtimeInstanceId !== next && prompt.value.trim()) taskError = 'Hands restarted. Your draft is kept; check the current hand before sending.';
+  if (next && taskError.startsWith('Waiting for a verified Hands connection.')) taskError = '';
+  runtimeInstanceId = next;
+}
+function invalidateRuntime() {
+  runtimeInstanceId = null; runtimeRevision++; $('send').disabled = true;
+}
+async function readStatus() {
+  const revision = runtimeRevision;
+  try {
+    const response = await fetch('/status', { cache: 'no-store' });
+    if (!response.ok) throw Error('Hands is unavailable. Your draft is kept.');
+    const status = await response.json();
+    // A status read begun before a rejected submit cannot re-arm an old instance.
+    if (revision !== runtimeRevision) return null;
+    observeRuntime(status.runtime);
+    return status;
+  } catch (error) {
+    if (revision !== runtimeRevision) return null;
+    invalidateRuntime(); throw error;
+  }
+}
 async function post(path, body) {
   const response = await fetch(path, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {})
   });
-  const data = await response.json();
-  if (!response.ok) throw Error(data.error || 'Request failed');
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw Object.assign(Error(data?.error || 'Request failed'), { status: response.status });
+  if (!data) throw Error('Hands returned an unexpected response.');
   return data;
 }
 function act(path, body) {
@@ -423,11 +449,29 @@ prompt.oninput = grow;
 prompt.onkeydown = e => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!$('send').disabled) $('task').requestSubmit(); }
 };
-$('task').onsubmit = e => {
+$('task').onsubmit = async e => {
   e.preventDefault();
-  post('/task', { text: prompt.value })
-    .then(() => { prompt.value = ''; grow(); return refresh(); })
-    .catch(err => { $('error').textContent = err.message; });
+  if (taskSubmitting) return;
+  if (!runtimeInstanceId) {
+    taskError = 'Waiting for a verified Hands connection. Your draft is kept; send it after reconnecting.';
+    $('error').textContent = taskError; await refresh(); return;
+  }
+  const instance = runtimeInstanceId, draft = prompt.value;
+  taskSubmitting = true; taskError = ''; $('send').disabled = true;
+  try {
+    await post('/instances/' + instance + '/task', { text: draft });
+    if (runtimeInstanceId !== instance) throw Error('Hands changed while submitting.');
+    // Do not erase new typing while the accepted request was in flight.
+    if (prompt.value === draft) { prompt.value = ''; grow(); }
+  } catch (error) {
+    taskError = error.status === 409 && /Runtime instance changed/.test(error.message)
+      ? 'Hands restarted before accepting the task. Your draft is kept; check the refreshed hand, then send again.'
+      : error.status === 404 || error.status === 405
+        ? 'This Hands connection cannot accept guarded tasks. Your draft is kept; reconnect to the updated app.'
+        : error.status ? error.message + ' Your draft is kept.'
+          : 'Could not confirm task delivery. Your draft is kept; check the hand before sending again.';
+    invalidateRuntime(); $('error').textContent = taskError;
+  } finally { taskSubmitting = false; await refresh(); }
 };
 $('correct').onclick = () => {
   post('/refine', { hand: selectedHand, text: prompt.value })
@@ -789,9 +833,9 @@ async function refresh() {
   if (refreshing) return;
   refreshing = true;
   try {
-    const response = await fetch('/status');
-    if (!response.ok) throw Error('hands is unavailable');
-    const s = await response.json(), a = s.agent;
+    const s = await readStatus();
+    if (!s) return;
+    const a = s.agent;
     const listening = s.state !== 'idle', busy = s.busy || s.listener.busy;
     const working = s.workers.filter(w => w.agent.running);
     const approval = s.approvals[0];
@@ -800,6 +844,7 @@ async function refresh() {
     else if (s.state === 'transcribing') setState('Finishing transcript…', 'live');
     else if (approval) setState(s.approvals.length > 1 ? s.approvals.length + ' actions need approval' : 'Needs approval · hand ' + approval.hand, 'review');
     else if (busy) setState(working.length > 1 ? working.length + ' hands working' : 'Working' + (working[0]?.agent.currentTool ? ' · ' + working[0].agent.currentTool : '…'), 'busy');
+    else if (!runtimeInstanceId) setState('Reconnecting', 'off');
     else setState('Ready', 'idle');
     document.body.classList.toggle('listening', Boolean(s.held));
     document.body.classList.toggle('busy', Boolean(busy || listening));
@@ -807,7 +852,8 @@ async function refresh() {
     // Controls
     $('provider').value = a.selection;
     setText($('model'), a.model + ' · ' + a.effort + ' effort');
-    $('provider').disabled = $('send').disabled = busy || listening || browserChanging;
+    $('provider').disabled = busy || listening || browserChanging;
+    $('send').disabled = busy || listening || browserChanging || taskSubmitting || !runtimeInstanceId;
     const browser = s.workers.find(w => w.hand === s.hand)?.browser;
     const nextArtifact = artifactOf(s.workers.find(w => w.hand === s.hand)?.agent || a);
     if (nextArtifact || selectedArtifact) invalidatePreview();
@@ -824,7 +870,7 @@ async function refresh() {
     hold.disabled = s.state === 'transcribing' || s.state === 'dispatching' || browserChanging;
     setText($('hold-label'), s.held ? 'Release to send' : 'Hold to speak');
     hold.setAttribute('aria-pressed', String(Boolean(s.held)));
-    setText($('error'), panelError(s, a, browser, selectedArtifact, browserError));
+    setText($('error'), taskError || (!runtimeInstanceId ? 'Waiting for a verified Hands connection. Your draft is kept.' : '') || panelError(s, a, browser, selectedArtifact, browserError));
 
     // Stage: the transcript is the hero while F8 is held; the selected hand's reply sits under it.
     const stage = $('stage');
@@ -865,7 +911,7 @@ async function refresh() {
       return row;
     }));
     setText($('event-count'), feed.length ? String(feed.length) : '');
-  } catch (e) { setState('Disconnected', 'off'); $('error').textContent = e.message; }
+  } catch (e) { setState('Disconnected', 'off'); $('error').textContent = taskError || e.message; }
   finally { refreshing = false; }
 }
 setInterval(refresh, 600);

@@ -17,7 +17,7 @@
  * for them to sign in (win/desktop.ts `signIn`). `bun win/desktop.ts login`
  * calls it when this server is running, because the server owns those browsers.
  */
-import { debugLog, subprocessEnv, type Hand } from "../desktop";
+import { debugLog, redact, subprocessEnv, type Hand } from "../desktop";
 import { isLocalRequest, servePuk, startRecording } from "../hotkey";
 import type { HandState } from "../pip";
 import { createJevFirstAgent } from "./jev";
@@ -27,6 +27,9 @@ import { createHud, hudEnabled, type HudStatus } from "./hud";
 import { artifactResponse } from "./artifacts";
 import { evalsResponse } from "./eval-observer";
 import type { AgentStatus } from "../ai";
+import { realpath } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { runtimeStartup, type RuntimeIdentity } from "./runtime-identity";
 
 /** The Windows control page; the shared panel.html stays for Linux. Same CSP as hotkey.ts sends for its page. */
 const WIN_PANEL = Bun.file(new URL("./panel.html", import.meta.url));
@@ -35,6 +38,21 @@ export async function panelResponse(request: Request): Promise<Response | null> 
   const path = new URL(request.url).pathname;
   if (request.method !== "GET" || (path !== "/" && path !== "/index.html")) return null;
   return new Response(await WIN_PANEL.text(), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Content-Security-Policy": PANEL_CSP } });
+}
+
+/** A path guard, rather than an optional header an older server could ignore.
+ * Forward only the exact current instance into the normal /task policy/busy path. */
+export async function instanceTaskResponse(request: Request, runtime: Pick<RuntimeIdentity, "instanceId">,
+  forward: (request: Request) => Response | Promise<Response>): Promise<Response | null> {
+  const url = new URL(request.url), path = url.pathname;
+  if (path !== "/instances" && !path.startsWith("/instances/")) return null;
+  if (!isLocalRequest(request)) return new Response("Local requests only", { status: 403 });
+  const route = /^\/instances\/([a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12})\/task$/.exec(path);
+  if (!route) return new Response("Not found", { status: 404 });
+  if (route[1] !== runtime.instanceId) return Response.json({ error: "Runtime instance changed. Read /status before submitting again." }, { status: 409, headers: { "Cache-Control": "no-store" } });
+  if (request.method !== "POST") return new Response("Use POST", { status: 405, headers: { Allow: "POST" } });
+  url.pathname = "/task";
+  return forward(new Request(url.href, request));
 }
 
 /** An image belongs to the hand requested by the client, even if selection changes
@@ -58,7 +76,10 @@ export async function previewResponse(request: Request, deps: {
       "X-Puk-Window": String(frame.window?.containerId ?? 0),
       "X-Puk-Pid": String(frame.window?.pid ?? 0), "X-Puk-Owner-Nonce": frame.window?.ownerNonce ?? "",
     } });
-  } catch { return new Response("Desktop unavailable", { status: 503 }); }
+  } catch (error) {
+    debugLog("win.preview.capture", { hand: hand.id, message: redact(error instanceof Error ? error.message : String(error)).slice(0, 500) });
+    return new Response("Desktop unavailable", { status: 503 });
+  }
 }
 
 /** Shared wire shape with panel.html: selection includes the browser identity,
@@ -118,6 +139,7 @@ export function serverResources(closeDesktop: () => void | Promise<void> = close
 }
 
 if (import.meta.main) {
+  const startup = await runtimeStartup(await realpath(fileURLToPath(new URL("../", import.meta.url))));
   const resources = serverResources();
   const shutdown = async (code = 0) => {
     // A blocked RPC must not keep a failed server alive through helper pipes.
@@ -231,21 +253,25 @@ if (import.meta.main) {
 
     const server = Bun.serve({
       hostname: "127.0.0.1", port: Number(process.env.PUK_PORT ?? 7777), maxRequestBodySize: 20_000,
-      async fetch(request) {
+      async fetch(request, serving) {
         const artifact = await artifactResponse(request);
         if (artifact) return artifact;
         if (!isLocalRequest(request)) return new Response("Local requests only", { status: 403 });
         const path = new URL(request.url).pathname;
+        const instance = await instanceTaskResponse(request, startup, forwarded => inner.server.fetch(forwarded));
+        if (instance) return instance;
         const page = await panelResponse(request);
         if (page) return page;
         const evals = await evalsResponse(request);
         if (evals) return evals;
         if (request.method === "GET" && path === "/status") {
+          const port = serving.port;
+          if (port === undefined) return Response.json({ error: "TCP runtime identity unavailable." }, { status: 503 });
           const state = await (await local("/status")).json() as { hand: number; workers: { hand: number }[] };
-          return Response.json({ ...state, workers: state.workers.map(worker => {
+          return Response.json({ ...state, runtime: { ...startup, port } satisfies RuntimeIdentity, workers: state.workers.map(worker => {
             const hand = hands.find(hand => hand.id === worker.hand);
             return { ...worker, browser: hand ? browserTarget(hand) : { mode: "private" } };
-          }) });
+          }) }, { headers: { "Cache-Control": "no-store" } });
         }
         if (path === "/browser") {
           try {

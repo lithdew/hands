@@ -478,6 +478,26 @@ describe("canvas observation privilege", () => {
     binding: nativeCanvas ? { window: "fixture-owner", canvas: { private: true } } : {},
     ...(nativeCanvas ? { image: { type: "image", mimeType: "image/png", data: fakePng() }, canvasCoordinates: { width: 800, height: 600 } } : {}) });
 
+  test("cached queries make no browser reads, preserve refs and never spend the mutation budget", async () => {
+    let reads = 0, inputs = 0; const checked: GateContext[] = [];
+    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute, narrate: false,
+      desktop: { ...fakeDesktop, state, semantic: (_hand, guard) => createSemanticComputer({ windows: async () => [],
+        observe: async () => { reads++; return page(); }, act: async () => { inputs++; },
+      }, guard) },
+      gate: async context => { checked.push(context); return allow; },
+      streamFn: scriptedModel([{ name: "computer_browser", arguments: { action: "snapshot" } },
+        ...Array.from({ length: 31 }, () => ({ name: "computer_browser", arguments: { action: "query", query: "Title" } })),
+        { name: "computer_browser", arguments: { action: "type", ref: "p1:0", text: "New title" } }]),
+    });
+    try {
+      await runtime.prompt("Inspect the captured title field repeatedly, then make the requested edit once.");
+      expect(reads).toBe(2); // Initial observation and ordinary post-input verification only.
+      expect(inputs).toBe(1); expect(checked).toHaveLength(1);
+      expect(checked[0]!.action).toMatchObject({ tool: "computer_browser", args: { action: "type", ref: "p1:0" } });
+      expect(runtime.status().error).toBeNull();
+    } finally { await runtime.close(); }
+  });
+
   test("more than thirty canvas captures neither invoke the mutation gate nor consume its budget", async () => {
     let captures = 0, inputs = 0; const checked: GateContext[] = [];
     const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute, visualTargetModel,

@@ -11,6 +11,137 @@ const alertDialog = (): DialogObservation => ({ present: true, dialog_id: "dialo
 const canvasPage = (): Snapshot => ({ ...page(), image: { type: "image", mimeType: "image/png", data: "native-png" },
   canvasCoordinates: { width: 1000, height: 800 }, binding: { window: "90:1234:0000000000000123", canvas: { privateCapability: "never-expose" } } });
 
+test("cached query permits only a local filter, not fresh captures or input arguments", () => {
+  expect(BrowserSchema.parse({ action: "query", query: "recipient subject body send" })).toEqual({ action: "query", query: "recipient subject body send" });
+  expect(BrowserSchema.safeParse({ action: "query" }).success).toBe(true);
+  for (const extra of [{ screenshot: true }, { screenshot: false }, { text: "input" }, { ref: "p1:0" }, { key: "Enter" },
+    { url: "https://example.test/" }, { mode: "existing" }, { include_refs: true }, { challenge_submit: true }, { query: "x".repeat(201) }])
+    expect(BrowserSchema.safeParse({ action: "query", ...extra }).success).toBe(false);
+});
+
+test("cached queries use no RPC, retain shown aliases, and reveal captured controls without minting a new observation", async () => {
+  let reads = 0, inputs = 0;
+  const snapshot = { ...canvasPage(), capture: { window: null, width: 1000, height: 800, digest: "original" } };
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => { reads++; return snapshot; }, act: async () => { inputs++; } });
+  const fresh = await computer.browser({ action: "snapshot", query: "Search", screenshot: true });
+  expect(fresh.details).toMatchObject({ observation: "semantic", refs: 1 });
+  expect(() => computer.describe("computer_browser", { action: "click", ref: "p1:1" })).toThrow("not shown");
+  const originalInterruption = computer.interruptionObservation()!.observationId, originalFrame = computer.visualTargetFrame();
+  await Bun.sleep(12);
+  const save = await computer.browser({ action: "query", query: "Save" });
+  expect(save.details).toMatchObject({ observation: "cached", cached: true, kind: "browser", refs: 1 });
+  expect(save.details.observedAgeMs).toBeGreaterThanOrEqual(10);
+  expect(save.content).toHaveLength(1); expect(save.details).not.toHaveProperty("puk_snapshot");
+  expect(JSON.stringify(save.content)).toContain('[p1:1] button');
+  expect(JSON.stringify(save.content)).toContain("cannot verify current state, input success, or that an interruption cleared");
+  expect(computer.describe("computer_browser", { action: "click", ref: "p1:1" })).toMatchObject({ control: 'button "Save" in "Notifications"' });
+  const search = await computer.browser({ action: "query", query: "Search" });
+  expect(JSON.stringify(search.content)).toContain('[p1:0] textbox'); expect(search.details.refs).toBe(1);
+  const both = await computer.browser({ action: "query" }); expect(both.details.refs).toBe(2);
+  const none = await computer.browser({ action: "query", query: "zzzxxyy" }); expect(none.details.refs).toBe(0);
+  expect(JSON.stringify(none.content)).toContain("does not prove they are absent from the live page");
+  expect(computer.interruptionObservation()!.observationId).toBe(originalInterruption);
+  expect(computer.visualTargetFrame()).toEqual(originalFrame);
+  expect(computer.describe("computer_browser", { action: "query" })).toBeUndefined();
+  expect({ reads, inputs }).toEqual({ reads: 1, inputs: 0 });
+  await computer.browser({ action: "snapshot", query: "Save" });
+  expect(reads).toBe(2); expect(() => computer.describe("computer_browser", { action: "click", ref: "p1:1" })).toThrow("stale");
+  expect(computer.describe("computer_browser", { action: "click", ref: "p2:0" })).toMatchObject({ control: 'button "Save" in "Notifications"' });
+});
+
+test("cached queries cannot resurrect failed, reset, in-flight, native or visual-only observations", async () => {
+  let snapshot = page(), pending: ReturnType<typeof Promise.withResolvers<Snapshot>> | undefined, reads = 0;
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => { reads++; return pending ? pending.promise : snapshot; }, act: async () => {} });
+  await expect(computer.browser({ action: "query" })).rejects.toThrow("No current cached");
+  await computer.browser({ action: "snapshot" });
+  pending = Promise.withResolvers<Snapshot>();
+  const reading = computer.browser({ action: "snapshot" }).then(() => null, error => error);
+  await expect(computer.browser({ action: "query" })).rejects.toThrow("No current cached");
+  pending.reject(new Error("Fixture read failed")); expect(String(await reading)).toContain("read failed");
+  await expect(computer.browser({ action: "query" })).rejects.toThrow("No current cached");
+  expect(reads).toBe(2); pending = undefined;
+  await computer.browser({ action: "snapshot" }); computer.reset();
+  await expect(computer.browser({ action: "query" })).rejects.toThrow("No current cached");
+  await computer.browser({ action: "snapshot" }); await computer.look({ what: "windows" });
+  await expect(computer.browser({ action: "query" })).rejects.toThrow("No current cached");
+  snapshot = { ...page(), kind: "native" }; await computer.look({ what: "window" });
+  await expect(computer.browser({ action: "query" })).rejects.toThrow("browser semantic snapshot");
+  snapshot = { ...canvasPage(), visualOnly: true, elements: [] }; await computer.browser({ action: "canvas_snapshot" });
+  await expect(computer.browser({ action: "query" })).rejects.toThrow("visual-only");
+  snapshot = page(); await computer.browser({ action: "snapshot" });
+  await expect(computer.browser({ action: "query" }, AbortSignal.abort())).rejects.toThrow();
+});
+
+test("cached queries can display a captured control omitted by the text budget without recycling an existing alias", async () => {
+  const snapshot = page(); let reads = 0;
+  snapshot.elements = Array.from({ length: 100 }, (_, index) => ({ key: `item-${index}`, role: "button",
+    name: `${index === 99 ? "NeedleMarker" : index === 0 ? "FirstMarker" : `Item-${index}`} ${"x".repeat(140)}`,
+    within: "y".repeat(140), value: "z".repeat(140), address: {} }));
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => { reads++; return snapshot; }, act: async () => {} });
+  const first = await computer.browser({ action: "snapshot" }), nextAlias = `p1:${first.details.refs}`;
+  expect(Number(first.details.refs)).toBeLessThan(100); expect(JSON.stringify(first.content)).toContain("More controls omitted");
+  expect(() => computer.describe("computer_browser", { action: "click", ref: nextAlias })).toThrow("not shown");
+  const hidden = await computer.browser({ action: "query", query: "NeedleMarker" });
+  expect(hidden.details.refs).toBe(1); expect(JSON.stringify(hidden.content)).toContain(`[${nextAlias}]`);
+  expect(computer.describe("computer_browser", { action: "click", ref: nextAlias })).toMatchObject({ control: expect.stringContaining("NeedleMarker") });
+  const original = await computer.browser({ action: "query", query: "FirstMarker" });
+  expect(JSON.stringify(original.content)).toContain("[p1:0]");
+  expect(computer.describe("computer_browser", { action: "click", ref: nextAlias })).toMatchObject({ control: expect.stringContaining("NeedleMarker") });
+  expect(reads).toBe(1);
+});
+
+test("query stays unavailable during input and after an uncertain effect, including an overlapping fresh read", async () => {
+  for (const fail of [false, true]) {
+    const effect = Promise.withResolvers<void>(); let reads = 0, inputs = 0;
+    const computer = createSemanticComputer({ windows: async () => [], observe: async () => { reads++; return page(); }, act: async () => { inputs++; await effect.promise; } });
+    await computer.browser({ action: "snapshot" });
+    const input = computer.browser({ action: "click", ref: "p1:1" }).then(() => null, error => error);
+    await expect(computer.browser({ action: "query" })).rejects.toThrow("pending input");
+    await computer.browser({ action: "snapshot" }); // Even another read cannot make in-flight input safe to query.
+    await expect(computer.browser({ action: "query" })).rejects.toThrow("pending input");
+    if (fail) effect.reject(new Error("Effect uncertain")); else effect.resolve();
+    const outcome = await input;
+    if (fail) {
+      expect(String(outcome)).toContain("Effect uncertain");
+      await expect(computer.browser({ action: "query" })).rejects.toThrow("No current cached");
+      expect(reads).toBe(2);
+    } else {
+      expect(outcome).toBeNull(); expect((await computer.browser({ action: "query" })).details).toMatchObject({ observation: "cached", refs: 2 });
+      expect(reads).toBe(3);
+    }
+    expect(inputs).toBe(1);
+  }
+});
+
+test("controls and exact known empty values precede tabs while unknown and protected values remain distinct", async () => {
+  const snapshot = page();
+  snapshot.elements = [
+    { key: "empty", role: "textbox", name: "Empty", editable: true, value: "", address: {} },
+    { key: "unknown", role: "textbox", name: "Unknown", editable: true, address: {} },
+    { key: "spaces", role: "textbox", name: "Whitespace", editable: true, value: " \n ", address: {} },
+    { key: "readonly", role: "textbox", name: "Not editable", value: "", address: {} },
+    { key: "password", role: "password", name: "Password", editable: true, value: "role-secret-123", address: {} },
+    { key: "protected", role: "textbox", type: "password", name: "Protected", editable: true, value: "type-secret-456", address: {} },
+  ];
+  snapshot.observedTabs = observedTabInventory([{ tab_id: "opaque", title: "Tab title ".repeat(30), url: "https://example.test/", active: true }]);
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => snapshot, act: async () => {} });
+  const fresh = await computer.browser({ action: "snapshot" }), cached = await computer.browser({ action: "query" });
+  for (const result of [fresh, cached]) {
+    const text = result.content.filter(item => item.type === "text").map(item => item.text).join("\n");
+    expect(text.slice(0, 600)).toContain('[p1:0] textbox "Empty" value=""');
+    expect(text).toContain('textbox "Unknown" value=[unknown]'); expect(text).toContain('value=" \\n "');
+    expect(text.indexOf("Visible text:")).toBeLessThan(text.indexOf("Observed browser tabs"));
+    expect(text).toContain("value=[protected]"); expect(text).not.toContain("role-secret-123"); expect(text).not.toContain("type-secret-456");
+  }
+  const gate = computer.describe("computer_browser", { action: "click", ref: "p1:0" });
+  expect(gate).toMatchObject({ observedFields: [
+    { name: "Empty", value: "", valueKnown: true }, { name: "Unknown", valueKnown: false }, { name: "Whitespace", value: " \n ", valueKnown: true },
+  ] });
+  expect(JSON.stringify(gate)).not.toContain("secret-");
+  await expect(computer.browser({ action: "type", ref: "p1:3", text: "No inferred editability" })).rejects.toThrow("not editable");
+  expect((await computer.browser({ action: "query", query: "role-secret-123 type-secret-456" })).details.refs).toBe(0);
+});
+
 test("visual target frames require native canvas evidence and never fall back to page identity", async () => {
   let state = page();
   const computer = createSemanticComputer({ windows: async () => [], observe: async () => state, act: async () => {} });

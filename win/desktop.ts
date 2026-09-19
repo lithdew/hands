@@ -383,7 +383,7 @@ const existingTargets = createExistingBrowserTargets<ExistingBrowserInput>({
   async prepare(hand, current, signal, resume) {
     const raw = await driver(hand);
     const session = raw.browserSession ? await raw.browserSession() : `puk-existing-${hand.id}-${crypto.randomUUID()}`;
-    const input = existingBrowserInput(raw.call, current, session, async () => focusExistingBrowser(hand));
+    const input = existingBrowserInput(raw.call, current, session, async () => focusExistingBrowser(hand), { maintenance: { disconnected: raw.disconnected } });
     try { await input.attach(signal, { allowPrepare: !resume }); return input; }
     catch (error) { if (!resume) await input.close(); throw error; }
   },
@@ -452,7 +452,7 @@ function onScreen<T>(hand: Hand, work: () => Promise<T>): Promise<T> {
 
 // ---------------------------------------------------------------- Cua
 
-type Raw = { call: CuaConnection["call"]; close(): Promise<void>; browserSession?(): Promise<string> };
+type Raw = { call: CuaConnection["call"]; close(): Promise<void>; browserSession?(): Promise<string>; disconnected?: AbortSignal };
 /** A failed or closed transport must not remain the connection for a hand. A
  * late close from the old transport must not evict its replacement either. */
 export function createDriverPool(connect: (hand: Hand, closed: () => void) => Promise<Raw>) {
@@ -461,9 +461,11 @@ export function createDriverPool(connect: (hand: Hand, closed: () => void) => Pr
     get(hand: Hand): Promise<Raw> {
       let pending = drivers.get(hand.id);
       if (!pending) {
-        const forget = () => { if (drivers.get(hand.id) === pending) drivers.delete(hand.id); };
+        const disconnected = new AbortController();
+        const forget = () => { disconnected.abort(); if (drivers.get(hand.id) === pending) drivers.delete(hand.id); };
         pending = connect(hand, forget).then((raw) => ({
           call: raw.call,
+          disconnected: disconnected.signal,
           ...(raw.browserSession ? { browserSession: raw.browserSession } : {}),
           async close() { forget(); await raw.close(); },
         }));

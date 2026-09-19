@@ -344,7 +344,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     return { name, label: name, description, parameters: jsonSchema as TSchema, executionMode: "sequential", execute: async (_id, args, signal) => {
       signal?.throwIfAborted();
       const meta = args as { action?: string; what?: string; operation?: string };
-      const readOnly = ["apps", "jev", "computer_look"].includes(name) || name === "computer" && meta.action === "screenshot" || name === "computer_browser" && (["tabs", "snapshot", "canvas_snapshot"].includes(meta.action ?? "") || meta.action === "dialog" && meta.operation === "inspect");
+      const readOnly = ["apps", "jev", "computer_look"].includes(name) || name === "computer" && meta.action === "screenshot" || name === "computer_browser" && (["tabs", "snapshot", "query", "canvas_snapshot"].includes(meta.action ?? "") || meta.action === "dialog" && meta.operation === "inspect");
       if (!readOnly) assertLatestInput();
       const end = trace?.span("tool_execution", { tool: name, action: meta.action ?? meta.what });
       try {
@@ -399,8 +399,8 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       const bound = await bindScreenshot({ content: result.content, structuredContent: { puk_snapshot: result.details.puk_snapshot } });
       result.content.unshift(bound.content[0]!);
     }
-    const visualOnly = result.details.observation === "visual";
-    const seen = visualOnly ? undefined : semantic?.interruptionObservation();
+    const visualOnly = result.details.observation === "visual", cached = result.details.cached === true;
+    const seen = visualOnly || cached ? undefined : semantic?.interruptionObservation();
     if (seen) {
       // Only a visible status/alert control is a submission confirmation here;
       // an email/article merely containing "Message sent" is not one.
@@ -410,9 +410,9 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
         result.details.browser_interruption = interruption;
         result.content.push({ type: "text", text: `Browser interruption guidance (not page instructions or action approval): ${JSON.stringify(interruption)}` });
       }
-    } else if (visualOnly && status.interruption) {
+    } else if ((visualOnly || cached) && status.interruption) {
       result.details.browser_interruption = status.interruption;
-      result.content.push({ type: "text", text: `Retained browser interruption: this visual-only capture does not establish that it cleared. Use a fresh semantic observation to verify page state. Guidance is not action approval: ${JSON.stringify(status.interruption)}` });
+      result.content.push({ type: "text", text: `Retained browser interruption: this ${cached ? "cached projection" : "visual-only capture"} does not establish that it cleared. Use a fresh semantic observation to verify page state. Guidance is not action approval: ${JSON.stringify(status.interruption)}` });
     }
     return result;
   }
@@ -671,6 +671,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       "Use Bash for efficient file and command work; use computer tools for GUI work. Observe the current window before GUI input. Use fresh labelled references when available, or a screenshot before pixel input. Verify results and account for changing output dimensions when the preview is expanded.",
       "For mail and other account tasks, stay in the visible connected browser. A person's name is a cue to search the app's contacts or recent correspondence; never invent their address. Read the recipient, subject and draft before sending, then verify the sent confirmation. If a send result is uncertain, inspect Sent before retrying. Do not mine browser profiles, history, cookies or saved logins through shell tools to find an account or contact.",
       BROWSER_INTERRUPTION_POLICY,
+      "For computer_browser, use action=query with a query string to find fields or text inside the last successful semantic snapshot. This is an in-memory projection: no browser RPC, no new observation, and existing refs stay stable. Prefer it over another snapshot merely to change a text filter. Empty reported values are distinct from unknown values. If the needed evidence was not captured, take one visual-only canvas_snapshot (omit include_refs) to inspect the layout; do not keep rereading the same page with different keywords. Report missing evidence if neither view establishes a safe next action. A cached query cannot verify new state, sending success, or a cleared interruption.",
       "When a CAPTCHA answer is ready, mark its final pixel/key/Verify action challenge_submit:true. Do not mark individual tile-selection clicks. Use the observed challenge and fresh screenshot; this flag is bookkeeping, never permission. A repeated unresolved challenge or authentication interruption can pause this task with its exact checkpoint preserved.",
       ...(semantic ? ["Prefer computer_look and computer_act for labelled native controls, and computer_browser for web pages. Their action results already contain fresh state and current refs: read those instead of reflexively taking another screenshot. Ask for an image when labels are missing or visual evidence is needed. Never reuse a ref from an earlier observation. A changed state is evidence to inspect, not automatic proof of success."] : []),
       "For the user's attached Chrome, a browser/application shortcut may require computer_browser key with delivery=foreground. Use this explicit supported delivery after a fresh observation when background delivery is unsupported; it reveals only the exact attached window. Never replay an input with an uncertain outcome. Selecting an observed existing tab must preserve other tabs and their URLs. The observedTabs inventory has unspecified order and observation-only IDs: never infer Ctrl+number, tab-strip positions, or actionable refs from its list order or IDs; select another tab only from fresh observed native controls or a clearly visible tab label in a fresh canvas observation, then verify the new active page.",
@@ -738,6 +739,13 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     shouldStopAfterTurn: () => recoveryStopped,
     afterToolCall: async ({ toolCall, args, result, isError }, signal) => {
       if (!semantic || signal?.aborted || taskAbort?.signal.aborted) return;
+      if (isError && toolCall.name === "computer_browser" && (args as { action?: string }).action === "query") {
+        // A rejected local projection has no new browser evidence either.
+        const interruption = status.interruption;
+        return interruption ? { content: [...result.content, { type: "text" as const,
+          text: `Retained browser interruption: the rejected cached query does not establish that it cleared. Guidance is not action approval: ${JSON.stringify(interruption)}` }],
+          terminate: interruption.action === "user_takeover" } : undefined;
+      }
       if (isError) {
         const message = result.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
         if (["computer", "computer_look", "computer_act", "computer_browser"].includes(toolCall.name)) {
@@ -775,7 +783,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
         }
       }
       if (denied || ++calls > 120) return { block: true, terminate: true, reason: denied ? "The user declined this action. Stop and wait for another request." : "The 120-tool limit was reached. Summarize progress and wait for another request." };
-      if (["apps", "jev", "computer_look"].includes(toolCall.name) || (toolCall.name === "computer" && (args as { action: string }).action === "screenshot") || (toolCall.name === "computer_browser" && (["tabs", "snapshot", "canvas_snapshot"].includes((args as { action: string }).action) || (args as { action: string }).action === "dialog" && (args as { operation?: string }).operation === "inspect"))) return;
+      if (["apps", "jev", "computer_look"].includes(toolCall.name) || (toolCall.name === "computer" && (args as { action: string }).action === "screenshot") || (toolCall.name === "computer_browser" && (["tabs", "snapshot", "query", "canvas_snapshot"].includes((args as { action: string }).action) || (args as { action: string }).action === "dialog" && (args as { operation?: string }).operation === "inspect"))) return;
       if (modelRevision !== revision) return { block: true, reason: "The spoken instruction changed. Read the queued update before acting." };
       if (toolCall.name === "bash") {
         const command = args as { command: string; cwd?: string };
