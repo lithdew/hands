@@ -219,6 +219,127 @@ describe("persistent Cua ownership", () => {
 });
 
 describe("broker client cancellation", () => {
+  test("browser-session lookup waits for a pending preview and cannot overtake queued input", async () => {
+    const entered = deferred<void>(), preview = deferred<typeof reply>();
+    const core = createBrokerCore(async () => ({ call: async name => {
+      if (name === "get_window_state") { entered.resolve(); return preview.promise; }
+      return reply;
+    }, close: async () => {} }));
+    const wire = wireFor(core), order: string[] = [];
+    const client = createBrokerClient(async <T>(route: string, data: unknown, signal?: AbortSignal): Promise<T> => {
+      if (route === "/session" || route === "/call") order.push(route === "/session" ? "session" : (data as { name: string }).name);
+      return wire<T>(route, data, signal);
+    });
+    await client.connect(); const hand = client.hand(1, () => {}), session = await hand.browserSession(); order.length = 0;
+    const pending = hand.call("get_window_state", {}); await entered.promise;
+    const earlierInput = hand.call("browser_click", {}), lookup = hand.browserSession(), laterInput = hand.call("press_key", {});
+    await Promise.resolve(); expect(order).toEqual(["get_window_state"]);
+    preview.resolve(reply); await pending; await earlierInput;
+    expect(await lookup).toBe(session); await laterInput;
+    expect(order).toEqual(["get_window_state", "browser_click", "session", "press_key"]);
+    await hand.close(); await core.stop();
+  });
+
+  test("browser-session lookups share the normal four-request queue bound", async () => {
+    const entered = deferred<void>(), preview = deferred<typeof reply>();
+    let reads = 0, sessions = 0;
+    const core = createBrokerCore(async () => ({ call: async () => { reads++; entered.resolve(); return preview.promise; }, close: async () => {} }));
+    const wire = wireFor(core);
+    const client = createBrokerClient(async <T>(route: string, data: unknown, signal?: AbortSignal): Promise<T> => {
+      if (route === "/session") sessions++;
+      return wire<T>(route, data, signal);
+    });
+    await client.connect(); const hand = client.hand(1, () => {});
+    const pending = hand.call("get_window_state", {}); await entered.promise;
+    const a = hand.browserSession(), b = hand.call("get_screen_size", {}), c = hand.browserSession();
+    await expect(hand.browserSession()).rejects.toThrow("queue is full");
+    await expect(hand.call("browser_click", {})).rejects.toThrow("queue is full");
+    expect({ reads, sessions }).toEqual({ reads: 1, sessions: 0 });
+    preview.resolve(reply); await Promise.all([pending, a, b, c]);
+    expect({ reads, sessions }).toEqual({ reads: 2, sessions: 2 });
+    expect(await hand.browserSession()).toBe(await a);
+    await hand.close(); await core.stop();
+  });
+
+  test("closing a hand rejects a queued session lookup before it reaches the broker", async () => {
+    const entered = deferred<void>(), preview = deferred<typeof reply>();
+    let sessions = 0, closed = 0;
+    const core = createBrokerCore(async () => ({ call: async () => { entered.resolve(); return preview.promise; }, close: async () => {} }));
+    const wire = wireFor(core);
+    const client = createBrokerClient(async <T>(route: string, data: unknown, signal?: AbortSignal): Promise<T> => {
+      if (route === "/session") sessions++;
+      return wire<T>(route, data, signal);
+    });
+    await client.connect(); const hand = client.hand(1, () => { closed++; });
+    const pending = hand.call("get_window_state", {}).catch(error => error); await entered.promise;
+    const lookup = hand.browserSession().catch(error => error);
+    await hand.close();
+    expect((await pending as Error).message).toContain("cancelled");
+    expect((await lookup as Error).message).toContain("disconnected");
+    expect({ sessions, closed }).toEqual({ sessions: 0, closed: 1 });
+    preview.resolve(reply); await Bun.sleep(0); await core.stop();
+  });
+
+  test("lease disconnection rejects queued session lookup without dispatching it", async () => {
+    const entered = deferred<void>(), preview = deferred<typeof reply>(), disconnected = deferred<void>();
+    let sessions = 0, heldLease = "";
+    const core = createBrokerCore(async () => ({ call: async () => { entered.resolve(); return preview.promise; }, close: async () => {} }));
+    const wire = wireFor(core);
+    const client = createBrokerClient(async <T>(route: string, data: unknown, signal?: AbortSignal): Promise<T> => {
+      if (route === "/heartbeat") throw new Error("Fixture lease connection lost");
+      if (route === "/session") sessions++;
+      const value = await wire<T>(route, data, signal);
+      if (route === "/lease") { heldLease = (value as { lease: string }).lease; return { ...(value as object), leaseMs: 1000 } as T; }
+      return value;
+    }, () => disconnected.resolve());
+    await client.connect(); const hand = client.hand(1, () => {});
+    const pending = hand.call("get_window_state", {}).catch(error => error); await entered.promise;
+    const lookup = hand.browserSession().catch(error => error);
+    await disconnected.promise;
+    expect((await pending as Error).message).toContain("cancelled");
+    expect((await lookup as Error).message).toContain("disconnected"); expect(sessions).toBe(0);
+    preview.resolve(reply); await Bun.sleep(0); core.release(heldLease); await core.stop();
+  });
+
+  test("a session response arriving after close is discarded and later input cannot overtake it", async () => {
+    const entered = deferred<void>(), response = deferred<void>();
+    let actions = 0;
+    const core = createBrokerCore(async () => ({ call: async () => { actions++; return reply; }, close: async () => {} }));
+    const wire = wireFor(core);
+    const client = createBrokerClient(async <T>(route: string, data: unknown, signal?: AbortSignal): Promise<T> => {
+      const value = await wire<T>(route, data, signal);
+      if (route === "/session") { entered.resolve(); await response.promise; }
+      return value;
+    });
+    await client.connect(); const hand = client.hand(1, () => {});
+    const lookup = hand.browserSession().catch(error => error); await entered.promise;
+    const input = hand.call("browser_click", {}).catch(error => error);
+    await Promise.resolve(); expect(actions).toBe(0);
+    await hand.close(); response.resolve();
+    expect((await lookup as Error).message).toContain("disconnected");
+    expect((await input as Error).message).toContain("disconnected"); expect(actions).toBe(0);
+    await core.stop();
+  });
+
+  test("a cancelled read still draining keeps the core session guard; lookup never retries or rotates it", async () => {
+    const entered = deferred<void>(), preview = deferred<typeof reply>();
+    let sessions = 0;
+    const core = createBrokerCore(async () => ({ call: async () => { entered.resolve(); return preview.promise; }, close: async () => {} }));
+    const wire = wireFor(core);
+    const client = createBrokerClient(async <T>(route: string, data: unknown, signal?: AbortSignal): Promise<T> => {
+      if (route === "/session") sessions++;
+      return wire<T>(route, data, signal);
+    });
+    await client.connect(); const hand = client.hand(1, () => {}), session = await hand.browserSession(), abort = new AbortController();
+    const pending = hand.call("get_window_state", {}, abort.signal).catch(error => error); await entered.promise;
+    const lookup = hand.browserSession().catch(error => error); abort.abort();
+    expect((await pending as Error).message).toContain("cancelled");
+    expect((await lookup as Error).message).toContain("in flight"); expect(sessions).toBe(2);
+    preview.resolve(reply); await Bun.sleep(0);
+    expect(await hand.browserSession()).toBe(session);
+    await hand.close(); await core.stop();
+  });
+
   test("correction while queued prevents old input from dispatching", async () => {
     const entered = deferred<void>(), pending = deferred<typeof reply>();
     const names: string[] = [];

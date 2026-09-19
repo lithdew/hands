@@ -599,7 +599,11 @@ export async function captureBound(hand: Hand, preview = false): Promise<BoundCa
       return ask(`grab ${window.containerId}`).catch(async () => {
         // Minimized, or a window that will not draw itself on request. The
         // fallback keeps the same target; it never follows newly changed focus.
-        const response = await (await driver(hand)).call("get_window_state", { pid: window.pid, window_id: window.containerId, include_accessibility_tree: false });
+        const target = browserTarget(hand);
+        // A disconnected preview must not keep occupying the broker while the
+        // normal attachment is trying to restore the browser session.
+        if (preview && target.mode === "existing" && !target.ready) throw new Error("Reconnect Chrome before its fallback preview can be captured.");
+        const response = await (await driver(hand)).call("get_window_state", { pid: window.pid, window_id: window.containerId, include_screenshot: true, include_accessibility_tree: false });
         const shot = response.content.find((c) => c.type === "image");
         if (!shot || shot.type !== "image") throw new Error("Cua did not return a window screenshot.");
         return shot.data;

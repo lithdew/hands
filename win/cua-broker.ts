@@ -351,13 +351,24 @@ export function createBrokerClient(wire: <T>(route: string, data: unknown, signa
       connections.set(id, connection);
       let released = false;
       const attached = () => { if (released || connections.get(id) !== connection) throw new Error("This Cua hand was disconnected."); return check(); };
+      const enqueue = <T>(run: (heldLease: string) => Promise<T>): Promise<T> => {
+        if (connection.pending >= 4) return Promise.reject(new Error("This hand's Cua queue is full. No input was dispatched."));
+        connection.pending++;
+        const work = connection.queue.then(() => run(attached())).finally(() => { connection.pending--; });
+        connection.queue = work.catch(() => {});
+        return work;
+      };
       return {
-        browserSession: () => wire<string>("/session", { lease: attached(), hand: id }),
+        // Session lookup can rotate a broken transport's label. Serialize it
+        // with preview reads/input; the broker's in-flight guard still applies.
+        browserSession: () => enqueue(async heldLease => {
+          const session = await wire<string>("/session", { lease: heldLease, hand: id });
+          attached();
+          return session;
+        }),
         call(name, args = {}, signal) {
-          if (connection.pending >= 4) return Promise.reject(new Error("This hand's Cua queue is full. No input was dispatched."));
-          connection.pending++;
-          const work = connection.queue.then(async () => {
-            const heldLease = attached(); signal?.throwIfAborted();
+          return enqueue(async heldLease => {
+            signal?.throwIfAborted();
             const requestId = uuid(), abort = new AbortController();
             const cancel = () => {
               abort.abort(abortError());
@@ -373,9 +384,7 @@ export function createBrokerClient(wire: <T>(route: string, data: unknown, signa
               // The request may have executed. Never reconnect and replay it.
               throw error;
             } finally { signal?.removeEventListener("abort", cancel); active.delete(requestId); }
-          }).finally(() => { connection.pending--; });
-          connection.queue = work.catch(() => {});
-          return work;
+          });
         },
         async close() {
           if (released) return;
