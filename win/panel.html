@@ -587,7 +587,15 @@ function loadPreview(hand, target) {
     // briefly retain that image's previous pixels or make a second request.
     preview.replaceWith(candidate); preview = candidate;
   };
-  candidate.onerror = () => { if (pendingShot === candidate) { pendingShot = null; delete preview.dataset.ok; } };
+  candidate.onerror = () => {
+    if (pendingShot !== candidate) return;
+    pendingShot = null;
+    // Agent input has priority over passive capture. Keep only this exact
+    // target's previous frame through a busy poll instead of flashing blank.
+    if (shownHand === hand && shownTarget === target && selectedHand === hand && selectedTarget === target && !browserChanging) {
+      preview.title = 'Last captured frame; updating.';
+    } else delete preview.dataset.ok;
+  };
   candidate.src = '/desktop.png?hand=' + hand + '&target=' + encodeURIComponent(target) + '&t=' + shotAt;
 }
 /* Entering a hand selects it first, so stepping into hand 2 needs no prior click. A refused switch leaves the selection alone. */
