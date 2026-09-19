@@ -10,11 +10,45 @@ export function matrixPhaseLabel(frame: number, frames: number, invertible: bool
   return "Original basis restored";
 }
 
+/** Fit a measured block of copy into its lane as one unit. Below the legible
+ * floor the render is refused instead of clipping or shrinking text that a
+ * phone-sized player could no longer show. */
+export function fitScale(requiredHeight: number, availableHeight: number, floor = .8, what = "Scene text") {
+  if (!Number.isFinite(requiredHeight) || requiredHeight <= 0 || !Number.isFinite(availableHeight) || availableHeight <= 0) throw new Error(`${what} could not be measured`);
+  const scale = Math.min(1, availableHeight / requiredHeight);
+  if (scale < floor) throw new Error(`${what} exceeds its safe lane (needs ${Math.round(requiredHeight)}px, lane is ${Math.round(availableHeight)}px). Shorten the title, body or bullets before rendering.`);
+  return scale;
+}
+
 /** Preserve a fixed caption lane. Refuse overloaded copy instead of clipping
  * it or shrinking the smallest matrix text below readable size. */
 export function matrixTextScale(requiredHeight: number, availableHeight = 555) {
-  if (!Number.isFinite(requiredHeight) || requiredHeight <= 0) throw new Error("Matrix text could not be measured");
-  const scale = Math.min(1, availableHeight / requiredHeight);
-  if (scale < .76) throw new Error("Matrix scene text exceeds its safe caption margin. Shorten the title, body or bullets before rendering.");
-  return scale;
+  return fitScale(requiredHeight, availableHeight, .76, "Matrix scene text");
+}
+
+export type InlineMatrix = { rows: string[][] };
+const INLINE_MATRIX = /\[\[([^[\]]{1,40})\],\s*\[([^[\]]{1,40})\]\]/g;
+/** Split copy so `[[a,b],[c,d]]` notation can be typeset as a two-row matrix
+ * instead of nested brackets. Anything that is not exactly 2x2 stays literal. */
+export function inlineMatrices(text: string): (string | InlineMatrix)[] {
+  const parts: (string | InlineMatrix)[] = [];
+  let last = 0;
+  for (const match of text.matchAll(INLINE_MATRIX)) {
+    const rows = [match[1]!, match[2]!].map(row => row.split(",").map(cell => cell.trim()));
+    if (rows.some(row => row.length !== 2 || row.some(cell => !cell))) continue;
+    const at = match.index ?? 0;
+    if (at > last) parts.push(text.slice(last, at));
+    parts.push({ rows });
+    last = at + match[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
+/** The letter the lesson copy uses for the animated matrix, so the trusted
+ * matrix panel does not call a singular example S "A". */
+export function matrixLetter(copy: (string | undefined)[], explicit?: string) {
+  if (explicit) return explicit;
+  const match = copy.filter(Boolean).join(" ").match(/\b([A-Z])\s*=\s*\[\[/);
+  return match?.[1] ?? "A";
 }

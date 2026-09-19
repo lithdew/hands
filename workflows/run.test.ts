@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BundleSchema, looksLikeArtifactRequest } from "./contracts";
-import { runArtifactWorkflow } from "./run";
+import { runArtifactWorkflow, storyboardCheck } from "./run";
 import type { Ask } from "../jev/jev";
 import { citationAliases } from "./checkpoint";
 
@@ -43,6 +43,15 @@ test("execution-only recovery skips content regeneration only when saved hashes 
     await writeFile(join(original.directory,"attempt-0","bundle.json"),JSON.stringify({...bundle,summary:"changed",files:[{...bundle.files[0],content:"tampered"}]}));
     await expect(runArtifactWorkflow({request:"Create a report",resumeRunId:original.runId,executeOnly:true},deps)).rejects.toThrow("unchanged bundle");
   }finally{await rm(root,{recursive:true,force:true});}
+});
+
+test("video storyboards are validated against the renderer schema before review so overload is repaired, not rendered", () => {
+  const scenes=[{id:"opening",title:"Why an inverse?",visual:"title",durationSeconds:4},{id:"example",title:"Undo A",visual:"matrix",durationSeconds:6,matrix:[[2,1],[1,1]]}];
+  const storyboard=(extra:object)=>({...bundle,files:[...bundle.files,{path:"storyboard.json",content:JSON.stringify({version:1,title:"Lesson",kind:"matrix-inversion",sources:[],scenes,...extra})}]});
+  expect(storyboardCheck(bundle)).toMatchObject({name:"storyboard-schema",passed:false,detail:expect.stringContaining("missing")});
+  expect(storyboardCheck(storyboard({}))).toMatchObject({passed:true,detail:expect.stringContaining("2 scenes")});
+  const overloaded=storyboardCheck(storyboard({scenes:[{...scenes[0],title:"A title that is far too long for a phone-sized player to show at readable size"},scenes[1]]}));
+  expect(overloaded.passed).toBe(false);expect(overloaded.detail).toContain("scenes.0.title");
 });
 
 test("only concrete artifact requests use the specialist workflow", () => {
