@@ -12,6 +12,42 @@ import { observeHand, pageSettled } from "./observe";
 type NativeElement = { element_index: number; element_token?: string; role: string; label?: string; value?: string; enabled?: boolean; actions?: string[]; parent_index?: number };
 const identity = (w: { pid: number; containerId: number; ownerNonce?: string }) => `${w.pid}:${w.containerId}:${w.ownerNonce ?? ""}`;
 
+/** Put usable controls before repeated row contents can exhaust the model's
+ * observation budget. This changes presentation order, never source refs or values. */
+export function existingBrowserElements(refs: ExistingBrowserSnapshot["refs"]): Element[] {
+  const named = new Map<string, number>();
+  const controls = refs.filter((ref) => ref.states?.disabled !== true).map((ref, index) => {
+    const role = ref.role.toLowerCase(), name = ref.name.replace(/\s+/g, " ").trim().toLowerCase();
+    const label = `${role}\0${name}`;
+    if (name) named.set(label, (named.get(label) ?? 0) + 1);
+    const protectedField = /password/i.test(ref.role) || ref.states?.protected === true;
+    const element: Element = { key: ref.ref, role: ref.role, name: ref.name, value: protectedField ? undefined : ref.value,
+      editable: !protectedField && Boolean(ref.actions?.includes("type")), address: { browser_ref: ref.ref } };
+    return { ref, index, role, name, label, element };
+  });
+  const ordered = controls.map((control) => {
+    const { ref, role, name, label, element, index } = control;
+    const clickable = ref.actions?.includes("click") === true;
+    const widget = clickable && /^(button|menuitem(?:checkbox|radio)?|tab|option|checkbox|radio|switch|slider|spinbutton|combobox|listbox|treeitem|summary)$/.test(role)
+      || ref.actions?.includes("upload") === true;
+    const unique = Boolean(name) && named.get(label) === 1;
+    const focused = ref.states?.focused === true && (element.editable || clickable);
+    const visible = ref.visibility === "in_viewport" ? 0 : ref.visibility === "near_viewport" ? 1
+      : ref.visibility === "offscreen" ? 3 : ["css_hidden", "page_occluded"].includes(ref.visibility ?? "") ? 4 : 2;
+    const kind = element.editable ? 0 : widget && unique ? 1 : clickable && role === "link" && unique ? 2
+      : widget ? 3 : clickable && role === "link" ? 4 : clickable ? 5 : 6;
+    return { element, priority: [focused ? 0 : 1, visible, kind, name ? 0 : 1, index] };
+  });
+  ordered.sort((a, b) => {
+    for (let i = 0; i < a.priority.length; i++) {
+      const difference = a.priority[i]! - b.priority[i]!;
+      if (difference) return difference;
+    }
+    return 0;
+  });
+  return ordered.map(({ element }) => element);
+}
+
 export function semanticComputer(hand: Hand, beforeInput: () => void = () => {}) {
   const session = `puk-semantic-${hand.id}-${crypto.randomUUID()}`;
   const front = async () => {
@@ -44,11 +80,7 @@ export function semanticComputer(hand: Hand, beforeInput: () => void = () => {})
         const current = await front();
         if (identity(current) !== identity(window) || identity(observed.window) !== identity(window) || current.title !== observed.window.title
           || current.rect.slice(2).join("x") !== observed.window.rect.slice(2).join("x")) throw new Error("The existing Chrome window changed while observing it. Look again.");
-        const elements: Element[] = observed.refs.filter((ref) => ref.states?.disabled !== true).map((ref) => {
-          const protectedField = /password/i.test(ref.role) || ref.states?.protected === true;
-          return { key: ref.ref, role: ref.role, name: ref.name, value: protectedField ? undefined : ref.value,
-            editable: !protectedField && Boolean(ref.actions?.includes("type")), address: { browser_ref: ref.ref } };
-        });
+        const elements = existingBrowserElements(observed.refs);
         return { kind: "browser", identity: `${identity(current)}:${observed.url}`, title: current.title, url: observed.url, elements,
           texts: ["Connected to the user's existing Chrome. Only the active tab shown in the preview receives input.",
             ...observed.tabs.slice(0, 8).map((tab) => `${tab.active === true ? "Active" : "Inactive"} tab: ${tab.title} ${tab.url}`),

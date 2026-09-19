@@ -101,3 +101,23 @@ test("diffs count duplicate labels and do not call unchanged state a success", a
   await computer.look({ what: "window" });
   expect(JSON.stringify((await computer.act({ action: "click", ref: "p1:1" })).content)).toContain("does not prove the action worked");
 });
+
+test("a natural-language control query retains matching alternatives and exact body readback", async () => {
+  const state = page();
+  const body = `${"Original body. ".repeat(15)}Corrected final sentence.`;
+  state.elements.push({ key: "body", role: "textbox", name: "Message Body", editable: true, value: body, address: {} });
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => state, act: async () => {} });
+  const result = await computer.browser({ action: "snapshot", query: "recipient subject body send" });
+  expect(JSON.stringify(result.content)).toContain(body);
+  expect(JSON.stringify(result.content)).toContain("Message Body");
+  expect(JSON.stringify(result.content)).not.toContain('button \\"Save');
+  await expect(computer.act({ action: "click", ref: "p1:1" })).rejects.toThrow("not shown");
+});
+
+test("long editable values expose their truncation instead of implying a complete readback", async () => {
+  const state = page(); state.elements[0]!.value = "a".repeat(1000) + "unseen tail";
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => state, act: async () => {} });
+  const result = await computer.browser({ action: "snapshot", query: "Search" });
+  expect(JSON.stringify(result.content)).toContain("value may be truncated");
+  expect(JSON.stringify(result.content)).not.toContain("unseen tail");
+});

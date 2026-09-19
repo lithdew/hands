@@ -48,6 +48,17 @@ test("gate, approval and actual execution get distinct monotonic spans", async (
   expect(records().filter((r) => r.kind === "span_end").map((r) => r.durationMs)).toEqual([350, 20_000, 60]);
 });
 
+test("browser attachment and bounded semantic recovery keep only diagnostic categories", async () => {
+  const { trace, records, lines } = memoryTrace();
+  trace.event("tool_proposed", { tool: "computer_browser", action: "attach", args: { mode: "existing", title: "PRIVATE_TITLE" } } as any);
+  trace.event("recovery", { tool: "computer_look", action: "screen", failureClass: "semantic-observation", attempt: 2, outcome: "blocked", error: "PRIVATE_ERROR" } as any);
+  trace.event("recovery", { tool: "computer_act", action: "key", failureClass: "semantic-unobserved", attempt: 2, outcome: "blocked" });
+  trace.finish("failed"); await trace.flush();
+  expect(records().find((record) => record.kind === "tool_proposed")).toMatchObject({ action: "attach" });
+  expect(records().filter((record) => record.kind === "recovery").map((record) => record.failureClass)).toEqual(["semantic-observation", "semantic-unobserved"]);
+  expect(lines.join("")).not.toContain("PRIVATE_");
+});
+
 test("finish closes pending spans once and discards late callbacks and events", async () => {
   let clock = 1;
   const { trace, records } = memoryTrace({ now: () => clock });
@@ -60,7 +71,8 @@ test("finish closes pending spans once and discards late callbacks and events", 
   expect(summary.phases.model).toEqual({ count: 1, totalMs: 100, failed: 1, interrupted: 1 });
   expect(records().filter((r) => r.kind === "run_end")).toHaveLength(1);
   expect(records().at(-1).outcome).toBe("deadline");
-  expect(JSON.stringify(records())).not.toContain("999");
+  expect(records().some((record) => record.outputTokens === 999)).toBe(false);
+  expect(records().some((record) => record.kind === "retry")).toBe(false);
 });
 
 test("event and byte limits reserve a terminal summary and bounded aggregates", async () => {

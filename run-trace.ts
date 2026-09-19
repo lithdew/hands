@@ -16,12 +16,12 @@ type PhaseSummary = { count: number; totalMs: number; failed: number; interrupte
 
 const allowedStrings: Record<string, readonly string[]> = {
   tool: ["apps", "jev", "open_app", "bash", "computer", "computer_look", "computer_act", "computer_browser"],
-  action: ["windows", "window", "screen", "tabs", "snapshot", "navigate", "click", "type", "key", "scroll", "set_value", "screenshot", "batch", "draw", "move"],
+  action: ["windows", "window", "screen", "attach", "tabs", "snapshot", "navigate", "click", "type", "key", "scroll", "set_value", "screenshot", "batch", "draw", "move"],
   provider: ["openai", "gemini", "jev"],
   model: ["gpt-5.6-luna", "gemini-3.8-flash", "gpt-6-astra", "jev", "Jev"],
   decision: ["allow", "approval", "blocked", "approved", "declined"],
   outcome: ["ok", "failed", "cancelled", "deadline", "blocked", "interrupted"],
-  failureClass: ["nonzero-exit", "timeout", "cancelled", "shell-parser-or-quoting", "command-unavailable", "python-alias-unavailable", "missing-path", "permission-denied", "tool-error"],
+  failureClass: ["nonzero-exit", "timeout", "cancelled", "shell-parser-or-quoting", "command-unavailable", "python-alias-unavailable", "missing-path", "permission-denied", "tool-error", "semantic-observation", "semantic-unobserved"],
   stopReason: ["stop", "length", "toolUse", "error", "aborted"],
   effort: ["low"],
 };

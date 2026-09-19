@@ -7,7 +7,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { planAppOpen } from "./evals";
 import { tmpdir } from "node:os";
-import { createSemanticComputer, type PixelCapture } from "./semantic-computer";
+import { createSemanticComputer, type PixelCapture, type Snapshot } from "./semantic-computer";
 
 const context: GateContext = {
   task: "Read the documentation",
@@ -385,6 +385,172 @@ async function until(check: () => boolean) {
   for (let i = 0; !check() && i < 200; i++) await Bun.sleep(5);
   expect(check()).toBe(true);
 }
+
+describe("bounded semantic observation recovery", () => {
+  const mismatch = 'The visible Chrome tab changed while observing it. Take a fresh snapshot. Browser snapshot metadata: {"urls_match":false}';
+  const snapshot = { name: "computer_browser", arguments: { action: "snapshot" } };
+  const nativeFailure = "Cua returned no structured window state.";
+  const observed = (): Snapshot => ({ kind: "browser", identity: "fixture", title: "Fixture browser", binding: {}, texts: [],
+    elements: [{ key: "control", role: "button", name: "Open", address: {} }] });
+  type Binding = { pid: number; windowId: number; nonce: string };
+  async function fixture(calls: Parameters<typeof scriptedModel>[0], options: {
+    existing?: boolean; observe?: (attempt: number) => Snapshot;
+    beforeModel?: (attempt: number, binding: Binding) => void; streamFn?: StreamFn;
+  } = {}) {
+    const stats = { observations: 0, inputs: 0, attachments: 0, models: 0, shell: 0, pixels: [] as string[] };
+    const binding: Binding = { pid: 101, windowId: 202, nonce: "0123456789abcdef" };
+    const script = options.streamFn ?? scriptedModel(calls);
+    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute, gate: async () => allow,
+      desktop: { ...fakeDesktop,
+        state: async () => ({ width: 800, height: 600,
+          windows: [{ app: "chrome", title: "Fixture browser", focused: true, pid: binding.pid, containerId: binding.windowId, ownerNonce: binding.nonce }],
+          browser: options.existing === false ? { mode: "private" } : { mode: "existing", pid: binding.pid, window_id: binding.windowId, ownerNonce: binding.nonce },
+        }),
+        cua: fakeCua((name) => { stats.pixels.push(name); }),
+        bash: async () => { stats.shell++; return { exitCode: 1, timedOut: false, cancelled: false, stdout: "", stderr: nativeFailure }; },
+        semantic: (_hand, guard) => createSemanticComputer({ windows: async () => [],
+          observe: async () => { const attempt = ++stats.observations; if (options.observe) return options.observe(attempt); throw new Error(mismatch); },
+          attach: async () => { stats.attachments++; }, act: async () => { stats.inputs++; },
+        }, guard),
+      },
+      streamFn: (model, context, streamOptions) => { stats.models++; options.beforeModel?.(stats.models, binding); return script(model, context, streamOptions); },
+    });
+    return { runtime, stats, binding };
+  }
+
+  test("existing Chrome stops after two identical observation failures across tool aliases", async () => {
+    for (const alias of [
+      { name: "computer_browser", arguments: { action: "snapshot" } },
+      { name: "computer_browser", arguments: { action: "tabs" } },
+      { name: "computer_browser", arguments: { action: "attach", mode: "existing" } },
+      { name: "computer_look", arguments: { what: "screen", query: "different projection" } },
+    ]) {
+      const { runtime, stats } = await fixture([snapshot, alias, { name: "computer_act", arguments: { action: "key", key: "enter" } }]);
+      try {
+        await runtime.prompt("Inspect the connected browser");
+        expect(stats.observations).toBe(2); expect(stats.models).toBe(2); expect(stats.inputs).toBe(0);
+        expect(runtime.status().error).toContain("two identical failures");
+        expect(runtime.status().error).toContain("pixel input cannot operate");
+        expect(runtime.status().text).not.toContain("Done.");
+      } finally { await runtime.close(); }
+    }
+  });
+
+  test("a mixed tool batch stops later inputs and does not trigger another model call", async () => {
+    const { runtime, stats } = await fixture([], { streamFn: (model) => {
+      const stream = createAssistantMessageEventStream();
+      const message = { ...failedMessage(model), stopReason: "toolUse" as const, errorMessage: undefined,
+        content: [snapshot, { name: "computer_look", arguments: { what: "window" } }, { name: "bash", arguments: { command: "fixture-effect" } }]
+          .map((call, index) => ({ type: "toolCall" as const, id: `batch-${index}`, ...call })),
+      };
+      stream.push({ type: "start", partial: message }); stream.push({ type: "done", reason: "toolUse", message }); return stream;
+    } });
+    try {
+      await runtime.prompt("Inspect the connected browser");
+      expect(stats.models).toBe(1); expect(stats.observations).toBe(2); expect(stats.shell).toBe(0);
+      expect(runtime.agent.state.messages.filter((message) => message.role === "toolResult")).toHaveLength(3);
+      expect(runtime.status().error).toContain("two identical failures");
+    } finally { await runtime.close(); }
+  });
+
+  test("missing-observation preflight errors share a budget; inventory and pixels do not create references", async () => {
+    const { runtime, stats } = await fixture([
+      snapshot, { name: "computer_browser", arguments: { action: "navigate", url: "https://example.org" } },
+      { name: "computer_look", arguments: { what: "windows" } }, { name: "computer", arguments: { action: "screenshot" } },
+      { name: "computer_act", arguments: { action: "key", key: "enter" } }, snapshot,
+    ]);
+    try {
+      await runtime.prompt("Inspect the connected browser");
+      expect(stats.observations).toBe(1); expect(stats.models).toBe(5); expect(stats.inputs).toBe(0);
+      expect(stats.pixels).toEqual([]);
+      expect(runtime.status().error).toContain("No current semantic observation");
+    } finally { await runtime.close(); }
+  });
+
+  test("native structural failures permit a verified screenshot and pixel fallback", async () => {
+    const { runtime, stats } = await fixture([
+      { name: "computer_look", arguments: { what: "window" } }, { name: "computer_look", arguments: { what: "screen" } },
+      { name: "computer", arguments: { action: "screenshot" } }, { name: "computer", arguments: { action: "click", x: 50, y: 80 } },
+    ], { existing: false, observe: () => { throw new Error(nativeFailure); } });
+    try {
+      await runtime.prompt("Use the visible control in the native app");
+      expect(stats.observations).toBe(2); expect(stats.pixels).toEqual(["click"]);
+      expect(runtime.status().error).toBeNull(); expect(runtime.status().text).toContain("Done.");
+    } finally { await runtime.close(); }
+  });
+
+  test("native alias retries are blocked locally after the pixel fallback instruction", async () => {
+    const { runtime, stats } = await fixture([
+      { name: "computer_look", arguments: { what: "window" } }, { name: "computer_look", arguments: { what: "screen" } },
+      { name: "computer", arguments: { action: "screenshot" } }, snapshot,
+    ], { existing: false, observe: () => { throw new Error(nativeFailure); } });
+    try {
+      await runtime.prompt("Inspect the native app");
+      expect(stats.observations).toBe(2); expect(stats.models).toBe(4);
+      expect(runtime.status().error).toContain("two identical failures");
+    } finally { await runtime.close(); }
+  });
+
+  test("a valid semantic observation restores the retry budget", async () => {
+    const { runtime, stats } = await fixture([snapshot, snapshot, snapshot, snapshot], {
+      observe: (attempt) => { if (attempt % 2) throw new Error(mismatch); return observed(); },
+    });
+    try {
+      await runtime.prompt("Inspect the connected browser");
+      expect(stats.observations).toBe(4); expect(runtime.status().error).toBeNull();
+    } finally { await runtime.close(); }
+  });
+
+  test("a verified owner change restores the budget without treating a requested attachment as proof", async () => {
+    const { runtime, stats } = await fixture([snapshot, snapshot, snapshot], {
+      beforeModel: (attempt, binding) => { if (attempt === 2) binding.nonce = "fedcba9876543210"; },
+      observe: (attempt) => { if (attempt < 3) throw new Error(mismatch); return observed(); },
+    });
+    try {
+      await runtime.prompt("Inspect the connected browser");
+      expect(stats.observations).toBe(3); expect(runtime.status().error).toBeNull();
+    } finally { await runtime.close(); }
+  });
+
+  test("a new prompt cannot restart identical retries; an actual target change can", async () => {
+    const { runtime, stats, binding } = await fixture([snapshot, snapshot, snapshot, snapshot], {
+      observe: (attempt) => { if (attempt < 3) throw new Error(mismatch); return observed(); },
+    });
+    try {
+      await runtime.prompt("Inspect the connected browser");
+      expect(stats.observations).toBe(2);
+      await runtime.prompt("Try the same inspection again");
+      expect(stats.observations).toBe(2); expect(runtime.status().error).toContain("two identical failures");
+      binding.windowId++;
+      await runtime.prompt("Inspect the newly selected browser");
+      expect(stats.observations).toBe(3); expect(runtime.status().error).toBeNull();
+    } finally { await runtime.close(); }
+  });
+
+  test("post-action observation failure preserves completed input without replaying it", async () => {
+    const { runtime, stats } = await fixture([
+      snapshot, { name: "computer_browser", arguments: { action: "click", ref: "p1:0" } }, snapshot,
+      { name: "computer_browser", arguments: { action: "click", ref: "p1:0" } },
+    ], { observe: (attempt) => { if (attempt > 1) throw new Error(mismatch); return observed(); } });
+    try {
+      await runtime.prompt("Open the visible browser control");
+      expect(stats.inputs).toBe(1); expect(stats.observations).toBe(3); expect(stats.models).toBe(3);
+      expect(runtime.status().error).toContain("Earlier input may already have completed");
+    } finally { await runtime.close(); }
+  });
+
+  test("ordinary transient observations and shell debugging are not counted as structural stalls", async () => {
+    const { runtime, stats } = await fixture([
+      snapshot, snapshot, snapshot,
+      { name: "bash", arguments: { command: "fixture-debug-one" } }, { name: "bash", arguments: { command: "fixture-debug-two" } },
+      { name: "bash", arguments: { command: "fixture-debug-three" } },
+    ], { observe: (attempt) => { if (attempt < 3) throw new Error("Request timed out"); return observed(); } });
+    try {
+      await runtime.prompt("Inspect the browser and debug the test command");
+      expect(stats.observations).toBe(3); expect(stats.shell).toBe(3); expect(runtime.status().error).toBeNull();
+    } finally { await runtime.close(); }
+  });
+});
 
 describe("Pi agent runtime", () => {
   test("a rejected Cua connection is evicted so the next screenshot can reconnect", async () => {

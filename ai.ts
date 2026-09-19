@@ -13,6 +13,7 @@ import { createNarrator, type NarratorOptions } from "./narrate";
 import { pixelInput } from "./coordinates";
 import { browserStorageReason, shellDescription } from "./shell-policy";
 import { createRunTrace, toolTraceOutcome, type TraceMetadata } from "./run-trace";
+import { createSemanticRecovery, semanticFailure, semanticRecoveryTarget, usesSemanticObservation } from "./semantic-recovery";
 export { jevApiKey } from "./jev/jev";
 export { redact } from "./desktop";
 
@@ -226,6 +227,8 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
   const semantic = desktop.semantic?.(opts.hand, () => {
     assertLatestInput();
   });
+  const semanticRecovery = createSemanticRecovery();
+  let recoveryStopped = false;
   let routedRevision = -1, taskGoal = "", previousResult = "", fullUtterance: string | undefined;
   let changed = Promise.withResolvers<void>();
   let settled = Promise.withResolvers<void>();
@@ -239,6 +242,28 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       : text;
   };
   const log = (text: string) => { status.events.push({ time: Date.now(), text: redact(text).slice(0, 1000) }); status.events = status.events.slice(-30); narrate(); };
+  async function syncSemanticTarget() {
+    // Recovery must never replace the original tool error with a discovery error.
+    try { semanticRecovery.sync(semanticRecoveryTarget(await desktop.state(opts.hand))); } catch {}
+  }
+  function stopSemanticRecovery(reason: string) {
+    recoveryStopped = true; status.error = reason;
+    agent.clearAllQueues();
+    trace?.event("stop", { outcome: "failed", failureClass: "semantic-observation" });
+    log(reason);
+  }
+  async function recordSemanticFailure(name: string, args: unknown, message: string, signal?: AbortSignal) {
+    if (!semantic || signal?.aborted || taskAbort?.signal.aborted) return;
+    const failure = semanticFailure(name, args, message);
+    if (!failure) return;
+    await syncSemanticTarget();
+    if (signal?.aborted || taskAbort?.signal.aborted) return;
+    const recovery = semanticRecovery.failed(failure);
+    trace?.event("recovery", { tool: name, action: (args as { action?: string; what?: string }).action ?? (args as { what?: string }).what,
+      attempt: recovery.attempt, failureClass: failure.failureClass, outcome: recovery.blocked ? "blocked" : "failed" });
+    if (recovery.blocked && semanticRecovery.existing) stopSemanticRecovery(recovery.reason);
+    return recovery;
+  }
   const result = (value: unknown) => ({ content: [{ type: "text" as const, text: redact(JSON.stringify(value)) }], details: {} });
   const tool = <T extends z.ZodType>(name: string, description: string, parameters: T, execute: (args: z.infer<T>, signal?: AbortSignal) => Promise<ReturnType<typeof result> | { content: ({ type: "text"; text: string } | ImageContent)[]; details: {} }>): AgentTool => {
     // Pi consumes JSON Schema; Zod remains the source of types and validation.
@@ -458,8 +483,8 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     }),
     ...(semantic ? [
       tool("computer_look", "Observe this hand: windows lists its windows; window reads compact labelled controls and visible text; screen also returns an image. Optional query narrows the result. Read window before acting. References expire at the next observation. Use screenshot=true when text is insufficient. An attached bound image is already valid for computer pixel input.", LookSchema, (args, signal) => semanticResult(semantic.look(args, signal))),
-      tool("computer_act", "Act on a current ref from computer_look: click, type (replace by default), set_value, key, scroll. All actions stay in this hand and return fresh state plus current refs, so verify that result before requesting another look. Use computer screenshot/draw/batch for pixels or canvases; open_app to launch or focus an app.", ActSchema, (args, signal) => semanticResult(semantic.act(args, signal))),
-      tool("computer_browser", "Read and operate this hand's bound browser. For the user's actual/current/signed-in Chrome or Gmail, start with attach mode=existing. It selects a single eligible existing browser; if ambiguous use computer_look windows to choose its observed window_id and pid. Attach binds both actions and live preview and returns fresh state. mode=private explicitly switches back to an isolated hand browser. tabs/snapshot reads compact UI text and refs; navigate uses an http(s) URL; click/type/key/scroll return fresh state. Use current refs and verify results. Never replace a requested existing account with a private browser or shell profile search.", BrowserSchema, (args, signal) => semanticResult(semantic.browser(args, signal))),
+      tool("computer_act", "Act on a current ref from computer_look: click, type (replace by default), set_value, key, scroll. type and set_value focus and fill their editable target directly; do not click a field before typing into it. All actions stay in this hand and return fresh state plus current refs. Verify that returned state and reuse its refs; do not request another look or screenshot when it already contains the needed evidence. Use computer screenshot/draw/batch for pixels or canvases; open_app to launch or focus an app.", ActSchema, (args, signal) => semanticResult(semantic.act(args, signal))),
+      tool("computer_browser", "Read and operate this hand's bound browser. Reuse an already connected browser: begin with snapshot, then use its current refs. For the user's actual/current/signed-in Chrome or Gmail, use attach mode=existing only when it is not already attached or you need to select a different observed target. It selects a single eligible existing browser; if ambiguous use computer_look windows to choose its observed window_id and pid. Attach binds both actions and live preview and returns fresh state. mode=private explicitly switches back to an isolated hand browser. tabs/snapshot reads compact UI text and refs; navigate uses an http(s) URL; click/type/key/scroll return fresh state. type focuses and fills its editable ref directly; do not click the field first. Verify returned state and reuse its fresh refs without an extra look or screenshot when the evidence is sufficient. Never replace a requested existing account with a private browser or shell profile search.", BrowserSchema, (args, signal) => semanticResult(semantic.browser(args, signal))),
     ] : []),
   ];
   async function actionContext(tool: string, args: unknown, task = status.task): Promise<GateContext> {
@@ -468,7 +493,15 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     return { task: live ? `${task}\nLatest spoken context (may be unfinished): ${live.transcript()}` : task, observation: redact(JSON.stringify(await desktop.state(opts.hand))), action: { tool, args, ...resolved, ...(semantic ? { observedTarget: semantic.describe(tool, args) } : {}), ...(app ? { installedApp: app } : {}), ...(tool === "bash" ? { workingDirectory: (args as { cwd?: string }).cwd ?? opts.cwd ?? process.cwd() } : {}) }, recentActions: status.events.slice(-6).filter((e) => e.text.startsWith("Running")).map((e) => e.text) };
   }
   async function evaluateAction(tool: string, args: unknown, options: GateOptions) {
-    const context = await actionContext(tool, args);
+    let context: GateContext;
+    try { context = await actionContext(tool, args); }
+    catch (error) {
+      // Pi's afterToolCall hook does not run for preflight failures, including
+      // semantic.describe rejecting an action without any current references.
+      const recovery = await recordSemanticFailure(tool, args, error instanceof Error ? error.message : "", options.signal);
+      if (recovery?.blocked) throw new Error(recovery.reason);
+      throw error;
+    }
     const start = performance.now();
     const end = trace?.span("gate", { tool });
     let verdict: GateResult;
@@ -542,9 +575,32 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       }).reverse();
     },
     toolExecution: "sequential", maxRetryDelayMs: 10_000,
+    shouldStopAfterTurn: () => recoveryStopped,
+    afterToolCall: async ({ toolCall, args, result, isError }, signal) => {
+      if (!semantic || signal?.aborted || taskAbort?.signal.aborted) return;
+      if (isError) {
+        const message = result.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
+        const recovery = await recordSemanticFailure(toolCall.name, args, message, signal);
+        if (recovery?.blocked) return { content: [{ type: "text", text: recovery.reason }], terminate: recoveryStopped };
+      } else if (usesSemanticObservation(toolCall.name, args) && ["native", "browser"].includes(result.details?.kind)
+        && Number.isSafeInteger(result.details?.refs) && result.details.refs >= 0) {
+        semanticRecovery.observed();
+      }
+    },
     beforeToolCall: async ({ toolCall, args }, signal) => {
       debugLog("agent.tool.proposed", { hand: opts.hand.id, tool: toolCall.name, args });
       trace?.event("tool_proposed", { tool: toolCall.name, action: (args as { action?: string; what?: string }).action ?? (args as { what?: string }).what, revision });
+      if (recoveryStopped) return { block: true, terminate: true, reason: status.error ?? semanticRecovery.reason() };
+      if (semanticRecovery.pending && usesSemanticObservation(toolCall.name, args)) {
+        await syncSemanticTarget();
+        if (semanticRecovery.blocked && !semanticRecovery.canChangeTarget(toolCall.name, args)) {
+          const reason = semanticRecovery.reason();
+          // Native/private tools already received a pixel fallback instruction
+          // on the second failure. Do not pay for another identical attempt.
+          stopSemanticRecovery(reason);
+          return { block: true, terminate: true, reason };
+        }
+      }
       if (denied || ++calls > 120) return { block: true, terminate: true, reason: denied ? "The user declined this action. Stop and wait for another request." : "The 120-tool limit was reached. Summarize progress and wait for another request." };
       if (["apps", "jev", "computer_look"].includes(toolCall.name) || (toolCall.name === "computer" && (args as { action: string }).action === "screenshot") || (toolCall.name === "computer_browser" && ["tabs", "snapshot"].includes((args as { action: string }).action))) return;
       if (modelRevision !== revision) return { block: true, reason: "The spoken instruction changed. Read the queued update before acting." };
@@ -613,7 +669,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
   async function recoverUnavailableModel() {
     // Retry only an empty, failed model response. Completed tools stay in the
     // transcript; no action, partial answer, denial or cancelled task is replayed.
-    while (selection === "auto" && !taskAbort?.signal.aborted && !denied) {
+    while (selection === "auto" && !taskAbort?.signal.aborted && !denied && !recoveryStopped) {
       const last = agent.state.messages.at(-1);
       if (last?.role !== "assistant" || !canRetryProvider(last as AssistantMessage)) return;
       const failed = status.model;
@@ -676,7 +732,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       if (utterance !== undefined) utterance = TaskTextSchema.parse(utterance);
       const task = instruction(text, utterance);
       const previous = redact(JSON.stringify({ task: status.task, result: status.text.slice(-2000), error: status.error }));
-      status.running = true; status.task = task; status.text = ""; status.error = null; status.currentTool = null; calls = actions = 0; denied = false; lastScreen = undefined; semantic?.reset();
+      status.running = true; status.task = task; status.text = ""; status.error = null; status.currentTool = null; calls = actions = 0; denied = false; recoveryStopped = false; lastScreen = undefined; semantic?.reset();
       trace = createRunTrace({ hand: opts.hand.id, enabled: !opts.streamFn && process.env.PUK_RUN_TRACE !== "0" });
       narrator?.reset(); narrate();
       live = speaking; revision = modelRevision = 0; changed = Promise.withResolvers<void>();

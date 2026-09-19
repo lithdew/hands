@@ -5,7 +5,7 @@
 import { z } from "zod";
 import type { ImageContent } from "@earendil-works/pi-ai";
 
-const projection = { query: z.string().max(200).optional(), screenshot: z.boolean().optional() };
+const projection = { query: z.string().max(200).describe("Narrow controls/text by a phrase or space-separated alternatives (for example: recipient subject body send).").optional(), screenshot: z.boolean().optional() };
 export const LookSchema = z.object({ what: z.enum(["windows", "window", "screen"]), ...projection });
 export const ActSchema = z.object({
   action: z.enum(["click", "type", "set_value", "key", "scroll"]),
@@ -28,7 +28,15 @@ export type SemanticBackend = {
 };
 
 const clean = (s: string, n = 140) => s.replace(/\s+/g, " ").trim().slice(0, n);
-const label = (e: Element) => `${e.role} ${JSON.stringify(clean(e.name))}${e.within ? ` in ${JSON.stringify(clean(e.within))}` : ""}${e.value ? ` =${JSON.stringify(clean(e.value))}` : ""}`;
+const label = (e: Element) => {
+  const limit = e.editable ? 1000 : 140;
+  return `${e.role} ${JSON.stringify(clean(e.name))}${e.within ? ` in ${JSON.stringify(clean(e.within))}` : ""}${e.value ? ` =${JSON.stringify(clean(e.value, limit))}${e.value.length >= limit ? " [value may be truncated; do not assume the unseen remainder]" : ""}` : ""}`;
+};
+function matchesQuery(text: string, query?: string) {
+  if (!query?.trim()) return true;
+  const haystack = text.toLowerCase(), phrase = query.trim().toLowerCase();
+  return haystack.includes(phrase) || phrase.split(/[\s,|]+/u).filter(Boolean).some((part) => haystack.includes(part));
+}
 function boundedLines(lines: string[], maxBytes: number): string[] {
   const kept: string[] = [];
   let used = 0;
@@ -60,8 +68,8 @@ export function createSemanticComputer(backend: SemanticBackend, beforeInput: ()
     const snapshot = await backend.observe(options);
     options.signal?.throwIfAborted();
     current = snapshot; generation++;
-    const query = options.query?.toLowerCase();
-    const selected = snapshot.elements.filter((e) => !query || label(e).toLowerCase().includes(query));
+    const query = options.query;
+    const selected = snapshot.elements.filter((e) => matchesQuery(label(e), query));
     const lines: string[] = [], maxBytes = 13_000;
     let used = 0;
     for (const [index, element] of selected.entries()) {
@@ -70,7 +78,7 @@ export function createSemanticComputer(backend: SemanticBackend, beforeInput: ()
       if (used > maxBytes) { lines.push("More controls omitted; use query to narrow the observation."); break; }
       references.set(ref, element); lines.push(line);
     }
-    const text = boundedLines(snapshot.texts.map((t) => clean(t, 500)).filter((t) => !query || t.toLowerCase().includes(query)).slice(0, 40), 6000);
+    const text = boundedLines(snapshot.texts.map((t) => clean(t, 500)).filter((t) => matchesQuery(t, query)).slice(0, 40), 6000);
     let changes = "";
     if (afterAction && previous?.identity === snapshot.identity) {
       const diff = diffLines([...previous.elements.map(label), ...previous.texts], [...snapshot.elements.map(label), ...snapshot.texts]);
