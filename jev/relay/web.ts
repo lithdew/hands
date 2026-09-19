@@ -4,18 +4,25 @@
 // matter is not something to watch, and a hidden Chrome per look would be the slow part. A hand is for
 // what has to be operated. What comes back is plain data for Jev to sift (sift.ts) and an LLM to read.
 //
-//   search(query)        -> results {title, url, snippet}     Brave's HTML (DuckDuckGo answers 202 to a script)
+//   search(query)        -> results {title, url, snippet}     Brave's HTML, and DuckDuckGo's when Brave refuses or finds nothing
+//   searchLog            -> every search this process ran, how many results, and from where
 //   arxiv(query, n)      -> the same, from arXiv's own API, with the whole abstract as `text` (newest first, or by relevance)
 //   arxivByIds(ids)      -> arXiv's own record of papers whose ids turned up somewhere else
-//   page(url)           -> {title, blocks, links, pdf}       readable text in reading order, cached on disk
+//   page(url)            -> {title, blocks, links, pdf}       readable text in reading order, cached on disk
+//   cached(name, make)   -> the disk cache itself, for a kit's own requests (an API's answers)
 //
 // Everything a page says is data. Nothing here follows an instruction found in one.
 
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-/** `text`: the source's whole text, when the search already brought it (an abstract). Such a result needs no fetch. */
-export type Result = { title: string; url: string; snippet: string; text?: string; date?: string };
+/**
+ * A result may bring what it says, and then it is never fetched. Two shapes, because they are read differently:
+ * `text`: ONE whole text (an abstract). Jev judges it once, as a search result, and it is kept or dropped as a whole.
+ * `blocks`: a document in passages (a local file, an API's answer). It skips the sift of results and the budget of
+ * pages to open; Jev sifts its passages one by one, like a fetched page's. With both, `blocks` decides.
+ */
+export type Result = { title: string; url: string; snippet: string; text?: string; blocks?: string[]; date?: string };
 export type Page = { url: string; title: string; blocks: string[]; links: { text: string; url: string }[]; pdf: boolean; status: number };
 
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
@@ -25,7 +32,8 @@ const key = (s: string) => Bun.hash(s).toString(16);
 
 // A failure is not an answer. An empty listing or a page that did not come (a 429, a timeout) is not kept:
 // one bad minute would otherwise empty that query for every later run. Callers asking for the same thing
-// at the same moment share one fetch.
+// at the same moment share one fetch. `worthKeeping` is the rule for this file's own values; a kit that
+// caches its own requests says with `keep` what a failure looks like for it (null, an empty string).
 const pending = new Map<string, Promise<unknown>>();
 export function worthKeeping(value: unknown): boolean {
   if (Array.isArray(value)) return value.length > 0;
@@ -33,13 +41,14 @@ export function worthKeeping(value: unknown): boolean {
   return typeof status !== "number" || !(status === 0 || status === 429 || status >= 500);
 }
 
-async function cached<T>(name: string, make: () => Promise<T>, fresh = false): Promise<T> {
+/** The disk cache. `keep` says whether a value is an answer (kept, and believed when read back) or a failure (returned, never remembered). */
+export async function cached<T>(name: string, make: () => Promise<T>, fresh = false, keep: (value: T) => boolean = worthKeeping): Promise<T> {
   const file = Bun.file(join(CACHE, `${name}.json`));
-  if (!fresh && await file.exists()) { const kept = await (file.json() as Promise<T>).catch(() => undefined); if (kept !== undefined && worthKeeping(kept)) return kept; }
+  if (!fresh && await file.exists()) { const kept = await (file.json() as Promise<T>).catch(() => undefined); if (kept !== undefined && keep(kept)) return kept; }
   if (pending.has(name)) return pending.get(name) as Promise<T>;
   const work = (async () => {
     const value = await make();
-    if (worthKeeping(value)) { await mkdir(CACHE, { recursive: true }); await Bun.write(file, JSON.stringify(value)); }
+    if (keep(value)) { await mkdir(CACHE, { recursive: true }); await Bun.write(file, JSON.stringify(value)); }
     return value;
   })().finally(() => pending.delete(name));
   pending.set(name, work);
@@ -67,8 +76,8 @@ export function paced(gapMs: number): <T>(work: () => Promise<T>) => Promise<T> 
 }
 // arXiv asks for one request every three seconds over one connection. Measured: twenty-five in four seconds were all
 // answered, and then every request for the next five minutes got 429, the judge's among them. So: few, large, slow.
-const searchTurn = limiter(2), arxivTurn = paced(3_100);
-let searchRefusedUntil = 0, arxivRefusedUntil = 0;
+const searchTurn = limiter(2), duckTurn = limiter(2), arxivTurn = paced(3_100);
+let searchRefusedUntil = 0, duckRefusedUntil = 0, arxivRefusedUntil = 0;
 async function arxivGet(url: string): Promise<Result[]> {
   if (Date.now() < arxivRefusedUntil) return [];
   const res = await arxivTurn(async () => Date.now() < arxivRefusedUntil ? null : get(url, 40_000).catch(() => null));
@@ -80,24 +89,65 @@ async function get(url: string, timeoutMs = 20_000): Promise<Response> {
   return fetch(url, { headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "accept-language": "en" }, redirect: "follow", signal: AbortSignal.timeout(timeoutMs) });
 }
 
+/** Every search this process ran, and where its results came from. "nothing" is no results, or every engine refusing (429, a captcha): the two look the same from here, so neither is cached, and a kit can say honestly what was and was not searched. */
+export type SearchRecord = { query: string; results: number; from: "cache" | "brave" | "duckduckgo" | "nothing" };
+export const searchLog: SearchRecord[] = [];
+
 /** Web search results, in the engine's order. Empty on any failure: a search that fails is a query to reword, not a crash. */
 export async function search(query: string, opts: { fresh?: boolean } = {}): Promise<Result[]> {
-  return cached(`search-${key(query)}`, async () => {
-    // Two at a time. And once the engine refuses (429), asking again at once only lengthens the refusal: leave it alone for a while.
-    const res = await searchTurn(async () => Date.now() < searchRefusedUntil ? null : get(`https://search.brave.com/search?q=${encodeURIComponent(query)}&source=web`).catch(() => null));
-    if (res?.status === 429) searchRefusedUntil = Date.now() + 45_000;
-    if (!res?.ok) return [];
-    const results: Result[] = [];
-    let current: Result | null = null, inTitle = false, inSnippet = false;
-    await new HTMLRewriter()
-      .on("div.snippet[data-type='web'], div.snippet[data-pos]", { element() { current = { title: "", url: "", snippet: "" }; results.push(current); } })
-      .on("div.snippet a[href^='http']", { element(el) { const href = el.getAttribute("href") ?? ""; if (current && !current.url && !/brave\.com/.test(href)) current.url = href; } })
-      .on("div.snippet .title, div.snippet .snippet-title", { element(el) { inTitle = true; el.onEndTag(() => { inTitle = false; }); }, text(t) { if (inTitle && current) current.title += t.text; } })
-      .on("div.snippet .snippet-description, div.snippet .snippet-content", { element(el) { inSnippet = true; el.onEndTag(() => { inSnippet = false; }); }, text(t) { if (inSnippet && current) current.snippet += t.text; } })
-      .transform(res).text();
-    const seen = new Set<string>();
-    return results.map((r) => ({ title: clean(r.title).slice(0, 200), url: r.url, snippet: clean(r.snippet).slice(0, 400) })).filter((r) => r.url && r.title && !seen.has(r.url) && seen.add(r.url)).slice(0, 20);
+  // Brave first; when it refuses (429 and a captcha, once a few runs share an address) or finds nothing, DuckDuckGo's HTML.
+  let from: SearchRecord["from"] = "cache";
+  const results = await cached(`search-${key(query)}`, async () => {
+    const brave = await braveSearch(query);
+    if (brave.length) { from = "brave"; return brave; }
+    const duck = await duckSearch(query);
+    from = duck.length ? "duckduckgo" : "nothing";
+    return duck;
   }, opts.fresh);
+  searchLog.push({ query, results: results.length, from: results.length ? from : "nothing" });
+  return results;
+}
+
+const tidy = (results: Result[]): Result[] => { const seen = new Set<string>(); return results.map((r) => ({ title: clean(r.title).slice(0, 200), url: r.url, snippet: clean(r.snippet).slice(0, 400) })).filter((r) => r.url && r.title && !seen.has(r.url) && seen.add(r.url)).slice(0, 20); };
+
+async function braveSearch(query: string): Promise<Result[]> {
+  // Two at a time. And once the engine refuses (429), asking again at once only lengthens the refusal: leave it alone for a while.
+  const res = await searchTurn(async () => Date.now() < searchRefusedUntil ? null : get(`https://search.brave.com/search?q=${encodeURIComponent(query)}&source=web`).catch(() => null));
+  if (res?.status === 429) searchRefusedUntil = Date.now() + 45_000;
+  if (!res?.ok) return [];
+  const results: Result[] = [];
+  let current: Result | null = null, inTitle = false, inSnippet = false;
+  await new HTMLRewriter()
+    .on("div.snippet[data-type='web'], div.snippet[data-pos]", { element() { current = { title: "", url: "", snippet: "" }; results.push(current); } })
+    .on("div.snippet a[href^='http']", { element(el) { const href = el.getAttribute("href") ?? ""; if (current && !current.url && !/brave\.com/.test(href)) current.url = href; } })
+    .on("div.snippet .title, div.snippet .snippet-title", { element(el) { inTitle = true; el.onEndTag(() => { inTitle = false; }); }, text(t) { if (inTitle && current) current.title += t.text; } })
+    .on("div.snippet .snippet-description, div.snippet .snippet-content", { element(el) { inSnippet = true; el.onEndTag(() => { inSnippet = false; }); }, text(t) { if (inSnippet && current) current.snippet += t.text; } })
+    .transform(res).text();
+  return tidy(results);
+}
+
+const unescapeHtml = (s: string) => s.replace(/&amp;/g, "&").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+
+/** DuckDuckGo's HTML results: a link's real address is the `uddg` parameter of a redirect. Exported for tests. */
+export async function duckResults(html: string): Promise<Result[]> {
+  const results: Result[] = [];
+  let current: Result | null = null, inTitle = false, inSnippet = false;
+  await new HTMLRewriter()
+    .on("a.result__a", { element(el) {
+      const href = el.getAttribute("href") ?? "", real = URL.parse(unescapeHtml(href), "https://duckduckgo.com")?.searchParams.get("uddg") ?? href;
+      current = { title: "", url: /^https?:/.test(real) && !/duckduckgo\.com\/y\.js/.test(real) ? real : "", snippet: "" }; results.push(current);
+      inTitle = true; el.onEndTag(() => { inTitle = false; });
+    }, text(t) { if (inTitle && current) current.title += t.text; } })
+    .on("a.result__snippet", { element(el) { inSnippet = true; el.onEndTag(() => { inSnippet = false; }); }, text(t) { if (inSnippet && current) current.snippet += t.text; } })
+    .transform(new Response(html)).text();
+  return tidy(results.map((r) => ({ ...r, title: unescapeHtml(r.title), snippet: unescapeHtml(r.snippet) })));
+}
+
+/** The engine behind the first: asked the same careful way, two at a time, and left alone for a while once it refuses (a 202 is its refusal to a script). */
+async function duckSearch(query: string): Promise<Result[]> {
+  const res = await duckTurn(async () => Date.now() < duckRefusedUntil ? null : get(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`).catch(() => null));
+  if (res && (res.status === 429 || res.status === 202 || res.status === 403)) duckRefusedUntil = Date.now() + 45_000;
+  return res?.status === 200 ? duckResults(await res.text()) : [];
 }
 
 /** The entries of an arXiv API answer. `text` is the whole abstract: a writer needs all of it to say what the paper did. */

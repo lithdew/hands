@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Ask } from "../jev";
 import type { LlmRequest } from "../openai";
 import { batches, describe as describeFiles, directorPrompt, relay, tidyPlan, verbatim, workspace, type Kit, type Plan, type Step } from "./relay";
-import { arxivEntries, limiter, worthKeeping } from "./web";
+import { arxivEntries, cached, limiter, worthKeeping } from "./web";
 
 const step = (id: string, worker: Step["worker"], needs: string[] = [], accept = ["It is there."]): Step => ({ id, worker, goal: `goal of ${id}`, queries: [], needs, accept });
 const kit: Kit = { name: "test", brief: "One file, out.md." };
@@ -20,6 +20,12 @@ describe("the plan, as code sees it", () => {
     expect(tidy.steps.map((s) => s.id)).toEqual(["find", "write_it_"]);
     expect(tidy.steps[1]!.needs).toEqual(["find"]);
     expect(tidy.steps[1]!.accept).toHaveLength(3);
+  });
+  test("a kit with a build gets a build step when the director planned none, and only then", () => {
+    const builds: Kit = { ...kit, build: async () => ({ ok: true, log: "", outputs: [] }) };
+    expect(tidyPlan({ deliverable: "", steps: [step("find", "research"), step("build", "write", ["find"])] }, builds).steps.map((s) => `${s.id}:${s.worker}`)).toEqual(["find:research", "build:write", "build_:build"]);
+    expect(tidyPlan({ deliverable: "", steps: [step("make", "write"), step("ship", "build", ["make"])] }, builds).steps.map((s) => s.id)).toEqual(["make", "ship"]);
+    expect(tidyPlan({ deliverable: "", steps: [] }, builds).steps).toEqual([]);
   });
   test("two steps never share an id", () => {
     expect(tidyPlan({ deliverable: "", steps: [step("a", "research"), step("a", "research")] }, kit).steps.map((s) => s.id)).toEqual(["a", "a_"]);
@@ -57,6 +63,18 @@ describe("web", () => {
     expect(worthKeeping({ status: 0 })).toBe(false);
     expect(worthKeeping({ status: 404 })).toBe(true);
     expect(worthKeeping({ status: 200 })).toBe(true);
+  });
+  test("the cache keeps an answer and never a failure, and a kit says what a failure is for its own requests", async () => {
+    const name = `test-${Bun.hash(String(performance.now())).toString(16)}`;
+    let made = 0;
+    const ask = (value: unknown, keep?: (v: unknown) => boolean) => cached(name, async () => { made++; return value; }, false, keep);
+    expect(await ask(null, (v) => v !== null)).toBe(null);
+    expect(await ask([], (v) => v !== null)).toEqual([]); // an empty listing is an answer when the kit says so
+    expect(await ask(["never made"], (v) => v !== null)).toEqual([]);
+    expect(made).toBe(2);
+    expect(await ask(["made"])).toEqual(["made"]); // by this file's own rule an empty listing on disk is a failure: asked again
+    expect(made).toBe(3);
+    await rm(join(import.meta.dir, "..", "..", "out", "relay", "cache", `${name}.json`), { force: true });
   });
   test("a limiter lets so many run at once, and all of them finish", async () => {
     const turn = limiter(2);
@@ -134,5 +152,75 @@ describe("the loop, with a fake Jev and a fake LLM", () => {
     expect(asked.map((r) => r.schema.name)).toEqual(["relay_plan", "notes", "research_again", "files", "files"]);
     expect(result.trace.redone).toEqual(["make"]);
     expect(result.failed.map((f) => f.split(":")[0])).toEqual(["find", "make"]);
+  });
+});
+
+describe("a kit's hooks, each in its place", () => {
+  // Jev says yes to everything; the kit's own hooks are what is under test.
+  const yes = (async (_state: unknown, questions: Record<string, unknown>) => Object.fromEntries(Object.keys(questions).map((k) => [k, { type: "noul", noul: 0.9 }]))) as unknown as Ask;
+  const fresh = async () => workspace(await mkdtemp(join(tmpdir(), "relay-test-")));
+
+  test("context, sources that bring their passages, admit, review and an unplanned build are all used, and no web is needed for them", async () => {
+    const calls: LlmRequest[] = [], seen: string[] = [];
+    let reviews = 0;
+    const llm = async (req: LlmRequest) => {
+      calls.push(req);
+      if (req.schema.name === "relay_plan") return { deliverable: "out.md", steps: [step("look", "research", [], ["The notes say something."]), step("write", "write", ["look"], ["The file exists."])] };
+      if (req.schema.name === "notes") return { notes: `read: ${(JSON.parse(req.user) as { material: string }).material}`, missing: [] };
+      return { files: [{ path: "out.md", content: `attempt ${calls.filter((c) => c.schema.name === "files").length}` }] };
+    };
+    const theKit: Kit = { name: "test", brief: "One file, out.md.", context: async () => "the user is Ada",
+      sources: async (query) => { seen.push(query); return [{ title: "local", url: "local:a", snippet: "", blocks: ["a passage that is kept, about Ada and her work", "a passage about SOMEONE ELSE with the same name"] }]; },
+      admit: async (ctx, _step, passages) => { ctx.ws.counts.read = passages.length; return passages.filter((p) => !p.text.includes("SOMEONE ELSE")); },
+      prepare: async () => ({}),
+      review: async () => (reviews++ === 0 ? ["The file says too much."] : []),
+      build: async (_ws, ctx) => ({ ok: true, log: `built for ${ctx.task}`, outputs: ["out.md"] }) };
+    const ws = await fresh();
+    const result = await relay("make it", ws, { ask: yes, llm, kit: theKit });
+
+    expect(JSON.parse(calls[0]!.user)).toEqual({ request: "make it", known_before_planning: "the user is Ada" });
+    // Planned without queries, the step asked the kit's sources with its goal; the source's passages were sifted, never fetched.
+    expect(seen).toEqual(["goal of look"]);
+    const read = calls.find((c) => c.schema.name === "notes")!;
+    expect(read.user).toContain("a passage that is kept");
+    expect(read.user).not.toContain("SOMEONE ELSE");
+    expect(ws.sources.look!.map((s) => s.url)).toEqual(["local:a"]);
+    expect(result.trace.fetched).toBe(0);
+    expect(result.trace.counts).toEqual({ read: 2 });
+    // The review sent the writer back once, with what it wrote before; `prepare` gave it the notes alone.
+    const writes = calls.filter((c) => c.schema.name === "files").map((c) => JSON.parse(c.user) as Record<string, unknown>);
+    expect(writes).toHaveLength(2);
+    expect(writes[0]!.sources_word_for_word).toBeUndefined();
+    expect(writes[1]!.wrong_with_them).toEqual(["The file says too much."]);
+    expect(writes[1]!.your_files_as_they_stand).toEqual({ "out.md": "attempt 1" });
+    // The director planned no build; the kit has one, so it ran, and code alone says whether it succeeded.
+    expect(result.plan.steps.map((s) => s.worker)).toEqual(["research", "write", "build"]);
+    expect(result.plan.steps[2]!.accept).toEqual([]);
+    expect(result.ok).toBe(true);
+  });
+
+  test("without `prepare` the writer gets the best sources word for word; a result's whole `text` is one passage for `admit`", async () => {
+    const admitted: string[] = [];
+    const llm = async (req: LlmRequest) => req.schema.name === "relay_plan" ? { deliverable: "out.md", steps: [step("look", "research"), step("write", "write", ["look"])] } : req.schema.name === "notes" ? { notes: "A fact [u].", missing: [] } : { files: [{ path: "out.md", content: Object.keys(JSON.parse(req.user) as object).join(" ") }] };
+    const ws = await fresh();
+    await relay("make it", ws, { ask: yes, llm, kit: { ...kit, sources: async () => [{ title: "whole", url: "u:1", snippet: "an abstract", text: "the whole abstract", date: "2026-01-02" }], admit: async (_ctx, _step, passages) => { admitted.push(...passages.map((p) => p.text)); return passages; } } });
+    expect(admitted).toEqual(["the whole abstract"]);
+    expect(ws.sources.look).toEqual([{ url: "u:1", title: "whole", score: 0.9, text: "the whole abstract", date: "2026-01-02" }]);
+    expect(ws.files["out.md"]).toContain("sources_word_for_word");
+  });
+
+  test("a review that throws is logged and does not end the run", async () => {
+    const lines: string[] = [];
+    const llm = async (req: LlmRequest) => req.schema.name === "relay_plan" ? { deliverable: "out.md", steps: [step("write", "write")] } : { files: [{ path: "out.md", content: "draft" }] };
+    const result = await relay("make it", await fresh(), { ask: yes, llm, kit: { ...kit, review: async () => { throw new Error("no network"); } }, log: (line) => lines.push(line) });
+    expect(result.ok).toBe(true);
+    expect(lines.some((l) => l.includes("review: no network"))).toBe(true);
+  });
+
+  test("the checker is shown a page as a reader reads it, not its stylesheet", () => {
+    const made = describeFiles({ "site/index.html": `<html><head><style>${"body{color:red}".repeat(900)}</style></head><body><h1>Ada</h1><p>See <a href="https://a.test/x">my notes</a>.</p></body></html>` }, ["site/index.html"]);
+    expect(made).toContain("# Ada");
+    expect(made).toContain("my notes (https://a.test/x)");
+    expect(made).not.toContain("color:red");
   });
 });
