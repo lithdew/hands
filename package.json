@@ -12,7 +12,8 @@
     "eval": "bun evals.ts"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "playwright-core": "^1.63.0"
   },
   "peerDependencies": {
     "typescript": "^7"
@@ -23,6 +24,8 @@
     "@modelcontextprotocol/client": "2.0.0",
     "@trycua/cua-driver": "^0.28.2",
     "@typesafe-ai/sdk": "^0.6.0",
+    "entities": "^8.1.0",
+    "pdfjs-dist": "^6.3.289",
     "zod": "4.6.5"
   }
 }

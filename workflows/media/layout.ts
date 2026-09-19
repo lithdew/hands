@@ -1,0 +1,20 @@
+/** Match matrix_scene.py: 10% original hold, 30% forward transform,
+ * 15% transformed hold, 30% inverse (or singular hold), 15% final hold. */
+export function matrixPhaseLabel(frame: number, frames: number, invertible: boolean) {
+  const fraction = frame / frames;
+  if (fraction < .10) return "Original basis";
+  if (fraction < .40) return "Apply A";
+  if (!invertible) return "Area collapses · information is lost";
+  if (fraction < .55) return "A applied · transformed basis";
+  if (fraction < .85) return "Apply A⁻¹ · return to the original";
+  return "Original basis restored";
+}
+
+/** Preserve a fixed caption lane. Refuse overloaded copy instead of clipping
+ * it or shrinking the smallest matrix text below readable size. */
+export function matrixTextScale(requiredHeight: number, availableHeight = 555) {
+  if (!Number.isFinite(requiredHeight) || requiredHeight <= 0) throw new Error("Matrix text could not be measured");
+  const scale = Math.min(1, availableHeight / requiredHeight);
+  if (scale < .76) throw new Error("Matrix scene text exceeds its safe caption margin. Shorten the title, body or bullets before rendering.");
+  return scale;
+}

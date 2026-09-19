@@ -1,0 +1,116 @@
+{
+  "id": "calculus",
+  "title": "HKUST Calculus I and II mock exam",
+  "asOf": "2026-09-19",
+  "task": "Find public past papers from HKUST and other universities, verify the HKUST Calculus I and II syllabus, and create an original combined mock exam with worked solutions. Use MATH1013 and MATH1014 (ordinary stream), not the honors stream. Label the academic years and distinguish past sitting papers, solutions containing questions, and sample papers. Base scope on the official 2026-27 catalog; use the Fall2025 MATH1013 and Spring2026 MATH1014 detailed outlines for additional topic detail, explicitly disclosing their older section-specific dates. Create a 180-minute, 100-mark original diagnostic mock with at least 12 substantive questions, roughly 40 marks on Calculus I and 60 on Calculus II, separate worked solutions and marking guidance, a topic-to-question coverage map, and a linked past-paper guide. Do not reproduce past-paper questions verbatim or claim the mock is an official HKUST paper or a prediction of its exam. Deliver readable, printable HTML and a machine-readable exam.json. Use the supplied sources as candidates to retrieve and verify, not as automatically trusted facts. Clearly disclose any unavailable source or skipped topic. Hand the finished artifact bundle back to Jev to validate and deliver.",
+  "sources": [
+    {
+      "id": "hkust-current-catalog",
+      "url": "https://prog-crs.hkust.edu.hk/ugcourse/2026-27/MATH",
+      "title": "HKUST Undergraduate Course Catalog 2026-27 — MATH1013 and MATH1014",
+      "kind": "current_catalog",
+      "verifiedOn": "2026-09-19",
+      "claims": "MATH1013 is the ordinary Calculus I course; MATH1014 is its Calculus II continuation. Calculus I covers functions, limits, continuity, differentiation and applications, and basic integrals. Calculus II includes integral applications, improper integrals, vectors, curves and parametric equations, simple differential equations and modeling, sequences and series, power series and Taylor series. This catalog is current for 2026-27; it is not a section-specific exam schedule."
+    },
+    {
+      "id": "hkust-calc1-detailed-outline",
+      "url": "https://www.math.hkust.edu.hk/outline/files/2526fall/1013.pdf",
+      "title": "HKUST MATH1013 Calculus I — Fall2025 L02/L10 course outline",
+      "kind": "historical_section_outline",
+      "verifiedOn": "2026-09-19",
+      "claims": "The detailed schedule includes limits and continuity; derivative rules; rates of change; linear approximations; Newton iteration; extrema; mean value theorem; l'Hopital; curve sketching; optimization; definite integrals and antiderivatives; substitution and integration by parts. This section's final was three hours, closed book, without calculators. Do not extend those arrangements to the current user's unknown section."
+    },
+    {
+      "id": "hkust-calc2-detailed-outline",
+      "url": "https://www.math.hkust.edu.hk/outline/files/2526spring/1014.pdf",
+      "title": "HKUST MATH1014 Calculus II — Spring2026 L3 course outline",
+      "kind": "historical_section_outline",
+      "verifiedOn": "2026-09-19",
+      "claims": "Detailed topics include FTC, integration by parts, trigonometric integrals/substitution, partial fractions, polar calculus, numerical integration, improper integrals, areas, volumes by slicing and shells, arc length, surface area, work, average value, convergence tests, Taylor/power series, and 2D/3D vectors with dot/cross products. Simple differential equations appear in the current catalog but are not listed in this older section's keyword syllabus; disclose the distinction."
+    },
+    {
+      "id": "hkust-calc1-past-midterm",
+      "url": "https://www.math.ust.hk/~maqian/MA1013_1213F/math1013-midterm-fall-2012-soln-white-green.pdf",
+      "title": "HKUST MATH1013 — Fall2012 midterm solutions, white/green version",
+      "kind": "past_exam_with_solutions",
+      "verifiedOn": "2026-09-19",
+      "provenanceUrl": "https://www.math.hkust.edu.hk/~maqian/ma1013_1213F.html",
+      "claims": "Official instructor archive links this eight-page midterm solutions document for Fall2012. It includes the questions. It is a dated prior-class resource, not the latest exam. Use to assess question types and difficulty; write original new mock questions."
+    },
+    {
+      "id": "hkust-calc2-past-midterm",
+      "url": "https://www.math.hkust.edu.hk/~support/Math1014_midterm_soln_spr2022.pdf",
+      "title": "HKUST MATH1014 — Spring2022 midterm solutions",
+      "kind": "past_exam_with_solutions",
+      "verifiedOn": "2026-09-19",
+      "claims": "Official Math Support Centre six-page document explicitly labels the Spring2022 midterm and includes questions and worked answers. It emphasizes integration techniques and applications; it is a midterm, so it should not be treated as comprehensive evidence for all Calc2 final topics."
+    },
+    {
+      "id": "hkust-calc1-sample-final",
+      "url": "https://www.math.hkust.edu.hk/~support/math1013-sample-final-2.pdf",
+      "title": "HKUST MATH1013 — sample final examination, version2",
+      "kind": "sample_exam",
+      "verifiedOn": "2026-09-19",
+      "claims": "Cover explicitly says Sample Version, with three hours and 100 marks split between multiple choice and longer problems. Do not label it as a verified past sitting just because the PDF internal name mentions2012. Useful for format calibration only."
+    },
+    {
+      "id": "mit-exam1",
+      "url": "https://ocw.mit.edu/courses/18-01-single-variable-calculus-fall-2006/f59cd98e31f25c1690accfb8821eef13_exam1.pdf",
+      "title": "MIT18.01 Single Variable Calculus — Fall2006 Exam1",
+      "kind": "past_exam",
+      "verifiedOn": "2026-09-19",
+      "provenanceUrl": "https://ocw.mit.edu/courses/18-01-single-variable-calculus-fall-2006/pages/exams/",
+      "claims": "MIT OCW distinguishes actual exam1 from the practice exams. Differential-calculus style can inform the original mock; MIT course numbering and scope are not identical to HKUST."
+    },
+    {
+      "id": "mit-exam4",
+      "url": "https://ocw.mit.edu/courses/18-01-single-variable-calculus-fall-2006/0a24b4dfde19f54a7918e4411d7591f1_exam4.pdf",
+      "title": "MIT18.01 Single Variable Calculus — Fall2006 Exam4",
+      "kind": "past_exam",
+      "verifiedOn": "2026-09-19",
+      "provenanceUrl": "https://ocw.mit.edu/courses/18-01-single-variable-calculus-fall-2006/pages/exams/",
+      "claims": "MIT OCW lists this as the actual fourth exam, separate from its practice exam. The OCW page provides a practice final, not an actual final sitting. Cite the proper resource type."
+    },
+    {
+      "id": "ubc-calc2-past-final",
+      "url": "https://www.math.ubc.ca/sites/default/files/documents/Ugrad/PastExams/math101/101A_2024WT2.pdf",
+      "title": "UBC MATH101A — final, 24April2025 (archive2024WT2)",
+      "kind": "past_exam",
+      "verifiedOn": "2026-09-19",
+      "provenanceUrl": "https://www.math.ubc.ca/undergraduate/advising-and-resources/exams/past-exams",
+      "claims": "Official department archive links a 150-minute, 100-mark final whose cover dates it24April2025;2024WT2 is the archive session label. Relevant topics include integration, series, Taylor expansions and numerical approximation. Probability-density questions are not automatically HKUST1014 core scope; avoid importing unrelated topics. Link the public paper and write original mock material rather than reproducing it."
+    }
+  ],
+  "requiredCoverage": [
+    "limits_and_continuity",
+    "derivatives_and_chain_rule",
+    "derivative_application_or_optimization",
+    "fundamental_theorem_and_basic_integral",
+    "integration_techniques",
+    "integral_application_area_volume_or_work",
+    "improper_integral",
+    "sequence_and_series_convergence",
+    "power_or_taylor_series_with_interval_or_error",
+    "vectors_dot_and_cross_product",
+    "parametric_or_polar_curve",
+    "simple_differential_equation_model"
+  ],
+  "artifactContract": {
+    "requiredFiles": ["mock-exam.html", "exam.json"],
+    "examJson": "{title, academicScope, durationMinutes:180, totalMarks:100, questions:[{id,course,topic,marks,prompt,solution,markingGuide}], coverage:[{topic,questionIds,sourceIds}], sources:[{id,url,title,kind,academicYear,usedFor}], limitations:[string]}",
+    "html": "Readable offline HTML, MathML or legible math text; sources as clickable links; separate exam and solution sections; print CSS hides controls and preserves readable page breaks. Math delimiters alone without a renderer do not count as readable math. No remote scripts needed to display equations."
+  },
+  "rubric": {
+    "mustPass": [
+      "The run trace shows Jev delegates expressive creation to an allowed specialist model and resumes with a live Jev decision that executes validation/delivery; coordinator-authored artifacts are not a Hands success.",
+      "Hands retrieves and records actual results for both HKUST syllabus sources and at least one verified prior exam for each HKUST course, plus actual past papers from two external universities (MIT and UBC seeds supplied). Merely echoing seeded source claims fails retrieval.",
+      "Current2026-27 catalog and older section outlines are differentiated; Calc1/2 is MATH1013/1014; sample final is not relabeled as a past sitting.",
+      "At least12 substantive original questions; marks sum exactly100; every question has a meaningful worked solution and marking guidance; all requiredCoverage topics are assessed in a question or clearly identified as a specific limitation that requires repair before claiming full coverage.",
+      "Mathematical answers pass independent review: all endpoints, domain restrictions, convergence justifications, constants of integration, vector orientation and physical units are checked. Any materially wrong solution or ambiguous question fails until repaired.",
+      "User can open the finished artifact; equations and symbols render, sources work, questions and answers can be read separately; no TODOs, malformed HTML, missing files or invented course/exam provenance.",
+      "No claims of official HKUST endorsement, guaranteed exam prediction, exhaustive past-paper discovery or current-section exam rules without corresponding evidence."
+    ],
+    "reportMetrics": ["wall_time_ms", "model_by_stage", "jev_calls", "specialist_calls", "source_fetch_count", "source_fetch_failures", "repair_count", "artifact_bytes", "questions", "total_marks", "reviewed_answers", "unresolved_math_errors"],
+    "holdoutVariation": "After the baseline succeeds, ask Hands to replace only one integration question with a different original problem of equal marks and update its solution and coverage. Verify unchanged questions remain unchanged and Jev handles the return/delivery without redoing source research. This checks reusable handoff and edit correctness rather than a single canned response."
+  }
+}

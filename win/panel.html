@@ -184,6 +184,11 @@ textarea#prompt::placeholder{color:var(--faint)}
 #preview{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
 #preview:not([data-ok]){display:none}
 .tile-view:has(#preview[data-ok]) .tile-blank{display:none}
+#artifact-preview{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+.tile-view:has(#artifact-preview[src]) .tile-blank{display:none}
+.slot[data-artifact=true] .tile-frame{width:100%;aspect-ratio:auto}
+.slot[data-artifact=true] .tile-open{display:none}
+.tile-artifact-link{color:var(--blue);text-decoration:none}
 .tile-open{
   position:absolute;right:8px;top:8px;z-index:1;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:999px;
   background:rgba(7,8,12,.78);border:1px solid rgba(255,255,255,.1);color:var(--text);font-size:12px;font-weight:500;
@@ -348,13 +353,15 @@ textarea#prompt::placeholder{color:var(--faint)}
 </aside>
 </div>
 
-<div id="stash" hidden><img id="preview" alt="Live view of the selected hand's desktop"></div>
+<div id="stash" hidden><img id="preview" alt="Live view of the selected hand's desktop"><iframe id="artifact-preview" title="Selected hand's generated artifact" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe></div>
 
 <script>
 const $ = id => document.getElementById(id);
 let preview = $('preview');
 let held = false, refreshing = false, shotAt = 0, shownHand = null, selectedHand = null, stoppedAt = 0;
 let pendingShot = null, shownTarget = null, selectedTarget = null, browserChanging = false, browserError = null;
+let selectedArtifact = null, artifactPreviewKey = null;
+const artifactPreview = $('artifact-preview');
 const wasRunning = new Map(), finishedAt = new Map(), prevHand = new Map();
 
 /* ------------------------------------------------------------- transport */
@@ -407,7 +414,7 @@ hold.onkeyup = e => { if (e.code === 'Space' || e.code === 'Enter') { e.preventD
 
 /* ------------------------------------------------------------- controls */
 $('stop').onclick = () => { held = false; stoppedAt = Date.now(); act('/stop'); };
-$('enter').onclick = () => act('/desktop/enter');
+$('enter').onclick = () => selectedArtifact ? openArtifact(selectedArtifact) : act('/desktop/enter');
 $('back').onclick = () => act('/desktop/back');
 $('provider').onchange = () => act('/provider', { provider: $('provider').value });
 $('browser-mode').onchange = async () => {
@@ -425,13 +432,42 @@ function invalidatePreview() {
   if (pendingShot) { pendingShot.onload = pendingShot.onerror = null; pendingShot.removeAttribute('src'); pendingShot = null; }
   shownHand = shownTarget = null; delete preview.dataset.ok;
 }
+// Never accept an arbitrary preview URL from generated status. The server also
+// confines this route to the matching run's files and applies an opaque sandbox.
+function artifactOf(agent) {
+  const value = agent?.artifact;
+  if (!value || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.runId || '')
+    || !['report', 'website', 'video'].includes(value.kind)) return null;
+  let url = null;
+  if (typeof value.previewUrl === 'string' && value.previewUrl.startsWith('/artifacts/' + value.runId + '/')) {
+    try {
+      const candidate = new URL(value.previewUrl, location.origin);
+      const prefix = '/artifacts/' + value.runId + '/';
+      const parts = candidate.pathname.slice(prefix.length).split('/').map(decodeURIComponent);
+      if (candidate.origin === location.origin && candidate.pathname.startsWith(prefix) && !candidate.search && !candidate.hash
+        && parts.every(part => part && part !== '.' && part !== '..' && !/[\\/:%\x00-\x1f\x7f]/.test(part) && !/[. ]$/.test(part))) url = candidate.pathname;
+    } catch { /* show phase without a link for an invalid URL */ }
+  }
+  return { runId: value.runId, kind: value.kind, phase: String(value.phase || 'Creating'), url };
+}
+function openArtifact(artifact) {
+  if (artifact?.url) window.open(artifact.url, '_blank', 'noopener,noreferrer');
+}
+function syncArtifactPreview(hand, artifact) {
+  const key = artifact?.url ? JSON.stringify([hand, artifact.runId, artifact.url]) : null;
+  if (key === artifactPreviewKey) return;
+  artifactPreviewKey = key;
+  artifactPreview.removeAttribute('src');
+  $('stash').append(artifactPreview);
+  if (artifact?.url) artifactPreview.src = artifact.url;
+}
 function loadPreview(hand, target) {
   const candidate = new Image();
   pendingShot = candidate; shotAt = Date.now();
   candidate.onload = () => {
     if (pendingShot !== candidate) return;
     pendingShot = null;
-    if (selectedHand !== hand || selectedTarget !== target || browserChanging) return;
+    if (selectedHand !== hand || selectedTarget !== target || selectedArtifact || browserChanging) return;
     shownHand = hand; shownTarget = target;
     candidate.id = 'preview'; candidate.alt = preview.alt; candidate.dataset.ok = '1';
     // Insert the already loaded element; assigning its URL to the old image can
@@ -506,12 +542,12 @@ function makeTile() {
   const bar = el('div', 'tile-bar');
   const enter = el('button', 'btn ghost tile-enter');
   enter.type = 'button'; enter.innerHTML = ENTER_ICON; enter.append(document.createTextNode('Enter desktop'));
-  enter.onclick = () => enterHand(Number(tile.dataset.hand));
+  enter.onclick = () => tile.dataset.artifact === 'true' ? openArtifact({ url: tile.dataset.artifactUrl }) : enterHand(Number(tile.dataset.hand));
   bar.append(enter);
   slot.append(tile, bar);
   // Click selects the hand; clicking the selected hand's live view steps into its desktop, like the corner preview.
   tile.onclick = () => select(tile);
-  view.onclick = e => { if (isSelected(tile)) { e.stopPropagation(); act('/desktop/enter'); } };
+  view.onclick = e => { if (isSelected(tile)) { e.stopPropagation(); if (tile.dataset.artifact === 'true') openArtifact({ url: tile.dataset.artifactUrl }); else act('/desktop/enter'); } };
   tile.onkeydown = e => {
     if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
       e.preventDefault();
@@ -520,34 +556,47 @@ function makeTile() {
       next.focus(); select(next);
     } else if (e.code === 'Enter' || e.code === 'Space') {
       e.preventDefault();
-      if (isSelected(tile) && e.code === 'Enter') act('/desktop/enter'); else select(tile);
+      if (isSelected(tile) && e.code === 'Enter') {
+        if (tile.dataset.artifact === 'true') openArtifact({ url: tile.dataset.artifactUrl }); else act('/desktop/enter');
+      } else select(tile);
     }
   };
   return slot;
 }
 function updateTile(slot, w, s) {
   const tile = slot.firstElementChild, state = tileState(w), selected = w.hand === s.hand;
+  const artifact = artifactOf(w.agent);
   slot.dataset.state = state; slot.dataset.selected = String(selected);
+  slot.dataset.artifact = tile.dataset.artifact = String(Boolean(artifact));
+  tile.dataset.artifactUrl = artifact?.url || '';
   tile.dataset.hand = w.hand;
   tile.setAttribute('aria-pressed', String(selected));
   tile.setAttribute('aria-selected', String(selected));
-  tile.setAttribute('aria-label', 'Hand ' + w.hand + ', ' + labelOf(w.agent, state) + (selected ? '. Selected; press Enter to step into its desktop.' : '. Press Enter to select.'));
+  tile.setAttribute('aria-label', 'Hand ' + w.hand + ', ' + labelOf(w.agent, state) + (selected ? (artifact ? '. Selected artifact.' : '. Selected; press Enter to step into its desktop.') : '. Press Enter to select.'));
   const name = tile.querySelector('.tile-name');
   name.dataset.hand = w.hand; setText(name, 'Hand ' + w.hand);
   setText(tile.querySelector('.tile-state'), STATE_WORD[state]);
-  setText(tile.querySelector('.tile-now'), labelOf(w.agent, state));
+  setText(tile.querySelector('.tile-now'), artifact ? artifact.kind + ' · ' + artifact.phase : labelOf(w.agent, state));
   const spoken = s.listener.tasks.find(t => t.hand === w.hand && (t.status === 'running' || t.status === 'waiting'));
   setText(tile.querySelector('.tile-task'), (w.agent.running && w.agent.task) || spoken?.request || (state === 'error' && w.agent.error) || '');
   const frame = tile.querySelector('.tile-frame');
-  if (selected && preview.parentElement !== frame) {
+  if (selected && artifact) {
+    if (preview.parentElement === frame) $('stash').append(preview);
+    if (artifact.url && artifactPreview.parentElement !== frame) frame.append(artifactPreview);
+    if (!artifact.url && artifactPreview.parentElement === frame) $('stash').append(artifactPreview);
+  } else if (selected && preview.parentElement !== frame) {
+    if (artifactPreview.parentElement === frame) $('stash').append(artifactPreview);
     frame.append(preview);
     // A frame that finished loading before it was re-parented has no load event left to fire.
     if (preview.complete && preview.naturalWidth > 0 && shownHand === w.hand) preview.dataset.ok = '1';
   }
   setText(tile.querySelector('.tile-blank span'), selected
-    ? (state === 'idle' || state === 'finished' ? 'Idle · nothing on screen yet' : 'Waiting for a window…')
+    ? (artifact ? artifact.phase + ' · ' + artifact.kind : state === 'idle' || state === 'finished' ? 'Idle · nothing on screen yet' : 'Waiting for a window…')
     : 'Select to watch');
-  slot.querySelector('.tile-enter').setAttribute('aria-label', 'Enter the desktop of hand ' + w.hand);
+  const enter = slot.querySelector('.tile-enter');
+  enter.disabled = Boolean(artifact && !artifact.url);
+  setText(enter.lastChild, artifact ? 'Open ' + artifact.kind : 'Enter desktop');
+  enter.setAttribute('aria-label', artifact ? 'Open the ' + artifact.kind + ' from hand ' + w.hand : 'Enter the desktop of hand ' + w.hand);
 }
 
 /* ------------------------------------------------------------ approvals */
@@ -616,6 +665,10 @@ async function refresh() {
     setText($('model'), a.model + ' · ' + a.effort + ' effort');
     $('provider').disabled = $('send').disabled = busy || listening || browserChanging;
     const browser = s.workers.find(w => w.hand === s.hand)?.browser;
+    const nextArtifact = artifactOf(s.workers.find(w => w.hand === s.hand)?.agent || a);
+    if (nextArtifact || selectedArtifact) invalidatePreview();
+    selectedArtifact = nextArtifact;
+    syncArtifactPreview(s.hand, selectedArtifact);
     const nextTarget = previewTargetKey(s.hand, browser);
     if (selectedTarget !== nextTarget) { selectedTarget = nextTarget; invalidatePreview(); }
     if (!browserChanging) $('browser-mode').value = browser?.mode || 'private';
@@ -646,13 +699,15 @@ async function refresh() {
 
     // Preview: the old hand's frame must not appear inside the new tile, so drop it before the tiles re-parent the image.
     if (shownHand !== s.hand || shownTarget !== selectedTarget) { shownHand = null; shownTarget = null; delete preview.dataset.ok; }
-    if (!pendingShot && !browserChanging && (shownHand === null || Date.now() - shotAt > 1000) && !document.hidden) loadPreview(s.hand, selectedTarget);
+    if (!selectedArtifact && !pendingShot && !browserChanging && (shownHand === null || Date.now() - shotAt > 1000) && !document.hidden) loadPreview(s.hand, selectedTarget);
 
     // Tile wall
     $('tiles').style.setProperty('--n', Math.max(1, s.workers.length));
     reconcile($('tiles'), s.workers, w => w.hand, makeTile, (slot, w) => updateTile(slot, w, s));
     if (!preview.isConnected) $('stash').append(preview);
-    setText($('enter-label'), browser?.mode === 'existing' ? 'Show my Chrome' : 'Enter hand ' + s.hand);
+    if (!artifactPreview.isConnected || !selectedArtifact) $('stash').append(artifactPreview);
+    setText($('enter-label'), selectedArtifact ? 'Open ' + selectedArtifact.kind : browser?.mode === 'existing' ? 'Show my Chrome' : 'Enter hand ' + s.hand);
+    $('enter').disabled = Boolean(selectedArtifact && !selectedArtifact.url);
 
     // Drawer: every pending approval, each naming its hand, and one feed across all hands.
     reconcile($('approvals'), s.approvals, ap => ap.id, makeCard, updateCard);

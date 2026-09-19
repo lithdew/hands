@@ -24,6 +24,8 @@ import { createJevFirstAgent } from "./jev";
 import { attachExistingBrowser, browserTarget, captureBound, closeWindowsDesktop, detachExistingBrowser, driver, ensureHelper, existingBrowserCandidates, focusExistingBrowser, getHand, handFor, helper, listHands, restoreExistingBrowsers, signInAll, signInStatus, startHands, warmBrowser, windowsDesktop, type BrowserTarget } from "./desktop";
 import { loginTargets } from "./session";
 import { createHud, hudEnabled, type HudStatus } from "./hud";
+import { artifactResponse } from "./artifacts";
+import type { AgentStatus } from "../ai";
 
 /** The Windows control page; the shared panel.html stays for Linux. Same CSP as hotkey.ts sends for its page. */
 const WIN_PANEL = Bun.file(new URL("./panel.html", import.meta.url));
@@ -136,20 +138,25 @@ if (import.meta.main) {
     // A short task would otherwise blink its preview on and off: hold the result a moment.
     const busyUntil = new Map<number, number>();
     const captions = new Map<number, string>(), tasks = new Map<number, string>(), tools = new Map<number, string>();
+    const artifacts = new Map<number, NonNullable<AgentStatus["artifact"]>>();
     const painters = new Map<number, ReturnType<typeof coalesceLatest<{ hand: Hand; state: HandState }>>>();
     function paint(hand: Hand, state: HandState) {
       let painter = painters.get(hand.id);
       if (!painter) {
         painter = coalesceLatest(async (latest: () => { hand: Hand; state: HandState }) => {
           const hand = latest().hand, expected = previewTargetKey(hand.id, browserTarget(hand));
-          let front = (await windowsDesktop.state(hand)).windows.find((w) => w.focused);
+          let front = artifacts.has(hand.id) ? undefined : (await windowsDesktop.state(hand)).windows.find((w) => w.focused);
           const target = browserTarget(hand);
           if (previewTargetKey(hand.id, target) !== expected || target.mode === "existing" && (front?.pid !== target.pid || front.containerId !== target.window_id || front.ownerNonce !== target.ownerNonce)) front = undefined;
+          // A long observation started before artifact generation may complete
+          // afterward. Recheck before publishing its old browser thumbnail.
+          const artifact = artifacts.get(hand.id);
+          if (artifact) front = undefined;
           const state = latest().state;
           if (state !== "idle") busyUntil.set(hand.id, Date.now() + 6000);
           const shown = state === "idle" && Date.now() < (busyUntil.get(hand.id) ?? 0) ? "done" : state;
           // Before the hand has a window, the current tool is the only thing to say about it.
-          const title = captions.get(hand.id) || front?.title || (front ? "" : tools.get(hand.id)) || "";
+          const title = artifact ? `${artifact.kind}: ${artifact.phase}` : captions.get(hand.id) || front?.title || (front ? "" : tools.get(hand.id)) || "";
           pip.stdin.write(`hand ${hand.id} ${front?.containerId ?? 0} ${shown} ${previewLabel(shown === "idle" ? "" : tasks.get(hand.id) ?? "", title)}\n`);
           await pip.stdin.flush();
         });
@@ -182,7 +189,7 @@ if (import.meta.main) {
 
     // servePuk repaints once a second. A preview that appears the moment a hand
     // starts is most of what makes it feel alive, so look more often.
-    type Worker = { hand: number; agent: { running: boolean; error: string | null; approval: unknown; narration?: string; task: string; currentTool: string | null } };
+    type Worker = { hand: number; agent: Pick<AgentStatus, "running" | "error" | "approval" | "narration" | "task" | "currentTool" | "artifact"> };
     let quickRunning = false;
     const quick = setInterval(async () => {
       if (quickRunning) return;
@@ -191,6 +198,7 @@ if (import.meta.main) {
         const at = hudEpoch();
         const status = (await (await local("/status")).json()) as HudStatus & { workers: Worker[] };
         for (const { hand: id, agent } of status.workers) {
+          if (agent.artifact) artifacts.set(id, agent.artifact); else artifacts.delete(id);
           if (agent.narration) captions.set(id, agent.narration); else captions.delete(id);
           if (agent.currentTool) tools.set(id, agent.currentTool); else tools.delete(id);
           // agent.task outlives the run; keep the last one so the 6 s done hold still names it.
@@ -222,6 +230,8 @@ if (import.meta.main) {
     const server = Bun.serve({
       hostname: "127.0.0.1", port: Number(process.env.PUK_PORT ?? 7777), maxRequestBodySize: 20_000,
       async fetch(request) {
+        const artifact = await artifactResponse(request);
+        if (artifact) return artifact;
         if (!isLocalRequest(request)) return new Response("Local requests only", { status: 403 });
         const path = new URL(request.url).pathname;
         const page = await panelResponse(request);

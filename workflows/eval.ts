@@ -1,0 +1,53 @@
+/** Run the same Hands workflow used by /task, with reproducible acceptance briefs. */
+import { readFile, writeFile } from "node:fs/promises";
+import { resolve, join } from "node:path";
+import { runArtifactWorkflow, type ArtifactInput } from "./run";
+import { ArtifactPathSchema } from "./contracts";
+
+export async function caseInput(path: string): Promise<ArtifactInput> {
+  const brief = JSON.parse(await readFile(path, "utf8"));
+  const request = brief.task ?? brief.prompt ?? brief.request ?? brief.rawUserTask;
+  if (typeof request !== "string" || !request.trim()) throw new Error("Case has no task request.");
+  let packet: unknown;
+  if (brief.sourcePacket) packet = JSON.parse(await readFile(resolve(brief.sourcePacket), "utf8"));
+  const p = packet as { publicResearch?: {url:string;title?:string}[]; sources?: {url:string;title?:string}[] } | undefined;
+  const sources = [...(brief.sources ?? []), ...(p?.sources ?? []), ...(p?.publicResearch ?? [])].filter(source => typeof source.url === "string");
+  let context = JSON.stringify({ caseBrief: brief, sourcePacket: packet }, null, 2);
+  // Only the case author's exact repository evidence allowlist is read. Never
+  // follow generated paths or arbitrary files supplied by an external source.
+  const repositorySources = new Set(["README.md", "docs/jev-evals.md", "docs/jev-evals-2026-09-19.json", "docs/mail-evals-2026-09-19.json", "docs/authorization-smoke-2026-09-19.json"]);
+  for (const source of brief.sources ?? []) if (repositorySources.has(source.path)) {
+    context += `\nRepository evidence ${source.path}:\n${(await readFile(source.path, "utf8")).slice(0, 16_000)}`;
+  }
+  const artifacts = brief.requiredArtifacts ?? [];
+  const requiredFiles: string[] = brief.artifactContract?.requiredFiles ?? artifacts.map((artifact: any) => typeof artifact === "string" ? artifact : artifact.suggestedFilename ?? artifact.filename ?? artifact.path).filter(Boolean);
+  return { request, searchRequest:brief.rawUserTask ?? request, context, sources, requiredFiles:requiredFiles.filter(path=>ArtifactPathSchema.safeParse(path).success), checks: brief.rubric?.mustPass ?? [] };
+}
+
+if (import.meta.main) {
+  try {
+    const path = process.argv[2]; if (!path) throw new Error("Usage: bun workflows/eval.ts evals/cases/<case>.json [--evidence previous-run-id ...]");
+    const input = await caseInput(path);
+    const resumeAt = process.argv.indexOf("--resume");
+    if (resumeAt >= 0) input.resumeRunId = process.argv[resumeAt + 1];
+    input.executeOnly=process.argv.includes("--execute-only");
+    const evidenceAt = process.argv.indexOf("--evidence");
+    if (evidenceAt >= 0) {
+      input.evidenceAssets = {};
+      for (const id of process.argv.slice(evidenceAt + 1).filter((_,index,values)=>!values.slice(0,index+1).some(value=>value.startsWith("--")))) {
+        if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error("Evidence must be an existing artifact run UUID.");
+        const manifest = JSON.parse(await readFile(join("out/artifacts", id, "manifest.json"), "utf8"));
+        if (manifest.status !== "complete" || !manifest.checks.every((check: any) => check.passed)) throw new Error("Only validated earlier runs can supply pitch evidence.");
+        const evidenceId = `artifact-${Object.keys(input.evidenceAssets).length + 1}`;
+        input.evidenceAssets[evidenceId] = manifest.screenshots[0];
+        input.context += `\nVerified Hands output ${evidenceId}: ${JSON.stringify({runId:id,kind:manifest.kind,title:manifest.summary,elapsedMs:manifest.elapsedMs,checks:manifest.checks,previewImage:evidenceId})}`;
+      }
+    }
+    const abort = new AbortController(); process.on("SIGINT", () => abort.abort()); input.signal = abort.signal;
+    input.onEvent = event => console.log(JSON.stringify(event));
+    input.onStatus = artifact => { if (artifact.phase === "routing") console.log(JSON.stringify({ runId: artifact.runId })); };
+    const result = await runArtifactWorkflow(input);
+    console.log(JSON.stringify({runId:result.runId,status:result.status,path:result.directory,elapsedMs:result.elapsedMs,checks:result.checks}));
+    if (result.status !== "complete") process.exitCode = 1;
+  } catch (error) { console.error(error instanceof Error ? error.message : "Hands artifact evaluation failed"); process.exitCode = 1; }
+}

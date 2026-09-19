@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "id": "hands-pitch",
+  "title": "Hands: a truthful YC-style presentation video",
+  "asOf": "2026-09-19",
+  "rawUserTask": "Create a presentation video pitching itself (its name is Hands) using Remotion and showcasing the best things it could do, pitching as if it is for Y Combinator.",
+  "task": "Create a polished 60–90 second Remotion presentation video introducing Hands to an early-stage accelerator audience. Use Hands as the product name, explain the concrete user problem and who the initial user is, demonstrate actual capabilities through two or more inspected public-safe artifacts produced by this Hands run suite, explain the Jev-to-agent-to-Jev loop simply, and end with a credible next milestone. Use the supplied repository evidence and verified run manifests as the only basis for product and performance claims. Treat proposed customers, business model and future capabilities as hypotheses. Do not invent customers, revenue, funding, YC backing, founder biography, market-size numbers, reliability or email success. This is an investor-style product pitch, not an application submission. The run must generate and render the video through Hands, inspect representative frames and deliver the MP4, storyboard, caption transcript and evidence ledger. Return to Jev for a bounded delivery/open action after rendering and validation.",
+  "creativeBrief": {
+    "audience": "An early-stage accelerator reviewer who wants to know what the product does, who needs it, what is distinctive and what is actually working.",
+    "tone": "Direct, specific and confident about the product thesis, with precise labels for prototype evidence and remaining work. Avoid generic futuristic AI stock visuals.",
+    "productThesis": "A voice-driven assistant that turns a user's request into verified work across a computer, while letting the user correct the task as it runs.",
+    "initialUserHypothesis": "Builders, students and researchers whose work crosses browsers, documents and creative tools. This is a proposed starting audience, not verified customer traction.",
+    "visualDirection": "Use a coherent dark or light visual identity, generous typography, one main point per scene, intentional transitions and a clear progression from request to useful artifact. Small metrics must carry their scope on the same frame. Use original diagrams and public-safe actual artifact previews.",
+    "suggestedBeats": [
+      { "purpose": "Name and problem", "seconds": 8, "content": "Hands. Users describe an outcome, then still have to coordinate work across several apps." },
+      { "purpose": "Product", "seconds": 9, "content": "Introduce a voice-driven computer-use prototype and the live correction interaction. Label any illustrated UI as an illustration." },
+      { "purpose": "Demonstration one", "seconds": 11, "content": "Show a useful actual generated artifact from this Hands eval suite with its exact capability label and one detail the reviewer can read." },
+      { "purpose": "Demonstration two", "seconds": 11, "content": "Show a second different actual generated artifact. Do not replace it with a mock screenshot or claim an unfinished case passed." },
+      { "purpose": "How it works", "seconds": 11, "content": "Show request → Jev selects a bounded action or agent → an expressive agent creates or reasons → validation → Jev executes the next grounded step. Agents are Luna, Vertex Gemini and Astra low." },
+      { "purpose": "Measured prototype evidence", "seconds": 10, "content": "Use at most two scoped metrics from the evidence ledger, with synthetic or measured-run labels visible. Explain what was tested rather than implying general reliability." },
+      { "purpose": "Why this approach and what is next", "seconds": 9, "content": "Describe the fast decision/expressive creation split and live corrections. State the next milestone as proving reliable end-to-end task completion and lowering observation overhead." },
+      { "purpose": "Close", "seconds": 6, "content": "Return to Hands and a short product promise grounded in the demonstrated workflow. Invite feedback or design partners as a proposed next step, without publishing contact details." }
+    ],
+    "timingNote": "These beats suggest a 75-second structure. The generation agent may improve wording, duration and order while keeping a useful 60–90 second pitch and every acceptance requirement. Do not copy this outline mechanically when the verified artifact evidence suggests a better story."
+  },
+  "sources": [
+    {
+      "id": "readme",
+      "path": "README.md",
+      "preparedFromSha256": "d534e747e82e38295245f3187f57a83b0c341b03587c7013e5e82282a20a08d1",
+      "kind": "repository-product-description",
+      "use": "Product architecture, currently implemented interface and explicit limitations. Source documentation does not itself prove a successful live task."
+    },
+    {
+      "id": "jev-report",
+      "path": "docs/jev-evals.md",
+      "preparedFromSha256": "3b2c2837127dd85e9d401db1f62623a3643b50118870b1b819e367e70c24a0d2",
+      "kind": "measured-synthetic-and-diagnostic-report",
+      "use": "Read the surrounding methodology and limitations for every selected metric."
+    },
+    {
+      "id": "jev-measurements",
+      "path": "docs/jev-evals-2026-09-19.json",
+      "preparedFromSha256": "e2981e95027d498f1c030df6546bb4d1e181f861f3ce16fda7e47700dd50628b",
+      "kind": "tracked-measurement-summary",
+      "use": "Held-out synthetic decision contract score and latency; no end-to-end desktop success claim."
+    },
+    {
+      "id": "mail-contract-measurements",
+      "path": "docs/mail-evals-2026-09-19.json",
+      "preparedFromSha256": "e16977983849ae7275d48c6f72a557c0a7aefdcd67c2a400dd744a2b520efe97",
+      "kind": "tracked-synthetic-next-action-summary",
+      "use": "Optional model routing evidence. These text-only fixtures did not connect to Gmail, execute a UI action or send a message."
+    },
+    {
+      "id": "authorization-measurements",
+      "path": "docs/authorization-smoke-2026-09-19.json",
+      "preparedFromSha256": "50a4131e7a45c46e2882a28a00b46b56bb9002b0f19259eb82848b4b366acaef",
+      "kind": "tracked-synthetic-authorization-summary",
+      "use": "Optional policy consistency evidence. Six distinct authored fixtures were repeated through two adapters; there were no real UI actions."
+    },
+    {
+      "id": "model-policy",
+      "path": "model-policy.ts",
+      "preparedFromSha256": "df7dfddf9cbc111c330cf6e7c8d382aca9e35a72796cdc6dc74aa1f8ded61ba4",
+      "kind": "implementation",
+      "use": "Allowed expressive model IDs are Luna, Gemini 3.8 Flash and Astra; Astra is clamped to low effort. Jev remains the bounded decision model."
+    },
+    {
+      "id": "verified-case-manifests",
+      "kind": "runtime-input",
+      "required": true,
+      "use": "The shared Hands runner supplies paths, trace provenance and actual inspected outcomes from earlier cases in this eval suite. Select two useful distinct public-safe artifacts for the demo montage. Files without successful run provenance may be shown only as unfinished development work, not demonstrated capability."
+    }
+  ],
+  "knownEvidence": [
+    {
+      "id": "heldout-decisions",
+      "claim": "The production Jev evidence contract matched expected decision-and-gate outcomes in 36 of 36 held-out synthetic trials over 12 screens repeated three times.",
+      "sourceIds": ["jev-report", "jev-measurements"],
+      "requiredVisibleQualifier": "12 synthetic screens × 3 repeats; one-step checks",
+      "forbiddenInference": "100% computer-use reliability, 36 completed user tasks or 36 independent cases."
+    },
+    {
+      "id": "decision-latency",
+      "claim": "The same held-out synthetic contract had a median Jev decision latency of 351 ms; its median case including an action gate when needed was 670 ms.",
+      "sourceIds": ["jev-report", "jev-measurements"],
+      "requiredVisibleQualifier": "Synthetic Jev decision median; excludes real app observation and execution",
+      "forbiddenInference": "351 ms end-to-end task completion, a guaranteed latency, or a controlled speedup versus every LLM."
+    },
+    {
+      "id": "model-routing",
+      "claim": "On 12 authored synthetic mail states repeated twice per model, each of Luna, Vertex Gemini and Astra low returned 24 of 24 expected next-action contracts. Luna had a 1,117 ms median in this comparison.",
+      "sourceIds": ["mail-contract-measurements"],
+      "requiredVisibleQualifier": "Synthetic text-only next-action test; no email sent",
+      "forbiddenInference": "Real Gmail completion, a general model ranking or superior visual accuracy."
+    },
+    {
+      "id": "corrections-and-preview",
+      "claim": "The repository implements typed and speech task refinement, bounded action checks, multiple hands, and exact existing-Chrome target binding for its preview.",
+      "sourceIds": ["readme"],
+      "requiredVisibleQualifier": "Prototype implementation; demonstrate only verified live outcomes",
+      "forbiddenInference": "Every live voice session, every app, every stream and every browser approval restart path is verified reliable."
+    }
+  ],
+  "requiredArtifacts": [
+    { "role": "video", "suggestedFilename": "hands-pitch.mp4", "description": "A playable 60–90 second H.264 MP4 rendered with Remotion, at least 1280×720, at 24 or 30 fps. Prefer 1920×1080 if rendering cost is reasonable." },
+    { "role": "storyboard", "suggestedFilename": "hands-pitch.storyboard.json", "description": "The agent-authored storyboard accepted by the shared Remotion renderer, with scene durations, exact onscreen text, asset references and source/claim IDs." },
+    { "role": "captions", "suggestedFilename": "hands-pitch-transcript.md", "description": "The full scene-by-scene captions or narration transcript, matching what appears in the rendered video." },
+    { "role": "evidence", "suggestedFilename": "hands-pitch-evidence.json", "description": "Map every factual or numeric pitch claim to an inspected repository source or successful Hands run and artifact path. Include source hashes, any proposed business hypotheses, representative rendered-frame paths, render metadata and exact audio status." },
+    { "role": "preview", "suggestedFilename": "index.html", "description": "A local video preview with controls, captions/transcript and a concise description of prototype evidence and limits. This is the bounded artifact-opening target returned to Jev." }
+  ],
+  "audio": {
+    "required": false,
+    "policy": "A caption-led silent presentation is acceptable when no authorized speech-synthesis tool is configured. Do not claim a narrated video when no audio track exists. Do not clone any real person's voice or use unlicensed music. If audio is added, record its actual provider, asset provenance and measured track presence in the evidence manifest.",
+    "silentMinimum": "Each scene's main message must be understandable without audio. Give viewers enough time to read. Explicitly label the delivered preview as a caption-led video without narration when applicable."
+  },
+  "constraints": [
+    "Use only Luna, Vertex Gemini or Astra low for expressive generation in Hands. Jev handles constrained routing and return decisions. Do not add a fourth expressive model or speech provider just for this task.",
+    "No inbox screenshots, email addresses, account profile images, private messages, credentials, local absolute user paths or unrelated personal files in rendered public-facing assets.",
+    "Do not show a fabricated live demo as if recorded from a successful run. Original workflow illustrations are allowed when clearly labeled. Demonstration artifacts must actually exist, load and have recorded provenance.",
+    "Do not put customer/revenue/market-size/fundraising numbers in the pitch without a verifiable source supplied by the user. Never imply YC investment, acceptance or endorsement.",
+    "Do not claim mail was sent, the four-of-five goal passed or all tasks work unless the current actual run records and inspected artifacts establish that precise claim. The video can demonstrate successful cases without making a global pass-rate claim.",
+    "Leave the video local and reviewable; submitting an accelerator application, emailing the pitch or deploying it publicly is outside this eval."
+  ],
+  "handoff": {
+    "route": "Jev selects a media creation agent → an allowed LLM writes a source-grounded storyboard → shared Remotion tool renders the video → deterministic metadata and claim checks plus representative-frame inspection → Jev chooses a bounded preview/open or repair action → the selected action executes",
+    "agentModels": ["gpt-5.6-luna", "gemini-3.8-flash", "gpt-6-astra"],
+    "astraEffort": "low",
+    "jevReturnChoices": ["open_artifact", "repair_render", "repair_claims", "escalate_reasoning"],
+    "jevReturnContext": ["rawUserTask", "artifactManifest", "renderMetadata", "claimAudit", "frameInspection", "audioStatus"],
+    "countAsSuccessOnlyIf": "An actual Hands trace proves the permitted generation agent made the storyboard, the renderer produced this MP4, checks inspected the saved artifact, and Jev resumed and executed a real bounded completion action. A packet, mocked render, external evaluator-authored video or model-only success statement does not pass."
+  },
+  "rubric": [
+    { "id": "genuine-hands-run", "required": true, "check": "The trace records Jev delegation, expressive-agent generation, actual Remotion render, validation and a fresh Jev return decision followed by executed delivery/open." },
+    { "id": "playable-video", "required": true, "check": "The final MP4 decodes, has the declared width/height/fps, lasts 60–90 seconds, and contains changing scene visuals rather than a blank or static single-slide export." },
+    { "id": "actual-showcase", "required": true, "check": "At least two distinct useful actual Hands-generated artifacts are visible, legible and tied to inspected successful run evidence. Product diagrams alone do not count as demonstrations." },
+    { "id": "pitch-content", "required": true, "check": "A viewer can identify the product, initial audience hypothesis, concrete problem, demonstrated output, distinctive Jev/agent split and next development milestone."
+    },
+    { "id": "claim-integrity", "required": true, "check": "Each factual/numerical claim matches its source and visible qualifier. No synthetic benchmark is presented as whole-task reliability or email success; no fabricated business traction or endorsement appears." },
+    { "id": "visual-review", "required": true, "check": "Inspect a representative frame from every scene plus at least two transition frames. At the output dimensions, text is readable, no important text or images are clipped, captions do not cover the demonstrated content, and metrics retain their qualifiers." },
+    { "id": "pacing", "required": true, "check": "No scene has more text than can reasonably be read in its duration. Main text generally uses at least 32 px at 1080p or 24 px at 720p, and sufficient background contrast. Avoid a dense documentation slideshow." },
+    { "id": "audio-truth", "required": true, "check": "The manifest records whether an actual audio stream exists. A silent video is clearly delivered as caption-led, not narrated; any included audio has documented provenance." },
+    { "id": "privacy", "required": true, "check": "The MP4, frames, transcripts and public preview contain no private inbox/account content, contact details or credentials." },
+    { "id": "complete-bundle", "required": true, "check": "MP4, agent-authored storyboard, matching transcript, evidence manifest, rendered-frame evidence and a working local preview are saved under the actual run directory." }
+  ],
+  "performance": {
+    "record": ["total elapsed ms", "agent generation ms", "Remotion bundle ms", "render ms", "model calls by model", "Jev routing/return ms", "repair count", "output duration seconds", "output bytes"],
+    "guidance": "Reuse the shared Remotion bundle and original local assets. Batch the source-grounded script and storyboard generation, then render once and repair only observed defects. Choose a finite scene schema so Jev can validate and deliver exact artifacts without synthesizing the video itself."
+  }
+}
