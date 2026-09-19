@@ -221,7 +221,7 @@ Why this way: the point of the request is a 3Blue1Brown-style explanation and Re
 `;
 }
 
-async function build(ws: Workspace): Promise<{ ok: boolean; log: string; outputs: string[] }> {
+export async function build(ws: Workspace): Promise<{ ok: boolean; log: string; outputs: string[] }> {
   // Whatever an earlier run or an earlier attempt rendered is not this script's video: a build that fails leaves none behind.
   await rm(join(ws.dir, "video", "out.mp4"), { force: true });
   await rm(join(ws.dir, "video", "stills"), { recursive: true, force: true });

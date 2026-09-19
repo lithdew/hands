@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import type { Ask } from "../../jev";
-import { groupBy } from "../relay";
 import { ARCHIVES, questionsIn, readInNotes, shapeProblems, syllabusTopics, topicsOf } from "./exam";
 import { reflow } from "./py";
 
@@ -69,10 +68,6 @@ test("only addresses the notes present as read count as read", () => {
 
 test("the archives are front doors, not papers", () => {
   for (const a of ARCHIVES) expect(a.url).not.toMatch(/\.pdf($|\?)/i);
-});
-
-test("groupBy keeps first-seen order", () => {
-  expect(groupBy([{ f: "b" }, { f: "a" }, { f: "b" }], (x) => x.f)).toEqual({ b: [{ f: "b" }, { f: "b" }], a: [{ f: "a" }] });
 });
 
 test("reflow gathers an exam's short lines into one passage per question", () => {

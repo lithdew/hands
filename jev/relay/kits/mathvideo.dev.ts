@@ -9,7 +9,7 @@
 import { join } from "node:path";
 import { createJev } from "../../jev";
 import { workspace } from "../relay";
-import { jevReview, mathvideo, problemsFrom } from "./mathvideo";
+import { build, jevReview, problemsFrom } from "./mathvideo";
 import { check, type Script } from "./mathvideo/src/script";
 
 const [command, file, dir] = process.argv.slice(2);
@@ -28,6 +28,6 @@ if (command === "review") {
 } else {
   const ws = await workspace(dir ?? join(import.meta.dir, "..", "..", "..", "out", "relay", "dev-mathvideo"), (line) => console.log(`  ${line}`));
   await ws.write("video/script.json", text);
-  const t = performance.now(), made = await mathvideo.build!(ws);
+  const t = performance.now(), made = await build(ws);
   console.log(`${made.ok ? "ok" : "FAILED"} in ${Math.round((performance.now() - t) / 1000)} s\n${made.log}\n${made.outputs.join("\n")}`);
 }
