@@ -108,6 +108,15 @@ describe("existing Chrome binding", () => {
   }
   const mutations = (f: ReturnType<typeof fixture>) => f.calls.filter((call) => !["get_browser_state", "end_session", "focus_existing"].includes(call.name));
 
+  test("ended sessions become unhealthy without reviving or replaying input", async () => {
+    const f = fixture();
+    expect(f.input.healthy()).toBe(true);
+    f.onCall(() => { throw new Error("this session has ended; call start_session explicitly to reuse its label"); });
+    await expect(f.input.snapshot()).rejects.toThrow("session has ended");
+    expect(f.input.healthy()).toBe(false);
+    expect(f.calls.map(call => call.name)).toEqual(["get_browser_state"]);
+  });
+
   test("prepares only an explicitly requested exact existing profile, without launching a browser", async () => {
     const f = fixture(); f.setup();
     await f.input.attach();

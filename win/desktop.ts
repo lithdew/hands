@@ -225,7 +225,7 @@ const verifiedIdentity = (window: RawWindow) => Number.isSafeInteger(window.pid)
 
 /** A borrowed window has a separate, non-owning reservation. Selection is
  * serialized across hands, and a failed attachment cannot revert to a sandbox. */
-export function createExistingBrowserTargets<T extends { close(): Promise<void> }>(backend: {
+export function createExistingBrowserTargets<T extends { close(): Promise<void>; healthy?(): boolean }>(backend: {
   candidates(): Promise<RawWindow[]>;
   claim(hand: Hand, window: RawWindow): Promise<void>;
   read(hand: Hand, window: RawWindow): Promise<RawWindow | null>;
@@ -251,7 +251,7 @@ export function createExistingBrowserTargets<T extends { close(): Promise<void> 
   return {
     target(hand: Hand): BrowserTarget {
       const bound = bindings.get(hand.id);
-      return bound ? { mode: "existing", window_id: bound.window.containerId, pid: bound.window.pid, ownerNonce: bound.window.ownerNonce!, title: bound.window.title, ready: bound.ready, ...(bound.error ? { error: bound.error } : {}) } : { mode: "private" };
+      return bound ? { mode: "existing", window_id: bound.window.containerId, pid: bound.window.pid, ownerNonce: bound.window.ownerNonce!, title: bound.window.title, ready: bound.ready && bound.connection?.healthy?.() !== false, ...(bound.error ? { error: bound.error } : {}) } : { mode: "private" };
     },
     connection(hand: Hand) {
       const bound = bindings.get(hand.id);
@@ -290,7 +290,7 @@ export function createExistingBrowserTargets<T extends { close(): Promise<void> 
       return serial(async () => {
         signal?.throwIfAborted();
         const previous = bindings.get(hand.id);
-        if (previous?.ready && previous.connection && (choice.window_id === undefined || choice.window_id === previous.window.containerId)
+        if (previous?.ready && previous.connection && previous.connection.healthy?.() !== false && (choice.window_id === undefined || choice.window_id === previous.window.containerId)
           && (choice.pid === undefined || choice.pid === previous.window.pid)) {
           // A new task often starts with attach even though this exact window
           // is still connected. Prove its lifetime again without revoking the

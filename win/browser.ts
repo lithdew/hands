@@ -234,6 +234,7 @@ const sameBrowserUrl = (a: string | undefined, b: string | undefined) => a === b
 export function existingBrowserInput(call: CuaConnection["call"], current: () => Promise<ExistingBrowserWindow>, session = `puk-existing-${crypto.randomUUID()}`,
   beforePrepare?: (window: ExistingBrowserWindow) => Promise<void>) {
   let closed = false;
+  let healthy = true;
   let currentPage: ExistingPage | undefined;
   let generation = 0;
   const check = async (signal?: AbortSignal, expected?: ExistingBrowserWindow, frame = false) => {
@@ -248,7 +249,17 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
   const invoke = async (name: string, args: Record<string, unknown>, signal?: AbortSignal) => {
     signal?.throwIfAborted();
     if (closed) throw new Error("This existing-browser binding has been released. Attach and look again.");
-    const reply = await call(name, { ...args, session }, signal);
+    let reply: Awaited<ReturnType<CuaConnection["call"]>>;
+    try { reply = await call(name, { ...args, session }, signal); }
+    catch (error) {
+      // A public session may expire while its MCP transport remains alive.
+      // Never revive or replay an input here: the next explicit attach must
+      // retire this label, re-attest the window and obtain a fresh binding.
+      if (/session (?:has ended|'[^']*' has ended)|persistent Cua connection is disconnected|Cua transport closed/i.test(String(error))) {
+        healthy = false; currentPage = undefined; generation++;
+      }
+      throw error;
+    }
     signal?.throwIfAborted();
     const state = reply.structuredContent as Record<string, unknown> | undefined;
     if (reply.isError || state?.status === "refused" || ["refused", "failed", "partial", "suspected_noop"].includes(String(state?.effect))) {
@@ -281,6 +292,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     return { target_id: result.target_id, tab: active[0]!, tabs, window };
   };
   return {
+    healthy: () => healthy && !closed,
     async attach(signal?: AbortSignal, options: { allowPrepare?: boolean } = {}) {
       try { await bind(signal); }
       catch (error) {
