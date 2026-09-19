@@ -18,6 +18,8 @@ Pass the task's `AbortSignal` as `options.signal`. Each render runs in a separat
 
 `storyboard.ts` is the exact schema. The model writes `version:1`, `title`, `kind` (`matrix-inversion` or `pitch`), `scenes`, and `sources`. Scenes contain `id`, `title`, `visual`, `durationSeconds` (3–30), plus optional `body`, `bullets`, `caption`, `narration`, `evidence`, `matrix`, `artifactImage`, `artifactLabel`. A matrix is a numeric 2×2 array with entries in [-5,5]. Supported visuals: title, bullets, matrix, evidence, closing. Sources are public HTTP(S) URLs. `evidence` entries are `{label,value,source}`; the source string is displayed as attribution, not fetched.
 
+Evidence scenes with an image show the unchanged image in a wide panel for the first 62% of the scene, then show all supplied body, bullets and evidence records in a separate readable panel. The midpoint still captures the artifact; reviewers should also inspect the final evidence phase. Image content is never automatically cropped. A focused, faithful screenshot can be provided through the trusted asset map with its own provenance. Oversized headings or evidence text fail the render instead of being clipped or reduced below the layout's minimum scale.
+
 On Windows, optional narration uses local System.Speech (SAPI) and extends the scene if needed. Without narration, the manifest explicitly records a silent captioned video. Narration is synthetic, never a cloned person's voice. Fixed output is 1280×720 at 24 fps. The spec can include those dimensions explicitly or omit them.
 
 ## Output and verification

@@ -129,7 +129,13 @@ export async function previewArtifacts(options: PreviewOptions): Promise<Preview
       page.on("pageerror", error => errors.add(error.message.slice(0, 240)));
       page.on("console", message => { if (message.type() === "error") errors.add(message.text().slice(0, 240)); });
       page.on("response", response => { if (response.status() >= 400) failures.add(`${response.status()} ${new URL(response.url()).pathname.slice(prefix.length)}`); });
-      page.on("requestfailed", request => failures.add(`${request.failure()?.errorText ?? "failed"} ${new URL(request.url()).pathname.slice(0, 160)}`));
+      page.on("requestfailed", request => {
+        // Chromium cancels superseded range downloads on seek/navigation and
+        // after sufficient buffering. Actual load/decode/time advancement is
+        // checked below; a cancellation alone is not a broken media resource.
+        if(request.resourceType()==="media"&&request.failure()?.errorText==="net::ERR_ABORTED")return;
+        failures.add(`${request.failure()?.errorText ?? "failed"} ${new URL(request.url()).pathname.slice(0, 160)}`);
+      });
       page.on("dialog", dialog => { errors.add(`Unexpected ${dialog.type()} dialog`); void dialog.dismiss(); });
     });
     const page = await context.newPage();
@@ -151,6 +157,27 @@ export async function previewArtifacts(options: PreviewOptions): Promise<Preview
         const state = await snapshot(page);
         anchorsByPath.set(path, new Set(state.anchors));
         const label = `${viewport.name}${index ? `-page${index + 1}` : ""}`;
+        const videos = await page.evaluate(async()=>{
+          const doc=(globalThis as any).document;
+          const wait=(element:any,event:string,predicate:()=>boolean)=>new Promise<void>((resolve,reject)=>{
+            if(predicate()){resolve();return;}
+            const clean=()=>{clearTimeout(timer);element.removeEventListener(event,ready);element.removeEventListener("error",failed);};
+            const ready=()=>{if(predicate()){clean();resolve();}},failed=()=>{clean();reject(new Error("Video decode or loading failed"));};
+            const timer=setTimeout(()=>{clean();reject(new Error(`Video ${event} timed out`));},8000);
+            element.addEventListener(event,ready);element.addEventListener("error",failed);
+          });
+          const observed=[];
+          for(const video of [...doc.querySelectorAll("video")].slice(0,3) as any[]){
+            try{
+              video.muted=true;video.preload="auto";video.load();await wait(video,"loadeddata",()=>video.readyState>=2);
+              const target=Math.min(15,video.duration*.2);video.currentTime=target;await wait(video,"seeked",()=>!video.seeking&&video.readyState>=2);
+              const before=video.currentTime;await video.play();await wait(video,"timeupdate",()=>video.currentTime>before+.1);video.pause();
+              const tracks=[];for(const track of [...video.querySelectorAll("track")] as any[]){track.track.mode="hidden";await wait(track,"load",()=>track.readyState===2);tracks.push({loaded:track.readyState===2,cues:track.track.cues?.length??0});}
+              observed.push({passed:video.videoWidth>0&&video.videoHeight>0,duration:video.duration,width:video.videoWidth,height:video.videoHeight,time:video.currentTime,tracks});
+            }catch(error){video.pause();observed.push({passed:false,error:String(error)});}
+          }return observed;
+        });
+        if(videos.length)check(`${label}-video-playback`,videos.every(video=>video.passed),JSON.stringify(videos));
         check(`${label}-loaded`, response?.status() === 200 && Boolean(state.text || state.images.length), `${path}: HTTP ${response?.status() ?? "none"}; title ${state.title || "(untitled)"}`);
         check(`${label}-overflow`, state.overflow <= 2 && state.overflowing.length === 0, state.overflow > 2 || state.overflowing.length ? `${state.overflow}px document overflow; ${state.overflowing.join("; ")}` : `No horizontal overflow at ${viewport.width}×${viewport.height}`);
         check(`${label}-images`, state.images.every(image => image.loaded), state.images.some(image => !image.loaded) ? `Unloaded visible images: ${state.images.filter(image => !image.loaded).map(image => image.src).join(", ")}` : `${state.images.length} visible image(s) loaded`);

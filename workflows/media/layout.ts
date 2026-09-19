@@ -18,3 +18,16 @@ export function matrixTextScale(requiredHeight: number, availableHeight = 555) {
   if (scale < .76) throw new Error("Matrix scene text exceeds its safe caption margin. Shorten the title, body or bullets before rendering.");
   return scale;
 }
+
+/** Keep the scene midpoint on the actual artifact, then give its supplied
+ * evidence a separate readable panel rather than shrinking both side by side. */
+export function evidencePhase(frame: number, frames: number, hasDetails: boolean) {
+  return hasDetails && frame / frames >= .62 ? "details" : "artifact";
+}
+
+export function evidenceTextScale(requiredHeight: number, availableHeight: number) {
+  if (!Number.isFinite(requiredHeight) || requiredHeight <= 0 || !Number.isFinite(availableHeight) || availableHeight <= 0) throw new Error("Evidence text could not be measured");
+  const scale = Math.min(1, availableHeight / requiredHeight);
+  if (scale < .85) throw new Error("Evidence scene text exceeds its readable panel. Shorten the title, body, bullets or evidence before rendering.");
+  return scale;
+}

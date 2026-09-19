@@ -1,5 +1,5 @@
 import {expect, test} from "bun:test";
-import {matrixPhaseLabel, matrixTextScale} from "./layout";
+import {evidencePhase, evidenceTextScale, matrixPhaseLabel, matrixTextScale} from "./layout";
 
 test("matrix overlays follow the actual forward, hold, inverse and final phases", () => {
   expect(matrixPhaseLabel(0, 1000, true)).toBe("Original basis");
@@ -17,4 +17,16 @@ test("matrix text fitting protects the caption lane and refuses unreadable overl
   expect(matrixTextScale(620) * 620).toBeLessThanOrEqual(555);
   expect(() => matrixTextScale(900)).toThrow("Shorten");
   expect(() => matrixTextScale(0)).toThrow("measured");
+});
+
+test("evidence screenshots get the full scene midpoint and retain a separate attribution phase", () => {
+  expect(evidencePhase(0, 1000, true)).toBe("artifact");
+  expect(evidencePhase(500, 1000, true)).toBe("artifact");
+  expect(evidencePhase(619, 1000, true)).toBe("artifact");
+  expect(evidencePhase(620, 1000, true)).toBe("details");
+  expect(evidencePhase(999, 1000, false)).toBe("artifact");
+  expect(evidenceTextScale(400, 450)).toBe(1);
+  expect(evidenceTextScale(500, 450) * 500).toBeLessThanOrEqual(450);
+  expect(() => evidenceTextScale(600, 450)).toThrow("Shorten");
+  expect(() => evidenceTextScale(NaN, 450)).toThrow("measured");
 });
