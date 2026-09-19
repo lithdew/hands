@@ -16,7 +16,7 @@ export function semanticFailure(tool: string, args: unknown, message: string): S
   const missing = message === "Look at this window before acting.";
   const diagnostic = missing ? "No current semantic observation is available."
     : message.startsWith("The visible Chrome tab changed while observing it. Take a fresh snapshot.") ? "Chrome snapshot binding verification failed."
-    : message === "Cua get_browser_state did not return a verified browser result." ? "Cua returned an invalid browser observation."
+    : message.startsWith("Cua get_browser_state did not return a verified browser result.") ? "Cua returned an invalid browser observation."
     : message === "Cua could not bind this exact Chrome window for input. No other browser was selected." ? "Cua could not verify the selected Chrome binding."
     : message === "Cua returned no structured window state." ? "Cua returned no structured window observation."
     : undefined;

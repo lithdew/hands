@@ -5,6 +5,10 @@ const mismatch = 'The visible Chrome tab changed while observing it. Take a fres
 const browser = { mode: "existing", pid: 101, window_id: 202, ownerNonce: "0123456789abcdef" };
 const failure = () => semanticFailure("computer_browser", { action: "snapshot" }, mismatch)!;
 
+test("invalid observation envelopes still count when diagnostic metadata is appended", () => {
+  expect(semanticFailure("computer_browser", { action: "snapshot" }, 'Cua get_browser_state did not return a verified browser result. Read fresh state before any retry. Result metadata: {"keys":[]}')?.failureClass).toBe("semantic-observation");
+});
+
 test("identical structural failures share a budget across observation aliases without storing private text", () => {
   const guard = createSemanticRecovery();
   guard.sync(semanticRecoveryTarget({ browser }));
