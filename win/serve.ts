@@ -156,7 +156,8 @@ if (import.meta.main) {
           if (state !== "idle") busyUntil.set(hand.id, Date.now() + 6000);
           const shown = state === "idle" && Date.now() < (busyUntil.get(hand.id) ?? 0) ? "done" : state;
           // Before the hand has a window, the current tool is the only thing to say about it.
-          const title = artifact ? `${artifact.kind}: ${artifact.phase}` : captions.get(hand.id) || front?.title || (front ? "" : tools.get(hand.id)) || "";
+          // An artifact hand reads "video · rendering 40%" (previewLabel turns the dot into a hyphen); the bare phase is the fallback.
+          const title = artifact ? (artifact.progress ? `${artifact.kind} · ${artifact.progress}` : `${artifact.kind}: ${artifact.phase}`) : captions.get(hand.id) || front?.title || (front ? "" : tools.get(hand.id)) || "";
           pip.stdin.write(`hand ${hand.id} ${front?.containerId ?? 0} ${shown} ${previewLabel(shown === "idle" ? "" : tasks.get(hand.id) ?? "", title)}\n`);
           await pip.stdin.flush();
         });

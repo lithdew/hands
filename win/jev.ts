@@ -37,6 +37,7 @@ import { wallInTexts } from "./session";
 import { isNative, performNative, releaseNative } from "./uia";
 import { looksLikeArtifactRequest } from "../workflows/contracts";
 import { runArtifactWorkflow } from "../workflows/run";
+import { artifactProgress } from "./artifact-events";
 
 /** The hand's browser is at a sign-in page. Nobody here can sign in: not Jev, not the vision agent. The user is told how. */
 export class SignedOut extends Error {}
@@ -285,9 +286,12 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
       // bundle back for file execution/verification instead of a prose "done".
       // The user's selected account window remains bound for later UI tasks.
       await speaking?.speechEnds(); check();
+      // What a watcher reads: each meaningful event as one plain feed line with the run time, and a
+      // compact "video · rendering 40%" for the corner caption and the F8 HUD (win/artifact-events.ts).
+      const progress = artifactProgress();
       const outcome = await (opts.jevFirst?.artifact ?? runArtifactWorkflow)({ request: said, resumeRunId:artifactResumeId, hand: hand.id, signal: runSignal,
-        onStatus: artifact => { mine.artifact = artifact; mine.currentTool = `Hands · ${artifact.phase}`; },
-        onEvent: event => { if (["jev_handoff", "agent_returned", "jev_decision", "artifact_delivered", "run_failed"].includes(event.event)) log(`Hands ${event.event}${event.model ? `: ${event.model}` : ""}${event.detail ? `: ${event.detail}` : ""}`); },
+        onStatus: artifact => { mine.artifact = progress.status(artifact); mine.currentTool = progress.text(artifact.kind); },
+        onEvent: event => { const line = progress.event(event); if (line) log(line); },
       }, { ask });
       check();
       mine.text = `${outcome.summary}\n${outcome.status === "complete" ? "Artifact checks passed" : "Saved for review"}: ${outcome.previewUrl}\nRun: ${outcome.runId}`;
