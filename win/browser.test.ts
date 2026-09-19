@@ -49,6 +49,7 @@ describe("existing Chrome binding", () => {
     let bind = 0, exact = true, setup = false, denied = false;
     let tabs = [{ title: "Inbox", url: "https://mail.example/", active: true as boolean | null }];
     let pageOverride: { title: string; url: string } | undefined;
+    let outcome: Record<string, unknown> = { status: "ok" };
     let onCall: ((name: string, args: Record<string, unknown>) => void) | undefined;
     const call: CuaConnection["call"] = async (name, args = {}) => {
       calls.push({ name, args }); onCall?.(name, args);
@@ -64,7 +65,7 @@ describe("existing Chrome binding", () => {
         refs: [{ ref: "p17:1", role: "button", name: "Compose", actions: ["click"] }, { ref: "p17:2", role: "textbox", name: "Subject", actions: ["type"] },
           { ref: "p17:3", role: "generic", name: null, actions: ["scroll", "pointer"] }] });
       if (name === "browser_prepare") { setup = false; return response({ status: "ok", prepared: true }); }
-      return response({ status: "ok" });
+      return response(outcome);
     };
     const input = existingBrowserInput(call, async () => window, "account-test", async (observed) => {
       calls.push({ name: "focus_existing", args: { pid: observed.pid, window_id: observed.containerId, ownerNonce: observed.ownerNonce } });
@@ -72,6 +73,7 @@ describe("existing Chrome binding", () => {
     return { input, calls, mutateWindow: (change: Partial<ExistingBrowserWindow>) => { window = { ...window, ...change }; },
       tabs: (value: typeof tabs) => { tabs = value; }, setup: () => { setup = true; }, heuristic: () => { exact = false; }, deny: () => { denied = true; },
       page: (value: typeof pageOverride) => { pageOverride = value; },
+      outcome: (value: typeof outcome) => { outcome = value; },
       onCall: (fn: NonNullable<typeof onCall>) => { onCall = fn; } };
   }
   const mutations = (f: ReturnType<typeof fixture>) => f.calls.filter((call) => !["get_browser_state", "end_session", "focus_existing"].includes(call.name));
@@ -153,6 +155,30 @@ describe("existing Chrome binding", () => {
     f.tabs([{ title: "Inbox", url: "https://different.example/", active: true }]);
     await expect(f.input.act(snapshot, { action: "click" }, "p17:1")).rejects.toThrow("after observation or approval");
     expect(mutations(f)).toEqual([]);
+  });
+
+  test("public Cua action outcomes confirm dispatch and invalidate refs without asserting task success", async () => {
+    for (const effect of ["confirmed", "unverifiable"]) {
+      const f = fixture(), snapshot = await f.input.snapshot();
+      f.outcome({ effect, route: "dom", delivery: { mode: "background" } });
+      await f.input.act(snapshot, { action: "click" }, "p17:1");
+      await expect(f.input.act(snapshot, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+      expect(mutations(f)).toHaveLength(1);
+    }
+  });
+
+  test("failed, partial, unknown or wrong-route action outcomes cannot be accepted or replayed", async () => {
+    for (const outcome of [
+      ...["refused", "failed", "partial", "suspected_noop", "unknown"].map((effect) => ({ effect, route: "dom", delivery: { mode: "background" } })),
+      { effect: "confirmed", route: "global_input", delivery: { mode: "foreground" } },
+      { effect: "unverifiable", route: "dom" },
+      { status: "ok", effect: "failed" },
+    ]) {
+      const f = fixture(), snapshot = await f.input.snapshot(); f.outcome(outcome);
+      await expect(f.input.act(snapshot, { action: "click" }, "p17:1")).rejects.toThrow();
+      await expect(f.input.act(snapshot, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+      expect(mutations(f)).toHaveLength(1);
+    }
   });
 
   test("changed window nonce or frame rejects old references before input", async () => {

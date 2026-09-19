@@ -245,10 +245,19 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     const reply = await call(name, { ...args, session }, signal);
     signal?.throwIfAborted();
     const state = reply.structuredContent as Record<string, unknown> | undefined;
-    if (reply.isError || state?.status === "refused") {
+    if (reply.isError || state?.status === "refused" || ["refused", "failed", "partial", "suspected_noop"].includes(String(state?.effect))) {
       throw new Error(`Cua ${name} refused: ${JSON.stringify(state ?? reply.content)}`);
     }
-    if (!state || state.status !== "ok") throw new Error(`Cua ${name} did not return a verified browser result.`);
+    // Cua publishes action outcomes without the internal status/target fields.
+    // "unverifiable" confirms dispatch only: the caller always takes a fresh
+    // semantic observation and must inspect the application's postcondition.
+    const dispatched = ["browser_click", "browser_type", "browser_pointer"].includes(name)
+      && ["confirmed", "unverifiable"].includes(String(state?.effect)) && ["dom", "trusted_input"].includes(String(state?.route))
+      && (state?.delivery as { mode?: string } | undefined)?.mode === "background";
+    if (!state || state.status !== "ok" && !dispatched) throw new Error(`Cua ${name} did not return a verified browser result. Read fresh state before any retry. Result metadata: ${JSON.stringify({
+      keys: Object.keys(reply), structured_keys: state ? Object.keys(state) : [], status: state?.status, effect: state?.effect,
+      route: state?.route, delivery: state?.delivery,
+    })}`);
     return state;
   };
   const bind = async (signal?: AbortSignal) => {
