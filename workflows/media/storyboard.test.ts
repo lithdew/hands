@@ -16,6 +16,16 @@ describe("bounded media storyboard",()=>{
   test("cannot claim inversion with only a singular demonstration",()=>{
     expect(()=>storyboardSchema.parse({...base,scenes:[base.scenes[0],{...base.scenes[1],matrix:[[1,2],[1,2]]}]})).toThrow();
   });
+  test("rejects copy a phone-sized player could not show and names the scene",()=>{
+    const long=(n:number)=>"word ".repeat(Math.ceil(n/5)).trim().slice(0,n);
+    expect(()=>storyboardSchema.parse({...base,scenes:[{...base.scenes[0],title:long(80)},base.scenes[1]]})).toThrow();
+    expect(()=>storyboardSchema.parse({...base,scenes:[{...base.scenes[0],body:long(160),bullets:[long(88),long(88),long(88),long(88)],durationSeconds:30},base.scenes[1]]})).toThrow(/420/);
+    expect(()=>storyboardSchema.parse({...base,scenes:[base.scenes[0],{...base.scenes[1],body:long(121)}]})).toThrow(/animation shares the frame/);
+    expect(()=>storyboardSchema.parse({...base,scenes:[base.scenes[0],{...base.scenes[1],bullets:["a","b","c","d"]}]})).toThrow(/at most 3 bullets/);
+    expect(()=>storyboardSchema.parse({...base,scenes:[{...base.scenes[0],body:long(150),durationSeconds:3},base.scenes[1]]})).toThrow(/reading time/);
+    expect(()=>storyboardSchema.parse({...base,scenes:[{...base.scenes[0],matrixName:"S"},base.scenes[1]]})).toThrow(/matrixName/);
+    expect(storyboardSchema.parse({...base,scenes:[base.scenes[0],{...base.scenes[1],matrixName:"S"}]}).scenes[1]!.matrixName).toBe("S");
+  });
   test("rejects duplicate ids and overlong videos",()=>{
     expect(()=>storyboardSchema.parse({...base,scenes:[{...base.scenes[0],id:"same"},{...base.scenes[1],id:"same"}]})).toThrow();
     expect(()=>storyboardSchema.parse({...base,kind:"pitch",scenes:Array.from({length:9},(_,i)=>({...base.scenes[0],id:`scene-${i}`,durationSeconds:30}))})).toThrow();

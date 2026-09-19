@@ -84,7 +84,7 @@ async function renderInWorker(specPath: string, outputDir: string, options: Rend
   await Bun.write(path.join(out,"storyboard.normalized.json"),JSON.stringify(storyboard,null,2));
   await Bun.write(path.join(out,"subtitles.srt"),prepared.map((s,i)=>`${i+1}\n${subtitleTime(s.startFrame/spec.fps)} --> ${subtitleTime((s.startFrame+s.frames)/spec.fps)}\n${s.narration??s.caption??[s.title,s.body,...s.bullets??[]].filter(Boolean).join(". ")}\n`).join("\n"));
   report("bundle");let start=performance.now();
-  const serveUrl=await bundle({entryPoint:path.join(here,"composition.tsx"),publicDir,outDir:path.join(out,"remotion-bundle"),enableCaching:true,onProgress:()=>{}});
+  const serveUrl=await bundle({entryPoint:path.join(here,"composition.tsx"),publicDir,outDir:path.join(out,"remotion-bundle"),enableCaching:false,onProgress:()=>{}});
   check();timings.bundleMs=Math.round(performance.now()-start);
   const {cancelSignal,cancel}=makeCancelSignal();
   let browser:Awaited<ReturnType<typeof openBrowser>>|undefined,closing:Promise<void>|undefined;
