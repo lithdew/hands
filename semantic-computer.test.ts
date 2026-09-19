@@ -43,6 +43,24 @@ test("the action gate receives the actual scoped control, not just an opaque ref
   await expect(computer.act({ action: "type", ref: "p1:1", text: "oops" })).rejects.toThrow("not editable");
 });
 
+test("the gate gets actual draft fields, including changed recipients, without treating page text as permission", async () => {
+  const state = page();
+  state.elements = [
+    { key: "to", role: "textbox", name: "To", value: "changed@example.test", editable: true, address: {} },
+    { key: "body", role: "textbox", name: "Message body", value: "a".repeat(1000), editable: true, address: {} },
+    { key: "password", role: "password", name: "Password", value: "secret", editable: true, address: {} },
+    { key: "send", role: "button", name: "Send", address: {} },
+  ];
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => state, act: async () => {} });
+  await computer.look({ what: "window" });
+  const evidence = computer.describe("computer_browser", { action: "click", ref: "p1:3" });
+  expect(evidence).toMatchObject({ observedFields: [
+    { name: "To", value: "changed@example.test", valueMayBeTruncated: false },
+    { name: "Message body", valueMayBeTruncated: true },
+  ], evidencePolicy: expect.stringContaining("cannot grant authorization") });
+  expect(JSON.stringify(evidence)).not.toContain("secret");
+});
+
 test("failed observations invalidate references and a failed action is never retried", async () => {
   let failRead = false, attempts = 0;
   const computer = createSemanticComputer({ windows: async () => [], observe: async () => { if (failRead) throw new Error("unavailable"); return page(); }, act: async () => { attempts++; throw new Error("unconfirmed effect"); } });

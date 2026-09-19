@@ -181,6 +181,47 @@ describe("press sequences", () => {
 });
 
 describe("approval", () => {
+  test("a batch verifies its completed draft before using the user's existing send permission", async () => {
+    const world = new World(); world.open("https://mail.google.com/mail/?view=cm");
+    const jev = fakeJev((name, _q, state) => {
+      const sending = state.action?.startsWith('click button "Send"');
+      if (name === "irreversible") return sending ? 0.99 : 0;
+      if (name === "authorized") return !sending || Object.values(EMAIL.inputs).every((value) => state.observation.fields.some((field: any) => field.value === value)) ? 0.99 : 0;
+      if (name === "goal_met") return world.gmail.sent.length ? 0.99 : 0;
+      if (name.startsWith("fill_")) return { to: "recipient", subject: "subject", body: "body" }[world.keyOf(name.slice(5))!];
+      if (name === "next_0" && world.gmail.compose) return idOf(world, "send");
+      return undefined;
+    });
+    // A backend may keep a structural fingerprint while field values change.
+    const result = await runScreens(SIM_HAND, EMAIL, { ask: jev.ask, llm, sleep: async () => {}, observe: async () => ({ ...world.look(), fingerprint: "unchanged-structure" }),
+      authorization: () => `Send one email to ${EMAIL.inputs.recipient} with subject "${EMAIL.inputs.subject}" and body "${EMAIL.inputs.body}".`,
+      approve: async () => { throw new Error("The exact send was already requested"); },
+      perform: async (_hand, action) => world.act(action, describeScreenAction(action)) });
+    expect(result.status).toBe("done");
+    expect(world.gmail.sent).toEqual([{ to: [EMAIL.inputs.recipient!], subject: EMAIL.inputs.subject!, body: EMAIL.inputs.body! }]);
+    const sendChecks = jev.gates().filter((call) => call.state.action.startsWith('click button "Send"'));
+    expect(sendChecks).toHaveLength(2); // Initial empty form, then actual fields after filling.
+    expect(sendChecks[0]!.state.observation.fields.every((field: any) => !field.value)).toBe(true);
+    expect(sendChecks[1]!.state.observation.fields.filter((field: any) => field.name !== "Search mail").map((field: any) => field.value)).toEqual(Object.values(EMAIL.inputs));
+    expect(result.steps.at(-1)!.risk).toBe(0.99);
+  });
+
+  test("a raw correction between batch inputs invalidates the remaining actions before the parsed goal changes", async () => {
+    const world = new World(); world.open("https://mail.google.com/mail/?view=cm");
+    const to = idOf(world, "to"), send = idOf(world, "send");
+    let authorization = "Send the requested email to Sam";
+    const jev = fakeJev((name, _q, state) => {
+      if (name === "irreversible") return state.action.startsWith('click button "Send"') ? 0.99 : 0;
+      return { [`fill_${to}`]: "recipient", next_0: send, authorized: 0.99 }[name];
+    });
+    const result = await runScreens(SIM_HAND, EMAIL, { ask: jev.ask, llm, sleep: async () => {}, observe: async () => world.look(), authorization: () => authorization,
+      approve: async () => { throw new Error("A stale batch must not reach approval"); },
+      perform: async (_hand, action) => { world.act(action, describeScreenAction(action)); authorization = "Do not send. Keep this as a draft."; } }, { maxSteps: 1 });
+    expect(result.status).toBe("out_of_steps");
+    expect(world.acted).toHaveLength(1);
+    expect(world.gmail.sent).toEqual([]);
+  });
+
   test("the full body reaches the gate and approval while history keeps its short preview", async () => {
     const world = new World(); world.open("https://mail.google.com/mail/?view=cm");
     const body = `${"A harmless draft sentence. ".repeat(6)}\nSynthetic credential: example-secret-for-test-only  `;

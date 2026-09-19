@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { describeAction, elementLabels, isLooping, jevState, runIntent, type Deps } from "./cua";
+import { describeAction, elementLabels, gateObservation, isLooping, jevState, runIntent, type Deps } from "./cua";
 import type { Exec, Hand } from "../desktop";
 import type { Approve } from "./gate";
 import { COMPOSE_LABEL, type Intent } from "./intent";
@@ -202,6 +202,42 @@ describe("runIntent", () => {
       return true;
     } }, sh.exec), { maxSteps: 1 });
     expect(result.status).toBe("out_of_steps");
+    expect(sh.input()).toEqual([]);
+  });
+
+  test("a requested send with matching observed fields executes without a redundant approval", async () => {
+    const form = screen("draft", [
+      el("e1", "text field", "To", 30, 50, { value: "sam@example.test", within: "Draft", frame: "Mail" }),
+      el("e2", "text field", "Body", 30, 150, { value: "Hello Sam", within: "Draft", frame: "Mail" }),
+      el("e3", "button", "Send", 30, 250, { within: "Draft", frame: "Mail" }),
+    ]);
+    const authorization = 'Send "Hello Sam" to sam@example.test.';
+    const jev = fakeJev((name, { state }) => {
+      if (name === "goal_met") return state.history.length ? 0.99 : 0;
+      if (name === "authorized") return state.observation.fields.some((field: any) => field.value === "sam@example.test") ? 0.99 : 0;
+      return { move: "click", target: "e3", irreversible: 0.99 }[name];
+    });
+    const sh = fakeExec();
+    const result = await runIntent(hand, { ...intent, goal: "Send the message", inputs: {}, doneWhen: "Message sent" }, deps({ ask: jev.ask, observe: screens(form), authorization: () => authorization }, sh.exec));
+    expect(result.status).toBe("done");
+    expect(jev.asked("authorized")[0]!.state.authorization).toBe(authorization);
+    expect(result.steps[0]!.risk).toBe(0.99);
+    expect(sh.input().filter((cmd) => cmd.includes("click"))).toHaveLength(1);
+  });
+
+  test("a raw correction at the gate expires permission before the parsed intent catches up", async () => {
+    let authorization = "Click Search to search Wikipedia for capybaras";
+    const original = authorization;
+    const jev = fakeJev((name, { state }) => {
+      if (name === "irreversible") { authorization = "Do not click Search. Keep the page unchanged."; return 0.99; }
+      if (name === "authorized") return state.authorization === original ? 0.99 : 0;
+      if (name === "contradicts_user") return state.authorization === original ? 0 : 0.99;
+      return { move: "click", target: "e2" }[name];
+    });
+    const sh = fakeExec();
+    const result = await runIntent(hand, intent, deps({ ask: jev.ask, observe: screens(home), authorization: () => authorization }, sh.exec), { maxSteps: 3 });
+    expect(jev.asked("authorized").map((call) => call.state.authorization)).toEqual([original, authorization]);
+    expect(result.status).toBe("denied");
     expect(sh.input()).toEqual([]);
   });
 
@@ -439,6 +475,24 @@ describe("runIntent", () => {
 });
 
 describe("runIntent while the speaker is still talking", () => {
+  test("an already authorized action still waits when speech restarts during its gate", async () => {
+    const speech = Promise.withResolvers<void>(), held = Promise.withResolvers<void>();
+    let speaking = false, checks = 0;
+    const jev = fakeJev((name, { state }) => {
+      if (name === "goal_met") return state.history.length ? 0.99 : 0;
+      if (name === "irreversible") { if (++checks === 1) speaking = true; return 0.99; }
+      return { move: "click", target: "e2", authorized: 0.99 }[name];
+    });
+    const sh = fakeExec();
+    const run = runIntent(hand, intent, deps({ ask: jev.ask, observe: screens(home), authorization: () => "Click Search now" }, sh.exec),
+      { maxSteps: 3, settles: () => { if (!speaking) return null; held.resolve(); return speech.promise; } });
+    const paused = await Promise.race([held.promise.then(() => true), run.then(() => false)]);
+    try { expect(paused).toBe(true); expect(sh.input()).toEqual([]); }
+    finally { speaking = false; speech.resolve(); }
+    expect((await run).status).toBe("done");
+    expect(checks).toBe(2);
+  });
+
   test("it does not type until the sentence is over, then types what was finally said", async () => {
     const speech = Promise.withResolvers<void>();
     let speaking = true;
@@ -547,6 +601,22 @@ describe("jevState", () => {
     expect(state.screen.elements[0]).toBe('text field "Search Wikipedia" empty (top center)');
     expect(JSON.stringify(state.screen)).not.toContain('"rect"');
   });
+});
+
+test("gate observations bound actual field text and exclude password values", () => {
+  const obs = screen("form", [
+    el("e1", "text field", "Body", 0, 0, { value: "x".repeat(1000) + "unseen tail" }),
+    el("e2", "password field", "Password", 0, 0, { editable: true, value: "synthetic-password-never-for-the-gate" }),
+    ...Array.from({ length: 70 }, (_, i) => el(`extra${i}`, "button", "Control " + i, 0, 0)),
+  ], ["t".repeat(5000)]);
+  const evidence = gateObservation(obs);
+  expect(evidence.fields[0]).toMatchObject({ name: "Body", value: "x".repeat(1000), truncated: true });
+  expect(evidence.fields[1]).toMatchObject({ value: "[redacted]", redacted: true });
+  expect(JSON.stringify(evidence)).not.toContain("synthetic-password");
+  expect(evidence.controls).toHaveLength(60);
+  expect(evidence.controlsTruncated).toBe(true);
+  expect(evidence.text).toHaveLength(4000);
+  expect(evidence.textTruncated).toBe(true);
 });
 
 describe("elementLabels", () => {

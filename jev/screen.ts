@@ -23,8 +23,8 @@
 //   runScreens(hand, intent, deps, opts)   same contract as cua.ts `runIntent`
 
 import { debugLog, type Hand } from "../desktop";
-import { argumentsFor, describeAction, elementLabels, isLooping, jevState, KEYS, MOVES, type Action, type Deps, type RunOptions, type RunResult, type StepRecord } from "./cua";
-import { assessRisk, needsApproval, type Risk } from "./gate";
+import { argumentsFor, describeAction, elementLabels, gateObservation, isLooping, jevState, KEYS, MOVES, type Action, type Deps, type RunOptions, type RunResult, type StepRecord } from "./cua";
+import { assessRisk, blocksAction, isRisky, needsApproval, type Risk } from "./gate";
 import { COMPOSE_LABEL, composeText, type Intent } from "./intent";
 import { choice, noul, type Answers, type ChoiceResponse, type NoulResponse, type Questions } from "./jev";
 import { describeElement, withVisionElements, type Observation, type UiElement } from "./observe";
@@ -251,6 +251,8 @@ export async function runScreens(hand: Hand, goal: Intent | (() => Intent), deps
   for (let n = 1; n <= maxSteps; n++) {
     if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
     const intent = current(), instructionAtDecision = JSON.stringify(intent);
+    const authorizationAtDecision = deps.authorization?.();
+    const instructionChanged = () => JSON.stringify(current()) !== instructionAtDecision || deps.authorization?.() !== authorizationAtDecision;
     let obs = carried ?? (await look(hand));
     carried = null;
     // What the planner saw stays in Jev's list for as long as the screen it saw is still there. Without this a plan
@@ -259,7 +261,7 @@ export async function runScreens(hand: Hand, goal: Intent | (() => Intent), deps
 
     const decision = await decideScreen(deps, hand, intent, obs, memory);
     if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
-    if (JSON.stringify(current()) !== instructionAtDecision) continue; // refined while Jev was deciding: decide again
+    if (instructionChanged()) continue; // refined while Jev was deciding: decide again
     if (decision.kind === "done") return end("done", intent.doneWhen);
 
     if (decision.kind === "escalate") {
@@ -294,24 +296,35 @@ export async function runScreens(hand: Hand, goal: Intent | (() => Intent), deps
     const described = decision.actions.map(describeScreenAction);
     const exact = decision.actions.map((action) => action.kind === "select" ? describeScreenAction(action) : describeAction(action, { fullText: true }));
     const latest = current();
-    if (JSON.stringify(latest) !== instructionAtDecision) continue;
+    if (instructionChanged()) continue;
     const gateGoal = latest.goal, gateAvoid = [...latest.avoid];
-    const risks: (Risk | null)[] = await Promise.all(decision.actions.map((action, i) => (action.kind === "wait" ? null : assessRisk(deps.ask, { goal: gateGoal, avoid: gateAvoid, action: exact[i]! }))));
+    const authorization = opts.settles?.() ? undefined : authorizationAtDecision;
+    const observation = gateObservation(obs);
+    const risks: (Risk | null)[] = await Promise.all(decision.actions.map((action, i) => (action.kind === "wait" ? null : assessRisk(deps.ask, { goal: gateGoal, avoid: gateAvoid, action: exact[i]!, authorization, observation }))));
     if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
     // A correction during the parallel gates also expires the approval prompts.
-    if (JSON.stringify(current()) !== instructionAtDecision) continue;
+    if (instructionChanged()) continue;
     if (opts.dryRun) return end("dry_run", described.join("; "));
 
     const structure = structureOf(obs);
     let seen = obs;
     for (const [i, planned_] of decision.actions.entries()) {
       if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
-      if (JSON.stringify(current()) !== instructionAtDecision) break;
+      if (instructionChanged()) break;
       // Ids are positions in the list, so they stay valid exactly as long as the structure does.
       if (i > 0 && structureOf(seen) !== structure) { log(`look ${n}: the screen changed shape after ${i} of ${decision.actions.length} actions; looking again`); break; }
       const target = "target" in planned_ && planned_.target ? seen.elements.find((el) => el.id === planned_.target!.id) ?? planned_.target : null;
       const action = (target ? { ...planned_, target } : planned_) as ScreenAction;
-      const did = described[i]!, risk = risks[i]!;
+      const did = described[i]!;
+      let risk = risks[i]!;
+      // Initial batch gates saw the form before earlier inputs changed it.
+      // Check a consequential commit against the actual resulting fields.
+      if (i > 0 && risk && authorization && isRisky(risk, opts.riskThreshold?.())) {
+        risk = await assessRisk(deps.ask, { goal: gateGoal, avoid: gateAvoid, action: exact[i]!, authorization: opts.settles?.() ? undefined : authorization, observation: gateObservation(seen) });
+        if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
+        if (instructionChanged()) break;
+      }
+      if (risk && blocksAction(risk)) return end("denied", "This action conflicts with the current user instruction.");
       if (risk && needsApproval(risk, opts.riskThreshold?.())) {
         // Committing over a value the screen shows differently is how a table gets booked for the wrong day.
         if (decision.doubts?.length) {
@@ -327,13 +340,13 @@ export async function runScreens(hand: Hand, goal: Intent | (() => Intent), deps
         if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
         // The user approved what they were shown. If the screen or the request moved on while they decided, that approval is spent.
         const fresh = await look(hand);
-        if (fresh.fingerprint !== seen.fingerprint || JSON.stringify(current()) !== instructionAtDecision) { carried = fresh; log(`look ${n}: approval expired because the screen or instruction changed`); break; }
+        if (fresh.fingerprint !== seen.fingerprint || instructionChanged()) { carried = fresh; log(`look ${n}: approval expired because the screen or instruction changed`); break; }
       }
       if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
-      if (JSON.stringify(current()) !== instructionAtDecision) break;
+      if (instructionChanged()) break;
       // A fresh speech hold can start during the gate, approval or its final look.
       // Wait for it, then decide and gate again instead of spending the old approval.
-      const speechAtInput = action.kind === "type" || risk && needsApproval(risk, opts.riskThreshold?.()) ? opts.settles?.() : null;
+      const speechAtInput = action.kind === "type" || risk && isRisky(risk, opts.riskThreshold?.()) ? opts.settles?.() : null;
       if (speechAtInput) { log(`look ${n}: holding until the speaker finishes`); await speechAtInput; break; }
       await deps.perform(hand, action);
       if (action.press !== undefined) memory.pressed = action.press + 1;

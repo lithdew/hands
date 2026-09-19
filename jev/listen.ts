@@ -40,6 +40,8 @@ export type Job = {
   signal: AbortSignal;
   /** This task's spoken context; another independent utterance cannot replace it. */
   transcript: () => string;
+  /** Only user words, in order: excludes generated plans, retry notes and results. */
+  authorization: () => string;
   /** A promise while the speaker is still talking, null once they have finished. */
   speechEnds: () => Promise<void> | null;
   /** Notify a running worker when Jev refines this task. */
@@ -95,13 +97,18 @@ type Live = Task & {
   utterance: Utterance;
   requestPrefix: string;
   contextPrefix: string;
+  authorizationPrefix: string;
+  /** Words before a typed correction are frozen in the prefix, not repeated after it. */
+  authorizationStart: number;
   /** Stable context before this utterance refined an earlier task. */
   prior?: TaskContext;
 };
 
-type TaskContext = Pick<Live, "id" | "request" | "startWord" | "startChar" | "hand" | "result" | "utterance" | "requestPrefix" | "contextPrefix">;
+type TaskContext = Pick<Live, "id" | "request" | "startWord" | "startChar" | "hand" | "result" | "utterance" | "requestPrefix" | "contextPrefix" | "authorizationPrefix" | "authorizationStart">;
 type RecalledTask = TaskContext & { status: TaskStatus; source?: Live };
-const taskContext = (task: TaskContext): TaskContext => ({ id: task.id, request: task.request, startWord: task.startWord, startChar: task.startChar, hand: task.hand, result: task.result, utterance: task.utterance, requestPrefix: task.requestPrefix, contextPrefix: task.contextPrefix });
+const taskContext = (task: TaskContext): TaskContext => ({ id: task.id, request: task.request, startWord: task.startWord, startChar: task.startChar, hand: task.hand, result: task.result, utterance: task.utterance, requestPrefix: task.requestPrefix, contextPrefix: task.contextPrefix, authorizationPrefix: task.authorizationPrefix, authorizationStart: task.authorizationStart });
+const authorizationFor = (task: Pick<TaskContext, "utterance" | "authorizationPrefix" | "authorizationStart">): string =>
+  [task.authorizationPrefix, task.utterance.text.slice(task.authorizationStart).trimStart()].filter(Boolean).join("\n");
 
 type Utterance = { text: string; speaking: boolean; ended: ReturnType<typeof Promise.withResolvers<void>>; abort: AbortController };
 const newUtterance = (): Utterance => ({ text: "", speaking: false, ended: Promise.withResolvers<void>(), abort: new AbortController() });
@@ -207,6 +214,7 @@ export function createListener(deps: ListenDeps): Listener {
     intent: () => task.intent,
     signal: task.abort.signal,
     transcript: () => task.contextPrefix + task.utterance.text,
+    authorization: () => authorizationFor(task),
     // A fresh hold may change the recipient or cancel any occupied hand. Its
     // barrier begins at key-down, before Jev can assign the first words.
     speechEnds: () => utterance.speaking ? utterance.ended.promise : task.utterance.speaking ? task.utterance.ended.promise : null,
@@ -316,6 +324,8 @@ export function createListener(deps: ListenDeps): Listener {
       utterance,
       requestPrefix: previous ? sameTurn ? previous.requestPrefix : previous.request + "\n" : "",
       contextPrefix: previous ? `${previous.contextPrefix}${sameTurn ? "" : previous.utterance.text}\n\nPrevious attempt: ${previous.result?.status ?? "interrupted"}: ${previous.result?.reason ?? "An unconfirmed spoken correction was replaced"}. Continue from the current state; inspect prior results and do not repeat completed sends or other completed actions.\nFollow-up: ` : "",
+      authorizationPrefix: previous ? sameTurn ? previous.authorizationPrefix : authorizationFor(previous) : "",
+      authorizationStart: sameTurn ? previous.authorizationStart : 0,
       prior: previous && taskContext(previous),
     };
     if (previous?.source) previous.source.superseded = true;
@@ -331,6 +341,8 @@ export function createListener(deps: ListenDeps): Listener {
     if (task.utterance !== utterance) {
       task.prior = taskContext(task);
       task.contextPrefix += task.utterance.text + "\n";
+      task.authorizationPrefix = authorizationFor(task);
+      task.authorizationStart = 0;
       task.requestPrefix = task.request + "\n";
       task.startChar = 0;
       task.utterance = utterance;
@@ -481,6 +493,7 @@ export function createListener(deps: ListenDeps): Listener {
   async function drain() {
     while (!abort.signal.aborted && (handled.text !== latest || handled.finished !== finished)) {
       const now = { text: latest, finished };
+      if (finalError) { handled = now; return; }
       const version = epoch;
       try {
         await pass(now.text, now.finished, version);
@@ -546,7 +559,7 @@ export function createListener(deps: ListenDeps): Listener {
   }
 
   function receive(transcript: string) {
-    if (finished || abort.signal.aborted) return;
+    if (finished || abort.signal.aborted || finalError) return;
     transcript = transcript.trim().replace(/\s+/g, " ");
     if (latest && !transcript.startsWith(latest)) {
       // STT can revise earlier words, not just append. Their old word offsets
@@ -555,6 +568,10 @@ export function createListener(deps: ListenDeps): Listener {
       utterance.abort.abort();
       utterance.abort = new AbortController();
       const old = tasks.filter((task) => task.utterance === utterance);
+      // A typed correction splits the raw speech at authorizationStart. If STT
+      // rewrites the first recording, there is no earlier task to reconstruct
+      // its target or that split from. Never silently drop the typed restriction.
+      const unanchoredCorrection = old.some((task) => !task.prior && task.authorizationStart > 0);
       // Rewriting a later hold replaces its partial correction, not the
       // original request/recipient. Keep that baseline for Jev to refer to.
       recovered = [...new Map([...recovered, ...old.flatMap((task) => task.prior ? [task.prior] : [])].map((task) => [task.id, task])).values()];
@@ -562,6 +579,11 @@ export function createListener(deps: ListenDeps): Listener {
       for (const task of old) task.superseded = true;
       consumed = "";
       handled = { text: "", finished: false };
+      if (unanchoredCorrection) {
+        finalError = new Error("The speech transcript was rewritten after a typed correction. That recording was cancelled; repeat the complete request including the correction.");
+        log(`listen: ${finalError.message}`);
+        return;
+      }
     }
     utterance.speaking = true;
     utterance.text = transcript;
@@ -606,11 +628,14 @@ export function createListener(deps: ListenDeps): Listener {
       if (request.length > 16_000) throw new Error("The task and correction exceed 16000 characters.");
       task.request = request;
       task.intent = { ...task.intent, goal: request };
+      task.authorizationPrefix = authorizationFor(task) + suffix;
+      task.authorizationStart = task.utterance.text.length;
       if (task.utterance === utterance) {
         task.requestPrefix = request + "\n";
         task.startChar = latest.length;
       }
-      if (task.prior) task.prior = { ...task.prior, request: task.prior.request + suffix, contextPrefix: task.prior.contextPrefix + suffix + "\n" };
+      if (task.prior) task.prior = { ...task.prior, request: task.prior.request + suffix, contextPrefix: task.prior.contextPrefix + suffix + "\n",
+        authorizationPrefix: authorizationFor(task.prior) + suffix, authorizationStart: task.prior.utterance.text.length };
       addressed = task;
       for (const listener of task.listeners) listener(task.intent);
       return true;
@@ -644,7 +669,7 @@ export function handWork(deps: Deps): Work {
     if (job.signal.aborted) return { status: "cancelled", reason: "the task was taken back", steps: [] };
     await openFor(hand, job.intent());
     if (job.intent().launcher !== "none") await (deps.sleep ?? Bun.sleep)(APP_START_MS);
-    return runIntent(hand, job.intent, deps, {
+    return runIntent(hand, job.intent, { ...deps, authorization: job.authorization }, {
       signal: job.signal,
       settles: job.speechEnds,
       riskThreshold: () => (job.speechEnds() ? SPEAKING_RISK_THRESHOLD : RISK_THRESHOLD),

@@ -237,20 +237,22 @@ export function createVoiceListener(opts: {
             const worker = await opts.runtime(hand);
             runtime = worker;
             if (job.signal.aborted || session.cancelled) return { status: "cancelled", reason: "Voice task cancelled", steps: [] };
-            let assigned = job.intent().goal, context = job.transcript();
+            let assigned = job.intent().goal, context = job.transcript(), authorization = job.authorization();
             unsubscribe = job.onUpdate?.((intent) => {
               // Other tasks remain context for the gate. Only Jev's assigned
               // goal can steer this worker, including when speech finishes.
               const latestContext = job.transcript();
-              if (intent.goal !== assigned || latestContext !== context) {
+              const latestAuthorization = job.authorization();
+              if (intent.goal !== assigned || latestContext !== context || latestAuthorization !== authorization) {
                 assigned = intent.goal;
                 context = latestContext;
+                authorization = latestAuthorization;
                 worker.refine(assigned, context);
               }
             });
             session.workers.add(worker);
             job.signal.addEventListener("abort", stop, { once: true });
-            await worker.prompt(assigned, [], context, { speechEnds: job.speechEnds, transcript: job.transcript });
+            await worker.prompt(assigned, [], context, { speechEnds: job.speechEnds, transcript: job.transcript, authorization: job.authorization });
             const error = worker.status().error;
             return { status: job.signal.aborted ? "cancelled" : error ? "gave_up" : "done", reason: error ?? "Voice task finished", steps: [] };
           } catch (error) {
@@ -704,7 +706,9 @@ export async function servePuk(opts: {
           if (!revised.success) return Response.json({ error: "The task and correction exceed 16000 characters." }, { status: 400 });
           if (!await voice.recordCorrection(worker.hand.id, parsed.data.text)) {
             if (!worker.runtime.status().running) return Response.json({ error: "That hand finished before the correction arrived." }, { status: 409 });
-            worker.runtime.refine(revised.data);
+            // An external worker's status may contain generated handoff notes.
+            // Only the correction has known user provenance in this fallback.
+            worker.runtime.refine(revised.data, parsed.data.text);
           }
           voice.clearError(); controller.clearError();
           return Response.json({ ok: true, hand: worker.hand.id }, { status: 202 });

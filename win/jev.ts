@@ -125,6 +125,8 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
   let settled = Promise.withResolvers<void>();
   settled.resolve();
   let said = "", fullUtterance: string | undefined, rebuilding = 0, startedAt = 0;
+  let liveAuthorization: (() => string) | undefined;
+  const authorization = () => liveAuthorization?.() ?? fullUtterance ?? said;
   /** Where the hand's browser was last sent and has not been touched since, so a link opened early is not loaded twice. */
   let at: string | null = null;
   const log = (text: string) => { mine.events.push({ time: Date.now(), text: redact(text).slice(0, 1000) }); mine.events = mine.events.slice(-30); debugLog("win.jev", { hand: hand.id, text }); };
@@ -182,6 +184,7 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
   }
   const deps: ScreenDeps = {
     ask, llm, perform, settleMs: 150, log,
+    authorization,
     // The page's own address says when a click has landed on a sign-in page; only then is the page asked again.
     observe: async () => { const seen = await (opts.jevFirst?.observe ?? observeHand)(hand); if (wallInTexts(seen.texts, hand.id)) await signedIn(); return seen; },
     screenshot: async () => new Uint8Array(Buffer.from(await capture(hand), "base64")),
@@ -229,7 +232,7 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
       phase = "pi";
       const steps = done?.steps.map((s) => `${s.did} -> ${s.outcome}`).slice(-8) ?? [];
       const note = `\n\nThe Jev controller stopped in this hand (${why}).${steps.length ? ` Its recorded steps were: ${steps.join("; ")}.` : ""} Get a fresh compact observation of the current window and keep completed work. If an input failed, inspect its result before retrying it. Reuse applications that are still open; reopen a needed application only if its window has closed.`;
-      await pi.prompt(said + note, opened, fullUtterance, speaking);
+      await pi.prompt(said + note, opened, authorization(), speaking);
     };
 
     try {
@@ -383,6 +386,7 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
     async prompt(text, opened = [], utterance, speaking) {
       if (phase === "jev" || pi.status().running) throw new Error("The agent is busy. Stop it before starting another task.");
       phase = "jev"; said = text; fullUtterance = utterance; at = null; declined = false; startedAt = Date.now(); rebuilding++;
+      liveAuthorization = speaking?.authorization;
       mine = { task: text, text: "", error: null, currentTool: "Jev is reading the request", approval: null, events: [] };
       abort = new AbortController(); controllerAbort = new AbortController(); controllerSignal = AbortSignal.any([abort.signal, controllerAbort.signal]); settled = Promise.withResolvers<void>();
       const started = performance.now();
