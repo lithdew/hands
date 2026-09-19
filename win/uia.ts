@@ -128,7 +128,8 @@ export function pulledUser(before: { where: string; fg: string }, after: { where
   return (reply.includes("took-focus") && after.fg !== before.fg) || (!stale && after.where !== before.where);
 }
 
-export async function performNative(hand: Hand, action: ScreenAction): Promise<void> {
+export async function performNative(hand: Hand, action: ScreenAction, beforeInput: () => void = () => {}): Promise<void> {
+  beforeInput();
   const look = operable.get(hand.id), id = "target" in action ? action.target?.id : undefined;
   if (!look || !id) throw new Error("Nothing of this window has been read yet.");
   // A hand never takes the user's screen. Patterns are not supposed to need the focus, but some controls take it
@@ -137,7 +138,9 @@ export async function performNative(hand: Hand, action: ScreenAction): Promise<v
   const ask = (await helper()).ask, at = async () => ({ where: await ask("where"), fg: await ask("fg"), when: performance.now() });
   // Between two keys of a run the check after one is the check before the next.
   const stale = Boolean(lastSeen && performance.now() - lastSeen.when < FRESH_MS), before = stale ? lastSeen! : await at();
-  const reply = await (await uia()).ask(nativeRequest(look.hwnd, look.nodes.get(id), action));
+  const native = await uia();
+  beforeInput();
+  const reply = await native.ask(nativeRequest(look.hwnd, look.nodes.get(id), action));
   const after = await at(), pulled = pulledUser(before, after, reply, stale);
   if (pulled) { await ask(`goto ${JSON.parse(before.where) as string}`).catch(() => {}); await ask(`focus ${before.fg}`).catch(() => {}); }
   lastSeen = pulled ? undefined : after;

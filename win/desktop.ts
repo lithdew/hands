@@ -597,7 +597,7 @@ export async function connectCua(hand: Hand): Promise<CuaConnection> {
         existingBrowser(hand); // Surface a failed attachment before tool advice.
         throw new Error("This hand is attached to the user's Chrome. Use computer_browser snapshot and ref actions; pixel input is not routed through the sandbox browser.");
       }
-      if (w.pid === browsers.get(hand.id) && await handBrowser(hand).handle(name, args, w)) return image("");
+      if (w.pid === browsers.get(hand.id) && await handBrowser(hand).handle(name, args, w, () => signal?.throwIfAborted())) return image("");
       // The agent cursor is an overlay in screen space; it is decoration, never a reason to fail.
       if (name === "move_cursor") return raw.call(name, { x: w.rect[0] + Number(args.x), y: w.rect[1] + Number(args.y) }, signal).catch(() => image(""));
       if (name === "mouse_button_down") {

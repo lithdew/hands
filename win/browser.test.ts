@@ -3,7 +3,7 @@ import { addressToUrl, browserInput, existingBrowserInput, keyEvent, toCss, type
 import type { CuaConnection } from "../desktop";
 
 /** A scripted helper: records every request line and answers the DevTools ones. */
-function fakeHelper(opts: { page?: [number, number, number, number]; cssWidth?: number; title?: string } = {}) {
+function fakeHelper(opts: { page?: [number, number, number, number]; cssWidth?: number; title?: string; onCall?: (method: string, params: any) => void } = {}) {
   const sent: { method: string; params: any }[] = [];
   const ask: Ask = async (line) => {
     if (line.startsWith("http ")) return JSON.stringify([
@@ -16,6 +16,7 @@ function fakeHelper(opts: { page?: [number, number, number, number]; cssWidth?: 
     const message = JSON.parse(json!);
     expect(message.id).toBe(Number(id));
     sent.push({ method: `${ws!.split("/").pop()}:${message.method}`, params: message.params });
+    opts.onCall?.(message.method, message.params);
     return JSON.stringify({ id: message.id, result: message.method === "Page.getLayoutMetrics" ? { cssVisualViewport: { clientWidth: opts.cssWidth ?? 1344 } } : {} });
   };
   const input = browserInput(ask, async () => 9);
@@ -39,6 +40,35 @@ describe("keyEvent", () => {
     expect(() => keyEvent(["ctrl"])).toThrow("besides its modifiers");
     expect(() => keyEvent(["hyperspace"])).toThrow("Unknown key");
   });
+});
+
+test("private navigation, scripts and input recheck corrections after awaiting page lookup", async () => {
+  for (const operation of ["navigate", "evaluate", "handle"]) {
+    let revised = false;
+    const f = fakeHelper({ onCall: (method) => { if (method === "Page.getLayoutMetrics") revised = true; } });
+    const guard = () => { if (revised) throw new Error("instruction changed"); };
+    const pending = operation === "navigate" ? f.input.navigate(f.window, "https://example.org", guard)
+      : operation === "evaluate" ? f.input.evaluate(f.window, "fixtureMutation()", guard)
+      : f.input.handle("type_text", { text: "old text" }, f.window, guard);
+    await expect(pending).rejects.toThrow("instruction changed"); expect(f.acts()).toEqual([]);
+  }
+});
+
+test("private pointer dispatch rechecks a correction between move and press", async () => {
+  let revised = false;
+  const f = fakeHelper({ onCall: (_method, params) => { if (params.type === "mouseMoved") revised = true; } });
+  await expect(f.input.handle("click", { x: 30, y: 100 }, f.window, () => { if (revised) throw new Error("instruction changed"); })).rejects.toThrow("instruction changed");
+  expect(f.acts().map((action) => action.params.type)).toEqual(["mouseMoved"]);
+});
+
+test("a correction after a pointer or key press still permits its matching release", async () => {
+  for (const key of [false, true]) {
+    let revised = false;
+    const f = fakeHelper({ onCall: (_method, params) => { if (["mousePressed", "keyDown", "rawKeyDown"].includes(params.type)) revised = true; } });
+    const guard = () => { if (revised) throw new Error("instruction changed"); };
+    await f.input.handle(key ? "press_key" : "click", key ? { key: "Return" } : { x: 30, y: 100 }, f.window, guard);
+    expect(f.acts().at(-1)!.params.type).toBe(key ? "keyUp" : "mouseReleased");
+  }
 });
 
 describe("existing Chrome binding", () => {

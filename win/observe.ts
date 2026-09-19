@@ -169,10 +169,12 @@ export function selectScript(x: number, y: number, option: string): string {
 }
 
 /** Set a native dropdown in the hand's page. `rect` is the element's, in window pixels, as `observeHand` gave it. */
-export async function selectOption(hand: Hand, rect: { x: number; y: number; w: number; h: number }, option: string): Promise<void> {
+export async function selectOption(hand: Hand, rect: { x: number; y: number; w: number; h: number }, option: string, beforeInput: () => void = () => {}): Promise<void> {
+  beforeInput();
   const window = await browserWindow(hand), page = handBrowser(hand), geometry = window && await page.geometry(window);
   if (!window || !geometry) throw new Error("the hand's browser is not in front");
   const [left, top] = geometry.area, css = (px: number) => px * geometry.scale;
-  const outcome = await page.evaluate(window, selectScript(css(rect.x + rect.w / 2 - left), css(rect.y + rect.h / 2 - top), option));
+  beforeInput();
+  const outcome = await page.evaluate(window, selectScript(css(rect.x + rect.w / 2 - left), css(rect.y + rect.h / 2 - top), option), beforeInput);
   if (outcome !== "set") throw new Error(`could not set the dropdown: ${String(outcome)}`);
 }

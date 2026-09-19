@@ -111,9 +111,10 @@ export function browserInput(ask: Ask, port: (reread?: boolean) => Promise<numbe
 
   return {
     /** Run an expression in the page and return its value; null when there is no page. */
-    async evaluate(window: BrowserWindow, expression: string): Promise<unknown> {
+    async evaluate(window: BrowserWindow, expression: string, beforeInput?: () => void): Promise<unknown> {
       const target = await page(window).catch((error) => { onError("page", error); return null; });
       if (!target) return null;
+      beforeInput?.();
       // A page that is navigating away drops the call; that is "not now", not an error.
       const reply = await send(target.ws, "Runtime.evaluate", { expression, returnByValue: true }).catch((error) => { onError("evaluate", error); return null; });
       return !reply || reply.exceptionDetails ? null : reply.result?.value ?? null;
@@ -123,9 +124,10 @@ export function browserInput(ask: Ask, port: (reread?: boolean) => Promise<numbe
       const target = await page(window).catch((error) => { onError("page", error); return null; });
       return target ? { area: target.area, scale: target.cssWidth / target.area[2] } : null;
     },
-    async navigate(window: BrowserWindow, url: string): Promise<boolean> {
+    async navigate(window: BrowserWindow, url: string, beforeInput?: () => void): Promise<boolean> {
       const target = await page(window).catch((error) => { onError("page", error); return null; });
       if (!target) return false;
+      beforeInput?.();
       // Page.navigate answers only once the site has responded, which can take
       // seconds. Assigning the location returns at once; pageSettled does the waiting.
       await send(target.ws, "Runtime.evaluate", { expression: `location.assign(${JSON.stringify(addressToUrl(url))})` }).catch(() => {});
@@ -133,10 +135,13 @@ export function browserInput(ask: Ask, port: (reread?: boolean) => Promise<numbe
       return true;
     },
     /** True when the call was delivered here; false leaves it to Cua. */
-    async handle(name: string, args: Record<string, unknown>, window: BrowserWindow): Promise<boolean> {
+    async handle(name: string, args: Record<string, unknown>, window: BrowserWindow, beforeInput: () => void = () => {}): Promise<boolean> {
       const target = await page(window).catch((error) => { onError("page", error); return null; });
       if (!target) return false;
+      beforeInput();
       const { ws, at } = target;
+      const input = (method: string, params: Record<string, unknown> = {}) => { beforeInput(); return send(ws, method, params); };
+      const pointer = (type: string, point: { x: number; y: number }, extra: Record<string, unknown> = {}) => input("Input.dispatchMouseEvent", { type, ...point, ...extra });
 
       if (name === "click") {
         const p = at(args.x, args.y);
@@ -144,37 +149,38 @@ export function browserInput(ask: Ask, port: (reread?: boolean) => Promise<numbe
         if (!p) { address = true; swallowEnter = false; return false; }
         address = false;
         const button = String(args.button ?? "left");
-        await mouse(ws, "mouseMoved", p);
-        await mouse(ws, "mousePressed", p, { button, clickCount: 1 });
+        await pointer("mouseMoved", p);
+        await pointer("mousePressed", p, { button, clickCount: 1 });
+        // A matching release is cleanup even if the instruction changed while pressed.
         await mouse(ws, "mouseReleased", p, { button, clickCount: 1 });
         return true;
       }
-      if (name === "move_cursor") { const p = at(args.x, args.y); if (p) await mouse(ws, "mouseMoved", p); return true; }
+      if (name === "move_cursor") { const p = at(args.x, args.y); if (p) await pointer("mouseMoved", p); return true; }
       if (name === "scroll") {
         const p = at(args.x, args.y);
         if (!p) return false;
-        await mouse(ws, "mouseWheel", p, { deltaX: 0, deltaY: (args.direction === "up" ? -1 : 1) * Number(args.amount ?? 3) * 40 });
+        await pointer("mouseWheel", p, { deltaX: 0, deltaY: (args.direction === "up" ? -1 : 1) * Number(args.amount ?? 3) * 40 });
         return true;
       }
       if (name === "type_text") {
         const text = String(args.text ?? "");
         if (address) {
           // Navigating at once keeps the next screenshot truthful; the Enter that usually follows is spent.
-          await send(ws, "Runtime.evaluate", { expression: `location.assign(${JSON.stringify(addressToUrl(text))})` });
+          await input("Runtime.evaluate", { expression: `location.assign(${JSON.stringify(addressToUrl(text))})` });
           address = false; swallowEnter = true;
-        } else await send(ws, "Input.insertText", { text });
+        } else await input("Input.insertText", { text });
         return true;
       }
       if (name === "press_key" || name === "hotkey") {
         const keys = name === "hotkey" ? (args.keys as string[]) : [...((args.modifiers as string[] | undefined) ?? []), String(args.key)];
         const combo = keys.map((k) => k.toLowerCase()).join("+");
         if (["ctrl+l", "alt+d", "f6", "ctrl+t", "ctrl+k", "ctrl+e"].includes(combo)) { address = true; swallowEnter = false; return true; }
-        if (["ctrl+r", "f5"].includes(combo)) { await send(ws, "Page.reload"); return true; }
-        if (combo === "alt+left" || combo === "alt+right") { await send(ws, "Runtime.evaluate", { expression: `history.${combo === "alt+left" ? "back" : "forward"}()` }); return true; }
+        if (["ctrl+r", "f5"].includes(combo)) { await input("Page.reload"); return true; }
+        if (combo === "alt+left" || combo === "alt+right") { await input("Runtime.evaluate", { expression: `history.${combo === "alt+left" ? "back" : "forward"}()` }); return true; }
         if (swallowEnter && (combo === "enter" || combo === "return")) { swallowEnter = false; return true; }
         swallowEnter = false;
         const event = keyEvent(keys);
-        await send(ws, "Input.dispatchKeyEvent", { type: event.text ? "keyDown" : "rawKeyDown", ...event });
+        await input("Input.dispatchKeyEvent", { type: event.text ? "keyDown" : "rawKeyDown", ...event });
         await send(ws, "Input.dispatchKeyEvent", { type: "keyUp", ...event, text: undefined, commands: undefined });
         return true;
       }
@@ -182,8 +188,8 @@ export function browserInput(ask: Ask, port: (reread?: boolean) => Promise<numbe
       if (name === "mouse_button_down") {
         const p = at(args.x, args.y);
         if (!p) return false;
-        await mouse(ws, "mouseMoved", p);
-        await mouse(ws, "mousePressed", p, { button: "left", buttons: 1, clickCount: 1 });
+        await pointer("mouseMoved", p);
+        await pointer("mousePressed", p, { button: "left", buttons: 1, clickCount: 1 });
         held = p;
         return true;
       }
@@ -192,7 +198,7 @@ export function browserInput(ask: Ask, port: (reread?: boolean) => Promise<numbe
         if (!p) return true;
         // Canvases sample the pointer; a single jump would draw nothing in some of them.
         const from = held, steps = Math.min(16, Math.max(1, Number(args.steps ?? 4)));
-        for (let i = 1; i <= steps; i++) await mouse(ws, "mouseMoved", { x: from.x + (p.x - from.x) * i / steps, y: from.y + (p.y - from.y) * i / steps }, { button: "left", buttons: 1 });
+        for (let i = 1; i <= steps; i++) await pointer("mouseMoved", { x: from.x + (p.x - from.x) * i / steps, y: from.y + (p.y - from.y) * i / steps }, { button: "left", buttons: 1 });
         held = p;
         return true;
       }
