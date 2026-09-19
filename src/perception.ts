@@ -2,7 +2,7 @@
 
 import sharp from "sharp";
 import { MAX_OPTIONS, MIN_OCR_CONFIDENCE } from "./config.ts";
-import * as macos from "./macos.ts";
+import { platform as macos } from "./platform.ts";
 import { type AxNode, type Box, type Capture, type Frame, fromAx, type Item, item, type Point, roleWord, type Screen, sizePt, toPoints } from "./models.ts";
 import { OCR_RECTS, OCR_REGION_PCT, phase, type Timing } from "./timing.ts";
 

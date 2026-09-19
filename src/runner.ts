@@ -6,7 +6,7 @@ import { TypeSafeClient } from "@typesafe-ai/sdk";
 import { type Context, isNoop, perform } from "./actions.ts";
 import { DEFAULT_DELAY, DEFAULT_MIN_CONFIDENCE, DEFAULT_STEPS, MAX_OPTIONS } from "./config.ts";
 import { type Decision, decide, offscreenRecords } from "./decide.ts";
-import * as macos from "./macos.ts";
+import { platform as macos } from "./platform.ts";
 import { Abort, fieldRecord, type Item, repr, type Screen } from "./models.ts";
 import { capture, OcrCache, perceive } from "./perception.ts";
 import { annotate, axCount, type Log, makeLog, renderPayload, top } from "./report.ts";

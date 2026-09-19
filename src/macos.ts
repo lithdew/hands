@@ -1585,3 +1585,37 @@ export function actionableElements(pid: number, display: Frame, options: WalkOpt
     for (const ref of owned) if (!live.has(BigInt(ref))) n.CFRelease(ref);
   }
 }
+
+// ------------------------------------------------------------------ voice
+
+/** A native process that streams until it is ended: a microphone's PCM, or a held key's `down` and `up` lines. */
+export interface NativeStream {
+  stdout: ReadableStream<Uint8Array>;
+  stderr: ReadableStream<Uint8Array>;
+  exited: Promise<number>;
+  /** Ask it to finish, and let what it already wrote be read. */
+  end(): void;
+  kill(): void;
+}
+
+const NO_VOICE = "--listen runs on Windows only so far: nothing here reads the Mac's microphone or a held key yet";
+
+/** The default microphone as mono 24 kHz signed 16-bit PCM. Not on the Mac yet; windows.ts has it. */
+export function microphone(): NativeStream {
+  throw new Error(NO_VOICE);
+}
+
+/** One key, watched while `hands --listen` runs: a line for `down`, `up`, and `cancel`. Not on the Mac yet. */
+export function heldKey(_key: string): NativeStream {
+  throw new Error(NO_VOICE);
+}
+
+/** A native process that is also told things while it runs, a line at a time: the feed's windows. */
+export interface NativeSession extends NativeStream {
+  write(text: string): void;
+}
+
+/** The tiles, the pointers and the card (feed.ts). Not on the Mac yet; windows.ts has it, and without it progress stays in the terminal. */
+export function feed(): NativeSession {
+  throw new Error("the on-screen feed runs on Windows only so far");
+}

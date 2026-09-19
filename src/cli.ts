@@ -5,7 +5,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import * as config from "./config.ts";
-import * as macos from "./macos.ts";
+import { platform as macos } from "./platform.ts";
 import { repr } from "./models.ts";
 import { capture, perceive } from "./perception.ts";
 import { annotate, axCount, renderPayload } from "./report.ts";

@@ -13,7 +13,7 @@ import sharp from "sharp";
 import { type TSchema, Type } from "typebox";
 import { clickItem, pressOffscreen } from "./actions.ts";
 import * as config from "./config.ts";
-import * as macos from "./macos.ts";
+import { platform as macos } from "./platform.ts";
 import { Abort, center, type Item, type Point, repr, roleWord, type Screen, sizePt, toPoints } from "./models.ts";
 import { capture, OcrCache, perceive } from "./perception.ts";
 import { run } from "./runner.ts";
