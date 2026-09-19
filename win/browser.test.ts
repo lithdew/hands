@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { addressToUrl, browserInput, keyEvent, toCss, type Ask } from "./browser";
+import { addressToUrl, browserInput, existingBrowserInput, keyEvent, toCss, type Ask, type ExistingBrowserWindow } from "./browser";
+import type { CuaConnection } from "../desktop";
 
 /** A scripted helper: records every request line and answers the DevTools ones. */
 function fakeHelper(opts: { page?: [number, number, number, number]; cssWidth?: number; title?: string } = {}) {
@@ -37,6 +38,110 @@ describe("keyEvent", () => {
   test("rejects names it cannot deliver instead of sending a wrong key", () => {
     expect(() => keyEvent(["ctrl"])).toThrow("besides its modifiers");
     expect(() => keyEvent(["hyperspace"])).toThrow("Unknown key");
+  });
+});
+
+describe("existing Chrome binding", () => {
+  const response = (state: Record<string, unknown>) => ({ content: [], structuredContent: state }) as unknown as Awaited<ReturnType<CuaConnection["call"]>>;
+  function fixture() {
+    let window: ExistingBrowserWindow = { pid: 90, containerId: 1234, ownerNonce: "0000000000000123", title: "Inbox - Google Chrome", rect: [1, 1, 1000, 800] };
+    const calls: { name: string; args: Record<string, unknown> }[] = [];
+    let bind = 0, exact = true, setup = false, denied = false;
+    let tabs = [{ title: "Inbox", url: "https://mail.example/", active: true as boolean | null }];
+    let onCall: ((name: string, args: Record<string, unknown>) => void) | undefined;
+    const call: CuaConnection["call"] = async (name, args = {}) => {
+      calls.push({ name, args }); onCall?.(name, args);
+      if (denied) throw new Error("browser_consent_required: user denied this request");
+      if (name === "get_browser_state" && args.pid) {
+        if (setup) throw new Error("browser_requires_setup: use browser_prepare");
+        bind++;
+        return response({ status: "ok", mode: "bind", target_id: `target-${bind}`, binding_quality: exact ? "exact" : "heuristic", mutation_allowed: exact,
+          tabs: tabs.map((tab, i) => ({ ...tab, tab_id: `tab-${bind}-${i}` })) });
+      }
+      if (name === "get_browser_state") return response({ status: "ok", mode: "snapshot", target_id: args.target_id, tab_id: args.tab_id,
+        snapshot: { id: "p17", format: "semantic_v2" }, page: { title: tabs[0]!.title, url: tabs[0]!.url }, outline: "Inbox\nCompose\nDraft saved",
+        refs: [{ ref: "p17:1", role: "button", name: "Compose", actions: ["click"] }, { ref: "p17:2", role: "textbox", name: "Subject", actions: ["type"] },
+          { ref: "p17:3", role: "generic", name: null, actions: ["scroll", "pointer"] }] });
+      if (name === "browser_prepare") { setup = false; return response({ status: "ok", prepared: true }); }
+      return response({ status: "ok" });
+    };
+    const input = existingBrowserInput(call, async () => window, "account-test");
+    return { input, calls, mutateWindow: (change: Partial<ExistingBrowserWindow>) => { window = { ...window, ...change }; },
+      tabs: (value: typeof tabs) => { tabs = value; }, setup: () => { setup = true; }, heuristic: () => { exact = false; }, deny: () => { denied = true; },
+      onCall: (fn: NonNullable<typeof onCall>) => { onCall = fn; } };
+  }
+  const mutations = (f: ReturnType<typeof fixture>) => f.calls.filter((call) => !["get_browser_state", "end_session"].includes(call.name));
+
+  test("prepares only an explicitly requested exact existing profile, without launching a browser", async () => {
+    const f = fixture(); f.setup();
+    await f.input.attach();
+    expect(mutations(f)).toEqual([{ name: "browser_prepare", args: { session: "account-test", pid: 90, window_id: 1234, strategy: { kind: "existing_profile" }, allow_launch: false } }]);
+    const shot = await f.input.snapshot();
+    expect(shot.refs.find((ref) => ref.ref === "p17:3")?.name).toBe("");
+    expect(f.calls.every((call) => call.args.session === "account-test")).toBe(true);
+    expect(f.calls.some((call) => call.args.include_screenshot === false && call.args.snapshot_format === "semantic_v2")).toBe(true);
+  });
+
+  test("denial, heuristic binding, missing active tab and duplicate titles never prepare or choose another tab", async () => {
+    for (const arrange of [(f: ReturnType<typeof fixture>) => f.deny(), (f: ReturnType<typeof fixture>) => f.heuristic(),
+      (f: ReturnType<typeof fixture>) => f.tabs([{ title: "Inbox", url: "https://mail.example/", active: null }]),
+      (f: ReturnType<typeof fixture>) => f.tabs([{ title: "Inbox", url: "https://mail.example/", active: true }, { title: "Inbox", url: "https://other.example/", active: false }])]) {
+      const f = fixture(); arrange(f);
+      await expect(f.input.attach()).rejects.toThrow();
+      expect(mutations(f)).toEqual([]);
+    }
+  });
+
+  test("re-attests the visible tab, then uses the old IDs that actually own the observed reference", async () => {
+    const f = fixture(), snapshot = await f.input.snapshot();
+    await f.input.act(snapshot, { action: "click" }, "p17:1");
+    expect(mutations(f)).toEqual([{ name: "browser_click", args: { session: "account-test", target_id: snapshot.target_id, tab_id: snapshot.tab_id, ref: "p17:1", input_route: "dom_event" } }]);
+    await expect(f.input.act(snapshot, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+    expect(mutations(f)).toHaveLength(1);
+  });
+
+  test("an active tab changed after approval cannot receive a previously approved action", async () => {
+    const f = fixture(), snapshot = await f.input.snapshot();
+    f.tabs([{ title: "Inbox", url: "https://different.example/", active: true }]);
+    await expect(f.input.act(snapshot, { action: "click" }, "p17:1")).rejects.toThrow("after observation or approval");
+    expect(mutations(f)).toEqual([]);
+  });
+
+  test("changed window nonce or frame rejects old references before input", async () => {
+    for (const change of [{ ownerNonce: "0000000000009999" }, { pid: 91 }, { title: "Another tab - Google Chrome" }, { rect: [1, 1, 1100, 800] as [number, number, number, number] }]) {
+      const f = fixture(), snapshot = await f.input.snapshot(); f.mutateWindow(change);
+      await expect(f.input.act(snapshot, { action: "type", text: "hello" }, "p17:2")).rejects.toThrow("window changed");
+      expect(mutations(f)).toEqual([]);
+    }
+  });
+
+  test("cancellation and changed approval revision during revalidation prevent all input", async () => {
+    const f = fixture(), snapshot = await f.input.snapshot(), abort = new AbortController();
+    f.onCall((name, args) => { if (name === "get_browser_state" && args.pid) abort.abort(); });
+    await expect(f.input.act(snapshot, { action: "click" }, "p17:1", abort.signal)).rejects.toThrow();
+    expect(mutations(f)).toEqual([]);
+    const g = fixture(), second = await g.input.snapshot(); let checks = 0;
+    await expect(g.input.act(second, { action: "click" }, "p17:1", undefined, () => { if (++checks === 2) throw new Error("instruction changed"); })).rejects.toThrow("instruction changed");
+    expect(mutations(g)).toEqual([]);
+  });
+
+  test("typing and scrolling use real Cua refs; a new observation invalidates earlier refs", async () => {
+    const f = fixture(), stale = await f.input.snapshot(), fresh = await f.input.snapshot();
+    await expect(f.input.act(stale, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+    await f.input.act(fresh, { action: "type", text: "Subject", replace: true }, "p17:2");
+    const scroll = await f.input.snapshot();
+    await f.input.act(scroll, { action: "scroll", amount: 5 });
+    expect(mutations(f).map((entry) => [entry.name, entry.args.ref, entry.args.replace, entry.args.delta_y])).toEqual([
+      ["browser_type", "p17:2", true, undefined], ["browser_pointer", "p17:3", undefined, 200],
+    ]);
+  });
+
+  test("release ends only the Cua session and forbids subsequent actions", async () => {
+    const f = fixture(), snapshot = await f.input.snapshot();
+    await f.input.close();
+    await expect(f.input.act(snapshot, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+    expect(f.calls.at(-1)).toEqual({ name: "end_session", args: { session: "account-test" } });
+    expect(mutations(f)).toEqual([]);
   });
 });
 

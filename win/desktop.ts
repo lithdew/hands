@@ -25,7 +25,7 @@ import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { Ajv, AjvJsonSchemaValidator } from "@modelcontextprotocol/client/validators/ajv";
 import { debugLog, redact, subprocessEnv, type CuaConnection, type Hand, type InstalledApp } from "../desktop";
-import { browserInput } from "./browser";
+import { browserInput, existingBrowserInput, type ExistingBrowserInput } from "./browser";
 
 const WSL = process.platform === "linux";
 const ROOT = join(import.meta.dir, "..");
@@ -206,7 +206,136 @@ export function createWindowTracker(enumerate: (hand: Hand, owners: ReadonlyMap<
 }
 
 const windowTracker = createWindowTracker(async (hand, owners) => JSON.parse(await ask(`state ${hand.display}|${[...owners].map(([id, owner]) => `${id}:${owner.pid}:${owner.nonce}`).join(",")}`)));
-const windows = (hand: Hand) => windowTracker.read(hand);
+export type BrowserTarget = { mode: "private" } | { mode: "existing"; window_id: number; pid: number; ownerNonce: string; title: string; ready: boolean; error?: string };
+type BrowserChoice = { window_id?: number; pid?: number };
+const sameIdentity = (a: RawWindow, b: RawWindow) => a.pid === b.pid && a.containerId === b.containerId && a.ownerNonce === b.ownerNonce;
+const verifiedIdentity = (window: RawWindow) => Number.isSafeInteger(window.pid) && window.pid > 0 && Number.isSafeInteger(window.containerId) && window.containerId > 0
+  && typeof window.ownerNonce === "string" && /^[0-7][0-9a-f]{15}$/.test(window.ownerNonce) && !/^0+$/.test(window.ownerNonce);
+
+/** A borrowed window has a separate, non-owning reservation. Selection is
+ * serialized across hands, and a failed attachment cannot revert to a sandbox. */
+export function createExistingBrowserTargets<T extends { close(): Promise<void> }>(backend: {
+  candidates(): Promise<RawWindow[]>;
+  claim(hand: Hand, window: RawWindow): Promise<void>;
+  read(hand: Hand, window: RawWindow): Promise<RawWindow | null>;
+  release(hand: Hand): Promise<void>;
+  prepare(hand: Hand, current: () => Promise<RawWindow>, signal?: AbortSignal): Promise<T>;
+}) {
+  type Binding = { window: RawWindow; ready: boolean; error?: string; connection?: T };
+  const bindings = new Map<number, Binding>();
+  let queue: Promise<unknown> = Promise.resolve();
+  const serial = <R>(work: () => Promise<R>) => { const result = queue.then(work); queue = result.catch(() => {}); return result; };
+  const read = async (hand: Hand): Promise<RawWindow | null> => {
+    const bound = bindings.get(hand.id);
+    if (!bound) return null;
+    const window = await backend.read(hand, bound.window);
+    if (bindings.get(hand.id) !== bound) throw new Error("The browser target changed while it was being observed. Look again.");
+    if (!window) return null;
+    if (!verifiedIdentity(window) || !sameIdentity(bound.window, window)) throw new Error("The existing browser's native identity changed. Attach again before acting.");
+    bound.window = { ...window, focused: true, rect: [...window.rect] };
+    return { ...bound.window, rect: [...bound.window.rect] };
+  };
+  return {
+    target(hand: Hand): BrowserTarget {
+      const bound = bindings.get(hand.id);
+      return bound ? { mode: "existing", window_id: bound.window.containerId, pid: bound.window.pid, ownerNonce: bound.window.ownerNonce!, title: bound.window.title, ready: bound.ready, ...(bound.error ? { error: bound.error } : {}) } : { mode: "private" };
+    },
+    connection(hand: Hand) {
+      const bound = bindings.get(hand.id);
+      if (!bound) return null;
+      if (!bound.ready || !bound.connection) throw new Error(bound.error ?? "The existing Chrome connection is still being prepared.");
+      return bound.connection;
+    },
+    read,
+    attach(hand: Hand, choice: BrowserChoice = {}, signal?: AbortSignal) {
+      return serial(async () => {
+        signal?.throwIfAborted();
+        const eligible = (await backend.candidates()).filter((window) => verifiedIdentity(window)
+          && (choice.window_id === undefined || window.containerId === choice.window_id) && (choice.pid === undefined || window.pid === choice.pid));
+        signal?.throwIfAborted();
+        if (eligible.length !== 1) throw new Error(eligible.length ? `Choose one observed Chrome window with window_id: ${eligible.map((w) => `${w.containerId} (${w.title})`).join(", ")}` : "No matching existing Chrome window is available. Observe windows and choose its current window_id.");
+        const window = eligible[0]!;
+        for (const [id, bound] of bindings) if (id !== hand.id && (bound.window.pid === window.pid || bound.window.containerId === window.containerId)) {
+          throw new Error(`This Chrome process is already attached to hand ${id}. Release that hand's browser first.`);
+        }
+        const previous = bindings.get(hand.id);
+        if (previous) { await previous.connection?.close(); await backend.release(hand); }
+        signal?.throwIfAborted();
+        const bound: Binding = { window: { ...window, rect: [...window.rect] }, ready: false };
+        bindings.set(hand.id, bound);
+        try {
+          await backend.claim(hand, window);
+          signal?.throwIfAborted();
+          bound.connection = await backend.prepare(hand, async () => {
+            if (bindings.get(hand.id) !== bound) throw new Error("This existing Chrome binding was replaced.");
+            const current = await read(hand);
+            if (!current) throw new Error("The attached Chrome window is unavailable. It was not replaced by a sandbox browser.");
+            return current;
+          }, signal);
+          signal?.throwIfAborted();
+          bound.ready = true;
+        } catch (error) {
+          bound.error = error instanceof Error ? error.message : String(error);
+          await bound.connection?.close(); bound.connection = undefined;
+          throw error;
+        }
+      });
+    },
+    detach(hand: Hand) {
+      return serial(async () => {
+        const bound = bindings.get(hand.id);
+        if (!bound) return;
+        bound.ready = false;
+        // Keep the reservation until both cleanups finish; a failure stays closed.
+        await bound.connection?.close();
+        await backend.release(hand);
+        bindings.delete(hand.id);
+      });
+    },
+  };
+}
+
+const borrowedRequest = (hand: Hand, window: RawWindow) => `${hand.display}|${window.containerId}:${window.pid}:${window.ownerNonce}`;
+/** Observed top-level Chrome windows only; no browser profile files are opened. */
+export const existingBrowserCandidates = async (): Promise<RawWindow[]> => {
+  const candidates = JSON.parse(await ask("external-browsers")) as RawWindow[];
+  return candidates.filter((window) => ![...browsers.values()].includes(window.pid));
+};
+const existingTargets = createExistingBrowserTargets<ExistingBrowserInput>({
+  candidates: existingBrowserCandidates,
+  claim: async (hand, window) => { await ask(`external-bind ${borrowedRequest(hand, window)}`); },
+  read: async (hand, window) => JSON.parse(await ask(`external-read ${borrowedRequest(hand, window)}`)),
+  release: async (hand) => { await ask(`external-release ${hand.display}`); },
+  async prepare(hand, current, signal) {
+    const input = existingBrowserInput(async (name, args, callSignal) => (await driver(hand)).call(name, args, callSignal), current);
+    try { await input.attach(signal); return input; }
+    catch (error) { await input.close(); throw error; }
+  },
+});
+export const browserTarget = (hand: Hand): BrowserTarget => existingTargets.target(hand);
+export const existingBrowser = (hand: Hand) => existingTargets.connection(hand);
+export async function attachExistingBrowser(hand: Hand, choice: BrowserChoice = {}, signal?: AbortSignal): Promise<BrowserTarget> {
+  // Finish any private launch before claiming a real window; it must never be
+  // mistaken for the new app that launchOne is waiting to move.
+  const attached = launches.then(() => existingTargets.attach(hand, choice, signal));
+  launches = attached.catch(() => {});
+  await attached; frames.delete(hand.id);
+  return browserTarget(hand);
+}
+export async function detachExistingBrowser(hand: Hand): Promise<BrowserTarget> {
+  await existingTargets.detach(hand); frames.delete(hand.id);
+  return browserTarget(hand);
+}
+/** PiP's explicit user click visits the borrowed window's real desktop. */
+export async function focusExistingBrowser(hand: Hand): Promise<void> {
+  const window = await existingTargets.read(hand);
+  if (!window) throw new Error("The attached Chrome window is unavailable.");
+  await ask(`external-focus ${borrowedRequest(hand, window)}`);
+}
+const windows = async (hand: Hand) => {
+  if (browserTarget(hand).mode === "existing") { const window = await existingTargets.read(hand); return window ? [window] : []; }
+  return windowTracker.read(hand);
+};
 
 const NOTE = `This hand is a Windows virtual desktop. The computer tool shows and drives only its front window, in that window's own pixels; open_app opens an app or brings its window to the front. Use the application the user requested. ${process.env.PUK_WIN_BORROW === "1" ? "Foreground input is enabled: native canvas strokes temporarily show this hand's desktop and use the real pointer, then return to the user's desktop. Native controls still use background input when supported." : "This hand works in the background while the user works on theirs. Native apps accept clicks on supported controls and typed text; native canvases may ignore background strokes. Browser canvases support background drawing. Explain a native app limitation before switching applications."} To go to a site, press ctrl+l, type the address, press enter. ${WSL ? "Bash runs in WSL: call Windows programs as powershell.exe -NoProfile -Command '...' and find the user's files under /mnt/c/Users." : "The bash tool runs PowerShell here."}`;
 
@@ -215,7 +344,8 @@ export async function handState(hand: Hand) {
   const size = !front ? EMPTY
     : frame?.window === front.containerId && frame.pid === front.pid && frame.ownerNonce === front.ownerNonce && frame.rect === front.rect.slice(2).join("x") ? frame
     : { width: front.rect[2], height: front.rect[3] };
-  return { width: size.width, height: size.height, windows: all.map(({ rect: _, iconic: __, ...w }) => w), platform: NOTE };
+  return { width: size.width, height: size.height, windows: all.map(({ rect: _, iconic: __, ...w }) => w), browser: browserTarget(hand),
+    platform: browserTarget(hand).mode === "existing" ? "This hand is attached to the user's existing Chrome window, on the user's desktop. Its preview and computer_browser references address that exact window. Use computer_browser snapshot and ref actions; use attach mode=private to return to the hand's sandbox. The user's browser is never moved to the hand's desktop." : NOTE };
 }
 
 // ---------------------------------------------------------------- borrowing the screen
@@ -278,7 +408,7 @@ const driverPool = createDriverPool(async (_hand, closed) => {
   client.onclose = closed;
   const transport = new StdioClientTransport({
     // The grant lets Cua attach over CDP to a browser it did not launch. The
-    // facade below only ever aims it at the hand's own profile.
+    // adapter still requires an explicit, exact native-window reservation.
     command: await cuaDriver(), args: ["mcp", "--grant", "existing-profile"], stderr: "pipe",
     env: { ...subprocessEnv(), CUA_DRIVER_RS_TELEMETRY_ENABLED: "false", ...(WSL ? { WSLENV: "CUA_DRIVER_RS_TELEMETRY_ENABLED" } : {}) },
   });
@@ -307,6 +437,20 @@ const pages = new Map<number, ReturnType<typeof browserInput>>();
 const relays = new Map<number, Promise<Helper>>();
 /** DevTools access to the hand's browser. One per hand: it remembers whether the address bar was aimed at. */
 export function handBrowser(hand: Hand) {
+  if (browserTarget(hand).mode === "existing") {
+    return {
+      async evaluate(_window: { containerId: number; title: string }, _expression: string): Promise<unknown> { return null; },
+      async geometry(_window: { containerId: number; title: string }): Promise<{ area: [number, number, number, number]; scale: number } | null> { return null; },
+      async navigate(window: { containerId: number; title: string }, url: string): Promise<boolean> {
+        const current = await existingTargets.read(hand);
+        if (!current || current.containerId !== window.containerId || current.title !== window.title) throw new Error("The attached Chrome target changed. Observe it again.");
+        return existingBrowser(hand)!.navigate(url);
+      },
+      async handle(_name: string, _args: Record<string, unknown>, _window: { containerId: number; title: string }): Promise<boolean> {
+        throw new Error("Use computer_browser with current semantic references for the attached Chrome window.");
+      },
+    };
+  }
   // Its own helper process: a page that stops answering must not hold up window
   // state, launches or the other hands, which all share the main helper.
   if (desktopClosing) throw new Error("The Windows desktop runtime is closing.");
@@ -324,7 +468,7 @@ export function handBrowser(hand: Hand) {
 /** The hand's front window when it is the hand's browser, else null. */
 export async function browserWindow(hand: Hand) {
   const front = (await windows(hand)).find((w) => w.focused);
-  return front && front.pid === browsers.get(hand.id) ? front : null;
+  return front && (browserTarget(hand).mode === "existing" || front.pid === browsers.get(hand.id)) ? front : null;
 }
 /** The hand's front window, with its frame on screen. */
 export const frontOf = async (hand: Hand) => (await windows(hand)).find((w) => w.focused) ?? null;
@@ -393,7 +537,6 @@ export async function connectCua(hand: Hand): Promise<CuaConnection> {
   // Reacquire after transport closure. An input error is returned as-is and is
   // never replayed: the next tool call can establish a new connection.
   const raw = { call: (async (name, args, signal) => (await driver(hand)).call(name, args, signal)) as CuaConnection["call"] };
-  const browser = handBrowser(hand);
   const borrow = process.env.PUK_WIN_BORROW === "1";
   let stroke: { x: number; y: number }[] = [], untouched = "", closed = false;
   let strokeWindow: RawWindow | undefined;
@@ -423,7 +566,15 @@ export async function connectCua(hand: Hand): Promise<CuaConnection> {
         clearStroke();
         throw new Error("The hand's window changed during a buffered stroke. Take a fresh observation before drawing again.");
       }
-      if (w.pid === browsers.get(hand.id) && await browser.handle(name, args, w)) return image("");
+      if (browserTarget(hand).mode === "existing") {
+        clearStroke();
+        // Cursor decoration/final pointer cleanup must not move the user's
+        // pointer or turn a semantic account task into native foreground input.
+        if (name === "move_cursor" || name === "mouse_button_up") return image("");
+        existingBrowser(hand); // Surface a failed attachment before tool advice.
+        throw new Error("This hand is attached to the user's Chrome. Use computer_browser snapshot and ref actions; pixel input is not routed through the sandbox browser.");
+      }
+      if (w.pid === browsers.get(hand.id) && await handBrowser(hand).handle(name, args, w)) return image("");
       // The agent cursor is an overlay in screen space; it is decoration, never a reason to fail.
       if (name === "move_cursor") return raw.call(name, { x: w.rect[0] + Number(args.x), y: w.rect[1] + Number(args.y) }, signal).catch(() => image(""));
       if (name === "mouse_button_down") {
@@ -647,6 +798,13 @@ export async function launchInstalledApp(hand: Hand, app: InstalledApp, warmingU
 }
 
 async function launchOne(hand: Hand, app: InstalledApp): Promise<number> {
+  if (browserTarget(hand).mode === "existing") {
+    if (!BROWSER.test(app.name)) throw new Error("This hand is attached to the user's Chrome. Use computer_browser attach mode=private before opening a native app in the hand.");
+    existingBrowser(hand);
+    const window = await existingTargets.read(hand);
+    if (!window) throw new Error("The attached Chrome window is unavailable. Select its current window explicitly; no sandbox browser was launched.");
+    return window.pid;
+  }
   const mine = opened.get(hand.id) ?? new Map<string, RawWindow>();
   opened.set(hand.id, mine);
   // Chrome, Edge or "browser": the hand has one, and it is usually open already.
@@ -738,7 +896,8 @@ export async function runPowerShell(_hand: Hand, command: string, opts: { cwd?: 
 /** Pass as `createDesktopAgent({ desktop })`. */
 export const windowsDesktop = {
   discover: discoverApps, launch: launchInstalledApp, state: handState, cua: connectCua,
-  environment: `You operate a Windows virtual desktop belonging to this hand. Use open_app to open or select an application in this hand. Native controls can be observed through Windows accessibility and driven with scoped references. ${WSL ? "The bash tool runs Bash in WSL; call Windows programs through powershell.exe and use /mnt/c for Windows files." : "The bash tool executes PowerShell on Windows; use PowerShell commands and Windows paths."}`,
+  shellName: WSL ? "Bash" as const : "PowerShell" as const,
+  environment: `You operate a Windows virtual desktop belonging to this hand. Use open_app to open or select an application in this hand. To use the user's actual signed-in Chrome, observe windows and use computer_browser attach mode=existing; its exact window becomes this hand's observation, action and preview target, on the user's desktop. Use semantic browser references there. Native controls can be observed through Windows accessibility and driven with scoped references. ${WSL ? "The bash tool runs Bash in WSL; call Windows programs through powershell.exe and use /mnt/c for Windows files." : "The bash tool executes PowerShell on Windows; use PowerShell commands and Windows paths."}`,
   ...(WSL ? {} : { bash: runPowerShell }),
 };
 

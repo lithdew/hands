@@ -13,6 +13,7 @@
  * The address bar cannot be typed into from the background, so text aimed at
  * it becomes a navigation.
  */
+import type { CuaConnection } from "../desktop";
 export type Ask = (line: string) => Promise<string>;
 export type BrowserWindow = { containerId: number; title: string };
 type Rect = [x: number, y: number, w: number, h: number];
@@ -206,3 +207,150 @@ export function browserInput(ask: Ask, port: (reread?: boolean) => Promise<numbe
     },
   };
 }
+
+/** Existing-profile input deliberately goes through Cua's exact native binding.
+ * Its opaque refs are not pixel coordinates and must never use the private
+ * profile's DevTools connection as a fallback. */
+export type ExistingBrowserWindow = BrowserWindow & { pid: number; ownerNonce?: string; rect: Rect };
+type ExistingRef = { ref: string; role: string; name: string; value?: string; states?: Record<string, unknown>; actions?: string[]; visibility?: string };
+type ExistingTab = { tab_id: string; title: string; url: string; active: boolean | null };
+type ExistingPage = { target_id: string; tab_id: string; title: string; url: string; tabs: ExistingTab[]; refs: ExistingRef[]; outline: string; snapshot_id: string; window: ExistingBrowserWindow };
+type ExistingAction = { action: string; url?: string; text?: string; replace?: boolean; key?: string; direction?: string; amount?: number };
+const sameExistingWindow = (a: ExistingBrowserWindow, b: ExistingBrowserWindow, frame = false) => a.pid === b.pid
+  && a.containerId === b.containerId && a.ownerNonce === b.ownerNonce
+  && (!frame || a.title === b.title && a.rect[2] === b.rect[2] && a.rect[3] === b.rect[3]);
+
+export function existingBrowserInput(call: CuaConnection["call"], current: () => Promise<ExistingBrowserWindow>, session = `puk-existing-${crypto.randomUUID()}`) {
+  let closed = false;
+  let currentPage: ExistingPage | undefined;
+  let generation = 0;
+  const check = async (signal?: AbortSignal, expected?: ExistingBrowserWindow, frame = false) => {
+    signal?.throwIfAborted();
+    if (closed) throw new Error("This existing-browser binding has been released. Attach and look again.");
+    const window = await current();
+    signal?.throwIfAborted();
+    if (closed) throw new Error("This existing-browser binding has been released. Attach and look again.");
+    if (!window.ownerNonce || expected && !sameExistingWindow(window, expected, frame)) throw new Error("The existing Chrome window changed. Attach or look again before acting.");
+    return { ...window, rect: [...window.rect] as Rect };
+  };
+  const invoke = async (name: string, args: Record<string, unknown>, signal?: AbortSignal) => {
+    signal?.throwIfAborted();
+    if (closed) throw new Error("This existing-browser binding has been released. Attach and look again.");
+    const reply = await call(name, { ...args, session }, signal);
+    signal?.throwIfAborted();
+    const state = reply.structuredContent as Record<string, unknown> | undefined;
+    if (reply.isError || state?.status === "refused") {
+      throw new Error(`Cua ${name} refused: ${JSON.stringify(state ?? reply.content)}`);
+    }
+    if (!state || state.status !== "ok") throw new Error(`Cua ${name} did not return a verified browser result.`);
+    return state;
+  };
+  const bind = async (signal?: AbortSignal) => {
+    const window = await check(signal);
+    const result = await invoke("get_browser_state", { pid: window.pid, window_id: window.containerId }, signal);
+    await check(signal, window, true);
+    if (result.mode !== "bind" || result.binding_quality !== "exact" || result.mutation_allowed !== true || typeof result.target_id !== "string") {
+      throw new Error("Cua could not bind this exact Chrome window for input. No other browser was selected.");
+    }
+    const tabs = (Array.isArray(result.tabs) ? result.tabs : []) as ExistingTab[];
+    const active = tabs.filter((tab) => tab.active === true && typeof tab.tab_id === "string" && typeof tab.title === "string" && typeof tab.url === "string");
+    if (active.length !== 1 || tabs.filter((tab) => tab.title === active[0]?.title).length !== 1) {
+      throw new Error("Cua could not identify one uniquely titled active tab in this Chrome window. Select a tab and observe again.");
+    }
+    return { target_id: result.target_id, tab: active[0]!, tabs, window };
+  };
+  return {
+    async attach(signal?: AbortSignal) {
+      try { await bind(signal); }
+      catch (error) {
+        signal?.throwIfAborted();
+        // Only an explicitly requested attach may prepare the signed-in browser.
+        // Denial, cancellation, ambiguity and stale native identity are final.
+        const message = error instanceof Error ? error.message : String(error);
+        if (/denied|declined|cancelled|canceled|aborted|rejected/i.test(message) || !/browser_(?:requires_setup|consent_required)\b/.test(message)) throw error;
+        const window = await check(signal);
+        await invoke("browser_prepare", { pid: window.pid, window_id: window.containerId, strategy: { kind: "existing_profile" }, allow_launch: false }, signal);
+        await check(signal, window);
+        await bind(signal);
+      }
+    },
+    async snapshot(signal?: AbortSignal): Promise<ExistingPage> {
+      const observedGeneration = ++generation;
+      currentPage = undefined;
+      const bound = await bind(signal);
+      const result = await invoke("get_browser_state", { target_id: bound.target_id, tab_id: bound.tab.tab_id, snapshot_format: "semantic_v2", include_screenshot: false }, signal);
+      const page = result.page as { title?: string; url?: string } | undefined;
+      const snapshot = result.snapshot as { id?: string; format?: string } | undefined;
+      if (result.mode !== "snapshot" || result.target_id !== bound.target_id || result.tab_id !== bound.tab.tab_id
+        || snapshot?.format !== "semantic_v2" || !snapshot.id || !page || page.title !== bound.tab.title || page.url !== bound.tab.url || !Array.isArray(result.refs)) {
+        throw new Error("The visible Chrome tab changed while observing it. Take a fresh snapshot.");
+      }
+      await check(signal, bound.window, true);
+      const seen = new Set<string>();
+      const refs = (result.refs as ExistingRef[]).filter((ref) => {
+        if (!ref || typeof ref.ref !== "string" || !ref.ref || typeof ref.role !== "string" || seen.has(ref.ref)) return false;
+        seen.add(ref.ref);
+        return true;
+      }).map((ref) => ({ ...ref, name: typeof ref.name === "string" ? ref.name : "", value: typeof ref.value === "string" ? ref.value : undefined }));
+      const observation: ExistingPage = { target_id: bound.target_id, tab_id: bound.tab.tab_id, title: page.title, url: page.url,
+        tabs: bound.tabs, refs, outline: typeof result.outline === "string" ? result.outline : "", snapshot_id: snapshot.id, window: bound.window };
+      if (observedGeneration !== generation) throw new Error("A newer browser observation replaced this one. Use the newest snapshot.");
+      currentPage = observation;
+      return observation;
+    },
+    async act(observed: ExistingPage, action: ExistingAction, reference?: string, signal?: AbortSignal, beforeInput = () => {}) {
+      if (currentPage !== observed) throw new Error("The browser observation is stale or does not belong to this binding. Look again.");
+      const ref = reference ? observed.refs.find((entry) => entry.ref === reference) : undefined;
+      if (reference && !ref) throw new Error("That Chrome reference was not observed in this snapshot.");
+      if (["click", "type", "set_value"].includes(action.action) && !ref) throw new Error("Existing Chrome input needs a current browser reference.");
+      beforeInput();
+      await check(signal, observed.window, true);
+      // Cua mints new opaque tab IDs on every bind. Compare the freshly proved
+      // active page, then dispatch with the old IDs that own the observed ref.
+      const active = await bind(signal);
+      if (active.tab.title !== observed.title || active.tab.url !== observed.url) throw new Error("The active Chrome tab changed after observation or approval. Look again.");
+      await check(signal, observed.window, true);
+      beforeInput(); signal?.throwIfAborted();
+      if (currentPage !== observed) throw new Error("The browser observation changed while input was being prepared. Look again.");
+      currentPage = undefined; // No failed or cancelled mutation may be replayed.
+      const target = { target_id: observed.target_id, tab_id: observed.tab_id };
+      if (action.action === "navigate") {
+        if (!action.url || !/^https?:\/\//i.test(action.url)) throw new Error("Browser navigation needs an http(s) URL.");
+        await invoke("browser_navigate", { ...target, url: action.url }, signal);
+      } else if (action.action === "click") {
+        await invoke("browser_click", { ...target, ref: ref!.ref, input_route: "dom_event" }, signal);
+      } else if (action.action === "type" || action.action === "set_value") {
+        await invoke("browser_type", { ...target, ref: ref!.ref, text: action.text ?? "", replace: action.replace !== false }, signal);
+      } else if (action.action === "scroll") {
+        const scroll = ref ?? observed.refs.find((entry) => entry.actions?.includes("scroll"));
+        if (!scroll) throw new Error("Scroll needs a visible browser reference. Look again and select a scrollable control.");
+        await invoke("browser_pointer", { ...target, action: "scroll", ref: scroll.ref, input_route: "dom_event", delta_x: 0,
+          delta_y: (action.direction === "up" ? -1 : 1) * Math.min(30, Math.max(1, action.amount ?? 6)) * 40 }, signal);
+      } else if (action.action === "key") {
+        // There is no Cua browser-key endpoint. Native delivery is still scoped
+        // to the exact HWND; a background refusal never switches desktops.
+        const keys = (action.key ?? "").toLowerCase().split("+").map((key) => key.trim()).filter(Boolean);
+        if (!keys.length) throw new Error("A key or chord is required.");
+        const reply = await call(keys.length > 1 ? "hotkey" : "press_key", { pid: observed.window.pid, window_id: observed.window.containerId, session,
+          ...(keys.length > 1 ? { keys } : { key: keys[0] }) }, signal);
+        if (reply.isError) throw new Error(`Cua refused existing Chrome keyboard input: ${JSON.stringify(reply.content)}`);
+      } else throw new Error(`Unsupported existing-browser action: ${action.action}`);
+      signal?.throwIfAborted(); beforeInput();
+    },
+    async navigate(url: string, signal?: AbortSignal) {
+      const observed = await this.snapshot(signal);
+      await this.act(observed, { action: "navigate", url: addressToUrl(url) }, undefined, signal);
+      return true;
+    },
+    async close() {
+      closed = true;
+      generation++;
+      currentPage = undefined;
+      // Session cleanup releases only Cua's grant/connection; it does not own or
+      // terminate the existing browser process.
+      await call("end_session", { session }).catch(() => {});
+    },
+  };
+}
+export type ExistingBrowserInput = ReturnType<typeof existingBrowserInput>;
+export type ExistingBrowserSnapshot = Awaited<ReturnType<ExistingBrowserInput["snapshot"]>>;

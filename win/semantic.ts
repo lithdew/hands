@@ -3,9 +3,10 @@
  * Native pixel/Retina assumptions from the macOS extension are deliberately not
  * applied to Windows: exact snapshot tokens are used for native controls.
  */
-import type { Hand } from "../desktop";
+import type { Hand, InstalledApp } from "../desktop";
 import { createSemanticComputer, type Element, type PixelCapture, type Snapshot } from "../semantic-computer";
-import { browserWindow, captureBound, capturedImage, driver, frontOf, handBrowser, handState, type RawWindow } from "./desktop";
+import { attachExistingBrowser, browserTarget, browserWindow, captureBound, capturedImage, detachExistingBrowser, driver, existingBrowser, existingBrowserCandidates, frontOf, handBrowser, handState, launchInstalledApp, type RawWindow } from "./desktop";
+import type { ExistingBrowserSnapshot } from "./browser";
 import { observeHand, pageSettled } from "./observe";
 
 type NativeElement = { element_index: number; element_token?: string; role: string; label?: string; value?: string; enabled?: boolean; actions?: string[]; parent_index?: number };
@@ -24,10 +25,38 @@ export function semanticComputer(hand: Hand, beforeInput: () => void = () => {})
     return { image: { type: "image" as const, mimeType: "image/png", data: shot.data }, capture: (capturedImage(shot).structuredContent as { puk_snapshot: PixelCapture }).puk_snapshot };
   };
   return createSemanticComputer({
-    windows: () => handState(hand),
+    windows: async () => ({ ...await handState(hand), existing_browsers: (await existingBrowserCandidates()).map(({ rect: _, iconic: __, ...window }) => window) }),
+    async attach(target, signal) {
+      beforeInput(); signal?.throwIfAborted();
+      if (target.mode === "existing") await attachExistingBrowser(hand, target, signal);
+      else {
+        await detachExistingBrowser(hand);
+        beforeInput(); signal?.throwIfAborted();
+        await launchInstalledApp(hand, { id: "browser", name: "Web browser" } as InstalledApp);
+      }
+      beforeInput(); signal?.throwIfAborted();
+    },
     async observe(options): Promise<Snapshot> {
       options.signal?.throwIfAborted();
-      const window = await front(), web = await browserWindow(hand);
+      const window = await front();
+      if (browserTarget(hand).mode === "existing") {
+        const observed = await existingBrowser(hand)!.snapshot(options.signal);
+        const current = await front();
+        if (identity(current) !== identity(window) || identity(observed.window) !== identity(window) || current.title !== observed.window.title
+          || current.rect.slice(2).join("x") !== observed.window.rect.slice(2).join("x")) throw new Error("The existing Chrome window changed while observing it. Look again.");
+        const elements: Element[] = observed.refs.filter((ref) => ref.states?.disabled !== true).map((ref) => {
+          const protectedField = /password/i.test(ref.role) || ref.states?.protected === true;
+          return { key: ref.ref, role: ref.role, name: ref.name, value: protectedField ? undefined : ref.value,
+            editable: !protectedField && Boolean(ref.actions?.includes("type")), address: { browser_ref: ref.ref } };
+        });
+        return { kind: "browser", identity: `${identity(current)}:${observed.url}`, title: current.title, url: observed.url, elements,
+          texts: ["Connected to the user's existing Chrome. Only the active tab shown in the preview receives input.",
+            ...observed.tabs.slice(0, 8).map((tab) => `${tab.active === true ? "Active" : "Inactive"} tab: ${tab.title} ${tab.url}`),
+            ...observed.outline.split("\n").filter((line) => !/password/i.test(line)).slice(0, 31)],
+          ...(options.screenshot || !elements.length ? await pixels(current) : {}),
+          binding: { window: identity(current), size: current.rect.slice(2).join("x"), existing: observed } };
+      }
+      const web = await browserWindow(hand);
       if (web && web.containerId === window.containerId) {
         const observation = await observeHand(hand);
         options.signal?.throwIfAborted();
@@ -63,6 +92,13 @@ export function semanticComputer(hand: Hand, beforeInput: () => void = () => {})
       };
       const window = await checkTarget();
       const target = { pid: window.pid, window_id: window.containerId, session };
+      if (snapshot.binding.existing) {
+        if (browserTarget(hand).mode !== "existing") throw new Error("The existing Chrome connection changed after observation. Attach and look again.");
+        await existingBrowser(hand)!.act(snapshot.binding.existing as ExistingBrowserSnapshot, action,
+          element ? String(element.address.browser_ref) : undefined, signal, beforeInput);
+        return;
+      }
+      if (browserTarget(hand).mode === "existing") throw new Error("This observation belongs to the private hand, which is no longer selected. Look at the attached Chrome window first.");
       if (snapshot.kind === "browser") {
         const web = await browserWindow(hand);
         if (!web || identity(web) !== snapshot.binding.window) throw new Error("The browser target changed. Look again.");
