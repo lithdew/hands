@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { addressToUrl, browserInput, existingBrowserInput, keyEvent, toCss, type Ask, type ExistingBrowserWindow } from "./browser";
+import { addressToUrl, browserInput, existingBrowserInput, keyEvent, toCss, type Ask, type ExistingBrowserTiming, type ExistingBrowserWindow } from "./browser";
 import type { CuaConnection } from "../desktop";
 
 /** A scripted helper: records every request line and answers the DevTools ones. */
@@ -73,13 +73,14 @@ test("a correction after a pointer or key press still permits its matching relea
 
 describe("existing Chrome binding", () => {
   const response = (state: Record<string, unknown>) => ({ content: [], structuredContent: state }) as unknown as Awaited<ReturnType<CuaConnection["call"]>>;
-  function fixture() {
+  function fixture(diagnostics: Parameters<typeof existingBrowserInput>[4] = {}) {
     let window: ExistingBrowserWindow = { pid: 90, containerId: 1234, ownerNonce: "0000000000000123", title: "Inbox - Google Chrome", rect: [1, 1, 1000, 800] };
     const calls: { name: string; args: Record<string, unknown> }[] = [];
     let bind = 0, exact = true, setup = false, denied = false;
     let tabs = [{ title: "Inbox", url: "https://mail.example/", active: true as boolean | null }];
     let pageOverride: { title: string; url: string } | undefined;
     let outcome: Record<string, unknown> = { status: "ok" };
+    let dialog: Record<string, unknown> = { present: true, dialog_id: "dialog-7", kind: "alert" };
     let onCall: ((name: string, args: Record<string, unknown>) => void) | undefined;
     const call: CuaConnection["call"] = async (name, args = {}) => {
       calls.push({ name, args }); onCall?.(name, args);
@@ -95,18 +96,184 @@ describe("existing Chrome binding", () => {
         refs: [{ ref: "p17:1", role: "button", name: "Compose", actions: ["click"] }, { ref: "p17:2", role: "textbox", name: "Subject", actions: ["type"] },
           { ref: "p17:3", role: "generic", name: null, actions: ["scroll", "pointer"] }] });
       if (name === "browser_prepare") { setup = false; return response({ status: "ok", prepared: true }); }
+      if (name === "browser_dialog") return response({ status: "ok", target_id: args.target_id, tab_id: args.tab_id,
+        ...dialog, ...(args.action === "inspect" ? {} : { action: args.action }) });
       return response(outcome);
     };
     const input = existingBrowserInput(call, async () => window, "account-test", async (observed) => {
       calls.push({ name: "focus_existing", args: { pid: observed.pid, window_id: observed.containerId, ownerNonce: observed.ownerNonce } });
-    });
+    }, diagnostics);
     return { input, calls, mutateWindow: (change: Partial<ExistingBrowserWindow>) => { window = { ...window, ...change }; },
       tabs: (value: typeof tabs) => { tabs = value; }, setup: () => { setup = true; }, heuristic: () => { exact = false; }, deny: () => { denied = true; },
       page: (value: typeof pageOverride) => { pageOverride = value; },
       outcome: (value: typeof outcome) => { outcome = value; },
+      dialog: (value: typeof dialog) => { dialog = value; },
       onCall: (fn: NonNullable<typeof onCall>) => { onCall = fn; } };
   }
-  const mutations = (f: ReturnType<typeof fixture>) => f.calls.filter((call) => !["get_browser_state", "end_session", "focus_existing"].includes(call.name));
+  const mutations = (f: ReturnType<typeof fixture>) => f.calls.filter((call) => !["get_browser_state", "end_session", "focus_existing"].includes(call.name)
+    && !(call.name === "browser_dialog" && call.args.action === "inspect"));
+
+  test("a read racing navigation retries once without reconnecting or retaining old refs",async()=>{
+    const f=fixture(),old=await f.input.snapshot();let reads=0;
+    f.onCall((name,args)=>{if(name==="get_browser_state"&&args.target_id&&++reads===1){f.tabs([{title:"Sent Mail",url:"https://mail.google.com/#sent",active:true}]);f.mutateWindow({title:"Sent Mail - Google Chrome"});}});
+    const fresh=await f.input.snapshot();expect(fresh.title).toBe("Sent Mail");expect(reads).toBe(2);expect(mutations(f)).toEqual([]);
+    await expect(f.input.act(old,{action:"click"},"p17:1")).rejects.toThrow("stale");
+  });
+
+  test("a continuously changing page stops after two reads and never replays input",async()=>{
+    const f=fixture();let reads=0;
+    f.onCall((name,args)=>{if(name==="get_browser_state"&&args.target_id){reads++;f.tabs([{title:`Page ${reads}`,url:`https://example.com/${reads}`,active:true}]);}});
+    await expect(f.input.snapshot()).rejects.toThrow("changed while observing");expect(reads).toBe(2);expect(mutations(f)).toEqual([]);
+  });
+
+  test("a dialog can be inspected after a timed-out input without repeating input or blocked DOM reads", async () => {
+    const f = fixture(), snapshot = await f.input.snapshot();
+    f.onCall(name => { if (name === "browser_click") throw new Error("Runtime.callFunctionOn timed out after 20s"); });
+    await expect(f.input.act(snapshot, { action: "click" }, "p17:1")).rejects.toThrow("timed out");
+    const callsBefore = f.calls.length, observed = await f.input.inspectDialog();
+    expect(observed).toMatchObject({ present: true, dialog_id: "dialog-7", kind: "alert", window: snapshot.window });
+    expect(f.calls.slice(callsBefore)).toEqual([{ name: "browser_dialog", args: { target_id: "target-2", tab_id: "tab-2-0", action: "inspect", delivery_mode: "background", session: "account-test" } }]);
+    await expect(f.input.act(snapshot, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+    expect(mutations(f).map(call => call.name)).toEqual(["browser_click"]);
+  });
+
+  test("dialog resolution re-attests the active tab and uses the exact inspected capability once", async () => {
+    const f = fixture(), snapshot = await f.input.snapshot(), observed = await f.input.inspectDialog();
+    await expect(f.input.act(snapshot, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+    await f.input.resolveDialog(observed, "accept", "dialog-7");
+    expect(mutations(f)).toEqual([{ name: "browser_dialog", args: { target_id: observed.target_id, tab_id: observed.tab_id, action: "accept", dialog_id: "dialog-7", delivery_mode: "background", session: "account-test" } }]);
+    expect(f.calls.filter(call => call.name === "get_browser_state" && call.args.pid)).toHaveLength(2);
+    await expect(f.input.resolveDialog(observed, "accept", "dialog-7")).rejects.toThrow("stale");
+    expect(mutations(f)).toHaveLength(1);
+    const refreshed = await f.input.snapshot();
+    await f.input.act(refreshed, { action: "click" }, "p17:1");
+  });
+
+  test("inspection never automatically resolves any dialog kind", async () => {
+    for (const kind of ["alert", "confirm", "prompt", "beforeunload", "other"]) {
+      const f = fixture(); f.dialog({ present: true, dialog_id: "dialog-7", kind });
+      expect(await f.input.inspectDialog()).toMatchObject({ present: true, kind });
+      expect(mutations(f)).toEqual([]);
+    }
+  });
+
+  test("absent, stale, replaced or malformed dialog capabilities cannot be resolved", async () => {
+    const f = fixture(), old = await f.input.inspectDialog();
+    await expect(f.input.resolveDialog(old, "dismiss", "wrong-id")).rejects.toThrow("id does not match");
+    const fresh = await f.input.inspectDialog();
+    await expect(f.input.resolveDialog(old, "dismiss", "dialog-7")).rejects.toThrow("stale");
+    await f.input.snapshot();
+    await expect(f.input.resolveDialog(fresh, "dismiss", "dialog-7")).rejects.toThrow("stale");
+    f.dialog({ present: false }); const absent = await f.input.inspectDialog();
+    await expect(f.input.resolveDialog(absent, "dismiss", "dialog-7")).rejects.toThrow("stale");
+    for (const malformed of [{ present: true, kind: "alert" }, { present: true, kind: "permission", dialog_id: "dialog-7" },
+      { present: true, kind: "alert", dialog_id: "dialog-7", tab_id: "another-tab" }, { present: "true", kind: "alert", dialog_id: "dialog-7" }]) {
+      f.dialog(malformed); await expect(f.input.inspectDialog()).rejects.toThrow("exact bound tab");
+    }
+    expect(mutations(f)).toEqual([]);
+  });
+
+  test("dialog resolution rejects a changed native window, frame or active page before input", async () => {
+    for (const change of [{ ownerNonce: "0000000000009999" }, { pid: 91 }, { title: "Another tab - Google Chrome" }, { rect: [1, 1, 1100, 800] as [number, number, number, number] }]) {
+      const f = fixture(), observed = await f.input.inspectDialog(); f.mutateWindow(change);
+      await expect(f.input.resolveDialog(observed, "accept", "dialog-7")).rejects.toThrow("window changed");
+      expect(mutations(f)).toEqual([]);
+    }
+    const f = fixture(), observed = await f.input.inspectDialog();
+    f.tabs([{ title: "Inbox", url: "https://other.example/", active: true }]);
+    await expect(f.input.resolveDialog(observed, "dismiss", "dialog-7")).rejects.toThrow("active Chrome tab changed");
+    expect(mutations(f)).toEqual([]);
+  });
+
+  test("cancellation or a correction during dialog revalidation consumes the inspection without input", async () => {
+    const f = fixture(), observed = await f.input.inspectDialog(), abort = new AbortController();
+    f.onCall(name => { if (name === "get_browser_state") abort.abort(); });
+    await expect(f.input.resolveDialog(observed, "dismiss", "dialog-7", abort.signal)).rejects.toThrow();
+    expect(mutations(f)).toEqual([]);
+    await expect(f.input.resolveDialog(observed, "dismiss", "dialog-7")).rejects.toThrow("stale");
+    const g = fixture(), dialog = await g.input.inspectDialog(); let checks = 0;
+    await expect(g.input.resolveDialog(dialog, "accept", "dialog-7", undefined, () => { if (++checks === 2) throw new Error("instruction changed"); })).rejects.toThrow("instruction changed");
+    expect(mutations(g)).toEqual([]);
+  });
+
+  test("dialog attestation failure has no raw-input fallback and failed resolution cannot replay", async () => {
+    const f = fixture(); await f.input.attach();
+    f.onCall(name => { if (name === "browser_dialog") throw new Error("Page.getFrameTree timed out after 20s"); });
+    await expect(f.input.inspectDialog()).rejects.toThrow("Exact-tab/URL attestation must succeed");
+    expect(mutations(f)).toEqual([]);
+    const g = fixture(), observed = await g.input.inspectDialog();
+    g.onCall((name, args) => { if (name === "browser_dialog" && args.action !== "inspect") throw new Error("resolution response lost"); });
+    await expect(g.input.resolveDialog(observed, "accept", "dialog-7")).rejects.toThrow("response lost");
+    await expect(g.input.resolveDialog(observed, "accept", "dialog-7")).rejects.toThrow("stale");
+    expect(mutations(g).map(call => call.name)).toEqual(["browser_dialog"]);
+  });
+
+  test("mismatched dialog resolution response cannot authorize later actions", async () => {
+    const f = fixture(), observed = await f.input.inspectDialog();
+    f.dialog({ present: true, dialog_id: "different-dialog", kind: "alert" });
+    await expect(f.input.resolveDialog(observed, "accept", "dialog-7")).rejects.toThrow("did not confirm");
+    await expect(f.input.resolveDialog(observed, "accept", "dialog-7")).rejects.toThrow("stale");
+    expect(mutations(f)).toHaveLength(1);
+  });
+
+  test("phase timings distinguish native checks, bind, snapshot and input without retaining page data", async () => {
+    const events: ExistingBrowserTiming[] = []; let clock = 0;
+    const f = fixture({ timing: event => events.push(event), now: () => clock += 7 });
+    f.tabs([{ title: "PRIVATE_TITLE", url: "https://example.test/?token=PRIVATE_URL", active: true }]);
+    const snapshot = await f.input.snapshot();
+    await f.input.act(snapshot, { action: "type", text: "PRIVATE_BODY" }, "p17:2");
+    const completed = events.filter(event => event.event === "end");
+    expect(new Set(completed.map(event => event.phase))).toEqual(new Set(["native_check", "bind_rpc", "snapshot_rpc", "action_rpc"]));
+    expect(completed.every(event => event.durationMs === 7 && event.outcome === "ok")).toBe(true);
+    expect(events.length).toBe(completed.length * 2);
+    expect(events.filter(event => event.event === "start").map(event => event.sequence)).toEqual(completed.map(event => event.sequence));
+    const serialized = JSON.stringify(events);
+    for (const secret of ["PRIVATE", "example.test", "account-test", "p17:", "target-", "tab-"]) expect(serialized).not.toContain(secret);
+    expect(Object.keys(completed[0]!).sort()).toEqual(["durationMs", "event", "outcome", "phase", "sequence"]);
+  });
+
+  test("failed and cancelled RPC timings contain no error text and do not replace the error", async () => {
+    const events: ExistingBrowserTiming[] = [];
+    const f = fixture({ timing: event => events.push(event) });
+    f.onCall(() => { throw new Error("PRIVATE_ERROR_TEXT"); });
+    await expect(f.input.snapshot()).rejects.toThrow("PRIVATE_ERROR_TEXT");
+    expect(events.findLast(event => event.phase === "bind_rpc")?.outcome).toBe("failed");
+    expect(JSON.stringify(events)).not.toContain("PRIVATE_ERROR_TEXT");
+    const abort = new AbortController(); const g = fixture({ timing: event => events.push(event) });
+    g.onCall(() => abort.abort());
+    await expect(g.input.snapshot(abort.signal)).rejects.toThrow();
+    expect(events.findLast(event => event.phase === "bind_rpc")?.outcome).toBe("cancelled");
+  });
+
+  test("a failing timing consumer cannot prevent a verified input", async () => {
+    const f = fixture({ timing: () => { throw new Error("diagnostic sink unavailable"); } });
+    const snapshot = await f.input.snapshot();
+    await f.input.act(snapshot, { action: "click" }, "p17:1");
+    expect(mutations(f).map(call => call.name)).toEqual(["browser_click"]);
+  });
+
+  test("ended sessions become unhealthy without reviving or replaying input", async () => {
+    const f = fixture();
+    expect(f.input.healthy()).toBe(true);
+    f.onCall(() => { throw new Error("this session has ended; call start_session explicitly to reuse its label"); });
+    await expect(f.input.snapshot()).rejects.toThrow("session has ended");
+    expect(f.input.healthy()).toBe(false);
+    expect(f.calls.map(call => call.name)).toEqual(["get_browser_state"]);
+  });
+
+  test("only explicit attachment restarts a known-ended label and rebinds", async () => {
+    const f = fixture(); let ended = true;
+    f.onCall(name => {
+      if (name === "start_session") ended = false;
+      else if (ended) throw new Error("this session has ended; call start_session explicitly to reuse its label");
+    });
+    await expect(f.input.attach(undefined, { allowPrepare: false })).rejects.toThrow("session has ended");
+    expect(f.calls.map(call => call.name)).toEqual(["get_browser_state"]);
+    await f.input.attach();
+    expect(f.calls.map(call => call.name)).toEqual(["get_browser_state", "get_browser_state", "start_session", "get_browser_state"]);
+    expect(f.input.healthy()).toBe(true);
+    expect(f.calls.some(call => call.name === "browser_prepare")).toBe(false);
+  });
 
   test("prepares only an explicitly requested exact existing profile, without launching a browser", async () => {
     const f = fixture(); f.setup();

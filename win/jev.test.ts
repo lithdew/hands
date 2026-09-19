@@ -36,6 +36,18 @@ async function fixture(overrides: NonNullable<JevFirstOptions["jevFirst"]> = {},
 }
 
 describe("Jev Windows handover", () => {
+  test("artifact corrections abort old creation and continue the latest task without desktop fallback",async()=>{
+    const entered=Promise.withResolvers<void>();const requests:string[]=[];
+    const {runtime,handedOver}=await fixture({artifact:async input=>{
+      requests.push(input.request);input.onStatus?.({runId:"00000000-0000-0000-0000-000000000001",kind:"website",directory:"out/artifacts/fixture",phase:"creating"});
+      if(requests.length===1){entered.resolve();await new Promise<void>(resolve=>input.signal!.addEventListener("abort",()=>resolve(),{once:true}));input.signal!.throwIfAborted();}
+      return {runId:"00000000-0000-0000-0000-000000000002",kind:"website",directory:"fixture",entrypoint:"index.html",previewUrl:"/artifacts/fixture/index.html",status:"complete",summary:"Latest corrected site",checks:[],screenshots:[],events:[],elapsedMs:1};
+    }});
+    const done=runtime.prompt("Create my personal website");
+    try{await entered.promise;runtime.refine("Create my personal website with a light theme","Use a light theme");await done;
+      expect(requests).toEqual(["Create my personal website","Create my personal website with a light theme"]);expect(handedOver).toEqual([]);expect(runtime.status().text).toContain("Latest corrected site");expect(runtime.status().error).toBeNull();
+    }finally{await done;await runtime.close();}
+  });
   test("handover preserves raw authorization without promoting generated recovery context", async () => {
     const { runtime, contexts } = await fixture({ browserTarget: () => ({ mode: "existing", window_id: 901, pid: 82, ownerNonce: "0000000000000001", title: "Mail", ready: true }) });
     try {

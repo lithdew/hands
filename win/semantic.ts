@@ -6,7 +6,7 @@
 import type { Hand, InstalledApp } from "../desktop";
 import { createSemanticComputer, type Element, type PixelCapture, type Snapshot } from "../semantic-computer";
 import { attachExistingBrowser, browserTarget, browserWindow, captureBound, capturedImage, detachExistingBrowser, driver, existingBrowser, existingBrowserCandidates, frontOf, handBrowser, handState, launchInstalledApp, type RawWindow } from "./desktop";
-import type { ExistingBrowserSnapshot } from "./browser";
+import type { ExistingBrowserSnapshot, ExistingDialog } from "./browser";
 import { observeHand, pageSettled } from "./observe";
 
 type NativeElement = { element_index: number; element_token?: string; role: string; label?: string; value?: string; enabled?: boolean; actions?: string[]; parent_index?: number };
@@ -22,6 +22,7 @@ export function existingBrowserElements(refs: ExistingBrowserSnapshot["refs"]): 
     if (name) named.set(label, (named.get(label) ?? 0) + 1);
     const protectedField = /password/i.test(ref.role) || ref.states?.protected === true;
     const element: Element = { key: ref.ref, role: ref.role, name: ref.name, value: protectedField ? undefined : ref.value,
+      visible: ref.visibility === "in_viewport", ...(protectedField ? { type: "password" } : {}),
       editable: !protectedField && Boolean(ref.actions?.includes("type")), address: { browser_ref: ref.ref } };
     return { ref, index, role, name, label, element };
   });
@@ -72,6 +73,24 @@ export function semanticComputer(hand: Hand, beforeInput: () => void = () => {})
       }
       beforeInput(); signal?.throwIfAborted();
     },
+    async inspectDialog(signal) {
+      if (browserTarget(hand).mode !== "existing") throw new Error("Page dialog inspection requires this hand's attached existing Chrome window.");
+      const browser = existingBrowser(hand);
+      if (!browser) throw new Error("The existing Chrome connection is unavailable. Attach it again.");
+      const observed = await browser.inspectDialog(signal);
+      // Keep the opaque capability and connection identity private to the
+      // backend. A reconnection must not resolve a previous session's dialog.
+      return { window: observed.window.title, url: observed.url, binding: { browser, existingDialog: observed, window: identity(observed.window) },
+        ...(observed.present ? { present: true as const, dialog_id: observed.dialog_id, kind: observed.kind } : { present: false as const }) };
+    },
+    async resolveDialog(observed, operation, signal) {
+      beforeInput(); signal?.throwIfAborted();
+      const browser = existingBrowser(hand);
+      if (browserTarget(hand).mode !== "existing" || !browser || browser !== observed.binding.browser) throw new Error("The existing Chrome connection changed after dialog inspection. Inspect again.");
+      const dialog = observed.binding.existingDialog as ExistingDialog | undefined;
+      if (!observed.present || !dialog?.present || dialog.dialog_id !== observed.dialog_id) throw new Error("Inspect the current page dialog before resolving it.");
+      await browser.resolveDialog(dialog, operation, observed.dialog_id, signal, beforeInput);
+    },
     async observe(options): Promise<Snapshot> {
       options.signal?.throwIfAborted();
       const window = await front();
@@ -95,6 +114,7 @@ export function semanticComputer(hand: Hand, beforeInput: () => void = () => {})
         const url = observation.texts.find((s) => s.startsWith("address: "))?.slice(9);
         return { kind: "browser", identity: `${identity(window)}:${url}`, title: window.title, url, texts: observation.texts,
           elements: observation.elements.map((e) => ({ key: e.id, role: e.role, name: e.name, value: e.value, within: e.within, editable: e.editable,
+            visible: e.rect.w > 0 && e.rect.h > 0 && e.rect.x >= 0 && e.rect.y >= 0 && e.rect.x < window.rect[2] && e.rect.y < window.rect[3],
             address: { x: Math.round(e.rect.x + e.rect.w / 2), y: Math.round(e.rect.y + e.rect.h / 2), rect: e.rect } })),
           ...(options.screenshot ? await pixels(window) : {}), binding: { window: identity(window), size: window.rect.slice(2).join("x"), fingerprint: observation.fingerprint } };
       }

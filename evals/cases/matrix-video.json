@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "id": "matrix-video",
+  "title": "Matrix inversion: ManimGL animation, Remotion lesson and revision pack",
+  "asOf": "2026-09-19",
+  "rawUserTask": "Use Three Blue One Brown's tool to create a video on matrix inversion using Remotion, plus cheat sheets and flash cards.",
+  "task": "Produce a clear original 60–120 second lesson on matrix inversion for a first linear algebra student. Interpret '3Blue1Brown's tool' as 3b1b's ManimGL and say that assumption in the README. Generate the lesson storyboard, a printable cheat sheet and usable flashcards through the Hands specialist. Render actual ManimGL geometry clips and composite the finished video with Remotion through the trusted media renderer. Cover a linear transformation as movement of basis vectors, the inverse undoing that transformation, the identity condition, the nonzero-determinant condition, a worked 2x2 numerical example, solving Ax=b, and why a singular matrix cannot be inverted. Use original wording and animations, cite the provided primary sources, and never imply endorsement by 3Blue1Brown. Return to Jev for bounded render/validate/delivery actions. Inspect the actual MP4 and rendered revision pages before claiming success.",
+  "assumptions": [
+    "The requested 3Blue1Brown tool is ManimGL (3b1b/manim), not the separate Manim Community distribution.",
+    "This is an introductory explanation of real square matrices, with 2x2 worked examples. General non-square pseudoinverses are outside scope.",
+    "A silent video with burned-in captions and a transcript is acceptable, or local clearly synthetic narration may accompany it. Do not imitate Grant Sanderson's voice."
+  ],
+  "sourcePacket": "evals/cases/matrix-video.sources.json",
+  "contentRequirements": [
+    "Explain that A maps basis vectors to its columns, using column-vector convention consistently.",
+    "Show at least one actual ManimGL animation of a nonsingular numeric A followed by computed A inverse, with the grid and basis vectors returning to their starting positions.",
+    "State A inverse A = A A inverse = I for a square invertible matrix; order of composition matters.",
+    "State for a 2x2 A=[[a,b],[c,d]], det(A)=ad-bc and A inverse=(1/det(A))*[[d,-b],[-c,a]] when determinant is nonzero.",
+    "Use one internally consistent numerical example across the video, cheat sheet and at least two flashcards. Independently check both products give I and Ax=b for the displayed solution.",
+    "Show or explain a singular example with dependent columns and determinant zero; lost information means no unique reverse transformation. A singular Ax=b may have no solutions or infinitely many, so do not say it always has no solution.",
+    "Explain algebraic use x=A inverse b, while noting that numerical software usually solves the linear system directly rather than explicitly forming the inverse.",
+    "Give the cheat sheet a short self-test with answers and the flashcards retrieval-practice questions rather than merely copied paragraphs."
+  ],
+  "artifacts": [
+    "storyboard.json matching workflows/media/storyboard.ts, created by the allowed Hands specialist rather than a fixed completed fixture",
+    "video.mp4: 60–120 seconds, H.264, 1280x720, 24fps, plays/decodes completely",
+    "actual ManimGL asset MP4(s), renderer manifest, source URLs and original lesson transcript",
+    "cheat-sheet.html: self-contained printable document with definitions, formulas, worked example, singular warning and short self-test answers",
+    "flashcards.html: self-contained keyboard-usable reveal/hide answers, at least 10 original question/answer cards",
+    "flashcards.csv or flashcards.json: portable card data with the same questions and answers",
+    "README.md explaining local opening, sources, assumptions, tool versions, actual checks and remaining limitations"
+  ],
+  "renderer": {
+    "entrypoint": "workflows/media/render.ts",
+    "api": "renderStoryboard(specPath, outputDir, options?)",
+    "schema": "workflows/media/storyboard.ts",
+    "allowedVisuals": ["title", "bullets", "matrix", "evidence", "closing"],
+    "matrixInterface": "scene.matrix is a numeric 2x2 array with each entry in [-5,5]; scene.visual='matrix'. The trusted renderer computes the determinant and inverse, generates actual ManimGL animation, and composites it in Remotion. No model-generated executable code is passed to Manim.",
+    "output": "render-manifest.json has engine versions, timing, artifact hashes, full-decode status, matrix/inverse data and sources; contact-sheet.png plus per-scene stills are for human visual inspection.",
+    "failurePolicy": "Missing Manim/OpenGL or failed render is an incomplete task. Do not silently replace Manim with a lookalike SVG animation and call it passed."
+  },
+  "handoffRequirements": {
+    "toAgent": "Jev selects a multimedia/math specialist using one allowed model; that agent reasons about the math and writes the lesson/revision artifacts plus bounded JSON storyboard.",
+    "backToJev": "Resume Jev after specialist output to select grounded finite actions: validate manifest/math, render, inspect known artifacts, and deliver/open exact outputs. Record decisions and actual tool outcomes, not only plan text.",
+    "allowedModels": ["gpt-5.6-luna", "gemini-3.8-flash", "gpt-6-astra"],
+    "effort": "low",
+    "provenanceRequired": ["Hands run id", "agent model and start/end", "Jev dispatch and resume decisions", "artifact hashes", "Manim invocation and output", "Remotion render", "visual inspection"]
+  },
+  "rubric": [
+    {"id":"real-handoff","required":true,"check":"The actual Hands run delegates creative work to an allowed model and resumes Jev to execute bounded completion steps; external handcrafted final artifacts do not count."},
+    {"id":"real-video","required":true,"check":"A complete 60–120 second MP4 is rendered, metadata matches and the entire file decodes; representative frames and motion are inspected."},
+    {"id":"real-tools","required":true,"check":"The artifact uses actual 3b1b ManimGL output and actual Remotion composition, with recorded versions and output asset hashes."},
+    {"id":"math","required":true,"check":"All formulas and worked values are correct; invertibility and singular-system qualifications are accurate; no elementwise-reciprocal misconception or multiplication-order mistake."},
+    {"id":"teaching","required":true,"check":"Video presents a connected explanation from geometry to algebra to an example. Captions are readable and allow sufficient time; no cropped formula or overloaded slide."},
+    {"id":"revision-pack","required":true,"check":"Printable cheat sheet and at least ten usable flashcards exist, load locally and agree with the video. Flashcard reveal/hide interaction works using a keyboard."},
+    {"id":"sources","required":true,"check":"Primary sources are cited and original wording/animations are used. Manim interpretation is disclosed; no 3Blue1Brown endorsement/voice-copying claim."},
+    {"id":"truthful-report","required":true,"check":"Success report distinguishes mathematical checks, full decode and actual visual inspection; any dependency or playback failure leaves the case incomplete."}
+  ],
+  "performance": {
+    "record": ["total elapsed ms", "specialist model latency", "Jev selection/resume latency", "Manim ms by scene", "Remotion render ms", "validation ms", "repair attempts"],
+    "guidance": "Generate all artifacts in one specialist phase where possible. Use numeric storyboard contracts for safe reusable rendering. Render once after schema/math validation; re-render only for an observed defect."
+  }
+}

@@ -35,6 +35,8 @@ import { observeHand, pageSettled, selectOption } from "./observe";
 import { semanticComputer } from "./semantic";
 import { wallInTexts } from "./session";
 import { isNative, performNative, releaseNative } from "./uia";
+import { looksLikeArtifactRequest } from "../workflows/contracts";
+import { runArtifactWorkflow } from "../workflows/run";
 
 /** The hand's browser is at a sign-in page. Nobody here can sign in: not Jev, not the vision agent. The user is told how. */
 export class SignedOut extends Error {}
@@ -53,6 +55,7 @@ export type JevFirstOptions = DesktopAgentOptions & { jevFirst?: {
   ask?: Ask; llm?: Llm; agent?: typeof createDesktopAgent; contacts?: Contact[]; store?: LearnedStore; accounts?: AccountBook;
   /** Seams for tests: the loop that drives, the two window reads, and what the user is looking at. */
   run?: typeof runScreens; observe?: typeof observeHand; browserWindow?: typeof browserWindow; frontOf?: typeof frontOf; browserTarget?: typeof browserTarget; onScreen?: () => Promise<string | null>;
+  artifact?: typeof runArtifactWorkflow;
 } };
 
 /** Pure: what `perform` sends for a key from jev/cua.ts KEYS ("Return", "shift+Tab", "alt+Left"). */
@@ -119,9 +122,10 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
 
   // What the panel shows while Jev, not Pi, is the one working.
   let phase: "idle" | "jev" | "pi" = "idle";
-  let mine = { task: "", text: "", error: null as string | null, currentTool: null as string | null, approval: null as AgentStatus["approval"], events: [] as AgentStatus["events"] };
+  let mine = { task: "", text: "", error: null as string | null, currentTool: null as string | null, approval: null as AgentStatus["approval"], events: [] as AgentStatus["events"], artifact: undefined as AgentStatus["artifact"] };
   let abort: AbortController | undefined;
   let controllerAbort: AbortController | undefined, controllerSignal: AbortSignal | undefined;
+  let artifactResumeId: string | undefined;
   let settleApproval: ((ok: boolean, expired?: boolean) => void) | undefined;
   let settled = Promise.withResolvers<void>();
   settled.resolve();
@@ -276,6 +280,19 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
     };
 
     try {
+    if (looksLikeArtifactRequest(text)) {
+      // Expressive creation runs away from the desktop. Jev gets a bounded
+      // bundle back for file execution/verification instead of a prose "done".
+      // The user's selected account window remains bound for later UI tasks.
+      await speaking?.speechEnds(); check();
+      const outcome = await (opts.jevFirst?.artifact ?? runArtifactWorkflow)({ request: said, resumeRunId:artifactResumeId, hand: hand.id, signal: runSignal,
+        onStatus: artifact => { mine.artifact = artifact; mine.currentTool = `Hands · ${artifact.phase}`; },
+        onEvent: event => { if (["jev_handoff", "agent_returned", "jev_decision", "artifact_delivered", "run_failed"].includes(event.event)) log(`Hands ${event.event}${event.model ? `: ${event.model}` : ""}${event.detail ? `: ${event.detail}` : ""}`); },
+      }, { ask });
+      check();
+      mine.text = `${outcome.summary}\n${outcome.status === "complete" ? "Artifact checks passed" : "Saved for review"}: ${outcome.previewUrl}\nRun: ${outcome.runId}`;
+      return;
+    }
     // A hand attached to the user's own Chrome is driven through Cua's semantic browser tools, which are Pi's.
     const bound = (opts.jevFirst?.browserTarget ?? browserTarget)(hand);
     if (bound.mode === "existing") {
@@ -414,6 +431,18 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
     } catch (error) {
       if (declined) { mine.text = "Stopped: you declined that action."; return; }
       if (signal.aborted) return;
+      if (mine.artifact) {
+        if (startingRevision !== rebuilding) {
+          const id = mine.artifact.runId;
+          artifactResumeId = await Bun.file(`out/artifacts/${id}/plan.json`).exists() && await Bun.file(`out/artifacts/${id}/sources.json`).exists() ? id : undefined;
+          log("Applying the correction to saved artifact work.");
+          controllerAbort = new AbortController(); controllerSignal = AbortSignal.any([signal,controllerAbort.signal]);
+          return work(said,opened,fullUtterance,speaking,signal);
+        }
+        mine.error = redact(error instanceof Error ? error.message : String(error)).slice(0, 1000);
+        mine.text = `Artifact work stopped with its checkpoint preserved. ${mine.error}`;
+        return;
+      }
       if (startingRevision !== rebuilding) return handOver("the speaker changed the request or its constraints. Apply the latest instruction before any further input", completed);
       // Signing in is the user's to do: neither Jev nor Pi can, so this is told, not handed over.
       if (error instanceof SignedOut) throw error;
@@ -435,9 +464,9 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
     },
     async prompt(text, opened = [], utterance, speaking) {
       if (phase === "jev" || pi.status().running) throw new Error("The agent is busy. Stop it before starting another task.");
-      phase = "jev"; said = text; fullUtterance = utterance; at = null; wantedAccount = undefined; declined = false; startedAt = Date.now(); rebuilding++;
+      phase = "jev"; said = text; fullUtterance = utterance; at = null; wantedAccount = undefined; declined = false; startedAt = Date.now(); rebuilding++; artifactResumeId = undefined;
       liveAuthorization = speaking?.authorization;
-      mine = { task: text, text: "", error: null, currentTool: "Jev is reading the request", approval: null, events: [] };
+      mine = { task: text, text: "", error: null, currentTool: "Jev is reading the request", approval: null, events: [], artifact: undefined };
       abort = new AbortController(); controllerAbort = new AbortController(); controllerSignal = AbortSignal.any([abort.signal, controllerAbort.signal]); settled = Promise.withResolvers<void>();
       const started = performance.now();
       try { await work(text, opened, utterance, speaking, abort.signal); }

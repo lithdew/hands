@@ -19,6 +19,7 @@ export function semanticFailure(tool: string, args: unknown, message: string): S
     : message.startsWith("Cua get_browser_state did not return a verified browser result.") ? "Cua returned an invalid browser observation."
     : message === "Cua could not bind this exact Chrome window for input. No other browser was selected." ? "Cua could not verify the selected Chrome binding."
     : message === "Cua returned no structured window state." ? "Cua returned no structured window observation."
+    : /session (?:has ended|'[^']*' has ended)/i.test(message) ? "The Cua browser session ended; explicitly attach to refresh its binding."
     : undefined;
   if (!diagnostic) return;
   // Keep private titles/URLs in error metadata out of recovery state and traces.

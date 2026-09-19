@@ -28,5 +28,5 @@
     "noPropertyAccessFromIndexSignature": false
   },
   // Remotion template projects have their own dependencies (react, remotion), installed where they are built, not here.
-  "exclude": ["node_modules", "out", "my-video", "jev/relay/kits/*/remotion"]
+  "exclude": ["node_modules", "out", "tmp", "my-video", "jev/relay/kits/*/remotion"]
 }

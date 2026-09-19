@@ -1,7 +1,24 @@
 import { describe, expect, test } from "bun:test";
-import { adoptable, bindWindowCapture, capturedImage, createDriverPool, createExistingBrowserTargets, createWindowTracker, frontWindow, handFor, isPrivateBrowser, launchedBrowserWindow, signInLine, type RawWindow, type WindowOwner } from "./desktop";
+import { adoptable, bindWindowCapture, capturedImage, createDriverPool, createExistingBrowserTargets, createWindowTracker, frontWindow, handFor, helperReply, isPrivateBrowser, launchedBrowserWindow, signInLine, type RawWindow, type WindowOwner } from "./desktop";
 import { serverResources, virtualKey } from "./serve";
 import type { CuaConnection, Hand } from "../desktop";
+
+test("Explorer RPC recovery re-observes once without replaying window mutations", async () => {
+  const failure = "error The RPC server is unavailable. (Exception from HRESULT: 0x800706BA)";
+  const sent: string[] = [];
+  expect(await helperReply("external-read Puk hand 1|7:20:0000000000000001", async request => {
+    sent.push(request); return sent.length === 1 ? failure : request === "desktop-reconnect" ? "ok" : '{"pid":20}';
+  })).toBe('{"pid":20}');
+  expect(sent).toHaveLength(3); expect(sent[1]).toBe("desktop-reconnect"); expect(sent[2]).toBe(sent[0]);
+  for (const request of ["move 7 Puk hand 1", "external-focus Puk hand 1|7:20:0000000000000001", "ensure Puk hand 1"]) {
+    let count = 0;
+    await expect(helperReply(request, async () => { count++; return failure; })).rejects.toThrow("RPC server");
+    expect(count).toBe(1);
+  }
+  let count = 0;
+  await expect(helperReply("desktops", async request => {count++;return request === "desktop-reconnect" ? "ok" : failure;})).rejects.toThrow("RPC server");
+  expect(count).toBe(3);
+});
 
 describe("frontWindow", () => {
   const had = (...ids: number[]) => new Set(ids);
@@ -212,7 +229,7 @@ describe("existing browser target ownership", () => {
   const chrome = (id = 901, pid = 82): RawWindow => ({ app: "chrome", title: "Inbox - Google Chrome", focused: true, pid, containerId: id,
     ownerNonce: id.toString(16).padStart(16, "0"), rect: [40, 40, 1360, 900] });
   function fixture() {
-    let available = [chrome()], current: RawWindow | null = chrome(), failed = false, preparations = 0;
+    let available = [chrome()], current: RawWindow | null = chrome(), failed = false, preparations = 0, healthy = true;
     const calls: string[] = [];
     let validate: (() => Promise<RawWindow>) | undefined;
     let reading: Promise<RawWindow | null> | undefined;
@@ -222,9 +239,9 @@ describe("existing browser target ownership", () => {
       read: async () => reading ?? current,
       release: async (hand) => { calls.push(`release ${hand.id}`); },
       endSession: async () => { calls.push("end disconnected session"); },
-      prepare: async (_hand, checked, signal, resume) => { preparations++; if (resume) calls.push("resume only"); validate = checked; signal?.throwIfAborted(); if (failed) throw new Error("Cua permission denied"); return { close: async () => { calls.push("end session"); } }; },
+      prepare: async (_hand, checked, signal, resume) => { preparations++; if (resume) calls.push("resume only"); validate = checked; signal?.throwIfAborted(); if (failed) throw new Error("Cua permission denied"); healthy = true; return { healthy: () => healthy, close: async () => { calls.push("end session"); } }; },
     });
-    return { targets, calls, preparations: () => preparations, validate: () => validate!(), fail: () => { failed = true; }, found: (windows: RawWindow[]) => { available = windows; },
+    return { targets, calls, preparations: () => preparations, validate: () => validate!(), fail: () => { failed = true; }, expire: () => { healthy = false; }, found: (windows: RawWindow[]) => { available = windows; },
       current: (window: RawWindow | null) => { current = window; }, reading: (promise: Promise<RawWindow | null>) => { reading = promise; } };
   }
 
@@ -298,6 +315,18 @@ describe("existing browser target ownership", () => {
       expect(f.calls).toEqual(["claim 1 901"]);
       expect(f.targets.target(hand).mode).toBe("existing");
     }
+  });
+
+  test("an ended session is shown disconnected and an explicit attach replaces it", async () => {
+    const f = fixture(); await f.targets.attach(hand);
+    const previous = f.targets.connection(hand);
+    f.expire();
+    expect(f.targets.target(hand)).toMatchObject({ mode: "existing", window_id: 901, ready: false });
+    await f.targets.attach(hand, { window_id: 901, pid: 82 });
+    expect(f.preparations()).toBe(2);
+    expect(f.targets.connection(hand)).not.toBe(previous);
+    expect(f.targets.target(hand)).toMatchObject({ mode: "existing", window_id: 901, ready: true });
+    expect(f.calls).toEqual(["claim 1 901", "end session", "release 1", "claim 1 901"]);
   });
 
   test("failed preparation keeps explicit existing mode and refuses sandbox fallback", async () => {
@@ -382,6 +411,7 @@ describe("shared Cua transports", () => {
     expect(await (await pool.get(hand)).browserSession?.()).toBe(session);
     await pool.close();
   });
+
 
   test("failed connection attempts are evicted and an old close cannot evict a replacement", async () => {
     let attempts = 0;

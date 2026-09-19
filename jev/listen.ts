@@ -262,7 +262,15 @@ export function createListener(deps: ListenDeps): Listener {
     const next = scheduling.then(async () => {
       for (const task of tasks.filter((t) => t.status === "waiting")) {
         if (abort.signal.aborted) return;
-        const hand = await freeHand(task.hand);
+        let hand: Hand | undefined;
+        try { hand = await freeHand(task.hand); }
+        catch (error) {
+          // A failed desktop lookup is not a queued task waiting for capacity.
+          // Nothing was dispatched; retain the request but release busy state.
+          for (const waiting of tasks.filter(t => t.status === "waiting")) waiting.status = "failed";
+          log(`Could not observe a hand before dispatch: ${error instanceof Error ? error.message : error}`);
+          throw error;
+        }
         if (!hand) return;
         start(task, hand);
       }

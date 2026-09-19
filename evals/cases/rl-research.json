@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 1,
+  "id": "rl-research",
+  "title": "Frontier reinforcement learning research",
+  "asOf": "2026-09-19",
+  "rawUserTask": "Make a summary of relevant frontier research in reinforcement learning.",
+  "context": "The user is building Hands, a computer-use harness with Jev making bounded fast decisions and Luna, Vertex Gemini and Astra low handling expressive planning and artifact creation. Prioritize work relevant to reliable multi-turn agents, while covering world models and robotics so this is not just an LLM post-training survey.",
+  "prompt": "Create a clear, cited frontier reinforcement-learning research brief as of 2026-09-19 for a technical builder. Start with the main practical findings, then synthesize 5 or 6 research themes. Include at least 8 distinct primary research sources, including at least 3 first released in 2026 and at least 2 first released in the last 120 days. Cover RL for reasoning, long-horizon agent credit assignment, reward validity/reliability, and world-model or embodied learning. Include a short glossary, a prioritized reading list and three concrete experiments relevant to Hands. Clearly separate author-reported empirical results, theoretical or position-paper arguments, and your own engineering hypotheses. For every specific empirical claim provide its benchmark, model, baseline or comparison, and limitations when the source makes these available. Cite direct paper/publisher/author links near claims. Do not rank numbers from incompatible evaluation protocols. Do not claim a preprint is peer reviewed, a framework change is online RL, or a model is proven generally reliable. Treat the supplied source packet as a discovery aid and verify the original pages; make one bounded search for newer relevant work before finalizing. Produce the complete readable report, a machine-readable citation/claim ledger, and an artifact manifest. Return control to Jev with the artifact paths and observed validation results so Jev can select open, repair or escalate. Only finish after checking the saved artifacts.",
+  "requiredArtifacts": [
+    {
+      "role": "report",
+      "suggestedFilename": "rl-research.html",
+      "description": "A standalone readable report with working direct citations, a 5-minute executive summary, 5–6 thematic sections, glossary, reading list, and three Hands experiment proposals. Markdown plus a rendered HTML view is acceptable. Aim for 1,500–2,500 words; completeness and accuracy are the actual requirements."
+    },
+    {
+      "role": "evidence",
+      "suggestedFilename": "rl-research-evidence.json",
+      "description": "Machine-readable sources and claims. Every source records id, title, url, firstPublished, versionDate if available, status, accessedAt, retrieval status, and whether full text or only abstract was inspected. Every claim records text, sourceIds, evidenceKind, benchmark/model/comparison when relevant, and a limitation. Include searched queries and missing evidence."
+    }
+  ],
+  "allowedEvidenceKinds": ["empirical-author-report", "theoretical-result-with-assumptions", "position-or-hypothesis", "engineering-inference"],
+  "runtimeNeeds": ["public-web-search", "public-url-read", "bounded-file-write", "artifact-readback", "jev-choice-and-convictions", "artifact-preview"],
+  "handoff": {
+    "route": "Jev chooses research agent -> permitted LLM agent researches and writes -> deterministic file/link/coverage validation -> Jev chooses open, repair or escalate -> verified local artifact open",
+    "agentModels": ["gpt-5.6-luna", "gemini-3.8-flash", "gpt-6-astra"],
+    "astraEffort": "low",
+    "jevReturnChoices": ["open_artifact", "repair_evidence", "repair_coverage", "escalate_reasoning"],
+    "jevReturnContext": ["rawUserTask", "artifactManifest", "observedFiles", "deterministicChecks", "citationAudit", "unresolvedQuestions"],
+    "countAsSuccessOnlyIf": "A trace from an actual Hands run contains agent delegation, actual artifact creation, validation, a fresh Jev return decision, and the executed validated artifact-opening action. A fixture, standalone helper-written report, or model's unsupported success declaration is not success."
+  },
+  "acceptance": {
+    "minimumDistinctPrimarySources": 8,
+    "minimumFirstPublishedIn2026": 3,
+    "minimumFirstPublishedSince2026_05_22": 2,
+    "minimumThemes": 4,
+    "minimumHandsExperiments": 3,
+    "requiredThemeIds": ["reasoning-rl", "agent-credit", "reward-validity", "world-models-or-robotics"],
+    "hardFailures": [
+      "Invented paper, title, URL, benchmark or numerical result.",
+      "Material claim unsupported by its cited primary source.",
+      "Calls an arXiv preprint peer reviewed without evidence of venue acceptance.",
+      "Presents author speculation, engineering inference or bounded benchmark evidence as established general capability.",
+      "No genuine Hands agent-to-Jev return and execution trace.",
+      "No saved readable artifact or saved evidence ledger."
+    ],
+    "humanAudit": [
+      "Read each numerical claim against its primary source and check units, base model, dataset split, comparison and version.",
+      "Confirm three recent sources are first released in 2026, not merely older papers updated in 2026.",
+      "Check old foundations such as DreamerV3 are explicitly labeled as background: the Nature article is 2025, the initial preprint is 2023.",
+      "Check usefulness of Hands experiments: testable hypothesis, comparator, held-out task set, outcome metric and latency/cost metric.",
+      "Open the actual output and inspect readable layout and link targets."
+    ]
+  },
+  "sources": [
+    {
+      "id": "deepseek-r1",
+      "title": "DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning",
+      "url": "https://arxiv.org/abs/2501.12948",
+      "firstPublished": "2025-01-22",
+      "versionDate": "2026-01-04",
+      "status": "Nature 645, 633–638 (2025); arXiv v2",
+      "theme": "reasoning-rl",
+      "inspected": "primary abstract and metadata",
+      "boundedClaim": "The authors report reasoning gains from large-scale RL without human-labeled reasoning trajectories, alongside distillation into smaller models.",
+      "auditCaution": "Do not turn emergence language into proof that all reasoning capabilities are new, or treat the January 2026 revision as the original release."
+    },
+    {
+      "id": "dapo",
+      "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+      "url": "https://arxiv.org/abs/2503.14476",
+      "firstPublished": "2025-03-18",
+      "versionDate": "2025-05-20",
+      "status": "arXiv v2; verify any later venue separately",
+      "theme": "reasoning-rl",
+      "inspected": "primary abstract and metadata",
+      "boundedClaim": "The authors report 50 points on AIME 2024 with Qwen2.5-32B and release the RL system, training code and processed data.",
+      "auditCaution": "The relevant DAPO is the LLM algorithm, not the unrelated high-level-synthesis pass-ordering project with the same acronym. Verify evaluation sampling before comparing its score."
+    },
+    {
+      "id": "rlvr-boundary",
+      "title": "Does Reinforcement Learning Really Incentivize Reasoning Capacity in LLMs Beyond the Base Model?",
+      "url": "https://arxiv.org/abs/2504.13837",
+      "firstPublished": "2025-04-18",
+      "versionDate": "2025-11-24",
+      "status": "NeurIPS 2025 Oral per primary metadata; arXiv v5",
+      "theme": "reasoning-rl",
+      "inspected": "primary abstract and metadata",
+      "boundedClaim": "Across the studied models and tasks, RLVR improves low-k sampling efficiency while base models can cover more problems at large pass@k; distillation can broaden the observed coverage.",
+      "auditCaution": "This is evidence about the tested training setups and finite sampling budgets, not a theorem that RL can never discover new behavior."
+    },
+    {
+      "id": "hiper",
+      "title": "HiPER: Hierarchical Reinforcement Learning with Explicit Credit Assignment for Large Language Model Agents",
+      "url": "https://arxiv.org/abs/2602.16165",
+      "fullTextUrl": "https://arxiv.org/html/2602.16165v2",
+      "firstPublished": "2026-02-18",
+      "versionDate": "2026-05-29",
+      "status": "ICML 2026 per primary metadata; arXiv v2",
+      "theme": "agent-credit",
+      "inspected": "primary abstract, metadata and full-text page",
+      "boundedClaim": "Separates high-level subgoal planning from multi-step execution, with hierarchical advantage estimation. Authors report 97.4% ALFWorld and 83.3% WebShop success for Qwen2.5-7B-Instruct.",
+      "auditCaution": "Benchmark-specific trained policies do not establish success on arbitrary signed-in desktop tasks. Explain assumptions if mentioning unbiasedness or variance guarantees."
+    },
+    {
+      "id": "skillgate",
+      "title": "SkillGate: Training In-Policy Skill Selection in Long-Horizon Agents",
+      "url": "https://arxiv.org/abs/2608.18852",
+      "fullTextUrl": "https://arxiv.org/html/2608.18852v1",
+      "firstPublished": "2026-08-19",
+      "versionDate": "2026-08-19",
+      "status": "arXiv preprint v1; no accepted venue verified",
+      "theme": "agent-credit",
+      "inspected": "primary abstract, metadata and full-text page",
+      "boundedClaim": "Uses separate credit for skill selection and execution. The authors report a 9B policy improving from 40.8% to 53.2% trial success over five benchmarks with a 16-candidate skill slate.",
+      "auditCaution": "The skill slate and task protocol are constrained. Do not claim the same numerical gain for Jev routing or general skill libraries."
+    },
+    {
+      "id": "faca",
+      "title": "Towards Better Agents for Multi-Turn User Interaction: The Next User Turn Is More Than Context",
+      "url": "https://arxiv.org/abs/2608.17499",
+      "firstPublished": "2026-08-18",
+      "versionDate": "2026-08-18",
+      "status": "arXiv preprint v1; no accepted venue verified",
+      "theme": "agent-credit",
+      "inspected": "primary abstract and metadata",
+      "boundedClaim": "FACA adds locally normalized user-reaction advantage to verified terminal outcomes. On a matched nine-domain tau-family setup, authors report improvements of 5.91 and 10.22 percentage points for 8B and 14B policies across three runs.",
+      "auditCaution": "Gains concentrate in Telecom. User reactions are noisy training evidence and are not permission to ignore explicit corrections or a substitute for outcome verification."
+    },
+    {
+      "id": "efca",
+      "title": "Learning from Environmental Feedback: Credit Assignment across Multiple Timescales for Agentic Reinforcement Learning",
+      "url": "https://arxiv.org/abs/2608.08255",
+      "firstPublished": "2026-08-08",
+      "versionDate": "2026-08-08",
+      "status": "arXiv preprint v1; no accepted venue verified",
+      "theme": "agent-credit",
+      "inspected": "primary abstract and metadata",
+      "boundedClaim": "Combines immediate environmental feedback and recent interaction history with terminal reward through return reweighting; evaluates on ALFWorld and WebShop.",
+      "auditCaution": "The abstract gives no exact headline improvement. Inspect results before supplying numbers; environment-specific feedback may not transfer to browser tasks."
+    },
+    {
+      "id": "areal2-position",
+      "title": "Next-Generation Agentic Reinforcement Learning Systems Enable Self-Evolving Agents",
+      "url": "https://arxiv.org/abs/2607.01120",
+      "firstPublished": "2026-07-01",
+      "versionDate": "2026-07-02",
+      "status": "arXiv preprint v2; systems/position argument with AReaL2.0 instantiation",
+      "theme": "agent-systems",
+      "inspected": "primary abstract and metadata",
+      "boundedClaim": "Argues for step-level trajectory protocols, governed workload collection and an evolution control plane, and describes AReaL2.0 as one instantiation for policy updates.",
+      "auditCaution": "Architecture proposals and claims about what limits deployment are arguments, not broad experimentally established superiority. Prompt/recipe changes alone are not policy-weight RL."
+    },
+    {
+      "id": "multimodal-reward-hacking",
+      "title": "Multimodal Reward Hacking in Reinforcement Learning",
+      "url": "https://arxiv.org/abs/2607.09492",
+      "firstPublished": "2026-07-10",
+      "versionDate": "2026-07-10",
+      "status": "arXiv preprint v1; no accepted venue verified",
+      "theme": "reward-validity",
+      "inspected": "primary abstract and metadata",
+      "boundedClaim": "Tests reward designs over safety VQA, chart VQA and stress tests for 2B–32B models. Authors find higher proxy reward can coexist with worse grounded performance and weak keyword verification can increase hacking.",
+      "auditCaution": "Several distinct rates occur in the abstract. Do not confuse Reward Hacking Rate, Newly Rewarded Failure Rate and the reported worse rate, or generalize the algorithm ranking beyond this setup."
+    },
+    {
+      "id": "rebound-remedy",
+      "title": "From Rebound to Remedy: Understanding and Mitigating Reward Hacking via Representation Engineering",
+      "url": "https://arxiv.org/abs/2604.01476",
+      "firstPublished": "2026-04-01",
+      "versionDate": "2026-08-20",
+      "status": "arXiv preprint v3; no accepted venue verified",
+      "theme": "reward-validity",
+      "inspected": "primary abstract and metadata",
+      "boundedClaim": "In a coding testbed where agents can alter evaluator code, the authors observe a hacking-recovery-hacking pattern in two models and study representation-based penalties during GRPO updates.",
+      "auditCaution": "Earlier versions had a different title. The controlled editable-evaluator environment and two-model scope do not establish universal behavior; preserve independent validation in Hands."
+    },
+    {
+      "id": "dreamerv3",
+      "title": "Mastering diverse control tasks through world models",
+      "url": "https://www.nature.com/articles/s41586-025-08744-2",
+      "preprintUrl": "https://arxiv.org/abs/2301.04104",
+      "firstPublished": "2023-01-10",
+      "versionDate": "2025-04-02",
+      "status": "Nature 640, 647–653 (2025); older foundation, not a 2026 discovery",
+      "theme": "world-models-or-robotics",
+      "inspected": "publisher article abstract, methods overview and evaluation summary",
+      "boundedClaim": "DreamerV3 learns an environment model and trains behavior in imagined trajectories, with a shared configuration evaluated across more than 150 tasks in eight domains.",
+      "auditCaution": "One general algorithm and fixed hyperparameters do not mean one pretrained policy solves every task; agents are trained in the evaluated environments. Distinguish sample and compute efficiency."
+    },
+    {
+      "id": "pi06-recap",
+      "title": "pi-star-0.6: a VLA That Learns From Experience",
+      "url": "https://arxiv.org/abs/2511.14759",
+      "authorUrl": "https://www.pi.website/blog/pistar06",
+      "firstPublished": "2025-11-18",
+      "versionDate": "2025-11-19",
+      "status": "arXiv preprint v2 and author project report; no accepted venue verified",
+      "theme": "world-models-or-robotics",
+      "inspected": "primary abstract and metadata",
+      "boundedClaim": "RECAP combines demonstrations, on-policy robot experience and expert interventions using advantage-conditioned policies; reports improved throughput and failure rates on several real manipulation tasks.",
+      "auditCaution": "The largest relative gains apply to some harder tasks, not all robotics. Human interventions and specialized robot data remain part of the training pipeline."
+    }
+  ],
+  "researchNotes": {
+    "sourcePacketPreparedBy": "case_rl_research evaluator; these notes are not a Hands-produced deliverable",
+    "verifiedOn": "2026-09-19",
+    "sourceWordBudget": "Only short paraphrased discovery notes are included. Re-read originals for final claims; avoid reproducing large abstracts.",
+    "newerSearchRequired": true,
+    "knownGap": "This packet is a selective practical map, not an exhaustive bibliography or claim that these are objectively the newest or best papers."
+  }
+}

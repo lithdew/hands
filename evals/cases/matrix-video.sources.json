@@ -1,0 +1,16 @@
+{
+  "schemaVersion":1,
+  "asOf":"2026-09-19",
+  "sources":[
+    {"id":"direct-solve","title":"numpy.linalg.solve — NumPy","url":"https://numpy.org/doc/stable/reference/generated/numpy.linalg.solve.html","retrieved":"2026-09-19","kind":"official numerical software documentation","notes":"The direct solve API computes x for full-rank square Ax=b using LAPACK gesv. Its example checks A*x against b. Singular or nonsquare input is rejected by this API.","use":"Show solve(A,b) as a practical direct-system tool; do not imply that teaching inverse algebra requires explicitly computing an inverse in numerical code."},
+    {"id":"inverse-geometry","title":"Inverse matrices, column space, and null space — 3Blue1Brown","url":"https://www.3blue1brown.com/lessons/inverse-matrices/","retrieved":"2026-09-19","kind":"primary instructional source","notes":"Interpret Ax=b as finding a preimage under a linear transformation. Nonzero determinant permits a unique inverse transformation. A inverse A is identity. A singular transformation loses dimensions; the column space determines whether a given b is reachable.","use":"Conceptual framing and further reading; write original explanation and examples, do not reuse video/media/transcript."},
+    {"id":"manimgl","title":"3b1b/manim — ManimGL project","url":"https://github.com/3b1b/manim","retrieved":"2026-09-19","kind":"primary software source","notes":"This is 3b1b's ManimGL, distributed as manimgl. It is distinct from Manim Community. System dependencies include OpenGL and FFmpeg; LaTeX is optional when no TeX objects are used.","use":"Tool attribution and distinction from Manim Community."},
+    {"id":"manim-cli","title":"ManimGL CLI flags and configuration","url":"https://3b1b.github.io/manim/getting_started/configuration.html","retrieved":"2026-09-19","kind":"official software documentation","notes":"ManimGL writes scenes to video with -w; resolution, fps, output directory, filename and config file are explicit CLI inputs.","use":"Reproducible actual Manim asset generation."},
+    {"id":"remotion-render","title":"Remotion renderMedia","url":"https://www.remotion.dev/docs/renderer/render-media","retrieved":"2026-09-19","kind":"official software documentation","notes":"renderMedia accepts a bundled composition, JSON input props, codec and output location. H.264 renders video. The same input props go to selectComposition.","use":"Actual Remotion MP4 rendering, not a storyboard-only substitute."},
+    {"id":"remotion-bundle","title":"Remotion bundler","url":"https://www.remotion.dev/docs/bundler","retrieved":"2026-09-19","kind":"official software documentation","notes":"The bundler prepares a local Remotion composition for renderer APIs.","use":"Reusable trusted compositor."}
+  ],
+  "independentMathChecks": {
+    "method":"For every numeric nonsingular 2x2 matrix emitted by the specialist, independently recompute det=ad-bc and inverse. Multiply both A times inverse and inverse times A, and check each is identity within 1e-8. For any displayed Ax=b example, recompute A*x and compare with b.",
+    "scope":"These arithmetic checks support the worked examples only; a reviewer must still inspect prose, teaching sequence and singular-case qualifications."
+  }
+}
