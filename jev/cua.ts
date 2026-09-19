@@ -69,6 +69,11 @@ export type Deps = {
   llm: Llm;
   approve: Approve;
   observe?: (hand: Hand) => Promise<Observation>;
+  /** Other desktops (win/) bring their own input and capture. Default: desktop.ts, through `exec`. */
+  perform?: (hand: Hand, action: Action) => Promise<void>;
+  screenshot?: (hand: Hand) => Promise<Uint8Array>;
+  /** How long a screen gets to react before it is read again. Default SETTLE_MS. */
+  settleMs?: number;
   exec?: Exec;
   sleep?: (ms: number) => Promise<void>;
   log?: (line: string) => void;
@@ -246,6 +251,10 @@ export async function decide(
   }
   const state = jevState(intent, obs, memory, hand);
 
+  // One request. Jev answers independent questions together, so what the move would
+  // need (which element, which text, which key) is asked alongside the move instead
+  // of in a second round trip once the move is known. Each is phrased to stand alone.
+  const typed = state.history.join("\n");
   const first = await deps.ask(state, {
     move: choice(
       "What should the worker do next to make progress on `goal`? Follow `plan.steps` when there is a plan. `history` lists what was already done, oldest first.",
@@ -253,6 +262,32 @@ export async function decide(
     ),
     goal_met: noul("`screen` shows that `done_when` is already true."),
     stuck: noul("`history` shows the worker repeating an action or making no progress toward `goal`."),
+    target: choice("If the worker clicks one element next to make progress on `goal`, which one?", {
+      ...elementLabels(obs.elements, hand),
+      [NONE]: "No listed element is the right thing to click.",
+    }),
+    input: choice("If the worker types into a field next, which text belongs there?", {
+      ...Object.fromEntries(
+        Object.entries(intent.inputs).map(([name, value]) => [
+          name,
+          `${JSON.stringify(preview(value))}${typed.includes(`type ${name} `) ? " (already typed once)" : ""}`,
+        ]),
+      ),
+      [COMPOSE_LABEL]: "None of the prepared inputs. The text has to be written now, based on what is on screen.",
+    }),
+    field: choice("If the worker types into a field next, which field?", {
+      ...elementLabels(obs.elements.filter((el) => el.editable), hand),
+      [FOCUSED_FIELD]: "The field that already has keyboard focus. The cursor is already in the right place.",
+      [NONE]: "No listed field is right, and no field has focus.",
+    }),
+    submit: noul(
+      "Right after typing, Enter should be pressed, because this field is a search box, an address bar or a single line prompt that submits with Enter.",
+    ),
+    key: choice("If the worker presses a key next, which one?", KEYS),
+    direction: choice("If the worker scrolls next to find what it needs, which way?", {
+      down: "What is needed is further down the page or list.",
+      up: "What is needed is further up the page or list.",
+    }),
   });
   const move = first.move.choice;
   const goalMet = first.goal_met.noul;
@@ -270,7 +305,7 @@ export async function decide(
     return { kind: "escalate", reason: "repeating actions without progress", mustPlan: false };
   }
 
-  const action = await argumentsFor(move, deps, hand, intent, obs, state);
+  const action = await argumentsFor(move, deps, intent, obs, first);
   if (!action) return { kind: "escalate", reason: `wants to ${move} but no listed element fits`, mustPlan: true };
   return { kind: "act", action };
 }
@@ -281,13 +316,20 @@ export function isLooping(history: string[]): boolean {
   return last.length === 3 && last.every((h) => h === last[0] && h.endsWith("no visible change"));
 }
 
+/** The action for `move`, from answers `decide` already has. Only newly written text costs another call. */
 async function argumentsFor(
   move: Exclude<keyof typeof MOVES, "done" | "ask_planner">,
   deps: Pick<Deps, "ask" | "llm">,
-  hand: Hand,
   intent: Intent,
   obs: Observation,
-  state: ReturnType<typeof jevState>,
+  a: {
+    target: { choice: string };
+    input: { choice: string };
+    field: { choice: string };
+    submit: { noul: number };
+    key: { choice: keyof typeof KEYS };
+    direction: { choice: "up" | "down" };
+  },
 ): Promise<Action | null> {
   const byId = new Map(obs.elements.map((el) => [el.id, el]));
 
@@ -295,40 +337,12 @@ async function argumentsFor(
     case "click":
     case "double_click":
     case "right_click": {
-      const how = move.replace("_", " ");
-      const a = await deps.ask(state, {
-        target: choice(`The worker will ${how} one element to make progress on \`goal\`. Which one?`, {
-          ...elementLabels(obs.elements, hand),
-          [NONE]: `No listed element is the right thing to ${how}.`,
-        }),
-      });
       const target = byId.get(a.target.choice);
       if (!target) return null;
       return { kind: "click", target, button: move === "right_click" ? "right" : "left", count: move === "double_click" ? 2 : 1 };
     }
 
     case "type": {
-      const fields = obs.elements.filter((el) => el.editable);
-      const typed = state.history.join("\n");
-      const a = await deps.ask(state, {
-        input: choice("The worker will type into a field now. Which text belongs there?", {
-          ...Object.fromEntries(
-            Object.entries(intent.inputs).map(([name, value]) => [
-              name,
-              `${JSON.stringify(preview(value))}${typed.includes(`type ${name} `) ? " (already typed once)" : ""}`,
-            ]),
-          ),
-          [COMPOSE_LABEL]: "None of the prepared inputs. The text has to be written now, based on what is on screen.",
-        }),
-        field: choice("The worker will type into a field now. Which field?", {
-          ...elementLabels(fields, hand),
-          [FOCUSED_FIELD]: "The field that already has keyboard focus. The cursor is already in the right place.",
-          [NONE]: "No listed field is right, and no field has focus.",
-        }),
-        submit: noul(
-          "Right after typing, Enter should be pressed, because this field is a search box, an address bar or a single line prompt that submits with Enter.",
-        ),
-      });
       if (a.field.choice === NONE) return null;
       const target = byId.get(a.field.choice) ?? null;
       const input = a.input.choice;
@@ -339,20 +353,11 @@ async function argumentsFor(
       return { kind: "type", target, input, text, submit: a.submit.noul >= 0.5 };
     }
 
-    case "key": {
-      const a = await deps.ask(state, { key: choice("The worker will press a key now. Which one?", KEYS) });
+    case "key":
       return { kind: "key", combo: a.key.choice };
-    }
 
-    case "scroll": {
-      const a = await deps.ask(state, {
-        direction: choice("Which way should the worker scroll to find what it needs?", {
-          down: "What is needed is further down the page or list.",
-          up: "What is needed is further up the page or list.",
-        }),
-      });
+    case "scroll":
       return { kind: "scroll", direction: a.direction.choice };
-    }
 
     case "wait":
       return { kind: "wait" };
@@ -438,12 +443,15 @@ export async function runIntent(
   const memory: Memory = { history: [], plan: null };
   const steps: StepRecord[] = [];
   let seen: { fingerprint: string; elements: Plan["elements"] } | null = null;
+  let carried: Observation | null = null;
   const end = (status: RunResult["status"], reason: string): RunResult => ({ status, reason, steps });
 
   for (let n = 1; n <= maxSteps; n++) {
     if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
     const intent = current();
-    let obs = await look(hand);
+    // The look that judged the last action is also the look for this one.
+    let obs = carried ?? (await look(hand));
+    carried = null;
     // What the planner saw stays usable only while the screen it saw is still there.
     if (seen && seen.fingerprint === obs.fingerprint) obs = withVisionElements(obs, seen.elements, hand);
 
@@ -467,7 +475,7 @@ export async function runIntent(
         history: memory.history,
         knownElements: Object.values(elementLabels(obs.elements, hand)),
         reason: decision.reason,
-        screenshotPng: await screenshot(hand, {}, deps.exec ?? defaultExec),
+        screenshotPng: await (deps.screenshot ? deps.screenshot(hand) : screenshot(hand, {}, deps.exec ?? defaultExec)),
       });
       if (plan.blocked) return end("gave_up", plan.blocked);
       memory.plan = plan;
@@ -505,9 +513,10 @@ export async function runIntent(
     }
 
     if (opts.signal?.aborted) return end("cancelled", "the task was taken back"); // it may have come during the gate
-    await perform(hand, decision.action, deps);
-    await sleep(SETTLE_MS);
+    await (deps.perform ? deps.perform(hand, decision.action) : perform(hand, decision.action, deps));
+    await sleep(deps.settleMs ?? SETTLE_MS);
     const after = await look(hand);
+    carried = after;
     const outcome = after.fingerprint === obs.fingerprint ? "no visible change" : "screen changed";
     memory.history.push(`${did} -> ${outcome}`);
     steps.push({ n, did, risk: risk?.level ?? null, outcome });

@@ -57,7 +57,12 @@ function fakeJev(reply: (name: string, ctx: { state: any; question: any }) => Re
       const r = reply(name, { state, question });
       if (question.type === "noul") answers[name] = { type: "noul", noul: typeof r === "number" ? r : 0 };
       else {
-        const picked = typeof r === "object" ? r : { choice: String(r), confidence: 0.9 };
+        // decide asks everything in one request, on every screen. A test scripts what its
+        // move needs; for the rest, and for a label this screen does not offer, the fake
+        // answers as Jev would: none of these, or else the first label.
+        const offered = Object.keys(question.criteria);
+        const fallback = offered.includes("none_of_these") ? "none_of_these" : offered[0]!;
+        const picked = typeof r === "object" ? r : { choice: r !== undefined && offered.includes(String(r)) ? String(r) : fallback, confidence: 0.9 };
         answers[name] = { type: "choice", ...picked, probabilities: {} };
       }
     }
@@ -216,7 +221,7 @@ describe("runIntent", () => {
     const blank = screen("blank", []);
     const plan = { situation: "s", steps: [], elements: [{ role: "button", name: "Start", x: 400, y: 300, w: 200, h: 100 }], blocked: null };
     const jev = fakeJev((name) => ({ planner: "quick", move: "wait" })[name]);
-    await runIntent(hand, intent, deps({ ask: jev.ask, llm: fakeLlm(plan).llm, observe: screens(blank, blank, blank, home) }, fakeExec().exec), {
+    await runIntent(hand, intent, deps({ ask: jev.ask, llm: fakeLlm(plan).llm, observe: screens(blank, blank, home) }, fakeExec().exec), {
       maxSteps: 3,
     });
     const offered = jev.asked("move").map((c) => c.state.screen.elements.length);
