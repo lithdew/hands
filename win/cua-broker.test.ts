@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { brokerRequestAuthorized, createBrokerClient, createBrokerCore, validateBrokerState, type BrokerState } from "./cua-broker";
+import { brokerRequestAuthorized, createBrokerClient, createBrokerCore, UncertainCuaCall, validateBrokerState, type BrokerState } from "./cua-broker";
 import type { CuaConnection } from "../desktop";
 
 const id = () => crypto.randomUUID();
@@ -46,6 +46,31 @@ describe("persistent Cua ownership", () => {
     expect(closes).toBe(1);
   });
 
+  test("closing an idle client during a preview lets that read drain and preserves Chrome's session", async () => {
+    const entered = deferred<void>(), preview = deferred<typeof reply>();
+    let closes = 0, readSignal: AbortSignal | undefined;
+    const core = createBrokerCore(async () => ({
+      call: async (_name, _args, signal) => { readSignal = signal; entered.resolve(); return preview.promise; },
+      close: async () => { closes++; },
+    }));
+    const first = createBrokerClient(wireFor(core)); await first.connect();
+    const hand = first.hand(1, () => {}), session = await hand.browserSession();
+    const pending = hand.call("get_window_state", {});
+    await entered.promise;
+    const stopped = pending.catch((error: unknown) => error);
+    await hand.close();
+    expect((await stopped as Error).message).toContain("cancelled");
+    expect(readSignal).toBeUndefined();
+    expect(core.summary().inFlight).toBe(1);
+    expect(() => core.acquire(id())).toThrow("busy");
+    preview.resolve(reply); await Bun.sleep(0);
+    expect(closes).toBe(0);
+    const second = createBrokerClient(wireFor(core)); await second.connect();
+    const resumed = second.hand(1, () => {});
+    expect(await resumed.browserSession()).toBe(session);
+    await resumed.close(); await core.stop();
+  });
+
   test("explicit detach ends and rotates only that hand's browser session", async () => {
     let closes = 0;
     const core = createBrokerCore(async () => ({ call: async () => reply, close: async () => { closes++; } }));
@@ -85,7 +110,7 @@ describe("persistent Cua ownership", () => {
     await expect(running).rejects.toThrow("cancelled");
     expect(signal?.aborted).toBe(true);
     expect(() => core.acquire(id())).toThrow("busy");
-    pending.resolve(reply); await Promise.resolve(); await Promise.resolve();
+    pending.resolve(reply); await Bun.sleep(0);
     const next = core.acquire(id()).lease;
     core.release(next); await core.stop();
   });
@@ -133,6 +158,58 @@ describe("persistent Cua ownership", () => {
     await core.call(lease, 1, id(), "get_browser_state", { session: fresh });
     expect(connections).toBe(2);
     core.release(lease); await core.stop();
+  });
+
+  test("SDK immediate abort rejection keeps input quarantined until the owned process exits", async () => {
+    const entered = deferred<void>(), exit = deferred<void>(), closing = deferred<void>();
+    let actions = 0;
+    const core = createBrokerCore(async () => ({
+      call: async (_name, _args, signal) => {
+        actions++; entered.resolve();
+        return new Promise<typeof reply>((_resolve, reject) => signal!.addEventListener("abort", () => reject(new UncertainCuaCall("SDK cancelled its promise")), { once: true }));
+      },
+      close: async () => { closing.resolve(); await exit.promise; },
+    }));
+    const lease = core.acquire(id()).lease, session = core.session(lease, 1), request = id();
+    const running = core.call(lease, 1, request, "browser_click", { session });
+    await entered.promise; core.cancel(lease, 1, request);
+    await expect(running).rejects.toThrow("cancelled"); await closing.promise;
+    expect(() => core.session(lease, 1)).toThrow("in flight");
+    await expect(core.call(lease, 1, id(), "browser_click", {})).rejects.toThrow("in flight");
+    core.release(lease);
+    expect(() => core.acquire(id())).toThrow("busy");
+    exit.resolve(); await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    const next = core.acquire(id()).lease;
+    await expect(core.call(next, 1, id(), "browser_click", { session })).rejects.toThrow("transport closed");
+    expect(core.session(next, 1)).not.toBe(session);
+    expect(actions).toBe(1);
+    core.release(next); await core.stop();
+  });
+
+  test("SDK's own timeout quarantines input even before the broker cancellation timer", async () => {
+    const exit = deferred<void>(), closing = deferred<void>();
+    const core = createBrokerCore(async () => ({
+      call: async () => { throw new UncertainCuaCall("SDK request timed out"); },
+      close: async () => { closing.resolve(); await exit.promise; },
+    }));
+    const lease = core.acquire(id()).lease;
+    const running = core.call(lease, 1, id(), "browser_click", {});
+    await closing.promise;
+    expect(() => core.session(lease, 1)).toThrow("in flight");
+    await expect(core.call(lease, 1, id(), "browser_click", {})).rejects.toThrow("in flight");
+    exit.resolve(); await expect(running).rejects.toThrow("SDK request timed out");
+    await expect(core.call(lease, 1, id(), "browser_click", {})).rejects.toThrow("transport closed");
+    core.release(lease); await core.stop();
+  });
+
+  test("unconfirmed shutdown retains quarantine instead of trusting a rejected SDK call", async () => {
+    const core = createBrokerCore(async () => ({ call: async () => { throw new UncertainCuaCall("lost transport"); }, close: async () => { throw new Error("still alive"); } }));
+    const lease = core.acquire(id()).lease;
+    await expect(core.call(lease, 1, id(), "browser_click", {})).rejects.toThrow("quarantined");
+    expect(() => core.session(lease, 1)).toThrow("in flight");
+    core.release(lease);
+    expect(() => core.acquire(id())).toThrow("busy");
+    await expect(core.stop()).rejects.toThrow("cannot confirm");
   });
 });
 

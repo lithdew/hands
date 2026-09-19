@@ -14,11 +14,15 @@ import { redact, rememberSecret, subprocessEnv, type CuaConnection } from "../de
 type Driver = { call: CuaConnection["call"]; close(): Promise<void> };
 export type BrokerConnection = Driver & { browserSession(): Promise<string> };
 type Reply = Awaited<ReturnType<Driver["call"]>>;
+/** The MCP SDK can reject before the driver has finished the underlying input.
+ * This differs from an actual tool reply that explicitly refuses an action. */
+export class UncertainCuaCall extends Error {}
 const PROTOCOL = 1;
 const LEASE_MS = 20_000;
 const CALL_MS = 35_000;
 const MAX_BODY = 1_048_576;
 const MAX_RESULT = 24 * 1_048_576;
+const DRAINABLE_READS = new Set(["get_window_state", "get_desktop_state", "get_browser_state", "list_windows"]);
 const ROOT = resolve(import.meta.dir, "..");
 const SCRIPT = join(ROOT, "win", "cua-broker.ts");
 const DIRECTORY = join(ROOT, "out", "win", "cua-broker");
@@ -111,17 +115,37 @@ export function createBrokerCore(connect: (hand: number, closed: () => void) => 
       busy.abort.signal.addEventListener("abort", onAbort, { once: true });
       const endingBrowser = name === "end_session" && args.session === hand.session;
       const work = (async () => {
+        let driver: Driver | undefined, dispatched = false, quarantined = false, completed = false;
+        const drainRead = DRAINABLE_READS.has(name);
         try {
-          const driver = await driverOf(id, hand);
+          driver = await driverOf(id, hand);
           check(lease); busy.abort.signal.throwIfAborted();
-          const result = await driver.call(name, args, busy.abort.signal);
+          dispatched = true;
+          // An idle server can close while a preview read is running. Let
+          // known read-only RPCs drain; cancelling the SDK promise would hide
+          // their completion and unnecessarily discard a healthy Chrome grant.
+          const result = await driver.call(name, args, drainRead ? undefined : busy.abort.signal);
+          completed = true;
           check(lease); busy.abort.signal.throwIfAborted();
           return result;
+        } catch (error) {
+          if (dispatched && !completed && (error instanceof UncertainCuaCall || busy.abort.signal.aborted && !drainRead)) {
+            hand.broken = true;
+            // SDK cancellation/timeout only settles the client promise. End
+            // this owned transport and prove child exit before admitting input
+            // from another task/client. This deliberately sacrifices its grant.
+            try { await driver!.close(); }
+            catch {
+              quarantined = true;
+              throw new Error("Cua shutdown could not be confirmed after interrupted input. This hand is quarantined; no further input can run.");
+            }
+          }
+          throw error;
         } finally {
           // Retain the lock until the underlying call actually settles, even
           // when its caller has already received a cancellation response.
           if (endingBrowser) hand.session = `puk-browser-${id}-${uuid()}`;
-          if (hand.busy === busy) hand.busy = undefined;
+          if (!quarantined && hand.busy === busy) hand.busy = undefined;
           clearTimeout(timer);
           signal?.removeEventListener("abort", stop);
           busy.abort.signal.removeEventListener("abort", onAbort);
@@ -131,10 +155,11 @@ export function createBrokerCore(connect: (hand: number, closed: () => void) => 
     },
     async stop() {
       stopped = true; cancelOwner();
-      await Promise.allSettled([...hands.values()].map(async (hand) => (await hand.driver)?.close()));
+      const results = await Promise.allSettled([...hands.values()].map(async (hand) => (await hand.driver)?.close()));
+      if (results.some((result) => result.status === "rejected")) throw new Error("Cua broker cannot confirm all owned drivers exited. It remains closed to input until shutdown is confirmed.");
       hands.clear();
     },
-    canStop() { expire(); return !owner && ![...hands.values()].some((hand) => hand.busy); },
+    canStop() { expire(); return !owner; },
     summary() { expire(); return { hands: hands.size, leased: Boolean(owner), inFlight: [...hands.values()].filter((hand) => hand.busy).length }; },
   };
 }
@@ -179,7 +204,7 @@ async function protectDirectory() {
   } else await chmod(DIRECTORY, 0o700);
 }
 
-const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code !== "ESRCH"; } };
 const readState = async () => { try { return JSON.parse(await readFile(STATE, "utf8")) as unknown; } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw new Error("Cua broker state is unreadable; no replacement process was started."); } };
 const headers = (state: BrokerState) => ({ authorization: `Bearer ${state.token}`, "x-puk-broker": state.boot, "content-type": "application/json" });
 
@@ -353,16 +378,30 @@ async function mcpDriver(driver: string, closed: () => void): Promise<Driver> {
   client.onclose = closed;
   const transport = new StdioClientTransport({ command: driver, args: ["mcp", "--grant", "existing-profile"], stderr: "ignore",
     env: { ...subprocessEnv(), CUA_DRIVER_RS_TELEMETRY_ENABLED: "false" } });
+  // StdioClientTransport.close() can return immediately after SIGKILL, before
+  // its child exits. Its onclose is the actual child-process close event; the
+  // Protocol client preserves this preinstalled hook when connecting.
+  let exited = false, pid: number | null = null, closing: Promise<void> | undefined;
+  transport.onclose = () => { exited = true; };
+  const close = () => closing ??= (async () => {
+    const capturedPid = pid ?? transport.pid;
+    await client.close();
+    for (let attempt = 0; !exited && capturedPid !== null && alive(capturedPid) && attempt < 100; attempt++) await Bun.sleep(50);
+    if (!exited && capturedPid !== null && alive(capturedPid)) throw new Error("The owned Cua driver did not confirm exit.");
+  })().catch((error) => { closing = undefined; throw error; });
   try { await client.connect(transport, { timeout: 15_000 }); await client.listTools(undefined, { timeout: 15_000 }); }
-  catch (error) { await client.close().catch(() => {}); throw error; }
+  catch (error) { await close().catch(() => {}); throw error; }
+  pid = transport.pid;
   return {
     async call(name, args = {}, signal) {
       signal?.throwIfAborted();
-      const response = await client.callTool({ name, arguments: args }, { signal, timeout: 30_000 });
+      let response: Reply;
+      try { response = await client.callTool({ name, arguments: args }, { signal, timeout: 30_000 }); }
+      catch (error) { throw new UncertainCuaCall(errorText(error)); }
       if (response.isError) throw new Error(errorText(response.content.filter((content) => content.type === "text").map((content) => content.text).join("\n")));
       return response;
     },
-    close: () => client.close(),
+    close,
   };
 }
 
@@ -378,7 +417,9 @@ async function serve(driver: string) {
   const shutdown = async () => {
     if (stopping) return;
     stopping = true; clearInterval(sweep);
-    await core.stop(); server.stop(true);
+    try { await core.stop(); }
+    catch { stopping = false; return; } // Keep authenticated ownership/state while any child might still deliver input.
+    server.stop(true);
     const saved = await readState();
     if ((saved as BrokerState | undefined)?.boot === state.boot) await unlink(STATE).catch(() => {});
   };
