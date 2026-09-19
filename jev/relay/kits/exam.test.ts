@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { Ask } from "../../jev";
 import { groupBy } from "../relay";
-import { ARCHIVES, questionsIn, shapeProblems, syllabusTopics, topicsOf } from "./exam";
+import { ARCHIVES, questionsIn, readInNotes, shapeProblems, syllabusTopics, topicsOf } from "./exam";
 import { reflow } from "./py";
 
 const question = (n: number, marks: number) => `### Question ${n}. [${marks} marks]\n(a) Find the limit. [${marks - 2} marks]\n(b) Explain. [2 marks]\n`;
@@ -53,6 +53,18 @@ test("Jev's topic per question comes back as the topic's text, or null for none"
     Object.fromEntries(Object.entries(questions).map(([name, q], i) => [name, { type: "choice", choice: i === 0 ? Object.keys(q.criteria)[1] : "none", confidence: 0.9 }]))) as unknown as Ask;
   const picked = await topicsOf(fake, questionsIn(examOf([8, 8], 16)), ["MATH 1013: limits", "MATH 1014: series"]);
   expect(picked).toEqual(["MATH 1014: series", null]);
+});
+
+test("only addresses the notes present as read count as read", () => {
+  const notes = { papers: [
+    "- **Purdue MA 162 final, Spring 2008:** series and integration questions. [https://www.math.purdue.edu/past-exams/16200fe-s2008.pdf]",
+    "- **Berkeley papers identified but not readable:** F01 midterm. [https://math.berkeley.edu/files/F01.pdf]",
+    "- MIT final: limits. [https://ocw.mit.edu/final.pdf] [https://ocw.mit.edu/scan.pdf]",
+    "",
+    "NOT FOUND OR NOT READ (say so; do not fill in):",
+    "- https://ocw.mit.edu/scan.pdf (Exam 2): This is a PDF whose text could not be read (no text layer, or it would not download).",
+  ].join("\n") };
+  expect(readInNotes(notes)).toEqual(["https://www.math.purdue.edu/past-exams/16200fe-s2008.pdf", "https://ocw.mit.edu/final.pdf"]);
 });
 
 test("the archives are front doors, not papers", () => {

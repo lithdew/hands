@@ -34,8 +34,21 @@ export function python(): Promise<string> {
   })();
 }
 
+// Research reads a score of PDFs at once; an interpreter each, all starting together, is slower than six at a time.
+const MAX_PROCESSES = 6;
+let running = 0;
+const waiting: (() => void)[] = [];
+async function slot<T>(work: () => Promise<T>): Promise<T> {
+  if (running >= MAX_PROCESSES) await new Promise<void>((resolve) => waiting.push(resolve)); else running++;
+  try { return await work(); } finally { const next = waiting.shift(); if (next) next(); else running--; }
+}
+
 /** Run a script that sits next to this file. Never throws on a non-zero exit: the caller reads stdout. */
-export async function runPython(script: string, args: string[] = [], stdin = "", timeoutMs = 120_000): Promise<{ stdout: string; stderr: string; code: number }> {
+export function runPython(script: string, args: string[] = [], stdin = "", timeoutMs = 120_000): Promise<{ stdout: string; stderr: string; code: number }> {
+  return slot(() => spawnPython(script, args, stdin, timeoutMs));
+}
+
+async function spawnPython(script: string, args: string[], stdin: string, timeoutMs: number): Promise<{ stdout: string; stderr: string; code: number }> {
   const py = await python();
   const proc = Bun.spawn([py, join(import.meta.dir, script), ...args], { stdin: new Blob([stdin]), stdout: "pipe", stderr: "pipe" });
   const timer = setTimeout(() => proc.kill(), timeoutMs);

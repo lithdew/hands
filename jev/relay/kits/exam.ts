@@ -35,7 +35,7 @@ const KEY = "notes/answers.check.json";
 const BRIEF = `The deliverables are three markdown files and one answer key.
 mock-exam.md: a title; a section "Syllabus followed" that names the HKUST courses and lists, one bullet per topic, the topics taken from HKUST's own course pages in the notes, each bullet starting with the course code ("- MATH 1013: limits and continuity") and the section ending with the addresses of those HKUST pages; instructions to candidates; "Time allowed: ..."; "Total marks: N"; then at least 12 questions, each under a heading of exactly this form on its own line: "### Question 7. [8 marks]". Parts are (a), (b) with their own marks in square brackets, adding up to the question's marks; the questions' marks add up to the total. Cover both courses: limits, derivatives and their applications, integration and its techniques, sequences and series. Mix routine questions with a few harder ones. Every question must be well posed and solvable by hand, with every quantity defined.
 answers.md: for every question a heading "### Question 7." and a worked solution for each part that ends in a clearly stated final answer. Work each one out step by step and check it (differentiate your antiderivatives, substitute your solutions back).
-sources.md: (1) the HKUST course pages used, (2) the past papers used, each as a bullet with what it is (university, course, year or term, which exam) and its address, given exactly as in the notes; only papers and pages that the notes show were opened and read; (3) a table "| Question | Topic | Modelled on | What was taken |" with a row for every question, naming the listed paper or papers whose style or topic inspired it (write new questions in that style: never copy a question's wording or numbers); (4) last, a section "Not found or not opened" that says plainly what the notes report as missing, unreadable, behind a login or not searched. Never write an address that is not in the notes, and never describe a paper beyond what the notes say about it.
+sources.md: (1) the HKUST course pages used, (2) the past papers used, each as a bullet with what it is (university, course, year or term, which exam) and its address, given exactly as in the notes; only papers and pages that the notes show were opened and read, and as many of those as the questions can honestly be modelled on: aim for at least eight addresses in all, from every university the notes offer, not from one alone; (3) a table "| Question | Topic | Modelled on | What was taken |" with a row for every question, naming the listed paper or papers whose style or topic inspired it (write new questions in that style: never copy a question's wording or numbers); (4) last, a section "Not found or not opened" that says plainly what the notes report as missing, unreadable, behind a login or not searched. Never write an address that is not in the notes, and never describe a paper beyond what the notes say about it.
 ${KEY}: a JSON array with one entry for every part whose final answer is a formula or a number: {"question": "7(a)", "kind": ..., "expr": ..., "var": "x", "claimed": ...} in sympy syntax (x**2 or x^2, exp(x), log(x) for ln, sqrt(x), pi, E, oo, asin/atan; variables x y t u; n k m for indices; no equations, no "+ C"). "claimed" must be exactly the final answer given in answers.md. Kinds: "derivative" (expr is the function; optional "order"), "antiderivative" (expr is the integrand; claimed is the antiderivative without + C), "definite_integral" (with "lower", "upper"; claimed may be "diverges"), "limit" (with "point", and "dir" "+" or "-" if one-sided; claimed may be "DNE"), "series_sum" (expr is the general term, with "lower"), "series_converges" (with "lower"; claimed is "converges" or "diverges"), "taylor" (with "point" and "order": claimed is the Taylor polynomial up to that degree), "value" (expr is an arithmetic expression for the quantity, written independently of claimed). Parts that are proofs, sketches or explanations have no entry.`;
 
 const HINTS = `How to plan this kind of task.
@@ -60,6 +60,18 @@ export function syllabusTopics(examMd: string): string[] {
   if (!head) return [];
   const rest = examMd.slice(head.index + head[0].length), section = rest.slice(0, rest.search(/^#{1,4}\s/m) < 0 ? rest.length : rest.search(/^#{1,4}\s/m));
   return [...section.matchAll(/^\s*[-*]\s+(.{6,200})$/gm)].map((m) => m[1]!.trim()).filter((t) => !/^https?:/i.test(t)).slice(0, 80);
+}
+
+/** Addresses the notes present as opened and read: not those under "NOT FOUND OR NOT READ", nor on a line that says it could not be read. */
+export function readInNotes(notes: Record<string, string>): string[] {
+  const unread = /could not be read|not readable|unreadable|did not open|not opened|would not open|no (?:readable )?text layer|inaccessible|behind a login|requires? (?:a )?login|identified but not/i;
+  const read = new Set<string>(), not = new Set<string>();
+  for (const note of Object.values(notes)) {
+    const [body = "", ...gaps] = note.split(/^NOT FOUND OR NOT READ.*$/m);
+    for (const url of urlsIn(gaps.join("\n"))) not.add(url);
+    for (const line of body.split("\n")) for (const url of urlsIn(line)) (unread.test(line) ? not : read).add(url);
+  }
+  return [...read].filter((u) => !not.has(u));
 }
 
 /** What is wrong with the files' shape, by file. Exact things only; nothing here judges mathematics. */
@@ -124,7 +136,12 @@ export async function build(ws: Workspace, tools: { ask: Ask }) {
     // Too few sources is not something a writer can repair, and padding the list would be worse than a short one. It is said, loudly.
     const host = (u: string) => URL.parse(u)?.hostname ?? "", hkust = cited.filter((u) => /(^|\.)(hkust\.edu\.hk|ust\.hk)$/.test(host(u))).length;
     const others = cited.filter((u) => /\.edu$|\.edu\.[a-z]{2}$|\.ac\.[a-z]{2}$/.test(host(u)) && !/hkust|ust\.hk/.test(host(u))).length;
-    if (cited.length < 8 || hkust < 2 || others < 2) lines.push(`WARNING: sources.md cites ${cited.length} addresses (${hkust} HKUST, ${others} other universities); the request wants at least 8, 2 and 2. The research did not find more; none were added.`);
+    if (cited.length < 8 || hkust < 2 || others < 2) {
+      // More can be asked of the writer only if the research read more than the writer used. Otherwise a short list is the truth.
+      const unused = readInNotes(ws.notes).filter((u) => !cited.includes(u) && !dead.includes(u));
+      if (unused.length && cited.length + unused.length >= 8) repair.push({ file: "sources.md", problem: `Only ${cited.length} addresses are cited (${hkust} HKUST, ${others} other universities); the request asks for past papers from previous classes and other universities, at least 8 sources in all. The notes describe these further papers or pages as opened and read: ${unused.slice(0, 14).join(" , ")}. Use what the notes say about several of them (other universities' papers first) in the modelling table, and list each one used with what the notes say it is. Do not list anything the notes say could not be read.` });
+      else lines.push(`WARNING: sources.md cites ${cited.length} addresses (${hkust} HKUST, ${others} other universities); the request wants at least 8, 2 and 2. The research did not read more than that; none were added.`);
+    }
 
     // sympy on the key
     let key: unknown = null;
@@ -166,7 +183,8 @@ export const exam: Kit = {
   hints: HINTS,
   sources: async () => ARCHIVES,
   pdfText,
-  follow: 2,
+  // Many old papers are scans with no text layer, and that is known only after fetching: read more of them than will be used.
+  follow: { hops: 2, perHop: 24, perHost: 8 },
   repairs: 2,
   build,
 };

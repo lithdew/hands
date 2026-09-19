@@ -41,8 +41,8 @@ export type Kit = {
   sources?: (query: string) => Promise<Result[]>;
   /** Turn a fetched PDF into text, when the kit can. */
   pdfText?: (url: string) => Promise<string>;
-  /** How many times research may go from a fetched page to the pages it links to (an archive's index, then the course, then the paper). Jev sifts every link; 0 or absent: never. */
-  follow?: number;
+  /** How many times research may go from a fetched page to the pages it links to (an archive's index, then the course, then the paper). Jev sifts every link; 0 or absent: never. `perHop` and `perHost` bound how many links are read at each hop, in all and from one site (default 12 and 4). */
+  follow?: number | { hops: number; perHop?: number; perHost?: number };
   /** Told to the director only: how to plan this kind of task (what is worth a step, what an `accept` can honestly demand). */
   hints?: string;
   /** After the files are written: render, bundle, validate. Its log goes to the check and the judge. `repair`: what is wrong, by file; the step that wrote the file is asked to fix exactly that, and the build runs again. */
@@ -201,11 +201,13 @@ Never plan anything that publishes, sends, buys or signs in.` })) as Plan;
     const pages = await Promise.all(results.map(read));
     // An archive is an index of indexes. From each page just read, Jev sifts every link against the goal and the best are read too.
     const seenUrls = new Set(results.map((r) => r.url));
-    for (let hop = 0, from = pages; hop < (deps.kit.follow ?? 0) && from.length; hop++) {
-      const links = from.flatMap((p) => p.links.map((l) => ({ title: l.text, url: l.url.replace(/#.*$/, ""), snippet: `Linked from "${p.result.title}".` })))
+    const follow = typeof deps.kit.follow === "number" ? { hops: deps.kit.follow } : deps.kit.follow ?? { hops: 0 };
+    for (let hop = 0, from = pages; hop < follow.hops && from.length; hop++) {
+      // A link is judged with where it was found: "Fall 2008, Final" says nothing until it is known to hang under "MA 16200".
+      const links = from.flatMap((p) => p.links.map((l) => ({ title: l.text, url: l.url.replace(/#.*$/, ""), snippet: `Linked from "${p.result.title}"${/^Linked from/.test(p.result.snippet) ? "" : `: ${p.result.snippet.slice(0, 200)}`}` })))
         .filter((l) => l.url && !seenUrls.has(l.url) && seenUrls.add(l.url));
       if (!links.length) break;
-      const next = spread(await sift(ask, step.goal, links.map((l) => ({ ...l, text: `${l.title} (${l.url}). ${l.snippet}` })), "link", { atLeast: 0.6, orNone: true }), LINKS_PER_HOP, LINKS_PER_HOST);
+      const next = spread(await sift(ask, step.goal, links.map((l) => ({ ...l, text: `${l.title} (${l.url}). ${l.snippet}` })), "link", { atLeast: 0.6, orNone: true }), follow.perHop ?? LINKS_PER_HOP, follow.perHost ?? LINKS_PER_HOST);
       trace.sifted += links.length; trace.kept += next.length;
       from = await Promise.all(next.map(read));
       pages.push(...from);
@@ -249,7 +251,8 @@ Use only facts that are in the notes, with their addresses where the format has 
     const mine = out.files.slice(0, 40).map((f) => ({ ...f, path: f.path.replace(/\\/g, "/").replace(/^\/+/, "") })).filter((f) => { const owner = ownerOf(f.path); if (owner && owner !== step.id) log(`${step.id} returned ${f.path}, which ${owner} wrote; kept as it was`); return !owner || owner === step.id; });
     for (const file of mine) await ws.write(file.path, file.content);
     madeBy[step.id] = [...new Set([...(madeBy[step.id] ?? []), ...mine.map((f) => f.path)])];
-    return mine.map((f) => `FILE ${f.path} (${f.content.length} characters)\n${shown(f.content)}`).join("\n\n");
+    // The checker reads 12,000 characters in all: each file gets its share, whole if it fits.
+    return mine.map((f) => `FILE ${f.path} (${f.content.length} characters)\n${shown(f.content, Math.max(1500, Math.floor(11_400 / Math.max(1, mine.length)) - 80))}`).join("\n\n");
   }
 
   // -- build: the kit's own. What it finds wrong goes back to the step that wrote the file, and the build runs again.
