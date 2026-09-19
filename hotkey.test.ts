@@ -425,13 +425,13 @@ function speechAsk(relation: (state: any) => string = (state) => state.tasks.len
   return async (state, questions) => {
     const answers = Object.fromEntries(Object.entries(questions).map(([name, q]) => [name, q.type === "noul"
       ? { type: "noul", noul: 0.99 }
-      : { type: "choice", choice: name === "route" ? "llm" : name === "cut" ? "none" : relation(state), confidence: 0.99, probabilities: {} }]));
+      : { type: "choice", choice: name === "route" ? "llm" : name === "cut" ? "none" : name === "target_task" ? "latest" : relation(state), confidence: 0.99, probabilities: {} }]));
     assertContract(questions, answers);
     return answers as never;
   };
 }
 
-function voiceHarness(over: Partial<Parameters<typeof createVoiceListener>[0]> = {}, run?: (text: string) => Promise<void>) {
+function voiceHarness(over: Partial<Parameters<typeof createVoiceListener>[0]> = {}, run?: (text: string) => Promise<void>, start = true) {
   const prompts: { text: string; hand: number; utterance?: string }[] = [];
   const updates: { text: string; hand: number; utterance?: string }[] = [], stops: number[] = [];
   const contexts: { hand: number; live?: { speechEnds(): Promise<void> | null; transcript(): string } }[] = [];
@@ -464,11 +464,37 @@ function voiceHarness(over: Partial<Parameters<typeof createVoiceListener>[0]> =
     },
     ...over,
   });
-  voice.begin();
+  if (start) voice.begin();
   return { voice, prompts, updates, stops, contexts, maxActive: () => maxActive };
 }
 
 describe("Live Jev listener with Pi workers", () => {
+  test("typed tasks share voice ownership and later typed and spoken corrections preserve each other", async () => {
+    const held = Promise.withResolvers<void>();
+    let classifications = 0;
+    const baseAsk = speechAsk();
+    const { voice, prompts, updates, contexts } = voiceHarness({ ask: async (state, questions, options) => {
+      if ("relation" in questions) classifications++;
+      return baseAsk(state, questions, options);
+    } }, () => held.promise, false);
+    const request = "Send the travel email to sister@example.com in Gmail";
+    try {
+      await voice.submit(request); await until(() => prompts.length === 1);
+      expect(classifications).toBe(0);
+      expect(voice.status().tasks[0]).toMatchObject({ request, status: "running", hand: 1 });
+      voice.begin();
+      expect(contexts[0]!.live!.speechEnds()).toBeInstanceOf(Promise);
+      await voice.finish("Use my actual Chrome account");
+      expect(updates.at(-1)!.text).toBe(request + "\nUse my actual Chrome account");
+      expect(await voice.recordCorrection(1, "Leave it as a draft")).toBe(true);
+      expect(updates.at(-1)!.text).toContain("Correction: Leave it as a draft");
+      voice.begin(); await voice.finish("Also give it a short subject");
+      expect(updates.at(-1)!.text).toBe(request + "\nUse my actual Chrome account\nCorrection: Leave it as a draft\nAlso give it a short subject");
+      expect(prompts).toHaveLength(1);
+      expect(await voice.recordCorrection(42, "Wrong hand")).toBe(false);
+    } finally { voice.cancel(); held.resolve(); await voice.idle(); }
+  });
+
   test("starts Pi before release and steers the same worker as speech grows", async () => {
     const { voice, prompts, updates } = voiceHarness();
     voice.hear("Open my notes");
@@ -568,7 +594,10 @@ describe("Live Jev listener with Pi workers", () => {
     await voice.finish("Open notes and open calculator and list files"); await voice.idle();
     expect(prompts).toHaveLength(3);
     expect(maxActive()).toBe(2);
-    expect(updates).toEqual([]); // Independent tasks never steer each other.
+    // Final context reaches both workers, but their assigned goals remain separate.
+    expect(updates.map(({ hand, text }) => ({ hand, text }))).toEqual([
+      { hand: 1, text: "Open notes" }, { hand: 2, text: "and open calculator" },
+    ]);
     expect(voice.status().tasks.every((t) => t.status === "done")).toBe(true);
   });
 
@@ -590,7 +619,7 @@ describe("Live Jev listener with Pi workers", () => {
       expect(voice.status().busy).toBe(true);
       voice.begin(); voice.hear("Open calculator"); await until(() => prompts.length === 2);
       expect(prompts.map((prompt) => prompt.hand)).toEqual([1, 2]);
-      expect(contexts[0]!.live!.speechEnds()).toBeNull();
+      expect(contexts[0]!.live!.speechEnds()).toBeInstanceOf(Promise);
       expect(contexts[0]!.live!.transcript()).toBe("Read my notes");
       expect(contexts[1]!.live!.speechEnds()).toBeInstanceOf(Promise);
       expect(contexts[1]!.live!.transcript()).toBe("Open calculator");
@@ -661,6 +690,96 @@ describe("Live Jev listener with Pi workers", () => {
     } finally { voice.cancel(); held.resolve(); await voice.idle(); }
   });
 
+  test("final spoken constraints reach the worker even when Jev leaves its assigned goal unchanged", async () => {
+    const request = "Draft an email to sister@example.com in Gmail";
+    const final = request + ". Oh actually use my actual Chrome. Do not use a sandbox.";
+    const { voice, prompts, updates } = voiceHarness({ ask: speechAsk((state) => state.tasks.length ? "no_request" : "new_task") });
+    voice.hear(request); await until(() => prompts.length === 1);
+    await voice.finish(final); await voice.idle();
+    expect(prompts).toHaveLength(1);
+    expect(updates).toEqual([{ hand: 1, text: request, utterance: final }]);
+  });
+
+  test("a new hold pauses a pending consequential gate before its first words are classified", async () => {
+    const pendingGate = Promise.withResolvers<{ decision: "approval"; risk: number; reason: string }>();
+    const enteredGate = Promise.withResolvers<void>();
+    let inputs = 0, reads = 0, turn = 0, checks = 0;
+    const hand = { id: 1, pid: 1, display: "test", width: 800, height: 600 };
+    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test",
+      desktop: { discover: async () => { reads++; return []; }, state: async () => ({ width: 800, height: 600, windows: [] }),
+        bash: async () => { inputs++; return { exitCode: 0, timedOut: false, cancelled: false, stdout: "Sent", stderr: "" }; } },
+      router: async (_task, candidates) => ({ ...candidates[0]!, confidence: 1, latencyMs: 0, fallback: false, reason: "Fixture" }),
+      gate: async () => { if (++checks === 1) { enteredGate.resolve(); return pendingGate.promise; } return { decision: "approval", risk: 1, reason: "Send fixture" }; },
+      streamFn: (model) => {
+        const call = ++turn === 1 ? { name: "apps", arguments: {} } : turn === 2 ? { name: "bash", arguments: { command: "fixture_send" } } : undefined;
+        const message: AssistantMessage = { role: "assistant", api: model.api, provider: model.provider, model: model.id, timestamp: Date.now(),
+          stopReason: call ? "toolUse" : "stop", content: call ? [{ type: "toolCall", id: `hold-${turn}`, ...call }] : [{ type: "text", text: "Left as a draft." }],
+          usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        };
+        const stream = createAssistantMessageEventStream();
+        stream.push({ type: "start", partial: message }); stream.push({ type: "done", reason: call ? "toolUse" : "stop", message }); return stream;
+      },
+    });
+    const voice = createVoiceListener({ hand, ask: speechAsk(), runtime: () => runtime });
+    try {
+      voice.begin(); voice.hear("Send the travel email to my sister");
+      await enteredGate.promise;
+      expect(reads).toBeGreaterThan(0); // Read-only discovery continued during the first hold.
+      await voice.finish("Send the travel email to my sister");
+      voice.begin(); // No speech delta or Jev classification has arrived yet.
+      pendingGate.resolve({ decision: "approval", risk: 1, reason: "Send fixture" });
+      await until(() => runtime.status().currentTool === "Waiting for the completed instruction");
+      expect(inputs).toBe(0);
+      expect(runtime.status().approval).toBeNull();
+      await voice.finish("Actually leave it as a draft"); await voice.idle();
+      expect(inputs).toBe(0);
+      expect(runtime.status().task).toContain("Actually leave it as a draft");
+    } finally { pendingGate.resolve({ decision: "approval", risk: 1, reason: "Send fixture" }); voice.cancel(); await runtime.close(); }
+  });
+
+  test("rewriting a later spoken correction retains the original recipient while replacing its partial words", async () => {
+    const held = Promise.withResolvers<void>();
+    const request = "Draft an email to sister@example.com in Gmail";
+    const { voice, prompts, updates, stops } = voiceHarness({}, () => held.promise);
+    try {
+      voice.hear(request); await until(() => prompts.length === 1);
+      await voice.finish(request);
+      voice.begin(); voice.hear("Use the sandbox"); await until(() => updates.length === 1);
+      await voice.finish("Use my actual Chrome instead");
+      await until(() => prompts.length === 2);
+      expect(stops).toEqual([1]);
+      expect(prompts[1]!.text).toBe(request + "\nUse my actual Chrome instead");
+      expect(prompts[1]!.utterance).toContain("sister@example.com");
+      expect(prompts[1]!.utterance).not.toContain("Use the sandbox");
+      expect(prompts[1]!.utterance).toContain("do not repeat completed sends");
+    } finally { voice.cancel(); held.resolve(); await voice.idle(); }
+  });
+
+  test.each(["done", "failed"] as const)("a follow-up to a %s attempt preserves the recipient and completed-work context", async (firstStatus) => {
+    const prompts: { text: string; utterance?: string }[] = [];
+    let error: string | null = null;
+    const voice = createVoiceListener({ hand: { id: 1, pid: 1, display: "test", width: 800, height: 600 }, ask: speechAsk(),
+      runtime: () => ({
+        async prompt(text, _opened, utterance, live) {
+          prompts.push({ text, utterance });
+          await live?.speechEnds();
+          error = prompts.length === 1 && firstStatus === "failed" ? "Task reached the five-minute limit" : null;
+        }, refine() {}, stop() {}, status: () => ({ error }),
+      }),
+    });
+    voice.begin();
+    await voice.finish("Send the travel update to sister@example.com in Gmail"); await voice.idle();
+    expect(voice.status().tasks.at(-1)?.status).toBe(firstStatus);
+    voice.begin();
+    await voice.finish("Use my actual Chrome account for that"); await voice.idle();
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]!.text).toBe("Send the travel update to sister@example.com in Gmail\nUse my actual Chrome account for that");
+    expect(prompts[1]!.utterance).toContain("sister@example.com");
+    expect(prompts[1]!.utterance).toContain("do not repeat completed sends");
+    if (firstStatus === "failed") expect(prompts[1]!.utterance).toContain("five-minute limit");
+    expect(voice.status().busy).toBe(false);
+  });
+
   test("voice scheduling skips a hand occupied by a task started elsewhere", async () => {
     const hands = [1, 2].map((id) => ({ id, pid: id, display: `test-${id}`, width: 800, height: 600 }));
     const { voice, prompts } = voiceHarness({ hands: async () => hands, unavailable: (hand) => hand.id === 1 });
@@ -668,7 +787,7 @@ describe("Live Jev listener with Pi workers", () => {
     expect(prompts.map((prompt) => prompt.hand)).toEqual([2]);
   });
 
-  test("a new hold after all work completes does not inherit covered tasks or stale busy state", async () => {
+  test("an explicit repeat after completion starts again instead of being swallowed as covered", async () => {
     const { voice, prompts } = voiceHarness({ ask: speechAsk((state) => state.tasks.length ? "covered" : "new_task") });
     await voice.finish("Open notes"); await voice.idle();
     expect(voice.status().busy).toBe(false);
@@ -692,6 +811,90 @@ describe("Live Jev listener with Pi workers", () => {
 
 
 describe("Puk multi-worker HTTP panel", () => {
+  test("a typed task on the selected hand remains addressable by typed and F8 corrections", async () => {
+    const hands = [1, 2].map((id) => ({ id, pid: id, display: `test-${id}`, width: 800, height: 600 }));
+    const contexts: { hand: number; live?: Parameters<Awaited<ReturnType<typeof createDesktopAgent>>["prompt"]>[3] }[] = [];
+    const states = new Map<number, { running: boolean; task: string; error: null; approval: null }>();
+    let delta: ((text: string) => void) | undefined, classifications = 0;
+    const baseAsk = speechAsk();
+    const app = await servePuk({ port: 0, dependencies: {
+      hand: async (id) => hands.find((h) => h.id === id) ?? null, hands: async () => hands, handState: async () => {},
+      ask: async (state, questions, options) => { if ("relation" in questions) classifications++; return baseAsk(state, questions, options); },
+      record: (options) => { delta = options?.onDelta; return { stop: async () => "Also give it a short subject", cancel() {} }; },
+      agent: async ({ hand }) => {
+        const stopped = Promise.withResolvers<void>();
+        const state = { running: false, task: "", error: null, approval: null };
+        states.set(hand.id, state);
+        return { status: () => ({ ...state }),
+          async prompt(text: string, _opened: string[], _utterance: string, live: Parameters<Awaited<ReturnType<typeof createDesktopAgent>>["prompt"]>[3]) {
+            state.running = true; state.task = text; contexts.push({ hand: hand.id, live });
+            await stopped.promise; state.running = false;
+          },
+          refine(text: string) { state.task = text; }, stop() { stopped.resolve(); state.running = false; },
+          idle: async () => { if (state.running) await stopped.promise; }, close: async () => { stopped.resolve(); },
+        } as unknown as Awaited<ReturnType<typeof createDesktopAgent>>;
+      },
+    } });
+    const post = (path: string, body: unknown = {}) => fetch(new URL(path, app.server.url), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    try {
+      expect((await post("/hand", { hand: 2 })).status).toBe(200);
+      expect((await post("/task", { text: "Draft the travel email to sister@example.com" })).status).toBe(202);
+      await until(() => contexts.length === 1);
+      expect(contexts[0]!.hand).toBe(2);
+      expect(classifications).toBe(0);
+      const status = await (await fetch(new URL("/status", app.server.url))).json() as any;
+      expect(status.listener.tasks[0]).toMatchObject({ hand: 2, request: "Draft the travel email to sister@example.com", status: "running" });
+      expect((await post("/refine", { hand: 2, text: "Use my actual Chrome" })).status).toBe(202);
+      expect((await post("/hotkey/down")).status).toBe(202);
+      await until(() => Boolean(delta));
+      expect(contexts[0]!.live!.speechEnds()).toBeInstanceOf(Promise);
+      delta!("Also give it a short subject");
+      expect((await post("/hotkey/up")).status).toBe(202);
+      await app.controller.settled();
+      expect(states.get(2)!.task).toBe("Draft the travel email to sister@example.com\nCorrection: Use my actual Chrome\nAlso give it a short subject");
+      expect(states.get(1)!.task).toBe("");
+      expect(contexts).toHaveLength(1);
+      expect(contexts[0]!.live!.speechEnds()).toBeNull();
+    } finally { await app.close(); }
+  });
+
+  test("typed corrections target only a running hand and preserve its original task", async () => {
+    const hands = [1, 2].map((id) => ({ id, pid: id, display: `test-${id}`, width: 800, height: 600 }));
+    const states = new Map<number, { running: boolean; task: string; error: null; approval: null }>();
+    const updates: { hand: number; text: string }[] = [];
+    const app = await servePuk({ port: 0, dependencies: {
+      hand: async (id) => hands.find((h) => h.id === id) ?? null, hands: async () => hands, handState: async () => {},
+      agent: async ({ hand }) => {
+        const state = { running: hand.id === 1, task: hand.id === 1 ? "Draft the travel email to sister@example.com" : "", error: null, approval: null };
+        states.set(hand.id, state);
+        return { status: () => ({ ...state }), refine(text: string) { updates.push({ hand: hand.id, text }); state.task = text; },
+          stop() { state.running = false; }, idle: async () => {}, close: async () => {},
+        } as unknown as Awaited<ReturnType<typeof createDesktopAgent>>;
+      },
+    } });
+    const post = (path: string, body: unknown) => fetch(new URL(path, app.server.url), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    try {
+      expect((await post("/refine", { hand: 42, text: "Use Chrome" })).status).toBe(404);
+      expect((await post("/refine", { hand: -1, text: "Use Chrome" })).status).toBe(400);
+      expect((await post("/refine", { text: " " })).status).toBe(400);
+      expect((await post("/hand", { hand: 2 })).status).toBe(200);
+      expect((await post("/refine", { text: "Use Chrome" })).status).toBe(409);
+      expect((await post("/refine", { hand: 2, text: "Use Chrome" })).status).toBe(409);
+      states.get(2)!.running = true; states.get(2)!.task = "Draw a dog in Paint";
+      expect((await post("/task", { text: "Another independent task" })).status).toBe(409);
+      const corrected = await post("/refine", { hand: 1, text: "Use my actual Chrome and leave it as a draft" });
+      expect(corrected.status).toBe(202);
+      expect(await corrected.json()).toEqual({ ok: true, hand: 1 });
+      expect(updates).toEqual([{ hand: 1, text: "Draft the travel email to sister@example.com\nCorrection: Use my actual Chrome and leave it as a draft" }]);
+      expect(states.get(2)!.task).toBe("Draw a dog in Paint");
+      expect((await post("/refine", { text: "Make it blue" })).status).toBe(202);
+      expect(updates.at(-1)).toEqual({ hand: 2, text: "Draw a dog in Paint\nCorrection: Make it blue" });
+      states.get(1)!.task = "x".repeat(15_999);
+      expect((await post("/refine", { hand: 1, text: "too long" })).status).toBe(400);
+      expect(updates).toHaveLength(2);
+    } finally { await app.close(); }
+  });
+
   test("live speech starts two workers and the panel can view and approve either one", async () => {
     const hands = [1, 2].map((id) => ({ id, pid: id, display: `test-${id}`, width: 800, height: 600 }));
     const runtimes = new Map<number, Awaited<ReturnType<typeof createDesktopAgent>>>();
@@ -754,9 +957,12 @@ describe("Puk multi-worker HTTP panel", () => {
       await app.controller.settled();
       await until(() => [...runtimes.values()].filter((r) => r.status().approval).length === 2);
       const approvals = (await state()).approvals;
+      finalTranscript = "";
       expect((await post("/hotkey/down")).status).toBe(202);
+      await until(() => app.controller.status().state === "recording");
+      expect((await state()).lastError).toBeNull();
+      expect((await post("/hotkey/up")).status).toBe(202);
       await app.controller.settled();
-      expect((await state()).lastError).toContain("All hands are busy");
       expect((await state()).approvals.map((a: any) => a.id)).toEqual(approvals.map((a: any) => a.id));
       await until(() => previewStates.get(1) === "review" && previewStates.get(2) === "review", 2000);
       expect(approvals.map((a: any) => a.hand).sort()).toEqual([1, 2]);

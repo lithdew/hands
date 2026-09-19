@@ -28,7 +28,7 @@ const CASES: [string, string][] = [
 let right = 0;
 for (const [said, want] of CASES) {
   const [answers, understood] = await Promise.all([ask({ request: said }, triageQuestions(catalog)), pilot.read(said).catch(() => null)]);
-  const kind = { app: answers.app.choice as string, sure: answers.app.confidence, onlyOpen: answers.only_open.noul, wantsAnswer: answers.wants_answer.noul, creative: answers.creative.noul };
+  const kind = { app: answers.app.choice as string, sure: answers.app.confidence, onlyOpen: answers.only_open.noul, wantsAnswer: answers.wants_answer.noul, creative: answers.creative.noul, existingBrowser: answers.existing_browser.noul };
   const route = routeRequest(kind, understood?.by ?? null), got = route.to === "native" ? `native:${route.app}` : route.to;
   const good = want.split("|").includes(got);
   if (good) right++;

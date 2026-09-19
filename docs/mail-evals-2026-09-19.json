@@ -1,0 +1,247 @@
+{
+  "date": "2026-09-19",
+  "kind": "synthetic-mail-next-action-contract",
+  "uniqueCases": 12,
+  "repeats": 2,
+  "calls": 72,
+  "concurrency": 3,
+  "routingValidation": {
+    "metadata": {
+      "startedAt": "2026-09-19T14:26:47.768Z",
+      "calls": 12,
+      "concurrency": 3,
+      "repeats": 1,
+      "timeoutMs": 2500,
+      "candidates": [
+        {
+          "id": "openai_routine",
+          "provider": "openai",
+          "model": "gpt-5.6-luna",
+          "effort": "low",
+          "difficulty": "routine"
+        },
+        {
+          "id": "gemini_standard",
+          "provider": "gemini",
+          "model": "gemini-3.8-flash",
+          "effort": "low",
+          "difficulty": "standard"
+        },
+        {
+          "id": "openai_complex",
+          "provider": "openai",
+          "model": "gpt-6-astra",
+          "effort": "low",
+          "difficulty": "complex"
+        }
+      ],
+      "limitations": "One live Jev routing request per authored synthetic task. Expected categories supplied before execution. No GUI interaction, private state or LLM task execution. This tests routing policy, not task completion or model quality. No automatic retries.",
+      "sourceHashes": {
+        "ai.ts": "7d8326b5d0b19ff0ea5105b9b08852884fb441a79b089c216aa96387c263d2f6",
+        "out/research/mail-router-eval.ts": "d7e060261972c90a18286ed8e00474da6c85ee8650eb2c3be2e904b39ef5d415"
+      }
+    },
+    "summary": {
+      "total": 12,
+      "correct": 12,
+      "p50Ms": 347,
+      "p90Ms": 905,
+      "fallbackCount": 0,
+      "categories": [
+        {
+          "difficulty": "routine",
+          "total": 6,
+          "correct": 6
+        },
+        {
+          "difficulty": "standard",
+          "total": 3,
+          "correct": 3
+        },
+        {
+          "difficulty": "complex",
+          "total": 3,
+          "correct": 3
+        }
+      ]
+    }
+  },
+  "effort": "low",
+  "maxTokens": 1024,
+  "timeoutMs": 30000,
+  "summary": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "correct": 24,
+      "total": 24,
+      "p50Ms": 1117,
+      "p90Ms": 1611,
+      "maxMs": 2071,
+      "medianOutputTokens": 34,
+      "medianReasoningTokens": 10,
+      "fastestAmongThree": 16,
+      "perRepeat": [
+        {
+          "repeat": 1,
+          "correct": 12,
+          "p50Ms": 1117,
+          "p90Ms": 1898
+        },
+        {
+          "repeat": 2,
+          "correct": 12,
+          "p50Ms": 1084,
+          "p90Ms": 1509
+        }
+      ],
+      "failures": []
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-3.8-flash",
+      "correct": 24,
+      "total": 24,
+      "p50Ms": 1591,
+      "p90Ms": 2149,
+      "maxMs": 2964,
+      "medianOutputTokens": 19,
+      "medianReasoningTokens": 0,
+      "fastestAmongThree": 3,
+      "perRepeat": [
+        {
+          "repeat": 1,
+          "correct": 12,
+          "p50Ms": 1513,
+          "p90Ms": 2149
+        },
+        {
+          "repeat": 2,
+          "correct": 12,
+          "p50Ms": 1594,
+          "p90Ms": 2090
+        }
+      ],
+      "failures": []
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-6-astra",
+      "correct": 24,
+      "total": 24,
+      "p50Ms": 1356,
+      "p90Ms": 1706,
+      "maxMs": 1944,
+      "medianOutputTokens": 22,
+      "medianReasoningTokens": 0,
+      "fastestAmongThree": 5,
+      "perRepeat": [
+        {
+          "repeat": 1,
+          "correct": 12,
+          "p50Ms": 1290,
+          "p90Ms": 1706
+        },
+        {
+          "repeat": 2,
+          "correct": 12,
+          "p50Ms": 1356,
+          "p90Ms": 1702
+        }
+      ],
+      "failures": []
+    }
+  ],
+  "fixtureIds": [
+    "inbox-compose",
+    "recipient-search",
+    "recipient-unique-match",
+    "recipient-ambiguous",
+    "correction-keeps-referent",
+    "correction-replaces-recipient",
+    "body-still-missing",
+    "draft-only-complete",
+    "send-needs-review",
+    "approved-send",
+    "uncertain-send-check-sent",
+    "sent-confirmed"
+  ],
+  "runs": [
+    {
+      "directory": "out/evals/mail-contract-2026-09-19",
+      "repeat": 1,
+      "metadata": {
+        "startedAt": "2026-09-19T14:21:51.591Z",
+        "profiles": [
+          {
+            "provider": "openai",
+            "model": "gpt-5.6-luna"
+          },
+          {
+            "provider": "gemini",
+            "model": "gemini-3.8-flash"
+          },
+          {
+            "provider": "openai",
+            "model": "gpt-6-astra"
+          }
+        ],
+        "cases": 12,
+        "calls": 36,
+        "concurrency": 3,
+        "repeats": 1,
+        "effort": "low",
+        "maxTokens": 1024,
+        "timeoutMs": 30000,
+        "geminiBackend": "vertex",
+        "requestedOpenAITier": "priority",
+        "fixtures": "Entirely authored synthetic states and reserved example.test addresses. No private UI, task text, screenshot, account data or tools were sent.",
+        "limitations": "One call per model per synthetic text state. Constrained single-step planner, not an end-to-end browser test or statistical model ranking. All models receive the same prompt and cap; reported provider reasoning tokens consume their caps differently. Three concurrent requests, one per model, per case; no automatic retries.",
+        "sourceHashes": {
+          "ai.ts": "db0821d06f7b988f8a47057b3aaf2e1b477ed8f338eca0429ef17dbbde9d2301",
+          "model-policy.ts": "df7dfddf9cbc111c330cf6e7c8d382aca9e35a72796cdc6dc74aa1f8ded61ba4",
+          "out/research/mail-contract-eval.ts": "31f55f14be714b989cdd4a8a5f99b0b55d46d6b1680e4b864718575ef76fbf88"
+        }
+      }
+    },
+    {
+      "directory": "out/evals/mail-contract-2026-09-19-repeat",
+      "repeat": 2,
+      "metadata": {
+        "startedAt": "2026-09-19T14:22:50.299Z",
+        "profiles": [
+          {
+            "provider": "openai",
+            "model": "gpt-5.6-luna"
+          },
+          {
+            "provider": "gemini",
+            "model": "gemini-3.8-flash"
+          },
+          {
+            "provider": "openai",
+            "model": "gpt-6-astra"
+          }
+        ],
+        "cases": 12,
+        "calls": 36,
+        "concurrency": 3,
+        "repeats": 1,
+        "scheduling": "reverse fixture and launch order",
+        "effort": "low",
+        "maxTokens": 1024,
+        "timeoutMs": 30000,
+        "geminiBackend": "vertex",
+        "requestedOpenAITier": "priority",
+        "fixtures": "Entirely authored synthetic states and reserved example.test addresses. No private UI, task text, screenshot, account data or tools were sent.",
+        "limitations": "One call per model per synthetic text state. Constrained single-step planner, not an end-to-end browser test or statistical model ranking. All models receive the same prompt and cap; reported provider reasoning tokens consume their caps differently. Three concurrent requests, one per model, per case; no automatic retries.",
+        "sourceHashes": {
+          "ai.ts": "db0821d06f7b988f8a47057b3aaf2e1b477ed8f338eca0429ef17dbbde9d2301",
+          "model-policy.ts": "df7dfddf9cbc111c330cf6e7c8d382aca9e35a72796cdc6dc74aa1f8ded61ba4",
+          "out/research/mail-contract-eval.ts": "4a588a0071849350f03a4f3b76d0735a827e54dd32aa8f7f7ffe569bc68054c4"
+        }
+      }
+    }
+  ],
+  "limitations": "All authored synthetic text states; 12 unique cases, two calls per model per case. No account connection, UI action, action gate, screenshot or end-to-end task is exercised. No held-out tuning split. Timings include local provider request handling and vary with service load; models have different reasoning-token behavior. OpenAI priority was requested, not independently verified. No inference of visual accuracy, provider-wide superiority or whole-task speedup is warranted."
+}

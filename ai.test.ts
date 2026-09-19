@@ -99,6 +99,60 @@ function scriptedModel(calls: { name: string; arguments: Record<string, unknown>
 const fixedRoute: typeof routeTask = async (_task, candidates) => ({ ...candidates.find((c) => c.difficulty === "standard")!, confidence: 1, latencyMs: 0, fallback: false, reason: "Test fixture" });
 const fakeDesktop = { discover: async () => [notes], state: async () => ({ width: 800, height: 600, windows: [] }) };
 
+test("a profile-mining detour is blocked before approval and the agent can return to UI discovery", async () => {
+  let ran = 0, gates = 0;
+  const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+    desktop: { ...fakeDesktop, shellName: "PowerShell", bash: async () => { ran++; return { exitCode: 0, timedOut: false, cancelled: false, stdout: "", stderr: "" }; } },
+    gate: async () => { gates++; return allow; },
+    streamFn: scriptedModel([{ name: "bash", arguments: { command: 'Get-ChildItem "C:\\Users\\test\\AppData\\Local\\Google\\Chrome\\User Data" -Recurse' } }, { name: "apps", arguments: {} }]),
+  });
+  try {
+    await runtime.prompt("Find my contact in the connected Gmail browser");
+    expect(ran).toBe(0); expect(gates).toBe(0);
+    const results = runtime.agent.state.messages.filter(m => m.role === "toolResult");
+    expect(results.some(m => m.isError && JSON.stringify(m).includes("visible contacts"))).toBe(true);
+    expect(results.some(m => m.toolName === "apps" && !m.isError)).toBe(true);
+    expect(runtime.status().error).toBeNull();
+  } finally { await runtime.close(); }
+});
+
+test("a failed shell process is a failed tool result rather than successful completion", async () => {
+  const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+    desktop: { ...fakeDesktop, shellName: "PowerShell", bash: async () => ({ exitCode: 1, timedOut: false, cancelled: false, stdout: "", stderr: "ParserError: malformed expression" }) },
+    gate: async () => allow, streamFn: scriptedModel([{ name: "bash", arguments: { command: "bad-command" } }]),
+  });
+  try {
+    await runtime.prompt("Check the local command");
+    const result = runtime.agent.state.messages.find(m => m.role === "toolResult");
+    expect(result).toMatchObject({ role: "toolResult", toolName: "bash", isError: true });
+    expect(JSON.stringify(result)).toContain("PowerShell command failed");
+    expect(runtime.status().events.some(e => e.text.startsWith("Failed bash"))).toBe(true);
+  } finally { await runtime.close(); }
+});
+
+test("a new F8 hold invalidates an existing approval before its first words arrive", async () => {
+  let ran = 0, holding: Promise<void> | null = null;
+  const released = Promise.withResolvers<void>();
+  const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+    desktop: { ...fakeDesktop, bash: async () => { ran++; return { exitCode: 0, timedOut: false, cancelled: false, stdout: "", stderr: "" }; } },
+    gate: async () => ({ decision: "approval", risk: 0.9, reason: "Review" }),
+    streamFn: scriptedModel([{ name: "bash", arguments: { command: "echo test" } }]),
+  });
+  const pending = runtime.prompt("Do the requested action", [], undefined, { speechEnds: () => holding, transcript: () => "" });
+  try {
+    for (let n = 0; !runtime.status().approval && n < 100; n++) await Bun.sleep(5);
+    const approval = runtime.status().approval;
+    expect(approval).not.toBeNull();
+    holding = released.promise;
+    runtime.approve(approval!.id, true);
+    for (let n = 0; !runtime.agent.state.messages.some(m => m.role === "toolResult") && n < 100; n++) await Bun.sleep(5);
+    expect(ran).toBe(0);
+    expect(JSON.stringify(runtime.agent.state.messages)).toContain("New speech began during review");
+    holding = null; released.resolve();
+    await pending;
+  } finally { holding = null; released.resolve(); await runtime.close(); }
+});
+
 function failedMessage(model: ReturnType<typeof providerModel>, errorMessage = "HTTP 503 unavailable", content: AssistantMessage["content"] = []): AssistantMessage {
   return { role: "assistant", api: model.api, provider: model.provider, model: model.id, timestamp: Date.now(), content, stopReason: "error", errorMessage,
     usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { adoptable, bindWindowCapture, capturedImage, createDriverPool, createWindowTracker, frontWindow, handFor, isPrivateBrowser, launchedBrowserWindow, signInLine, type RawWindow, type WindowOwner } from "./desktop";
+import { adoptable, bindWindowCapture, capturedImage, createDriverPool, createExistingBrowserTargets, createWindowTracker, frontWindow, handFor, isPrivateBrowser, launchedBrowserWindow, signInLine, type RawWindow, type WindowOwner } from "./desktop";
 import { serverResources, virtualKey } from "./serve";
 import type { CuaConnection, Hand } from "../desktop";
 
@@ -204,6 +204,91 @@ describe("capture binding", () => {
     expect(response.structuredContent).toEqual({ puk_snapshot: { window: before, width: 1342, height: 891, digest: Bun.hash(data).toString(16) } });
     expect(response.content).toEqual([{ type: "image", data, mimeType: "image/png" }]);
     expect(await bindWindowCapture(async () => null, async () => data)).toEqual({ data, window: null });
+  });
+});
+
+describe("existing browser target ownership", () => {
+  const hand: Hand = { id: 1, pid: 7, display: "Puk hand 1", width: 1280, height: 800 };
+  const chrome = (id = 901, pid = 82): RawWindow => ({ app: "chrome", title: "Inbox - Google Chrome", focused: true, pid, containerId: id,
+    ownerNonce: id.toString(16).padStart(16, "0"), rect: [40, 40, 1360, 900] });
+  function fixture() {
+    let available = [chrome()], current: RawWindow | null = chrome(), failed = false;
+    const calls: string[] = [];
+    let validate: (() => Promise<RawWindow>) | undefined;
+    let reading: Promise<RawWindow | null> | undefined;
+    const targets = createExistingBrowserTargets({
+      candidates: async () => available,
+      claim: async (hand, window) => { calls.push(`claim ${hand.id} ${window.containerId}`); },
+      read: async () => reading ?? current,
+      release: async (hand) => { calls.push(`release ${hand.id}`); },
+      prepare: async (_hand, checked, signal) => { validate = checked; signal?.throwIfAborted(); if (failed) throw new Error("Cua permission denied"); return { close: async () => { calls.push("end session"); } }; },
+    });
+    return { targets, calls, validate: () => validate!(), fail: () => { failed = true; }, found: (windows: RawWindow[]) => { available = windows; },
+      current: (window: RawWindow | null) => { current = window; }, reading: (promise: Promise<RawWindow | null>) => { reading = promise; } };
+  }
+
+  test("a selected user's Chrome is the only observed target and detaching never owns or closes it", async () => {
+    const f = fixture();
+    await f.targets.attach(hand, { window_id: 901 });
+    expect(f.targets.target(hand)).toMatchObject({ mode: "existing", window_id: 901, pid: 82, ready: true });
+    expect(await f.targets.read(hand)).toEqual(chrome());
+    expect(await f.validate()).toEqual(chrome());
+    await f.targets.detach(hand);
+    expect(f.targets.target(hand)).toEqual({ mode: "private" });
+    expect(f.calls).toEqual(["claim 1 901", "end session", "release 1"]);
+    await expect(f.validate()).rejects.toThrow("replaced");
+  });
+
+  test("ambiguous Chrome windows and invalid nonces require explicit current selection", async () => {
+    const f = fixture(); f.found([chrome(), chrome(902)]);
+    await expect(f.targets.attach(hand)).rejects.toThrow("Choose one observed");
+    expect(f.calls).toEqual([]);
+    f.found([{ ...chrome(), ownerNonce: undefined }]);
+    await expect(f.targets.attach(hand, { window_id: 901 })).rejects.toThrow("No matching");
+    expect(f.targets.target(hand)).toEqual({ mode: "private" });
+  });
+
+  test("failed preparation keeps explicit existing mode and refuses sandbox fallback", async () => {
+    const f = fixture(); f.fail();
+    await expect(f.targets.attach(hand)).rejects.toThrow("permission denied");
+    expect(f.targets.target(hand)).toMatchObject({ mode: "existing", ready: false, error: "Cua permission denied", window_id: 901 });
+    expect(() => f.targets.connection(hand)).toThrow("permission denied");
+    expect(await f.targets.read(hand)).toEqual(chrome());
+    expect(f.calls).toEqual(["claim 1 901"]);
+  });
+
+  test("a closed, temporarily omitted or recycled user window cannot become another Chrome window", async () => {
+    const f = fixture(); await f.targets.attach(hand);
+    f.current(null);
+    expect(await f.targets.read(hand)).toBeNull();
+    expect(f.targets.target(hand).mode).toBe("existing");
+    await expect(f.validate()).rejects.toThrow("unavailable");
+    for (const changed of [{ ...chrome(), pid: 99 }, { ...chrome(), ownerNonce: "0000000000000902" }, chrome(902)]) {
+      f.current(changed);
+      await expect(f.targets.read(hand)).rejects.toThrow("identity changed");
+    }
+    f.current(chrome());
+    expect(await f.targets.read(hand)).toEqual(chrome());
+  });
+
+  test("simultaneous hand claims have one winner, including two windows of the same Chrome process", async () => {
+    const f = fixture(); f.found([chrome(), chrome(902)]);
+    const second = { ...hand, id: 2, display: "Puk hand 2" };
+    const result = await Promise.allSettled([f.targets.attach(hand, { window_id: 901 }), f.targets.attach(second, { window_id: 902 })]);
+    expect(result.map((entry) => entry.status)).toEqual(["fulfilled", "rejected"]);
+    expect(f.targets.target(second)).toEqual({ mode: "private" });
+    expect(f.calls).toEqual(["claim 1 901"]);
+  });
+
+  test("a read finishing after detachment cannot republish the previous account window", async () => {
+    const f = fixture(); await f.targets.attach(hand);
+    let finish!: (window: RawWindow) => void;
+    f.reading(new Promise((resolve) => { finish = resolve; }));
+    const pending = f.targets.read(hand);
+    await f.targets.detach(hand);
+    finish(chrome());
+    await expect(pending).rejects.toThrow("target changed");
+    expect(f.targets.target(hand)).toEqual({ mode: "private" });
   });
 });
 

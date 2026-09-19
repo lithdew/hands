@@ -258,6 +258,8 @@ public static class PukWin
     // of which Windows can reuse. The property name is private to this helper.
     static readonly string ownerProperty = "Puk.Owner." + Guid.NewGuid().ToString("N");
     static readonly Dictionary<string, Dictionary<long, WindowOwner>> owned = new Dictionary<string, Dictionary<long, WindowOwner>>();
+    sealed class BorrowedWindow { public long hwnd; public WindowOwner owner; }
+    static readonly Dictionary<string, BorrowedWindow> borrowed = new Dictionary<string, BorrowedWindow>();
     static IntPtr userFocus = IntPtr.Zero;
 
     static bool SameOwner(IntPtr hwnd, WindowOwner owner)
@@ -289,6 +291,88 @@ public static class PukWin
             if (set.TryGetValue(hwnd.ToInt64(), out owner) && SameOwner(hwnd, owner)) return true;
         }
         return false;
+    }
+
+    static bool Borrowed(IntPtr hwnd)
+    {
+        foreach (BorrowedWindow entry in borrowed.Values)
+            if (entry.hwnd == hwnd.ToInt64() && SameOwner(hwnd, entry.owner)) return true;
+        return false;
+    }
+
+    // Read-only native observation plus a window-lifetime marker. These windows
+    // never enter owned[], and no virtual-desktop API is used to capture them.
+    static string ExternalWindow(IntPtr hwnd, WindowOwner owner)
+    {
+        if (owner == null || !SameOwner(hwnd, owner) || !IsWindowVisible(hwnd)) return "null";
+        string app;
+        try { app = Process.GetProcessById((int)owner.pid).ProcessName; } catch (Exception) { return "null"; }
+        if (!string.Equals(app, "chrome", StringComparison.OrdinalIgnoreCase)) return "null";
+        string title = Title(hwnd);
+        RECT r = Frame(hwnd);
+        if (title.Length == 0 || !SameOwner(hwnd, owner)) return "null";
+        return "{\"app\":" + Json(app) + ",\"title\":" + Json(title) + ",\"focused\":true,\"pid\":" + owner.pid
+            + ",\"containerId\":" + hwnd.ToInt64() + ",\"ownerNonce\":" + Json(owner.nonce.ToString("x16"))
+            + ",\"iconic\":" + (IsIconic(hwnd) ? "true" : "false") + ",\"rect\":[" + r.left + "," + r.top + "," + (r.right - r.left) + "," + (r.bottom - r.top) + "]}";
+    }
+
+    static string ExternalBrowsers()
+    {
+        StringBuilder result = new StringBuilder("[");
+        EnumWindows(delegate (IntPtr hwnd, IntPtr unused)
+        {
+            if (!IsWindowVisible(hwnd) || Title(hwnd).Length == 0 || Owned(hwnd) || (GetWindowLongPtr(hwnd, -20).ToInt64() & 0x80) != 0) return true;
+            int cloaked = 0;
+            DwmGetWindowAttribute(hwnd, 14, out cloaked, 4);
+            if (cloaked != 0) return true;
+            uint pid;
+            GetWindowThreadProcessId(hwnd, out pid);
+            try { if (!string.Equals(Process.GetProcessById((int)pid).ProcessName, "chrome", StringComparison.OrdinalIgnoreCase)) return true; }
+            catch (Exception) { return true; }
+            string window = ExternalWindow(hwnd, MarkOwner(hwnd));
+            if (window != "null") result.Append(result.Length > 1 ? "," : "").Append(window);
+            return true;
+        }, IntPtr.Zero);
+        return result.Append(']').ToString();
+    }
+
+    static string ExternalBinding(string request, bool claim, bool focus = false)
+    {
+        int separator = request == null ? -1 : request.IndexOf('|');
+        if (separator <= 0) throw new Exception("An existing browser binding needs a hand and its exact native identity.");
+        string hand = request.Substring(0, separator);
+        string[] parts = request.Substring(separator + 1).Split(':');
+        long id, nonce;
+        uint pid;
+        if (parts.Length != 3 || !long.TryParse(parts[0], out id) || id <= 0 || !uint.TryParse(parts[1], out pid) || pid == 0
+            || parts[2].Length != 16 || !long.TryParse(parts[2], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out nonce) || nonce <= 0)
+            throw new Exception("An existing browser binding needs HWND, PID and a window-lifetime nonce.");
+        IntPtr hwnd = new IntPtr(id);
+        WindowOwner owner = new WindowOwner { pid = pid, nonce = nonce };
+        if (claim)
+        {
+            if (Owned(hwnd) || ExternalWindow(hwnd, owner) == "null") throw new Exception("This is not an available, unowned Chrome window.");
+            foreach (KeyValuePair<string, BorrowedWindow> entry in borrowed)
+                if (entry.Key != hand && (entry.Value.owner.pid == pid || entry.Value.hwnd == id))
+                    throw new Exception("This Chrome process is already reserved by another hand.");
+            borrowed[hand] = new BorrowedWindow { hwnd = id, owner = owner };
+        }
+        BorrowedWindow bound;
+        if (!borrowed.TryGetValue(hand, out bound) || bound.hwnd != id || bound.owner.pid != pid || bound.owner.nonce != nonce)
+            throw new Exception("The existing Chrome reservation changed. Attach again.");
+        string observed = ExternalWindow(hwnd, owner);
+        if (focus)
+        {
+            if (observed == "null") throw new Exception("The attached Chrome window is unavailable.");
+            // Visit its real desktop before activation. Never let activation
+            // reassign a user's browser to the hand's current virtual desktop.
+            Desktop target = Desktop.FromWindow(hwnd);
+            if (!SameOwner(hwnd, owner)) throw new Exception("The attached Chrome window changed before focus.");
+            target.MakeVisible();
+            if (!SameOwner(hwnd, owner)) throw new Exception("The attached Chrome window changed before focus.");
+            Focus(hwnd);
+        }
+        return observed;
     }
 
     /** With "<desktop>|<hwnd:pid:nonce,...>": that hand's windows, including a
@@ -332,6 +416,7 @@ public static class PukWin
             foreach (KeyValuePair<long, WindowOwner> entry in new List<KeyValuePair<long, WindowOwner>>(mine))
             {
                 IntPtr hwnd = new IntPtr(entry.Key);
+                if (Borrowed(hwnd)) { retired.Add(entry.Key); mine.Remove(entry.Key); continue; }
                 if (!SameOwner(hwnd, entry.Value)) { retired.Add(entry.Key); mine.Remove(entry.Key); continue; }
                 try
                 {
@@ -362,6 +447,7 @@ public static class PukWin
             if ((GetWindowLongPtr(hwnd, -20).ToInt64() & 0x80) != 0) return true; // WS_EX_TOOLWINDOW
             if (desktop != null)
             {
+                if (Borrowed(hwnd)) return true;
                 long id = hwnd.ToInt64();
                 if (retired.Contains(id)) return true;
                 try { if (!desktop.HasWindow(hwnd) || Desktop.IsWindowPinned(hwnd)) return true; } catch (Exception) { return true; }
@@ -701,12 +787,22 @@ public static class PukWin
                 string[] words = line.Split(new char[] { ' ' }, 3);
                 string rest = line.IndexOf(' ') < 0 ? null : line.Substring(line.IndexOf(' ') + 1);
                 if (words[0] == "state") reply = State(rest);
+                else if (words[0] == "external-browsers") reply = ExternalBrowsers();
+                else if (words[0] == "external-bind") reply = ExternalBinding(rest, true);
+                else if (words[0] == "external-read") reply = ExternalBinding(rest, false);
+                else if (words[0] == "external-focus") reply = ExternalBinding(rest, false, true);
+                else if (words[0] == "external-release") { borrowed.Remove(rest); reply = "ok"; }
                 else if (words[0] == "ensure")
                 {
                     if (Find(rest) == null) Desktop.Create().SetName(rest);
                     reply = "ok " + Desktop.FromDesktop(Need(rest));
                 }
-                else if (words[0] == "move") { Need(words[2]).MoveWindow(new IntPtr(long.Parse(words[1])), true); reply = "ok"; }
+                else if (words[0] == "move")
+                {
+                    IntPtr hwnd = new IntPtr(long.Parse(words[1]));
+                    if (Borrowed(hwnd)) throw new Exception("A borrowed user window cannot be moved to a hand desktop.");
+                    Need(words[2]).MoveWindow(hwnd, true); reply = "ok";
+                }
                 else if (words[0] == "grab") reply = Grab(new IntPtr(long.Parse(words[1])));
                 else if (words[0] == "boost") reply = "ok " + Boost(uint.Parse(words[1]));
                 else if (words[0] == "viewport") reply = Viewport(new IntPtr(long.Parse(words[1])));

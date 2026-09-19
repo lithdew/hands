@@ -63,12 +63,16 @@ describe("keyCall", () => {
 });
 
 describe("routeRequest", () => {
-  const kind = (over: Partial<Triage>): Triage => ({ app: "none", sure: 0.9, onlyOpen: 0, wantsAnswer: 0, creative: 0, ...over });
+  const kind = (over: Partial<Triage>): Triage => ({ app: "none", sure: 0.9, onlyOpen: 0, wantsAnswer: 0, creative: 0, existingBrowser: 0, ...over });
   test("an installed application is opened, however much the request sounds like a site to open", () => {
     // quick.ts answered "open calculator" with nothing to open and "calculator" to type, and the browser took it to Google.
     expect(routeRequest(kind({ app: "calc", onlyOpen: 0.9 }), "quick")).toEqual({ to: "native", app: "calc" });
     expect(routeRequest(kind({ app: "calc" }), null)).toEqual({ to: "native", app: "calc" });
     expect(routeRequest(kind({ app: "mspaint", creative: 0.9 }), null)).toEqual({ to: "native", app: "mspaint" }); // "draw a cat in paint": open it, then the vision agent
+  });
+  test("the user's own signed-in browser, asked for by name, is never swapped for the hand's private one", () => {
+    expect(routeRequest(kind({ app: "browser", existingBrowser: 0.9 }), "recipe")).toMatchObject({ to: "vision" }); // even an email Jev could set up alone
+    expect((routeRequest(kind({ existingBrowser: 0.9 }), null) as { why: string }).why).toContain("mode: existing");
   });
   test("a recipe Jev knows wins over an application the words also suggest", () => {
     expect(routeRequest(kind({ app: "stickynotes" }), "recipe")).toEqual({ to: "browser", plan: false });

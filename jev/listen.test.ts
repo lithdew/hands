@@ -20,7 +20,7 @@ function fakeJev(reply: (name: string, state: any) => Reply | undefined) {
     calls.push({ state, questions });
     const answers: Record<string, unknown> = {};
     for (const [name, q] of Object.entries(questions)) {
-      const r = reply(name, state) ?? (name === "cut" ? "none" : undefined);
+      const r = reply(name, state) ?? (name === "cut" ? "none" : name === "target_task" ? "latest" : undefined);
       if (q.type === "noul") answers[name] = { type: "noul", noul: typeof r === "number" ? r : 0 };
       else answers[name] = { type: "choice", probabilities: {}, ...(typeof r === "object" ? r : { choice: String(r), confidence: 0.9 }) };
     }
@@ -214,7 +214,7 @@ describe("createListener", () => {
 
     l.hear("open youtube and the weather and the news");
     await settle();
-    expect(jev.triage().at(-1)!.state.tasks).toEqual([
+    expect(jev.triage().at(-1)!.state.tasks).toMatchObject([
       { request: "open youtube", status: "done" },
       { request: "and the weather", status: "running" },
     ]);
@@ -354,6 +354,83 @@ describe("createListener", () => {
 
 describe("listener integration races", () => {
   const literal = (goal: string): Intent => ({ goal, launcher: "none", url: null, inputs: {}, doneWhen: "done", avoid: [] });
+
+  test.each(["Draft an email to sister@example.com", "Open https://example.com/docs?q=guide", "Calculate 3.14 plus 2"])("literal punctuation in %s does not postpone a clear task until key-up", async (request) => {
+    const jev = fakeJev((name) => ({ relation: "new_task", startable: 0.99, route: "llm" })[name]);
+    const { l, jobs } = listener({ ask: jev.ask, buildIntent: literal });
+    try {
+      l.hear(request); await settle();
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0]!.job.intent().goal).toBe(request);
+      expect(jobs[0]!.job.speechEnds()).toBeInstanceOf(Promise);
+      await l.finish(request);
+      expect(jobs).toHaveLength(1);
+    } finally { l.cancel(); await l.idle(); }
+  });
+
+  test("a later hold targets the named busy hand, queues independent work, and can stop only that task", async () => {
+    const jev = fakeJev((name, state) => {
+      if (name === "relation") return state.new_words.startsWith("Stop") ? "retracts" : /Chrome|keep the recipient/.test(state.new_words) ? "refines" : "new_task";
+      if (name === "target_task") return /email|Chrome/.test(state.new_words) ? "task_1" : "latest";
+      return { startable: 0.99, route: "llm" }[name];
+    });
+    const { l, jobs } = listener({ ask: jev.ask, buildIntent: literal });
+    try {
+      await l.finish("Draft an email to sister@example.com in Gmail");
+      await l.finish("Draw a dog in Paint");
+      expect(jobs.map((entry) => entry.hand)).toEqual([1, 2]);
+      l.hear("For the email use my actual Chrome"); await settle();
+      expect(jobs[0]!.job.intent().goal).toBe("Draft an email to sister@example.com in Gmail\nFor the email use my actual Chrome");
+      expect(jobs[1]!.job.intent().goal).toBe("Draw a dog in Paint");
+      await l.finish("For the email use my actual Chrome and keep the recipient");
+      expect(jobs[0]!.job.intent().goal).toContain("and keep the recipient");
+      expect(jobs[0]!.job.intent().goal).not.toContain("Paint");
+      await l.finish("Open calculator");
+      expect(jobs).toHaveLength(2);
+      expect(l.tasks.at(-1)!.status).toBe("waiting");
+      l.hear("Stop the email"); await settle();
+      expect(jobs[0]!.job.signal.aborted).toBe(true);
+      expect(jobs[1]!.job.signal.aborted).toBe(false);
+      await l.finish("Stop the email");
+      expect(jobs).toHaveLength(3);
+      expect(jobs[2]!.hand).toBe(1);
+      expect(jobs[2]!.job.intent().goal).toBe("Open calculator");
+      expect(jobs[2]!.job.transcript()).not.toContain("sister@example.com");
+    } finally { l.cancel(); await l.idle(); }
+  });
+
+  test("returning to an earlier task within one utterance cannot copy the other task into its goal", async () => {
+    const jev = fakeJev((name, state) => {
+      if (name === "relation") return /recipient|example\.com/.test(state.new_words) ? "refines" : "new_task";
+      if (name === "target_task") return state.new_words.includes("recipient") ? "task_1" : "latest";
+      return { startable: 0.99, route: "llm" }[name];
+    });
+    const { l, jobs } = listener({ ask: jev.ask, buildIntent: literal });
+    try {
+      l.hear("Draft an email"); await settle();
+      l.hear("Draft an email and draw a dog in Paint"); await settle();
+      l.hear("Draft an email and draw a dog in Paint and change the recipient"); await settle();
+      await l.finish("Draft an email and draw a dog in Paint and change the recipient to sister@example.com");
+      expect(jobs).toHaveLength(2);
+      expect(jobs[0]!.job.intent().goal).toBe("Draft an email\nand change the recipient to sister@example.com");
+      expect(jobs[1]!.job.intent().goal).toBe("and draw a dog in Paint");
+    } finally { l.cancel(); await l.idle(); }
+  });
+
+  test("an ambiguous final correction does not silently retarget either occupied hand", async () => {
+    const jev = fakeJev((name, state) => {
+      if (name === "relation") return state.new_words.includes("Actually") ? "refines" : "new_task";
+      if (name === "target_task") return { choice: "task_1", confidence: 0.2 };
+      return { startable: 0.99, route: "llm" }[name];
+    });
+    const { l, jobs } = listener({ ask: jev.ask, buildIntent: literal });
+    try {
+      await l.finish("Draft an email"); await l.finish("Draw in Paint");
+      await expect(l.finish("Actually use the other one")).rejects.toThrow("Name the app or task");
+      expect(jobs.map((entry) => entry.job.intent().goal)).toEqual(["Draft an email", "Draw in Paint"]);
+      expect(jobs.every((entry) => !entry.job.signal.aborted)).toBe(true);
+    } finally { l.cancel(); await l.idle(); }
+  });
 
   test("cancellation appended without spaces is heard before the worker is released", async () => {
     const jev = fakeJev((name, state) => ({ relation: state.new_words?.includes("不要") ? "retracts" : "new_task", startable: 0.99, route: "jev" })[name]);
