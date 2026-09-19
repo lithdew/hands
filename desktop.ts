@@ -171,7 +171,7 @@ export const defaultExec: Exec = async (argv, opts) => {
     throw missingBinary(argv[0]!, err);
   }
   const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout as ReadableStream).bytes(),
+    new Response(proc.stdout as ReadableStream).arrayBuffer().then(buffer => new Uint8Array(buffer)),
     new Response(proc.stderr as ReadableStream).text(),
     proc.exited,
   ]);

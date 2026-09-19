@@ -128,9 +128,12 @@ export async function runArtifactWorkflow(input: ArtifactInput, dependencies: Ar
     await writeFile(join(directory, "plan.json"), JSON.stringify(plan, null, 2));
     const seeds = [...(input.sources ?? []), ...plan.sources].filter((s, i, all) => all.findIndex(t => t.url === s.url) === i).slice(0, 16);
     // A validated local-artifact plan has a ready, read-only next step. Do not
-    // ask Jev to guess whether already-proved renderer/source tools exist.
-    // Actual retrieval, content and render failures remain explicit gates.
-    await decide({ phase: "plan_returned", plan: { ...plan, sources: seeds }, boundedLocalPlanValidated:true }, { research: seeds.length ? "Fetch the planned public source candidates concurrently, record failures and provenance before writing" : "Use the supplied brief for this self-contained artifact; record that no external sources were needed and continue creating" });
+    // ask Jev to guess whether already-proved renderer/source tools exist:
+    // the state carries the deterministic facts (contract validated, public
+    // source count, required file types, runtime-supplied rendering) and the
+    // only offered action is research. Actual retrieval, content and render
+    // failures remain explicit gates later in the run.
+    await decide({ phase: "plan_returned", boundedLocalPlanValidated: true, publicSourceCandidates: seeds.length, requiredFileTypes: [...new Set(plan.requiredFiles.map(file => file.split(".").pop()?.toLowerCase() ?? ""))], runtimeSuppliesRendering: kind === "video" ? "The trusted ManimGL + Remotion renderer, previews and provenance manifests are supplied by the runtime; the specialist authors only the listed text files" : "Local preview and checks are supplied by the runtime", plan: { ...plan, sources: seeds } }, { research: seeds.length ? "The plan contract is valid and its sources are public URLs: fetch the planned source candidates concurrently, record failures and provenance before writing" : "The plan contract is valid and self-contained: use the supplied brief, record that no external sources were needed and continue creating" });
     phaseTo("research");
     const retained = checkpoint?.sources.filter(source => !needsSourceRefresh(source)) ?? [];
     const known = new Set(retained.flatMap(source=>citationAliases(source)));
