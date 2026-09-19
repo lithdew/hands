@@ -10,7 +10,10 @@ test("pitch evidence requires completed inspected runs and their own preview ima
     await mkdir(join(directory,"preview"),{recursive:true});const png=join(directory,"preview","desktop.png");await writeFile(png,"fixture");
     const manifest={runId:id,status:"complete",kind:"website",summary:"Example",checks:[{passed:true}],screenshots:[png]};
     await writeFile(join(directory,"manifest.json"),JSON.stringify(manifest));await writeFile(join(directory,"independent-inspection.json"),JSON.stringify({verdict:"pass-with-advisories"}));
-    expect(Object.keys((await inspectedRunEvidence(root,[id])).assets)).toEqual(["artifact-1"]);
+    const evidence = await inspectedRunEvidence(root,[id]);
+    expect(Object.keys(evidence.assets)).toEqual(["artifact-1"]);
+    expect((evidence.records[0] as any).checks).toMatchObject({passed:true,count:1});
+    expect((evidence.records[0] as any).inspection.report).toBe(`out/artifacts/${id}/independent-inspection.json`);
     await writeFile(join(directory,"independent-inspection.json"),JSON.stringify({verdict:"failed"}));await expect(inspectedRunEvidence(root,[id])).rejects.toThrow("not passed");
     await writeFile(join(directory,"independent-inspection.json"),JSON.stringify({verdict:"pass"}));const outside=join(root,"unrelated.png");await writeFile(outside,"private");
     await writeFile(join(directory,"manifest.json"),JSON.stringify({...manifest,screenshots:[outside]}));await expect(inspectedRunEvidence(root,[id])).rejects.toThrow("belong");

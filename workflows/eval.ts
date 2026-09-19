@@ -22,7 +22,10 @@ export async function caseInput(path: string): Promise<ArtifactInput> {
   }
   const artifacts = brief.requiredArtifacts ?? [];
   const requiredFiles: string[] = brief.artifactContract?.requiredFiles ?? artifacts.map((artifact: any) => typeof artifact === "string" ? artifact : artifact.suggestedFilename ?? artifact.filename ?? artifact.path).filter(Boolean);
-  return { request, searchRequest:brief.rawUserTask ?? request, context, sources, requiredFiles:requiredFiles.filter(path=>ArtifactPathSchema.safeParse(path).success), checks: brief.rubric?.mustPass ?? [] };
+  const rubric = brief.rubric?.mustPass ?? (Array.isArray(brief.rubric) ? brief.rubric : []);
+  const checks = rubric.map((item: unknown) => typeof item === "string" ? item : item && typeof item === "object" && "criterion" in item ? String(item.criterion) : item && typeof item === "object" && "check" in item ? String(item.check) : "").filter(Boolean);
+  if (brief.qualityProfile !== undefined && !["standard", "creative"].includes(brief.qualityProfile)) throw new Error("Unknown artifact quality profile.");
+  return { request, searchRequest:brief.rawUserTask ?? request, context, sources, qualityProfile: brief.qualityProfile, requiredFiles:requiredFiles.filter(path=>ArtifactPathSchema.safeParse(path).success), checks };
 }
 
 if (import.meta.main) {
@@ -43,10 +46,11 @@ if (import.meta.main) {
       input.evidenceAssets=evidence.assets;
       // The specialist context is bounded, so the demonstration evidence goes
       // ahead of the long repository excerpts instead of after them, where a
-      // second artifact's record was silently cut off.
+      // second artifact's record was silently cut off. The case's own task
+      // text stays first; contexts without repository excerpts get it appended.
       const record=`\nVerified independently inspected Hands output evidence: ${JSON.stringify(evidence.records)}\n`;
-      const repository=input.context!.indexOf("\nRepository evidence ");
-      input.context=repository>=0?`${input.context!.slice(0,repository)}${record}${input.context!.slice(repository)}`:`${input.context}${record}`;
+      const repository=(input.context ?? "").indexOf("\nRepository evidence ");
+      input.context=repository>=0?`${input.context!.slice(0,repository)}${record}${input.context!.slice(repository)}`:`${input.context ?? ""}${record}`;
     }
     const abort = new AbortController(); process.on("SIGINT", () => abort.abort()); input.signal = abort.signal;
     input.onEvent = event => console.log(JSON.stringify(event));

@@ -101,16 +101,24 @@ export async function inspectedRunEvidence(root:string,ids:string[],options:{cro
       catch(error){imageRecord.note=`Focused crop unavailable, original preview used: ${String(error instanceof Error?error.message:error).slice(0,300)}`;}
     }
     const key=`artifact-${records.length+1}`;assets[key]=chosen;
-    records.push({imageId:key,runId:id,kind:manifest.kind,summary:manifest.summary,elapsedMs:manifest.elapsedMs,checks:compactChecks(manifest.checks),image:imageRecord,inspection:compactInspection(inspection)});
+    // Carry all image identities ahead of lengthy inspection details. Full
+    // reports stay on disk (the record points at them); huge check bodies must
+    // not crowd later assets out of a planner's context budget and create a
+    // fictitious missing-evidence block, so checks ride as a summary while the
+    // inspection keeps every verdict, finding and advisory.
+    records.push({imageId:key,runId:id,kind:manifest.kind,summary:manifest.summary,elapsedMs:manifest.elapsedMs,checks:summarizeChecks(manifest.checks),image:imageRecord,
+      inspection:{...(compactInspection(inspection) as Record<string,unknown>),report:`out/artifacts/${id}/independent-inspection.json`}});
   }
   return{assets,records};
 }
 
 /** The records ride inside a bounded specialist context. Keep every verdict,
  * finding, advisory and preferred-image description; drop file hash lists and
- * housekeeping fields that only the runtime needs, and shorten check details. */
-function compactChecks(checks:unknown):unknown {
-  return Array.isArray(checks)?checks.map(check=>check&&typeof check==="object"?{...check,detail:typeof (check as {detail?:unknown}).detail==="string"?(check as {detail:string}).detail.slice(0,160):undefined}:check):checks;
+ * housekeeping fields that only the runtime needs, and reduce the run's checks
+ * to whether they all passed plus their names. */
+function summarizeChecks(checks:unknown):{passed:boolean;count:number;names:string[]} {
+  const list=Array.isArray(checks)?checks as {passed?:unknown;name?:unknown}[]:[];
+  return {passed:list.length>0&&list.every(check=>check?.passed===true),count:list.length,names:list.map(check=>typeof check?.name==="string"?check.name:"unnamed")};
 }
 const INSPECTION_HOUSEKEEPING=new Set(["inspectedFiles","artifactIntegrity","artifactManifestModified","scratchCleanup","privateHandoffFiles","schemaVersion"]);
 function compactInspection(inspection:unknown):unknown {

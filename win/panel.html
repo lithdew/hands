@@ -239,6 +239,25 @@ textarea#prompt::placeholder{color:var(--faint)}
 .event .tag{font:500 11px/1.6 var(--mono);color:var(--h,var(--text));padding:0 5px;border-radius:4px;background:color-mix(in srgb,var(--h,var(--muted)) 16%,transparent);align-self:baseline}
 .event:first-child{color:var(--text)}
 
+/* Artifact evaluations have their own observer; they never select a hand or a desktop stream. */
+.eval-observer{display:flex;flex-direction:column;min-height:0;gap:9px;max-height:48vh}
+.eval-note{margin:0;color:var(--muted);font-size:12px}
+#eval-runs{display:grid;gap:8px;overflow:auto;min-height:0;scrollbar-width:thin}
+#eval-runs:empty::before{content:"No observed evaluations yet.";color:var(--faint);font-size:12px}
+.eval-card{padding:10px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--panel);display:grid;gap:6px;min-width:0}
+.eval-head{display:flex;gap:8px;align-items:baseline;justify-content:space-between;font:11px/1.4 var(--mono)}
+.eval-phase{color:var(--blue);overflow-wrap:anywhere}.eval-card[data-done=true] .eval-phase{color:var(--green)}
+.eval-card[data-review=true] .eval-phase{color:var(--amber)}
+.eval-clock{color:var(--muted);white-space:nowrap}
+.eval-title{margin:0;font-size:13px;font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.eval-meta,.eval-step{margin:0;font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.eval-step{color:var(--text)}
+.eval-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.eval-actions a{font-size:12px;color:var(--blue)}
+.eval-log{font-size:11.5px;color:var(--muted)}.eval-log summary{cursor:pointer}.eval-log ol{padding-left:18px;max-height:140px;overflow:auto;overflow-wrap:anywhere}
+#eval-dialog{width:min(1100px,94vw);height:min(820px,90vh);padding:0;border:1px solid var(--line-3);border-radius:var(--r-lg);background:var(--panel);color:var(--text)}
+#eval-dialog::backdrop{background:#000b}.eval-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}
+#eval-dialog-title{margin:0;font-size:14px}#eval-frame{display:block;width:100%;height:calc(100% - 57px);border:0;background:#fff}
+
 /* -------------------------------------------------------------- motion */
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(var(--p-rgb,var(--blue-rgb)),.55)}70%{box-shadow:0 0 0 6px rgba(var(--p-rgb,var(--blue-rgb)),0)}100%{box-shadow:0 0 0 0 rgba(var(--p-rgb,var(--blue-rgb)),0)}}
 @keyframes caret{50%{opacity:0}}
@@ -346,6 +365,11 @@ textarea#prompt::placeholder{color:var(--faint)}
     <h2>Needs you <span class="count" id="approval-count"></span></h2>
     <div id="approvals"></div>
   </section>
+  <section class="eval-observer" aria-labelledby="eval-heading">
+    <h2 id="eval-heading">Artifact evaluations <span class="count" id="eval-count"></span></h2>
+    <p class="eval-note" id="eval-status">Actual model steps and saved previews.</p>
+    <div id="eval-runs"></div>
+  </section>
   <section class="activity">
     <h2>Activity <span class="count" id="event-count"></span></h2>
     <div id="events"></div>
@@ -354,6 +378,7 @@ textarea#prompt::placeholder{color:var(--faint)}
 </div>
 
 <div id="stash" hidden><img id="preview" alt="Live view of the selected hand's desktop"><iframe id="artifact-preview" title="Selected hand's generated artifact" sandbox="allow-scripts" allow="fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe></div>
+<dialog id="eval-dialog" aria-labelledby="eval-dialog-title"><div class="eval-dialog-head"><h2 id="eval-dialog-title">Artifact preview</h2><button type="button" class="btn" id="eval-close">Close preview</button></div><iframe id="eval-frame" title="Observed evaluation artifact preview" sandbox="allow-scripts" allow="fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe></dialog>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -647,6 +672,69 @@ function updateChip(chip, t) {
   if (prevHand.get(t.id) === null && t.hand) { chip.classList.add('arrive'); setTimeout(() => chip.classList.remove('arrive'), 1000); }
   prevHand.set(t.id, t.hand);
 }
+
+/* ----------------------------------------------------- evaluation observer */
+let evalRefreshing = false;
+const evalFinished = phase => ['complete', 'needs-review', 'failed', 'error', 'cancelled'].includes(phase);
+function evalDuration(ms) { const seconds = Math.max(0, Math.floor(ms / 1000)); return seconds < 60 ? seconds + 's' : Math.floor(seconds / 60) + 'm ' + seconds % 60 + 's'; }
+function evalModel(model) { return ({ 'jev': 'Jev', 'gpt-6-astra': 'Astra low', 'gpt-5.6-luna': 'Luna low', 'gemini-3.8-flash': 'Gemini low' })[model] || model || 'Jev'; }
+function makeEvalCard() {
+  const card = el('article', 'eval-card'), head = el('div', 'eval-head');
+  head.append(el('span', 'eval-phase'), el('span', 'eval-clock'));
+  const actions = el('div', 'eval-actions'), previewButton = el('button', 'btn', 'Preview artifact'), open = el('a', null, 'Open separately');
+  previewButton.type = 'button'; open.target = '_blank'; open.rel = 'noopener noreferrer';
+  previewButton.onclick = () => {
+    if (!card.dataset.url) return;
+    $('eval-frame').src = card.dataset.url;
+    setText($('eval-dialog-title'), 'Artifact preview · ' + card.dataset.key.slice(0, 8));
+    $('eval-dialog').showModal();
+  };
+  actions.append(previewButton, open);
+  const details = el('details', 'eval-log'); details.append(el('summary', null, 'Recent steps'), el('ol'));
+  card.append(head, el('h3', 'eval-title'), el('p', 'eval-meta'), el('p', 'eval-step'), actions, details);
+  return card;
+}
+function updateEvalCard(card, run) {
+  const events = Array.isArray(run.events) ? run.events : [], checks = Array.isArray(run.checks) ? run.checks : [];
+  const finished = evalFinished(run.phase), elapsed = finished || !run.startedAt ? run.elapsedMs : Math.max(run.elapsedMs, Date.now() - run.startedAt);
+  const preview = artifactOf({ artifact: run });
+  card.dataset.done = String(run.phase === 'complete'); card.dataset.review = String(['needs-review', 'failed', 'error', 'cancelled'].includes(run.phase));
+  card.dataset.url = preview?.url || '';
+  setText(card.querySelector('.eval-phase'), run.phase.replaceAll('_', ' ').replaceAll('-', ' '));
+  setText(card.querySelector('.eval-clock'), evalDuration(elapsed));
+  setText(card.querySelector('.eval-title'), run.request || run.kind + ' artifact');
+  card.querySelector('.eval-title').title = run.request || '';
+  const handoffs = events.filter(event => event.event === 'jev_handoff').length;
+  const failed = checks.filter(check => !check.passed).length;
+  setText(card.querySelector('.eval-meta'), evalModel(run.model) + ' · ' + run.runId.slice(0, 8) + ' · ' + handoffs + ' recent handoffs' + (run.parentRunId ? ' · resumed' : ''));
+  const latest = [...events].reverse().find(event => event.detail || event.event === 'agent_returned');
+  setText(card.querySelector('.eval-step'), failed ? failed + ' checks need review' : run.phase === 'complete' ? 'Saved artifact · ' + checks.length + ' runtime checks passed' : latest ? (latest.detail || evalModel(latest.model) + ' returned in ' + evalDuration(latest.durationMs || 0)) : 'Waiting for the next recorded step');
+  card.querySelector('.eval-actions').hidden = !preview?.url;
+  const open = card.querySelector('.eval-actions a'); if (preview?.url) open.href = preview.url; else open.removeAttribute('href');
+  const log = card.querySelector('ol'), signature = JSON.stringify(events);
+  if (card.dataset.events !== signature) {
+    card.dataset.events = signature;
+    log.replaceChildren(...events.slice(-10).reverse().map(event => el('li', null, evalDuration(event.atMs) + ' · ' + event.phase + ' · ' + (event.detail || event.event) + (event.model ? ' · ' + evalModel(event.model) : ''))));
+  }
+  card.title = 'Last recorded update ' + new Date(run.updatedAt).toLocaleTimeString() + (run.parentRunId ? '\nResumed from ' + run.parentRunId : '');
+}
+async function refreshEvals() {
+  if (evalRefreshing || document.hidden) return;
+  evalRefreshing = true;
+  try {
+    const response = await fetch('/evals'); if (!response.ok) throw Error('Evaluation observer is unavailable');
+    const data = await response.json(), runs = Array.isArray(data.runs) ? data.runs.filter(run => artifactOf({ artifact: run })) : [];
+    reconcile($('eval-runs'), runs, run => run.runId, makeEvalCard, updateEvalCard);
+    const active = runs.filter(run => !evalFinished(run.phase)).length;
+    setText($('eval-count'), active ? active + ' active' : runs.length ? runs.length + ' recent' : '');
+    setText($('eval-status'), 'Actual model steps and saved previews.');
+  } catch (error) { setText($('eval-status'), error.message); }
+  finally { evalRefreshing = false; }
+}
+$('eval-close').onclick = () => $('eval-dialog').close();
+$('eval-dialog').addEventListener('close', () => $('eval-frame').removeAttribute('src'));
+setInterval(refreshEvals, 2000);
+refreshEvals();
 
 /* -------------------------------------------------------------- refresh */
 async function refresh() {

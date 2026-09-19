@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BundleSchema, looksLikeArtifactRequest } from "./contracts";
+import { BundleSchema, CreativeReviewSchema, creativeReviewPassed, looksLikeArtifactRequest } from "./contracts";
 import { runArtifactWorkflow, storyboardCheck } from "./run";
 import type { Ask } from "../jev/jev";
 import { citationAliases } from "./checkpoint";
@@ -11,6 +11,25 @@ const bundle = {title:"Generated report",summary:"A complete fixture report",ent
 const plan = {title:"Report",kind:"report",brief:"Make the requested report",sources:[],requiredFiles:["index.html"],checks:["Meaningful report"]};
 const review = {passed:true,summary:"Checked the content",issues:[]};
 const ask: Ask = async (_state, questions) => Object.fromEntries(Object.entries(questions).map(([key, q]) => [key,{type:"choice",choice:key==="kind"?"report":key==="model"?"gpt-5.6-luna":Object.keys((q as any).criteria)[0],confidence:1}])) as never;
+
+test("creative acceptance cannot be granted by a positive summary with weak craft scores", () => {
+  const good = {score:4,evidence:"Observed deliberate type scale and alignment"};
+  const scored = CreativeReviewSchema.parse({...review,hierarchy:good,typography:good,composition:good,distinctiveness:good,briefFit:good});
+  expect(creativeReviewPassed(scored)).toBe(true);
+  expect(creativeReviewPassed({...scored,distinctiveness:{score:2,evidence:"Uniform generic cards"}})).toBe(false);
+  expect(creativeReviewPassed({...scored,composition:{score:3,evidence:"Ordinary composition"}})).toBe(false);
+  expect(creativeReviewPassed({...scored,issues:[{severity:"error",file:"index.html",detail:"Mobile action obscured"}]})).toBe(false);
+});
+
+test("self-contained creative plans skip network research and publish real observable progress", async () => {
+  const root=await mkdtemp(join(tmpdir(),"hands-no-research-"));let calls=0;
+  try {
+    const result=await runArtifactWorkflow({request:"Build a local prototype"},{outputRoot:root,ask,model:async()=>({text:JSON.stringify([plan,bundle,review][calls++]),model:"gpt-5.6-luna"}),gather:async()=>{throw new Error("Unexpected network research");},preview:async()=>({checks:[],screenshots:[]})});
+    const progress=JSON.parse(await readFile(join(result.directory,"progress.json"),"utf8"));
+    expect(progress.runId).toBe(result.runId);expect(progress.phase).toBe("complete");expect(progress.previewUrl).toBe(result.previewUrl);
+    expect(progress.events.some((event:any)=>event.event==="jev_handoff")).toBe(true);
+  } finally {await rm(root,{recursive:true,force:true});}
+});
 
 test("checkpoint reuses complete model work but independently validates it before delivery", async()=>{
   const root=await mkdtemp(join(tmpdir(),"hands-checkpoint-")),id=crypto.randomUUID();let calls=0,retrievals=0;
@@ -23,6 +42,23 @@ test("checkpoint reuses complete model work but independently validates it befor
     expect(result.status).toBe("complete");expect(calls).toBe(1);expect(retrievals).toBe(0);
     expect(result.events.some(event=>event.event==="bundle_reused")).toBe(true);
     expect(result.events.filter(event=>event.event==="jev_decision")).toHaveLength(4);
+  }finally{await rm(root,{recursive:true,force:true});}
+});
+
+test("an independent failed inspection repairs the checkpoint before reviewing or rendering again", async()=>{
+  const root=await mkdtemp(join(tmpdir(),"hands-inspected-repair-"));let calls=0;
+  const base={outputRoot:root,ask,gather:async()=>[],preview:async()=>({checks:[],screenshots:[]})};
+  try{
+    const original=await runArtifactWorkflow({request:"Create a report"},{...base,model:async()=>({text:JSON.stringify([plan,bundle,review][calls++]),model:"gpt-6-astra"})});
+    await writeFile(join(original.directory,"independent-inspection.json"),JSON.stringify({passed:false,defects:["The printed answer is missing"]}));
+    const roles:string[]=[];
+    const resumed=await runArtifactWorkflow({request:"Repair the observed report",resumeRunId:original.runId},{...base,model:async(prompt)=>{
+      roles.push(prompt.includes("Repair contract overrides")?"repair":"review");
+      if(roles.length===1){expect(prompt).toContain("The printed answer is missing");return{text:JSON.stringify({replacements:[{path:"index.html",content:"<!doctype html><title>Report</title><h1>Verified report</h1><p>Printed answer included.</p>"}]}),model:"gpt-6-astra"};}
+      return{text:JSON.stringify(review),model:"gpt-6-astra"};
+    }});
+    expect(roles).toEqual(["repair","review"]);expect(resumed.status).toBe("complete");
+    expect(await readFile(join(resumed.directory,"files","index.html"),"utf8")).toContain("Printed answer included.");
   }finally{await rm(root,{recursive:true,force:true});}
 });
 
