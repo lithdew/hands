@@ -137,7 +137,9 @@ export async function runBash(hand: Hand, command: string, opts: { cwd?: string;
 }
 
 export type PendingApproval = { id: string; tool: string; args: unknown; reason: string };
-export type AgentStatus = { running: boolean; selection: ProviderSelection; provider: Provider; model: string; effort: Effort; route: RouteDecision | null; task: string; text: string; error: string | null; currentTool: string | null; narration?: string; interruption?: BrowserInterruption; artifact?: { runId: string; kind: "report" | "website" | "video"; directory: string; entrypoint?: string; phase: string; previewUrl?: string }; approval: PendingApproval | null; events: { time: number; text: string }[] };
+export type AgentStatus = { running: boolean; selection: ProviderSelection; provider: Provider; model: string; effort: Effort; route: RouteDecision | null; task: string; text: string; error: string | null; currentTool: string | null; narration?: string; interruption?: BrowserInterruption; artifact?: { runId: string; kind: "report" | "website" | "video"; directory: string; entrypoint?: string; phase: string; previewUrl?: string;
+    /** Observability (win/artifact-events.ts): run start, run time, live status words, completed phase words, check tally, Jev's last decision, whether the run ended. */
+    startedAt?: number; elapsedMs?: number; progress?: string; timeline?: string[]; checks?: { passed: number; failed: number }; decision?: string; done?: boolean }; approval: PendingApproval | null; events: { time: number; text: string }[] };
 export type DesktopAgentOptions = {
   hand: Hand; provider?: ProviderSelection; apiKey?: string; model?: string; cwd?: string;
   streamFn?: StreamFn;
