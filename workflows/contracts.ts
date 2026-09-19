@@ -53,6 +53,16 @@ export const ReviewSchema = z.object({
   issues: z.array(z.object({ severity: z.enum(["error", "warning"]), file: z.string().max(180), detail: z.string().min(1).max(2000) })).max(30),
 });
 export type ArtifactReview = z.infer<typeof ReviewSchema>;
+const CraftScore = z.object({ score: z.number().int().min(1).max(5), evidence: z.string().min(1).max(1000) });
+export const CreativeReviewSchema = ReviewSchema.extend({
+  hierarchy: CraftScore, typography: CraftScore, composition: CraftScore,
+  distinctiveness: CraftScore, briefFit: CraftScore,
+});
+export function creativeReviewPassed(review: z.infer<typeof CreativeReviewSchema>) {
+  const scores = [review.hierarchy, review.typography, review.composition, review.distinctiveness, review.briefFit].map(item => item.score);
+  return review.passed && !review.issues.some(issue => issue.severity === "error")
+    && Math.min(...scores) >= 3 && scores.reduce((sum, score) => sum + score, 0) / scores.length >= 4;
+}
 export type Check = { name: string; passed: boolean; detail: string };
 export function parseJson<T>(text: string, schema: z.ZodType<T>): T {
   return schema.parse(JSON.parse(text.trim().replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "")));

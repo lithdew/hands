@@ -38,8 +38,13 @@ export async function inspectedRunEvidence(root:string,ids:string[]) {
     const sha256=createHash("sha256").update(await readFile(image)).digest("hex");
     if(preferred&&sha256!==preferred.sha256.toLowerCase())throw new Error("Preferred evidence image SHA256 does not match its independent inspection.");
     const key=`artifact-${records.length+1}`;assets[key]=image;
-    records.push({imageId:key,runId:id,kind:manifest.kind,summary:manifest.summary,elapsedMs:manifest.elapsedMs,checks:manifest.checks,
-      image:{path:`preview/${path.split(sep).join("/")}`,sha256,selection:preferred?"independently-inspected-preferred":"original-preview",description:preferred?.description},inspection});
+    // Carry all image identities ahead of lengthy inspection details. Full
+    // reports stay on disk; huge check bodies must not crowd later assets out
+    // of a planner's context budget and create a fictitious missing-evidence block.
+    records.push({imageId:key,runId:id,kind:manifest.kind,summary:manifest.summary,elapsedMs:manifest.elapsedMs,
+      checks:{passed:manifest.checks.every((check:any)=>check.passed),count:manifest.checks.length,names:manifest.checks.map((check:any)=>check.name)},
+      image:{path:`preview/${path.split(sep).join("/")}`,sha256,selection:preferred?"independently-inspected-preferred":"original-preview",description:preferred?.description},
+      inspection:{verdict:inspection.verdict,report:`out/artifacts/${id}/independent-inspection.json`,summary:inspection.summary,advisories:inspection.advisories,limitations:inspection.limitations}});
   }
   return{assets,records};
 }

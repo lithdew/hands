@@ -7,6 +7,7 @@ import {createHash} from "node:crypto";
 import {storyboardSchema, determinant, inverse} from "./storyboard";
 import type {PreparedScene, PreparedStoryboard} from "./storyboard";
 import {runOwned} from "./process";
+import {verifyMusicMix,type AudioMeasurements} from "./audio";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, "../..");
@@ -81,6 +82,15 @@ async function renderInWorker(specPath: string, outputDir: string, options: Rend
   }
   if(cursor/spec.fps>300)throw new Error("Prepared narrated video exceeds five minutes");
   const storyboard:PreparedStoryboard={...spec,scenes:prepared,durationInFrames:cursor};
+  let musicProvenance:Record<string,unknown>|undefined;
+  if(spec.music){
+    report("music");const musicStarted=performance.now(),request=path.join(out,"music-request.json");
+    await Bun.write(request,JSON.stringify({durationSeconds:cursor/spec.fps,style:spec.music.style,tempoBpm:spec.music.tempoBpm,intensity:spec.music.intensity,seed:spec.music.seed}));
+    storyboard.musicAsset="original-score.wav";
+    await run([python,path.join(here,"music.py"),request,path.join(publicDir,storyboard.musicAsset)],out);
+    musicProvenance=await Bun.file(path.join(publicDir,`${storyboard.musicAsset}.json`)).json();
+    timings.musicMs=Math.round(performance.now()-musicStarted);
+  }
   await Bun.write(path.join(out,"storyboard.normalized.json"),JSON.stringify(storyboard,null,2));
   await Bun.write(path.join(out,"subtitles.srt"),prepared.map((s,i)=>`${i+1}\n${subtitleTime(s.startFrame/spec.fps)} --> ${subtitleTime((s.startFrame+s.frames)/spec.fps)}\n${s.narration??s.caption??[s.title,s.body,...s.bullets??[]].filter(Boolean).join(". ")}\n`).join("\n"));
   report("bundle");let start=performance.now();
@@ -97,7 +107,7 @@ async function renderInWorker(specPath: string, outputDir: string, options: Rend
     const inputProps={storyboard};
     const composition=await selectComposition({serveUrl,id:"HandsStoryboard",inputProps,puppeteerInstance:browser,logLevel:"error",timeoutInMilliseconds:30000});
     report("render",{frames:cursor});start=performance.now();
-    await renderMedia({composition,serveUrl,codec:"h264",outputLocation:path.join(out,"video.mp4"),inputProps,puppeteerInstance:browser,concurrency:2,crf:20,pixelFormat:"yuv420p",overwrite:false,logLevel:"error",cancelSignal,timeoutInMilliseconds:30000,onProgress:({progress})=>{if(!options.signal?.aborted)options.onProgress?.("render-progress",{progress});}});
+    await renderMedia({composition,serveUrl,codec:"h264",...(spec.music?{audioCodec:"aac" as const,audioBitrate:"192k",sampleRate:48000}:{}),outputLocation:path.join(out,"video.mp4"),inputProps,puppeteerInstance:browser,concurrency:2,crf:20,pixelFormat:"yuv420p",overwrite:false,logLevel:"error",cancelSignal,timeoutInMilliseconds:30000,onProgress:({progress})=>{if(!options.signal?.aborted)options.onProgress?.("render-progress",{progress});}});
     check();timings.renderMs=Math.round(performance.now()-start);
     start=performance.now();
     for(const scene of prepared) {
@@ -116,7 +126,23 @@ async function renderInWorker(specPath: string, outputDir: string, options: Rend
   check();
   if(metadata.width!==spec.width||metadata.height!==spec.height||metadata.durationInSeconds===null||Math.abs(metadata.durationInSeconds-cursor/spec.fps)>1/spec.fps+.03)throw new Error("Rendered video metadata does not match storyboard");
   report("verify-decode");start=performance.now();await run([ffmpeg,"-v","error","-i",video,"-f","null","-"],out,undefined,180000);check();timings.fullDecodeMs=Math.round(performance.now()-start);
-  const manifest={version:1,title:spec.title,kind:spec.kind,createdAt:new Date().toISOString(),engine:"Remotion",remotionVersion:"4.0.526",audio:narrationCount?"Windows SAPI synthesized narration":"none; silent with burned-in captions",width:metadata.width,height:metadata.height,fps:spec.fps,durationSeconds:metadata.durationInSeconds,frames:cursor,bytes:(await stat(video)).size,sha256:hash(new Uint8Array(await Bun.file(video).arrayBuffer())),fullDecodePassed:true,visualInspection:"pending: inspect contact sheet and movie",files:["video.mp4","contact-sheet.png","storyboard.normalized.json","subtitles.srt",...frames.map(x=>x.path)],manimAssets,evidenceAssets:assets,sources:spec.sources,timings:{...timings,totalMs:Math.round(performance.now()-started)}};
+  let audioVerification:ReturnType<typeof verifyMusicMix>|undefined;
+  if(spec.music){
+    report("verify-audio");
+    if(metadata.audioCodec!=="aac")throw new Error("Music requested but the completed MP4 has no AAC stream");
+    const decoded=path.join(out,"audio-decoded.wav"),measurements=path.join(out,"audio-measurements.json");
+    await run([ffmpeg,"-v","error","-i",video,"-map","0:a:0","-ac","2","-ar","48000","-c:a","pcm_s16le",decoded],out);
+    await run([python,path.join(here,"music.py"),"--analyze",decoded,measurements],out);
+    audioVerification=verifyMusicMix(await Bun.file(measurements).json() as AudioMeasurements,metadata.durationInSeconds,narrationCount>0);
+  }
+  let motionVerification:Record<string,unknown>|undefined;
+  if(spec.design?.motion==="expressive"){
+    report("verify-motion");start=performance.now();
+    await run([python,path.join(here,"motion_check.py"),out,ffmpeg],out);
+    motionVerification=await Bun.file(path.join(out,"motion-measurements.json")).json();
+    timings.motionVerifyMs=Math.round(performance.now()-start);
+  }
+  const manifest={version:1,title:spec.title,kind:spec.kind,createdAt:new Date().toISOString(),engine:"Remotion",remotionVersion:"4.0.526",audio:spec.music?(narrationCount?"Windows SAPI narration and original instrumental score":"Original locally generated instrumental score"):(narrationCount?"Windows SAPI synthesized narration":"none; silent with burned-in captions"),audioCodec:metadata.audioCodec,music:spec.music?{...spec.music,provenance:musicProvenance,verification:audioVerification}:undefined,design:spec.design,motionVerification,width:metadata.width,height:metadata.height,fps:spec.fps,durationSeconds:metadata.durationInSeconds,frames:cursor,bytes:(await stat(video)).size,sha256:hash(new Uint8Array(await Bun.file(video).arrayBuffer())),fullDecodePassed:true,visualInspection:"pending: inspect contact sheet and movie",files:["video.mp4","contact-sheet.png","storyboard.normalized.json","subtitles.srt",...(spec.music?["assets/original-score.wav","assets/original-score.wav.json","audio-measurements.json"]:[]),...(motionVerification?["motion-measurements.json"]:[]),...frames.map(x=>x.path)],manimAssets,evidenceAssets:assets,sources:spec.sources,timings:{...timings,totalMs:Math.round(performance.now()-started)}};
   check();await Bun.write(path.join(out,"render-manifest.pending.json"),JSON.stringify(manifest,null,2));check();
   return manifest;
 }

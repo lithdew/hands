@@ -3,11 +3,15 @@ import {AbsoluteFill, Audio, Composition, Img, OffthreadVideo, Sequence, interpo
 import type {PreparedStoryboard, PreparedScene} from "./storyboard";
 import {inverse} from "./storyboard";
 import {assertCaptionHeight, CAPTION_TOP, evidencePhase, evidenceTextScale, MATRIX_TEXT_HEIGHT, matrixPhaseLabel, matrixTextScale} from "./layout";
+import {MotionScene} from "./motion";
+import {musicVolumeAt} from "./audio";
 
 const colors = {bg:"#0b1422", muted:"#a9b8cc", text:"#f1f5fa", cyan:"#61ded8", gold:"#ffd174"};
+const editorialColors = {bg:"#111216", muted:"#c1c1c7", text:"#f5f0e6", cyan:"#889aff", gold:"#ddd2ae"};
 const font = "'Segoe UI', Arial, sans-serif";
 const fmt = (n: number) => Number(n.toFixed(3)).toString();
-function Matrix({value, label}: {value: number[][]; label: string}) {
+function Matrix({value, label, palette=colors}: {value: number[][]; label: string;palette?:typeof colors}) {
+  const colors=palette;
   return <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:24,color:colors.muted,whiteSpace:"nowrap"}}>{label}</span><div style={{display:"grid",gridTemplateColumns:"repeat(2, 45px)",textAlign:"center",gap:"8px 5px",borderLeft:`3px solid ${colors.cyan}`,borderRight:`3px solid ${colors.cyan}`,padding:"6px 10px",fontSize:28}}>{value.flat().map((x,i)=><span key={i}>{fmt(x)}</span>)}</div></div>;
 }
 function MatrixText({children, sceneId}: {children: React.ReactNode; sceneId: string}) {
@@ -19,7 +23,8 @@ function MatrixText({children, sceneId}: {children: React.ReactNode; sceneId: st
     <div ref={content} data-matrix-text-content style={{display:"flow-root",width:435,transform:`scale(${scale})`,transformOrigin:"top left"}}>{children}</div>
   </div>;
 }
-function Caption({text,sceneId}:{text:string;sceneId:string}) {
+function Caption({text,sceneId,palette=colors}:{text:string;sceneId:string;palette?:typeof colors}) {
+  const colors=palette;
   const content=useRef<any>(null);
   useLayoutEffect(()=>{assertCaptionHeight(content.current.scrollHeight);},[text,sceneId]);
   return <div data-caption-safe-area style={{position:"absolute",left:58,width:1164,top:CAPTION_TOP,fontSize:21,lineHeight:1.25,color:colors.text,borderTop:"1px solid #2c4058",paddingTop:14}}><div ref={content}>{text}</div></div>;
@@ -51,7 +56,8 @@ function EvidenceContent({scene, frame}: {scene:PreparedScene;frame:number}) {
     </EvidenceText></div>}
   </div>;
 }
-function Scene({scene, index, total}: {scene: PreparedScene;index:number;total:number}) {
+function Scene({scene, index, total, editorial=false}: {scene: PreparedScene;index:number;total:number;editorial?:boolean}) {
+  const palette=editorial?editorialColors:colors;
   const f=useCurrentFrame();
   const reveal=interpolate(f,[0,Math.min(14,scene.frames/5)],[0,1],{extrapolateRight:"clamp"});
   const matrix=scene.matrix;
@@ -64,12 +70,12 @@ function Scene({scene, index, total}: {scene: PreparedScene;index:number;total:n
   const copy=<div style={{width:matrixMode?415:scene.imageAsset?460:"100%",flexShrink:0}}>
     {scene.body && <p style={{color:colors.muted,fontSize:matrixMode?25:31,lineHeight:1.32,margin:matrixMode?"0 0 18px":"0 0 25px",maxWidth:1010}}>{scene.body}</p>}
     {bullets.length>0 && <div style={{display:"flex",flexDirection:"column",gap:matrixMode?12:18}}>{bullets.map((b,i)=><div key={i} style={{display:"flex",gap:15,alignItems:"flex-start",fontSize:matrixMode?23:28,lineHeight:1.23,opacity:interpolate(f,[8+i*6,18+i*6],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"})}}><span style={{color:colors.cyan,fontSize:17,paddingTop:7}}>●</span><span>{b}</span></div>)}</div>}
-    {matrix && <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:18,marginTop:18}}><Matrix value={matrix} label="A ="/>{inverseMatrix ? <Matrix value={inverseMatrix} label="A⁻¹ ="/> : <span style={{fontSize:25,color:colors.gold,maxWidth:180}}>det(A) = 0 · no inverse</span>}</div>}
+    {matrix && <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:18,marginTop:18}}><Matrix value={matrix} label="A =" palette={palette}/>{inverseMatrix ? <Matrix value={inverseMatrix} label="A⁻¹ =" palette={palette}/> : <span style={{fontSize:25,color:palette.gold,maxWidth:180}}>det(A) = 0 · no inverse</span>}</div>}
     {(scene.evidence?.length ?? 0)>0 && <div style={{display:"flex",gap:20,marginTop:22}}>{scene.evidence!.map((item,i)=><div key={i} style={{flex:1,borderTop:`2px solid ${colors.cyan}`,padding:"20px 15px 10px 0"}}><div style={{fontSize:18,color:colors.cyan,marginBottom:12}}>{item.label}</div><div style={{fontSize:27,lineHeight:1.2,marginBottom:16}}>{item.value}</div><div style={{fontSize:13,color:colors.muted,overflowWrap:"anywhere"}}>{item.source}</div></div>)}</div>}
   </div>;
-  return <AbsoluteFill style={{background:colors.bg,color:colors.text,fontFamily:font,padding:"44px 58px 88px",overflow:"hidden"}}>
-    <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 90% 15%, #18384a 0%, transparent 60%)",opacity:.7}} />
-    <div style={{position:"absolute",left:58,top:28,fontSize:15,letterSpacing:4,color:colors.cyan,fontWeight:700}}>HANDS / {matrixMode ? "LINEAR ALGEBRA" : "STUDIO"}</div>
+  return <AbsoluteFill style={{background:palette.bg,color:palette.text,fontFamily:font,padding:"44px 58px 88px",overflow:"hidden"}}>
+    {!editorial&&<div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 90% 15%, #18384a 0%, transparent 60%)",opacity:.7}} />}
+    <div style={{position:"absolute",left:58,top:28,fontSize:15,letterSpacing:editorial?2:4,color:palette.cyan,fontWeight:700}}>HANDS / {matrixMode ? "LINEAR ALGEBRA" : "STUDIO"}</div>
     <div style={{position:"absolute",right:58,top:28,color:colors.muted,fontSize:15}}>{String(index+1).padStart(2,"0")} / {String(total).padStart(2,"0")}</div>
     {evidenceMode?<EvidenceContent scene={scene} frame={f}/>:<div style={{position:"relative",paddingTop:25,opacity:reveal,transform:`translateY(${(1-reveal)*14}px)`,display:"flex",flexDirection:"column",height:"100%"}}>
       {matrixMode?<MatrixText sceneId={scene.id}>{heading}{copy}</MatrixText>:heading}
@@ -79,12 +85,12 @@ function Scene({scene, index, total}: {scene: PreparedScene;index:number;total:n
         {scene.imageAsset && <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:12}}><Img src={staticFile(scene.imageAsset)} style={{width:"100%",height:350,objectFit:"contain",background:"#ffffff",borderRadius:9,border:"1px solid #284254"}}/>{scene.artifactLabel&&<div style={{fontSize:18,color:colors.cyan}}>{scene.artifactLabel}</div>}</div>}
       </div>
     </div>}
-    {caption && <Caption text={caption} sceneId={scene.id}/>}
-    <div style={{position:"absolute",left:0,bottom:0,height:5,width:`${100*(index+f/scene.frames)/total}%`,background:colors.cyan}}/>
+    {caption && <Caption text={caption} sceneId={scene.id} palette={palette}/>}
+    <div style={{position:"absolute",left:0,bottom:0,height:5,width:`${100*(index+f/scene.frames)/total}%`,background:editorial?"#2545ff":colors.cyan}}/>
     {scene.audioAsset && <Audio src={staticFile(scene.audioAsset)}/>}
   </AbsoluteFill>;
 }
-function Video({storyboard}: {storyboard: PreparedStoryboard}) {return <AbsoluteFill>{storyboard.scenes.map((scene,index)=><Sequence key={scene.id} from={scene.startFrame} durationInFrames={scene.frames}><Scene scene={scene} index={index} total={storyboard.scenes.length}/></Sequence>)}</AbsoluteFill>;}
+function Video({storyboard}: {storyboard: PreparedStoryboard}) {return <AbsoluteFill>{storyboard.scenes.map((scene,index)=><Sequence key={scene.id} from={scene.startFrame} durationInFrames={scene.frames}>{storyboard.design&&scene.visual!=="matrix"?<MotionScene scene={scene} index={index} total={storyboard.scenes.length} restrained={storyboard.design.motion==="restrained"}/>:<Scene scene={scene} index={index} total={storyboard.scenes.length} editorial={Boolean(storyboard.design)}/>}</Sequence>)}{storyboard.musicAsset&&<Audio src={staticFile(storyboard.musicAsset)} volume={frame=>musicVolumeAt(frame,storyboard)}/>}</AbsoluteFill>;}
 const blank: PreparedStoryboard={version:1,title:"Hands Studio",kind:"pitch",width:1280,height:720,fps:24,sources:[],scenes:[],durationInFrames:24};
 function Root() {return <Composition id="HandsStoryboard" component={Video} width={1280} height={720} fps={24} durationInFrames={24} defaultProps={{storyboard:blank}} calculateMetadata={({props})=>({durationInFrames:props.storyboard.durationInFrames,width:props.storyboard.width,height:props.storyboard.height,fps:props.storyboard.fps})}/>;}
 registerRoot(Root);
