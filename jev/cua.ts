@@ -214,8 +214,8 @@ export function jevState(intent: Intent, obs: Observation, memory: Memory, hand:
   };
 }
 
-/** One line for the history, the gate and the approval prompt. */
-export function describeAction(action: Action): string {
+/** Compact for history by default; gate and approval require the exact text. */
+export function describeAction(action: Action, options: { fullText?: boolean } = {}): string {
   const on = (el: UiElement) =>
     `${el.role} ${JSON.stringify(el.name || "(no name)")}${el.within && el.within !== el.name ? ` in ${JSON.stringify(el.within)}` : ""}${el.frame ? ` in window ${JSON.stringify(el.frame)}` : ""}`;
   switch (action.kind) {
@@ -225,7 +225,7 @@ export function describeAction(action: Action): string {
     }
     case "type": {
       const where = action.target ? on(action.target) : "the focused field";
-      return `type ${action.input} (${JSON.stringify(preview(action.text, 60))}) into ${where}${action.submit ? ", then press Enter" : ""}`;
+      return `type ${action.input} (${JSON.stringify(options.fullText ? action.text : preview(action.text, 60))}) into ${where}${action.submit ? ", then press Enter" : ""}`;
     }
     case "key":
       return `press ${action.combo} (${KEYS[action.combo]})`;
@@ -503,6 +503,7 @@ export async function runIntent(
     }
 
     const did = describeAction(decision.action);
+    const exactAction = describeAction(decision.action, { fullText: true });
     if (opts.dryRun) return end("dry_run", did);
 
     const typesEarly = decision.action.kind === "type" ? opts.settles?.() : null;
@@ -514,7 +515,12 @@ export async function runIntent(
 
     let risk: Risk | null = null;
     if (decision.action.kind !== "wait") {
-      risk = await assessRisk(deps.ask, { goal: intent.goal, avoid: intent.avoid, action: did });
+      const latest = current();
+      if (JSON.stringify(latest) !== instructionAtDecision) continue;
+      risk = await assessRisk(deps.ask, { goal: latest.goal, avoid: [...latest.avoid], action: exactAction });
+      if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
+      // Do not show a stale approval prompt when a correction arrived at the gate.
+      if (JSON.stringify(current()) !== instructionAtDecision) continue;
       if (needsApproval(risk, opts.riskThreshold?.())) {
         const speechEnds = opts.settles?.();
         if (speechEnds) {
@@ -523,7 +529,7 @@ export async function runIntent(
           continue; // decide again, against what was finally said
         }
         log(`step ${n}: paused for approval: ${did} (${risk.worst} ${risk.level.toFixed(2)})`);
-        if (!(await deps.approve({ hand: hand.id, action: did, risk }))) {
+        if (!(await deps.approve({ hand: hand.id, action: exactAction, risk }))) {
           steps.push({ n, did, risk: risk.level, outcome: "denied by the user" });
           return end("denied", did);
         }
@@ -539,6 +545,10 @@ export async function runIntent(
 
     if (opts.signal?.aborted) return end("cancelled", "the task was taken back"); // it may have come during the gate
     if (JSON.stringify(current()) !== instructionAtDecision) continue;
+    // Speech can restart during the gate, approval or its final look. Even an
+    // unchanged instruction needs a fresh decision after that hold ends.
+    const speechAtInput = decision.action.kind === "type" || risk && needsApproval(risk, opts.riskThreshold?.()) ? opts.settles?.() : null;
+    if (speechAtInput) { log(`step ${n}: holding until the speaker finishes: ${did}`); await speechAtInput; continue; }
     await (deps.perform ? deps.perform(hand, decision.action) : perform(hand, decision.action, deps));
     await sleep(deps.settleMs ?? SETTLE_MS);
     const after = await look(hand);

@@ -37,6 +37,7 @@ export const SITES = {
 const OTHER_SITE = "other_site";
 const NO_SITE = "no_site";
 const NOTHING = "nothing_to_type";
+const NEEDS_WRITER = "needs_writer";
 
 /** Below this confidence in any pick, Jev does not get to build the intent alone. */
 const MIN_CONFIDENCE = 0.5;
@@ -99,10 +100,22 @@ export function suppliedUrls(text: string): Record<string, { url: string; descri
 
 // ---------------------------------------------------------------- build
 
+/** Skip an unnecessary classifier round trip for explicit writing commands.
+ * Search/open/read requests remain eligible, including quoted writing phrases.
+ * The text choice below handles less explicit wording in the same Jev call. */
+function isWritingCommand(request: string): boolean {
+  let command = request.trim();
+  for (let n = 0; n < 4; n++) command = command.replace(/^(?:(?:please|actually|now|okay|ok)\b[:,]?\s*|(?:can|could|would|will)\s+you\s+|i\s+(?:want|need)\s+(?:you\s+)?to\s+|help\s+me\s+)/i, "");
+  return /^(?:draft|compose|reply|respond|email|e-mail|message|forward)\b/i.test(command)
+    || /^send\b.{0,160}\b(?:e-?mail|messages?|reply|response|note|text)\b/i.test(command)
+    || /^write\b.{0,120}\b(?:e-?mail|messages?|reply|response|post|letter|note|summary)\b/i.test(command);
+}
+
 /** An Intent from Jev's picks alone, or null when the request is not that simple. */
-export async function quickIntent(ask: Ask, said: string, options: { legacy?: boolean } = {}): Promise<Intent | null> {
+export async function quickIntent(ask: Ask, said: string, options: { legacy?: boolean; openingOnly?: boolean } = {}): Promise<Intent | null> {
   const request = said.trim();
-  const spans = options.legacy ? spansOf(request) : literalSpansOf(request);
+  if (!options.legacy && !options.openingOnly && isWritingCommand(request)) return null;
+  const spans = options.legacy ? spansOf(request) : literalSpansOf(request, MAX_CHOICES - 2);
   if (spans.length === 0) return null;
   const sites: Record<string, { url: string; description: string }> = { ...SITES, ...(options.legacy ? {} : suppliedUrls(request)) };
 
@@ -123,10 +136,11 @@ export async function quickIntent(ask: Ask, said: string, options: { legacy?: bo
       text: choice(
         options.legacy
           ? "Which exact words of `request` would be typed into a search box or field? Pick the thing being searched for or entered, without the command words around it."
-          : "Which exact words of `request` must be entered into a search box or content field AFTER the destination website is opened? A URL to visit is handled by navigation, so choose nothing_to_type for opening a URL. For searches, preserve the complete query without command words.",
+          : "Can this request use a single literal search or field value? For composing/replying to a message, generating prose, assigning recipient/subject/body or other multiple fields, or resolving a writing correction, choose needs_writer even if some words are supplied. Otherwise select the exact complete query to enter AFTER opening the destination, without command words. A URL to visit is navigation: choose nothing_to_type.",
         {
           ...Object.fromEntries(spans.map((s) => [s, null])),
           [NOTHING]: "Nothing. The request only names a site or app to open, or the speaker has not yet said the words to type.",
+          ...(!options.legacy ? { [NEEDS_WRITER]: "Writing or structured fields are required: an email/message/reply, recipient and subject/body, generated prose, or a correction needing context. Use the bounded intent parser; do not turn this into one search query." } : {}),
         },
       ),
     },
@@ -136,8 +150,19 @@ export async function quickIntent(ask: Ask, said: string, options: { legacy?: bo
   const launcher: Launcher = a.launcher.choice;
   const site = a.site.choice;
   if (launcher === "browser" && site === OTHER_SITE) return null; // only the LLM can come up with a url
+  const url = launcher === "browser" && site in sites ? sites[site]!.url : null;
+
+  // A listener may open the app while speech is moving, but this is never the
+  // completed writing intent and no picked span is allowed to become an input.
+  if (options.openingOnly) return {
+    goal: `Open the requested application or website and wait for the completed instruction. Pending request: ${request}`,
+    launcher, url, inputs: {},
+    doneWhen: "The completed instruction has replaced this temporary opening-only intent. This provisional intent cannot finish the user's task.",
+    avoid: ["Do not enter text, send, submit, publish or delete anything while the completed instruction is pending."],
+  };
 
   const picked: string = a.text.choice; // span labels are only known at run time, so the type is a plain string
+  if (!options.legacy && picked === NEEDS_WRITER) return null;
   let typed = picked !== NOTHING && a.text.confidence >= MIN_CONFIDENCE ? picked : null;
   // "open youtube": Jev tends to pick the site's own name as the words to type. Nobody searches YouTube for "youtube".
   if (typed && (options.legacy ? site.replace(/_/g, " ").includes(typed.toLowerCase()) : site.replace(/_/g, " ") === typed.toLowerCase())) typed = null;
@@ -146,7 +171,7 @@ export async function quickIntent(ask: Ask, said: string, options: { legacy?: bo
   return {
     goal: request,
     launcher,
-    url: launcher === "browser" && site in sites ? sites[site]!.url : null,
+    url,
     inputs: typed ? { search_query: typed } : {},
     doneWhen: `The screen shows the result of what was asked: ${JSON.stringify(request)}`,
     avoid: [],

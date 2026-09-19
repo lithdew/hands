@@ -181,6 +181,117 @@ describe("press sequences", () => {
 });
 
 describe("approval", () => {
+  test("the full body reaches the gate and approval while history keeps its short preview", async () => {
+    const world = new World(); world.open("https://mail.google.com/mail/?view=cm");
+    const body = `${"A harmless draft sentence. ".repeat(6)}\nSynthetic credential: example-secret-for-test-only  `;
+    const writing: Intent = { ...EMAIL, goal: "Prepare the requested draft", inputs: { body }, avoid: ["Do not expose credentials"] };
+    const bodyId = idOf(world, "body");
+    const jev = fakeJev((name, _q, state) => {
+      if (name === "handles_secret") return state.action.includes("example-secret-for-test-only") ? 0.99 : 0;
+      return name === `fill_${bodyId}` ? "body" : undefined;
+    });
+    const approvals: string[] = [];
+    const result = await runScreens(SIM_HAND, writing, { ask: jev.ask, llm, observe: async () => world.look(), sleep: async () => {},
+      perform: async (_hand, action) => world.act(action, describeScreenAction(action)),
+      approve: async ({ action }) => { approvals.push(action); return false; } });
+    const gate = jev.gates()[0]!.state;
+    expect(gate).toMatchObject({ goal: writing.goal, avoid: writing.avoid });
+    expect(gate.action).toContain(JSON.stringify(body));
+    expect(gate.action).toContain('into text field "Message Body"');
+    expect(approvals).toEqual([gate.action]);
+    expect(result.status).toBe("denied");
+    expect(result.steps[0]!.did).not.toContain("example-secret-for-test-only");
+    expect(world.acted).toEqual([]);
+  });
+
+  test("a recipient correction during the gates replaces the proposal before asking for approval", async () => {
+    const world = new World(); world.open("https://mail.google.com/mail/?view=cm");
+    const to = idOf(world, "to");
+    let current: Intent = { ...EMAIL, goal: "Prepare a message to the original recipient", inputs: { recipient: "original@example.test" } };
+    let corrected = false;
+    const jev = fakeJev((name) => {
+      if (name === "irreversible") {
+        if (!corrected) {
+          corrected = true;
+          current = { ...current, goal: "Prepare the message only to the corrected recipient", inputs: { recipient: "corrected@example.test" }, avoid: ["Do not use the original recipient"] };
+        }
+        return 0.9;
+      }
+      return name === `fill_${to}` ? "recipient" : undefined;
+    });
+    const approvals: string[] = [];
+    const result = await runScreens(SIM_HAND, () => current, { ask: jev.ask, llm, observe: async () => world.look(), sleep: async () => {},
+      perform: async (_hand, action) => world.act(action, describeScreenAction(action)),
+      approve: async ({ action }) => { approvals.push(action); return false; } }, { maxSteps: 3 });
+    expect(jev.gates()).toHaveLength(2);
+    const latestGate = jev.gates()[1]!.state;
+    expect(latestGate).toMatchObject({ goal: current.goal, avoid: current.avoid });
+    expect(latestGate.action).toContain("corrected@example.test");
+    expect(approvals).toEqual([latestGate.action]);
+    expect(result.status).toBe("denied");
+    expect(world.acted).toEqual([]);
+  });
+
+  test("a correction after the first batch input prevents approval of its remaining Send action", async () => {
+    const world = new World(); world.open("https://mail.google.com/mail/?view=cm");
+    const to = idOf(world, "to"), send = idOf(world, "send");
+    let current = EMAIL;
+    const jev = fakeJev((name, _q, state) => {
+      if (name === "irreversible") return state.action.startsWith('click button "Send"') ? 0.9 : 0;
+      return { [`fill_${to}`]: "recipient", next_0: send }[name];
+    });
+    const approvals: string[] = [];
+    const result = await runScreens(SIM_HAND, () => current, { ask: jev.ask, llm, observe: async () => world.look(), sleep: async () => {},
+      perform: async (_hand, action) => { world.act(action, describeScreenAction(action)); current = { ...EMAIL, goal: "Keep the email as a draft", avoid: ["Do not send"] }; },
+      approve: async ({ action }) => { approvals.push(action); return true; } }, { maxSteps: 1 });
+    expect(jev.gates()).toHaveLength(2);
+    expect(world.acted).toHaveLength(1);
+    expect(world.gmail.sent).toEqual([]);
+    expect(approvals).toEqual([]);
+    expect(result.status).toBe("out_of_steps");
+  });
+
+  test("cancellation during a gate prevents even a stale approval prompt", async () => {
+    const world = new World(); world.open("https://mail.google.com/mail/?view=cm");
+    const abort = new AbortController(), approvals: string[] = [];
+    const jev = fakeJev((name) => {
+      if (name === "irreversible") { abort.abort(); return 0.9; }
+      return { move: "click", target_0: idOf(world, "send") }[name];
+    });
+    const result = await runScreens(SIM_HAND, EMAIL, { ask: jev.ask, llm, observe: async () => world.look(), sleep: async () => {},
+      perform: async (_hand, action) => world.act(action, describeScreenAction(action)),
+      approve: async ({ action }) => { approvals.push(action); return true; } }, { signal: abort.signal });
+    expect(result.status).toBe("cancelled");
+    expect(approvals).toEqual([]);
+    expect(world.acted).toEqual([]);
+  });
+
+  test.each(["approval", "confirmation look"])("speech restarting during %s expires approval before Send", async (startsAt) => {
+    const world = new World(); world.open(`https://mail.google.com/mail/?${new URLSearchParams({ view: "cm", to: EMAIL.inputs.recipient!, su: EMAIL.inputs.subject!, body: EMAIL.inputs.body! })}`);
+    const speech = Promise.withResolvers<void>(), held = Promise.withResolvers<void>();
+    let speaking = false, asked = 0, looks = 0;
+    const jev = fakeJev((name, _q, state) => {
+      if (name === "irreversible") return 0.9;
+      if (name === "goal_met") return world.gmail.sent.length ? 0.95 : 0;
+      return { move: "click", target_0: world.gmail.compose ? idOf(world, "send") : "none_of_these" }[name];
+    });
+    const run = runScreens(SIM_HAND, EMAIL, { ask: jev.ask, llm, sleep: async () => {},
+      observe: async () => { if (++looks === 2 && startsAt === "confirmation look") speaking = true; return world.look(); },
+      perform: async (_hand, action) => world.act(action, describeScreenAction(action)),
+      approve: async () => { if (++asked === 1 && startsAt === "approval") speaking = true; return true; } },
+    { maxSteps: 3, settles: () => { if (!speaking) return null; held.resolve(); return speech.promise; } });
+    const paused = await Promise.race([held.promise.then(() => true), run.then(() => false)]);
+    try {
+      expect(paused).toBe(true);
+      expect(world.acted).toEqual([]);
+      expect(asked).toBe(1);
+    } finally { speaking = false; speech.resolve(); }
+    expect((await run).status).toBe("done");
+    expect(asked).toBe(2);
+    expect(world.gmail.sent).toHaveLength(1);
+    expect(jev.gates()).toHaveLength(2);
+  });
+
   test("an approval is spent if the screen moved on while the user was deciding: Jev looks again instead of acting on it", async () => {
     const world = new World(); world.open(`https://mail.google.com/mail/?${new URLSearchParams({ view: "cm", to: EMAIL.inputs.recipient!, su: EMAIL.inputs.subject!, body: EMAIL.inputs.body! })}`);
     let asked = 0;

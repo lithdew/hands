@@ -91,14 +91,20 @@ describe("createListener", () => {
       if (name === "route") return "jev";
       return wikipedia(name, state);
     });
-    const { l, jobs } = listener({ ask: jev.ask });
+    const { work, jobs } = fakeWork();
+    const started = Promise.withResolvers<void>();
+    const l = createListener({ ask: jev.ask, llm: noLlm, hands: async () => hands, work: (hand, job) => {
+      const run = work(hand, job);
+      started.resolve();
+      return run;
+    } });
 
     l.hear("search");
     await settle();
     expect(jobs).toHaveLength(0); // "search" alone says nothing about what to open
 
     l.hear("search wikipedia for");
-    await settle();
+    await started.promise; // Cold dynamic imports need not finish within one timer tick.
     expect(jobs).toHaveLength(1);
     expect(jobs[0]!.job.intent()).toMatchObject({ url: "https://www.wikipedia.org/", inputs: {} });
     expect(jobs[0]!.job.speechEnds()).toBeInstanceOf(Promise); // still talking: the hand must not type yet

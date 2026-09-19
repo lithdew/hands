@@ -42,6 +42,68 @@ describe("spansOf", () => {
 });
 
 describe("quickIntent", () => {
+  test("explicit composition and replies reach the intent writer without becoming a search", async () => {
+    for (const request of [
+      "Email my sister a test message",
+      "Could you please send a test email to Jordan?",
+      "Draft an email to sam@example.test with subject Saturday and body See you soon",
+      "Compose a reply to the latest message",
+      "Reply that I can attend tomorrow",
+      "Write a polite email declining the invitation",
+      "Forward this email to the person I named",
+    ]) {
+      const jev = fakeJev({});
+      expect(await quickIntent(jev.ask, request)).toBeNull();
+      expect(jev.calls).toHaveLength(0);
+    }
+  });
+
+  test("mixed requests and writing corrections have an explicit parser choice in the same batch", async () => {
+    for (const request of ["Open Gmail and draft an email to my sister", "Actually make the subject Saturday instead"]) {
+      const jev = fakeJev({ launcher: "browser", site: "gmail", text: "needs_writer" });
+      expect(await quickIntent(jev.ask, request)).toBeNull();
+      expect(jev.calls).toHaveLength(1);
+      expect(Object.keys(jev.calls[0]!.questions)).toEqual(["launcher", "site", "text"]);
+    }
+  });
+
+  test("opening-only preparation starts the chosen site but never promotes message text into an input", async () => {
+    for (const text of ["needs_writer", "Sam", "nothing_to_type"]) {
+      const jev = fakeJev({ launcher: "browser", site: "gmail", text });
+      const opening = await quickIntent(jev.ask, "Email Sam that I am running late", { openingOnly: true });
+      expect(opening).toMatchObject({ launcher: "browser", url: SITES.gmail.url, inputs: {} });
+      expect(opening?.goal).toContain("wait for the completed instruction");
+      expect(opening?.doneWhen).toContain("cannot finish the user's task");
+      expect(opening?.avoid).toContain("Do not enter text, send, submit, publish or delete anything while the completed instruction is pending.");
+      expect(jev.calls).toHaveLength(1);
+    }
+  });
+
+  test("reading, opening and searching mail remain eligible, including writing words in a query", async () => {
+    for (const [request, text] of [
+      ["Open my Gmail", "nothing_to_type"],
+      ["Read my latest email", "nothing_to_type"],
+      ["Find email from Jordan", "Jordan"],
+      ["Search Gmail for email and message etiquette", "email and message etiquette"],
+      ['Search Gmail for "compose a reply"', "compose a reply"],
+    ] as const) {
+      const jev = fakeJev({ launcher: "browser", site: "gmail", text });
+      const result = await quickIntent(jev.ask, request);
+      expect(result?.url).toBe(SITES.gmail.url);
+      expect(result?.inputs).toEqual(text === "nothing_to_type" ? {} : { search_query: text });
+    }
+  });
+
+  test("the writer option fits the choice cap and legacy fixtures retain their old contract", async () => {
+    const request = `search google for ${Array.from({ length: 300 }, (_, i) => `"word${i}"`).join(" ")}`;
+    const jev = fakeJev({ launcher: "browser", site: "google", text: "word0" });
+    expect((await quickIntent(jev.ask, request))?.inputs.search_query).toBe("word0");
+    expect(Object.keys(jev.calls[0]!.questions.text.criteria)).toHaveLength(255);
+    const legacy = fakeJev({ launcher: "browser", site: "gmail", text: "Sam" });
+    expect((await quickIntent(legacy.ask, "email Sam", { legacy: true }))?.inputs).toEqual({ search_query: "Sam" });
+    expect(legacy.calls[0]!.questions.text.criteria.needs_writer).toBeUndefined();
+  });
+
   test("offers full long queries, quoted phrases and programming punctuation without inventing text", async () => {
     const phrase = "why do leaves change color in the autumn";
     expect(literalSpansOf(`search google for ${phrase}`)).toContain(phrase);

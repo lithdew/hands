@@ -217,6 +217,51 @@ describe("runIntent", () => {
     expect(sh.input()).toEqual([]);
   });
 
+  test("the gate and approval see the exact full body, including a sensitive tail beyond the history preview", async () => {
+    const body = `${"An ordinary draft sentence. ".repeat(6)}\nSynthetic secret at the end: example-credential-for-test-only  `;
+    const writing: Intent = { ...intent, goal: "Prepare the requested draft", inputs: { body }, avoid: ["Do not expose credentials"] };
+    const form = screen("compose", [el("e1", "text field", "Message body", 50, 100, { within: "Draft", frame: "Mail" })]);
+    const jev = fakeJev((name, { state }) => {
+      if (name === "handles_secret") return state.action.includes("example-credential-for-test-only") ? 0.99 : 0;
+      return { move: "type", input: "body", field: "e1" }[name];
+    });
+    const approvals: string[] = [], sh = fakeExec();
+    const result = await runIntent(hand, writing, deps({ ask: jev.ask, observe: screens(form), approve: async ({ action }) => { approvals.push(action); return false; } }, sh.exec));
+    const gate = jev.asked("handles_secret")[0]!.state;
+    expect(gate).toMatchObject({ goal: writing.goal, avoid: writing.avoid });
+    expect(gate.action).toContain(JSON.stringify(body));
+    expect(gate.action).toContain('into text field "Message body" in "Draft" in window "Mail"');
+    expect(approvals).toEqual([gate.action]);
+    expect(result.status).toBe("denied");
+    expect(result.steps[0]!.did).not.toContain("example-credential-for-test-only");
+    expect(sh.input()).toEqual([]);
+  });
+
+  test("a recipient correction at the gate expires the old proposal before asking for approval", async () => {
+    let current: Intent = { ...intent, goal: "Prepare a test message to the original recipient", inputs: { recipient: "original@example.test" } };
+    const form = screen("compose", [el("e1", "text field", "To", 50, 100, { within: "Draft", frame: "Mail" })]);
+    let corrected = false;
+    const jev = fakeJev((name) => {
+      if (name === "irreversible") {
+        if (!corrected) {
+          corrected = true;
+          current = { ...current, goal: "Prepare the message only to the corrected recipient", inputs: { recipient: "corrected@example.test" }, avoid: ["Do not use the original recipient"] };
+        }
+        return 0.9;
+      }
+      return { move: "type", input: "recipient", field: "e1" }[name];
+    });
+    const approvals: string[] = [], sh = fakeExec();
+    const result = await runIntent(hand, () => current, deps({ ask: jev.ask, observe: screens(form), approve: async ({ action }) => { approvals.push(action); return false; } }, sh.exec), { maxSteps: 3 });
+    const gates = jev.asked("irreversible");
+    expect(gates).toHaveLength(2);
+    expect(gates[1]!.state).toMatchObject({ goal: current.goal, avoid: current.avoid });
+    expect(gates[1]!.state.action).toContain("corrected@example.test");
+    expect(approvals).toEqual([gates[1]!.state.action]);
+    expect(result.status).toBe("denied");
+    expect(sh.input()).toEqual([]);
+  });
+
   test("a completion decision cannot finish an instruction corrected while Jev was answering", async () => {
     let current = intent;
     const jev = fakeJev((name) => {
@@ -457,6 +502,29 @@ describe("runIntent while the speaker is still talking", () => {
     const result = await runIntent(hand, intent, deps({ ask: jev.ask, observe: screens(home) }, sh.exec), { signal: abort.signal });
     expect(result.status).toBe("cancelled");
     expect(sh.input()).toEqual([]);
+  });
+
+  test("speech restarting while approval is pending holds input and requires a fresh decision and approval", async () => {
+    const speech = Promise.withResolvers<void>(), held = Promise.withResolvers<void>();
+    let speaking = false, asked = 0;
+    const jev = fakeJev((name, { state }) => {
+      if (name === "goal_met") return state.history.length ? 0.95 : 0;
+      return { move: "click", target: "e2", irreversible: 0.9 }[name];
+    });
+    const sh = fakeExec();
+    const run = runIntent(hand, intent, deps({ ask: jev.ask, observe: screens(home),
+      approve: async () => { if (++asked === 1) speaking = true; return true; } }, sh.exec),
+    { maxSteps: 3, settles: () => { if (!speaking) return null; held.resolve(); return speech.promise; } });
+    const paused = await Promise.race([held.promise.then(() => true), run.then(() => false)]);
+    try {
+      expect(paused).toBe(true);
+      expect(sh.input()).toEqual([]);
+      expect(asked).toBe(1);
+    } finally { speaking = false; speech.resolve(); }
+    expect((await run).status).toBe("done");
+    expect(asked).toBe(2);
+    expect(jev.asked("irreversible")).toHaveLength(2);
+    expect(sh.input().filter((cmd) => cmd.includes("click"))).toHaveLength(1);
   });
 
   test("an already cancelled task does not even look at the screen", async () => {

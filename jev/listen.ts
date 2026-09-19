@@ -284,7 +284,7 @@ export function createListener(deps: ListenDeps): Listener {
     if (deps.buildIntent) return { intent: await deps.buildIntent(request, route, full), route };
     if (route === "jev" || !full) {
       const { quickIntent } = await import("./quick");
-      const quick = await quickIntent(ask, request);
+      const quick = await quickIntent(ask, request, { openingOnly: route === "llm" && !full });
       if (quick) return { intent: quick, route };
     }
     if (!deps.llm) throw new Error("This listener needs an intent builder or an LLM to plan the task.");

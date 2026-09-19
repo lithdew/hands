@@ -292,12 +292,21 @@ export async function runScreens(hand: Hand, goal: Intent | (() => Intent), deps
 
     // Every action still gets a gate request of its own; they go out together.
     const described = decision.actions.map(describeScreenAction);
-    const risks: (Risk | null)[] = await Promise.all(decision.actions.map((action, i) => (action.kind === "wait" ? null : assessRisk(deps.ask, { goal: intent.goal, avoid: intent.avoid, action: described[i]! }))));
+    const exact = decision.actions.map((action) => action.kind === "select" ? describeScreenAction(action) : describeAction(action, { fullText: true }));
+    const latest = current();
+    if (JSON.stringify(latest) !== instructionAtDecision) continue;
+    const gateGoal = latest.goal, gateAvoid = [...latest.avoid];
+    const risks: (Risk | null)[] = await Promise.all(decision.actions.map((action, i) => (action.kind === "wait" ? null : assessRisk(deps.ask, { goal: gateGoal, avoid: gateAvoid, action: exact[i]! }))));
+    if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
+    // A correction during the parallel gates also expires the approval prompts.
+    if (JSON.stringify(current()) !== instructionAtDecision) continue;
     if (opts.dryRun) return end("dry_run", described.join("; "));
 
     const structure = structureOf(obs);
     let seen = obs;
     for (const [i, planned_] of decision.actions.entries()) {
+      if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
+      if (JSON.stringify(current()) !== instructionAtDecision) break;
       // Ids are positions in the list, so they stay valid exactly as long as the structure does.
       if (i > 0 && structureOf(seen) !== structure) { log(`look ${n}: the screen changed shape after ${i} of ${decision.actions.length} actions; looking again`); break; }
       const target = "target" in planned_ && planned_.target ? seen.elements.find((el) => el.id === planned_.target!.id) ?? planned_.target : null;
@@ -314,7 +323,7 @@ export async function runScreens(hand: Hand, goal: Intent | (() => Intent), deps
         const speechEnds = opts.settles?.();
         if (speechEnds) { await speechEnds; break; }
         log(`look ${n}: paused for approval: ${did} (${risk.worst} ${risk.level.toFixed(2)})`);
-        if (!(await deps.approve({ hand: hand.id, action: did, risk }))) { steps.push({ n, did, risk: risk.level, outcome: "denied by the user" }); return end("denied", did); }
+        if (!(await deps.approve({ hand: hand.id, action: exact[i]!, risk }))) { steps.push({ n, did, risk: risk.level, outcome: "denied by the user" }); return end("denied", did); }
         if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
         // The user approved what they were shown. If the screen or the request moved on while they decided, that approval is spent.
         const fresh = await look(hand);
@@ -322,6 +331,10 @@ export async function runScreens(hand: Hand, goal: Intent | (() => Intent), deps
       }
       if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
       if (JSON.stringify(current()) !== instructionAtDecision) break;
+      // A fresh speech hold can start during the gate, approval or its final look.
+      // Wait for it, then decide and gate again instead of spending the old approval.
+      const speechAtInput = action.kind === "type" || risk && needsApproval(risk, opts.riskThreshold?.()) ? opts.settles?.() : null;
+      if (speechAtInput) { log(`look ${n}: holding until the speaker finishes`); await speechAtInput; break; }
       await deps.perform(hand, action);
       if (action.press !== undefined) memory.pressed = action.press + 1;
       await sleep(action.press !== undefined ? PRESS_SETTLE_MS : deps.settleMs ?? 700);
