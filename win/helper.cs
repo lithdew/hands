@@ -375,8 +375,9 @@ public static class PukWin
             // reassign a user's browser to the hand's current virtual desktop.
             Desktop target = Desktop.FromWindow(hwnd);
             if (!SameOwner(hwnd, owner)) throw new Exception("The attached Chrome window changed before focus.");
-            target.MakeVisible();
+            if (Desktop.FromDesktop(Desktop.Current) != Desktop.FromDesktop(target)) target.MakeVisible();
             if (!SameOwner(hwnd, owner)) throw new Exception("The attached Chrome window changed before focus.");
+            if (IsIconic(hwnd)) ShowWindow(hwnd, 9); // Explicit reveal restores, never moves, the selected browser.
             Focus(hwnd);
         }
         return observed;
@@ -793,7 +794,8 @@ public static class PukWin
             {
                 string[] words = line.Split(new char[] { ' ' }, 3);
                 string rest = line.IndexOf(' ') < 0 ? null : line.Substring(line.IndexOf(' ') + 1);
-                if (words[0] == "state") reply = State(rest);
+                if (words[0] == "desktop-reconnect") { VirtualDesktop.DesktopManager.Reconnect(); reply = "ok"; }
+                else if (words[0] == "state") reply = State(rest);
                 else if (words[0] == "external-browsers") reply = ExternalBrowsers();
                 else if (words[0] == "external-bind") reply = ExternalBinding(rest, true);
                 else if (words[0] == "external-read") reply = ExternalBinding(rest, false);
@@ -900,7 +902,7 @@ public static class PukWin
             catch (Exception e)
             {
                 while (e.InnerException != null) e = e.InnerException; // unwrap Task and COM wrappers
-                reply = "error " + e.Message.Replace('\n', ' ').Replace('\r', ' ');
+                reply = "error " + e.Message.Replace('\n', ' ').Replace('\r', ' ') + " [HRESULT 0x" + e.HResult.ToString("X8") + "]";
             }
             Console.Out.WriteLine(reply);
             Console.Out.Flush();

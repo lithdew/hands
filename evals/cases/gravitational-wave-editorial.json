@@ -1,0 +1,50 @@
+{
+  "id": "gravitational-wave-editorial",
+  "title": "Listening to spacetime — an editorial science poster and mobile explainer",
+  "version": 1,
+  "task": "Create an original, beautifully composed A3 portrait science editorial poster about GW150914 and a companion responsive mobile-first explainer website. The concept title is 'Listening to spacetime'. This is an educational research spotlight, not an actual conference announcement or institutional publication. Retrieve and use the primary discovery paper and official open-science record. Make a striking original diagram or illustrative waveform, clearly labeled as schematic rather than measured data. Deliver poster.html with 297x420mm print styling, index.html for the companion, shared editorial.css, interaction.js and README.md. The companion must have three working accessible disclosure sections explaining the observation, what the evidence supports, and what the numbers mean, plus local navigation to the poster. Keep the poster concise enough to read at its real print size. Return the actual finished bundle through Hands to Jev for validation, preview and delivery.",
+  "creativeBrief": {
+    "audience": "A scientifically curious university student, approaching a poster from a distance and reading the companion on a phone.",
+    "direction": "An editorial observatory aesthetic: large typographic scale, dark indigo paired with warm white, one vivid signal accent, strong spatial rhythm and a single original central visual. Make the poster an intentional print composition and the companion an intentional reading experience; neither should be a landing-page card grid. Do not imitate an institution's logo or visual identity.",
+    "posterStructure": "A memorable title, one-sentence significance, one original clearly labeled schematic, three compact fact annotations and two or three source references. Include generous quiet space and fine typographic detail without shrinking important text.",
+    "companionStructure": "A concise opening connected visually to the poster, the three accessible disclosures, a small source/uncertainty note and a working view-poster link. Default content and expanded states must fit a 390px viewport.",
+    "facts": "The discovery paper reports observation on 14 September 2015 and submission on 11 February 2016. Distinguish detection date from announcement/publication timing. Use no more than three physical numerical claims besides dates; retain units, reference frame and uncertainty if presenting inferred masses or distance. Do not compare radiated mass-energy with material mass lost without explaining the equivalence.",
+    "artwork": "Generate original CSS/SVG illustration inside the returned artifact; no fabricated data plot, copied institutional figure or remote font/image dependency. Explicitly label any waveform as an illustration. The illustrative visual may communicate increasing oscillation frequency without giving it a false measured axis.",
+    "hosting": "The production artifact host is an opaque sandbox with allow-scripts but no allow-modals or allow-forms. Native details/summary and user-activated local links work. Do not include script-driven window.print/alert/confirm, form submission or dead export controls. Give brief visible browser Print-menu guidance for the A3 poster; the runtime/reviewer can render a real print derivative."
+  },
+  "sources": [
+    {
+      "url": "https://arxiv.org/abs/1602.03837",
+      "title": "LIGO Scientific Collaboration and Virgo Collaboration — Observation of Gravitational Waves from a Binary Black Hole Merger"
+    },
+    {
+      "url": "https://gwosc.org/events/GW150914/",
+      "title": "Gravitational Wave Open Science Center — GW150914 data release"
+    }
+  ],
+  "sourceNotes": "The discovery abstract and current official GWOSC event release were opened on 20 September 2026. The paper identifies the 2015 observation, 2016 paper, 35–250 Hz signal and dimensionless peak strain around 10^-21. Source-frame masses and luminosity distance carry 90% credible intervals. The GWOSC page explicitly updates estimated parameters from a later paper, so do not mix its central values with the discovery abstract. Legacy GW150914data URLs returned 403; use the current events/GW150914 page. These are source candidates to verify through actual Hands retrieval, not evidence of a successful artifact run.",
+  "artifactContract": {
+    "requiredFiles": [
+      "poster.html",
+      "index.html",
+      "editorial.css",
+      "interaction.js",
+      "README.md"
+    ]
+  },
+  "rubric": {
+    "mustPass": [
+      "Actual Hands generation, source retrieval and specialist-to-Jev return produce saved files and a delivered local preview; the brief alone never counts.",
+      "The paper and official data source are genuinely retrieved or failures disclosed; every numerical/physical claim maps to a retrieved primary source and has correct units and scope.",
+      "Detection date and paper/announcement date are not conflated. Inferred masses or distances, if used, keep source-frame/credible-interval context. The claim of first direct detection is historical, not a claim of the latest discovery.",
+      "The main illustration is original and visibly labeled schematic. It is not presented as measured strain data, a reused LIGO figure or an actual conference/event poster.",
+      "The A3 print result is actually rendered and directly inspected as one 297x420mm page; there is no clipping, overlap, accidental second page, illegibly small source block or missing symbol.",
+      "The poster has a compelling subject-specific composition, clear reading hierarchy, coherent typography and deliberate negative space. The mobile companion carries the same identity without simply shrinking the poster.",
+      "All three disclosure controls open and close through pointer and keyboard input with correct accessible state; local poster/home navigation works and all required assets load.",
+      "At 390x844 and 1440x900 there is no horizontal overflow or obscured primary action. Focus and text contrast are usable; nonessential motion honors reduced-motion preferences.",
+      "No fabricated affiliation, conference date, contact, live data feed, audio playback or external control is implied. Model/provider implementation details stay out of the reader-facing experience.",
+      "Independent inspection records hashes, source/numeric checks, print and mobile screenshots, real interaction results and any repairs; generated files are repaired through Hands only."
+    ]
+  },
+  "qualityProfile": "creative"
+}

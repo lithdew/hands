@@ -222,9 +222,10 @@ type ExistingRef = { ref: string; role: string; name: string; value?: string; st
 type ExistingTab = { tab_id: string; title: string; url: string; active: boolean | null };
 type ExistingPage = { target_id: string; tab_id: string; title: string; url: string; tabs: ExistingTab[]; refs: ExistingRef[]; outline: string; snapshot_id: string; window: ExistingBrowserWindow };
 type ExistingBinding = { target_id: string; tab: ExistingTab; tabs: ExistingTab[]; window: ExistingBrowserWindow };
+export type ExistingCanvas = { page:ExistingPage; window:ExistingBrowserWindow; width:number;height:number; image:{type:"image";mimeType:"image/png";data:string};digest:string };
 export type ExistingDialog = { target_id: string; tab_id: string; title: string; url: string; window: ExistingBrowserWindow } &
   ({ present: false } | { present: true; dialog_id: string; kind: "alert" | "confirm" | "prompt" | "beforeunload" | "other" });
-type ExistingAction = { action: string; url?: string; text?: string; replace?: boolean; key?: string; direction?: string; amount?: number };
+type ExistingAction = { action: string; url?: string; text?: string; replace?: boolean; key?: string; direction?: string; amount?: number; delivery?: "background" | "foreground";x?:number;y?:number;to_x?:number;to_y?:number };
 const sameExistingWindow = (a: ExistingBrowserWindow, b: ExistingBrowserWindow, frame = false) => a.pid === b.pid
   && a.containerId === b.containerId && a.ownerNonce === b.ownerNonce
   && (!frame || a.title === b.title && a.rect[2] === b.rect[2] && a.rect[3] === b.rect[3]);
@@ -251,6 +252,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
   let currentPage: ExistingPage | undefined;
   let lastBinding: ExistingBinding | undefined;
   let currentDialog: ExistingDialog | undefined;
+  let currentCanvas:ExistingCanvas|undefined;
   let generation = 0;
   let timingSequence = 0;
   const now = diagnostics.now ?? (() => performance.now());
@@ -276,21 +278,29 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     if (expected && frame && !sameExistingWindow(window,expected,true)) throw new BrowserObservationChanged("The existing Chrome window changed title or size. Take a fresh observation before acting.");
     return { ...window, rect: [...window.rect] as Rect };
   });
+  const invalidateExpiredBinding = (message: string) => {
+    if (/session (?:has ended|'[^']*' has ended)|persistent Cua connection is disconnected|Cua transport closed|browser_(?:consent_required|requires_setup)/i.test(message)) {
+      healthy = false; currentPage = undefined; currentDialog = undefined; currentCanvas = undefined; lastBinding = undefined; generation++;
+    }
+  };
+  const callBound: CuaConnection["call"] = async (name, args, signal) => {
+    // Native screenshot/input tools share the same public session lifecycle as
+    // browser tools. Expiry invalidates every capability; it never retries input.
+    let reply: Awaited<ReturnType<CuaConnection["call"]>>;
+    try { reply = await call(name, args, signal); }
+    catch (error) { invalidateExpiredBinding(String(error)); throw error; }
+    const state = reply.structuredContent as Record<string, unknown> | undefined;
+    if (reply.isError || state?.status !== undefined && state.status !== "ok"
+      || state?.effect !== undefined && !["confirmed", "unverifiable"].includes(String(state.effect))) {
+      invalidateExpiredBinding(JSON.stringify([state, reply.content]));
+    }
+    return reply;
+  };
   const invoke = async (name: string, args: Record<string, unknown>, signal?: AbortSignal) => timed(
     name === "get_browser_state" ? args.target_id ? "snapshot_rpc" : "bind_rpc" : name === "browser_prepare" ? "prepare_rpc" : "action_rpc", signal, async () => {
     signal?.throwIfAborted();
     if (closed) throw new Error("This existing-browser binding has been released. Attach and look again.");
-    let reply: Awaited<ReturnType<CuaConnection["call"]>>;
-    try { reply = await call(name, { ...args, session }, signal); }
-    catch (error) {
-      // A public session may expire while its MCP transport remains alive.
-      // Never revive or replay an input here: the next explicit attach must
-      // retire this label, re-attest the window and obtain a fresh binding.
-      if (/session (?:has ended|'[^']*' has ended)|persistent Cua connection is disconnected|Cua transport closed/i.test(String(error))) {
-        healthy = false; currentPage = undefined; currentDialog = undefined; lastBinding = undefined; generation++;
-      }
-      throw error;
-    }
+    const reply = await callBound(name, { ...args, session }, signal);
     signal?.throwIfAborted();
     const state = reply.structuredContent as Record<string, unknown> | undefined;
     if (reply.isError || state?.status === "refused" || ["refused", "failed", "partial", "suspected_noop"].includes(String(state?.effect))) {
@@ -308,8 +318,8 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     })}`);
     return state;
   });
-  const bind = async (signal?: AbortSignal) => {
-    const window = await check(signal);
+  const bind = async (signal?: AbortSignal, owner?: ExistingBrowserWindow) => {
+    const window = await check(signal, owner);
     const result = await invoke("get_browser_state", { pid: window.pid, window_id: window.containerId }, signal);
     await check(signal, window, true);
     if (result.mode !== "bind" || result.binding_quality !== "exact" || result.mutation_allowed !== true || typeof result.target_id !== "string") {
@@ -322,6 +332,15 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     }
     lastBinding = { target_id: result.target_id, tab: active[0]!, tabs, window };
     return lastBinding;
+  };
+  const bindForAttach = async (signal?: AbortSignal) => {
+    const owner = await check(signal);
+    try { return await bind(signal, owner); }
+    catch (error) {
+      signal?.throwIfAborted();
+      if (!(error instanceof BrowserObservationChanged)) throw error;
+      return bind(signal, owner); // One read-only retry while the exact native owner survives.
+    }
   };
   const dialogCall = async (args: Record<string, unknown>, signal?: AbortSignal) => {
     try { return await invoke("browser_dialog", { ...args, delivery_mode: "background" }, signal); }
@@ -337,7 +356,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     async attach(signal?: AbortSignal, options: { allowPrepare?: boolean } = {}) {
       currentPage = undefined; currentDialog = undefined; generation++;
       try {
-        try { await bind(signal); }
+        try { await bindForAttach(signal); }
         catch (error) {
           if (options.allowPrepare === false || !/session (?:has ended|'[^']*' has ended)/i.test(String(error))) throw error;
           // Explicit attachment is the public Cua lifecycle boundary. Reviving
@@ -348,7 +367,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
           signal?.throwIfAborted();
           if (revived.isError) throw new Error("Cua could not restart the ended browser session.");
           healthy = true;
-          await bind(signal);
+          await bindForAttach(signal);
         }
       }
       catch (error) {
@@ -366,8 +385,9 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
         await check(signal, window);
         await invoke("browser_prepare", { pid: window.pid, window_id: window.containerId, strategy: { kind: "existing_profile" }, allow_launch: false }, signal);
         await check(signal, window);
-        await bind(signal);
+        await bindForAttach(signal);
       }
+      healthy = true;
     },
     async snapshot(signal?: AbortSignal, retry = 0): Promise<ExistingPage> {
       try {
@@ -462,6 +482,81 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
         signal?.throwIfAborted(); beforeInput();
       } catch (error) { currentDialog = undefined; currentPage = undefined; generation++; throw error; }
     },
+    async captureCanvas(observed:ExistingPage,signal?:AbortSignal):Promise<ExistingCanvas>{
+      currentCanvas=undefined;
+      if(currentPage!==observed)throw new Error("Take a fresh browser observation before canvas capture.");
+      const revision=generation,window=await check(signal,observed.window,true);
+      const reply=await callBound("get_window_state",{pid:window.pid,window_id:window.containerId,session,include_screenshot:true,include_accessibility_tree:false,max_dimension:1280},signal);
+      signal?.throwIfAborted();
+      const state=reply.structuredContent as Record<string,unknown>|undefined;
+      if(reply.isError||state?.status!==undefined&&state.status!=="ok"||state?.effect!==undefined&&!["confirmed","unverifiable"].includes(String(state.effect)))throw new Error("Cua refused the exact-window canvas screenshot.");
+      const image=reply.content.find(x=>x.type==="image"&&x.mimeType==="image/png");
+      if(!image||image.type!=="image")throw new Error("Cua did not return a PNG canvas screenshot; no coordinate transform is available.");
+      const bytes=Buffer.from(image.data,"base64");
+      if(bytes.length<24||!bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))throw new Error("Invalid native canvas PNG.");
+      const width=bytes.readUInt32BE(16),height=bytes.readUInt32BE(20);
+      if(width<1||height<1||width>1280||height>1280||typeof state?.screenshot_width==="number"&&state.screenshot_width!==width||typeof state?.screenshot_height==="number"&&state.screenshot_height!==height)throw new Error("Unknown Cua canvas screenshot geometry; no input is allowed.");
+      const active=await bind(signal,window),after=await check(signal,window,true);
+      if(after.rect.some((n,i)=>n!==window.rect[i])||active.tab.title!==observed.title||!sameBrowserUrl(active.tab.url,observed.url)||revision!==generation||currentPage!==observed)throw new Error("The browser moved or changed while its canvas was captured. Observe again.");
+      // Native Cua pointer tools use the pixels of their own window screenshot.
+      // No helper-frame inset, viewport CSS conversion or guessed DPI scale.
+      currentCanvas={page:observed,window,width,height,image:{type:"image",mimeType:"image/png",data:image.data},digest:Bun.hash(image.data).toString(16)};
+      return currentCanvas;
+    },
+    async canvasAct(capture:ExistingCanvas,action:ExistingAction,reference?:string,signal?:AbortSignal,beforeInput=()=>{}){
+      if(currentCanvas!==capture||currentPage!==capture.page)throw new Error("The native canvas capture is stale. Take canvas_snapshot again.");
+      currentCanvas=undefined;currentPage=undefined;currentDialog=undefined;const revision=++generation;
+      const observed=capture.page;
+      if(action.delivery!=="foreground"||!["canvas_click","canvas_drag","focused_text"].includes(action.action))throw new Error("Canvas input requires an explicit foreground canvas action.");
+      const point=(x:number|undefined,y:number|undefined)=>{
+        if(typeof x!=="number"||typeof y!=="number"||!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=capture.width||y>=capture.height)throw new Error("Canvas coordinates must be integer pixels inside the current Cua screenshot.");
+        if(x===0&&y===0)throw new Error("Choose a nonzero canvas point; Cua treats (0,0) specially.");return {x,y};
+      };
+      let name:string,args:Record<string,unknown>,focused:ExistingRef|undefined;
+      if(action.action==="canvas_click") {name="click";args={...point(action.x,action.y),button:"left"};}
+      else if(action.action==="canvas_drag") {const a=point(action.x,action.y),b=point(action.to_x,action.to_y);if(a.x===b.x&&a.y===b.y)throw new Error("Canvas drag needs distinct endpoints.");name="drag";args={from_x:a.x,from_y:a.y,to_x:b.x,to_y:b.y,steps:16,duration_ms:320};}
+      else {
+        focused=observed.refs.find(r=>r.ref===reference&&r.states?.focused===true&&r.actions?.includes("type")&&r.states?.protected!==true&&!/password/i.test(r.role));
+        if(!focused||typeof action.text!=="string"||!action.text.length||action.text.length>8000)throw new Error("focused_text requires a currently focused, non-protected editable ref and bounded text; focus it and take canvas_snapshot first.");
+        name="type_text";args={text:action.text};
+      }
+      const checkCanvas=async()=>{beforeInput();signal?.throwIfAborted();const window=await check(signal,capture.window,true);if(window.rect.some((n,i)=>n!==capture.window.rect[i]))throw new Error("The native canvas window moved; take canvas_snapshot again.");if(revision!==generation)throw new Error("A newer browser observation replaced the canvas action.");};
+      await checkCanvas();
+      if(!beforePrepare)throw new Error("Exact-window foreground canvas delivery is unavailable.");
+      await beforePrepare(capture.window);await checkCanvas();
+      const active=await bind(signal,capture.window);
+      if(active.tab.title!==observed.title||!sameBrowserUrl(active.tab.url,observed.url))throw new Error("The active tab changed before canvas input. Take canvas_snapshot again.");
+      await checkCanvas();
+      if (focused) {
+        // scope_ref resolves the opaque captured node, not a label search. The
+        // public response hides backend IDs, so only a complete, sole-node scope
+        // without a hidden/occluded root can prove this is still the same field.
+        // Read after focus/bind awaits, then dispatch without another await.
+        const fresh = await invoke("get_browser_state", { target_id: observed.target_id, tab_id: observed.tab_id,
+          snapshot_format: "semantic_v2", scope_ref: focused.ref, include_screenshot: false }, signal);
+        const snapshot = fresh.snapshot as Record<string, unknown> | undefined;
+        const omitted = snapshot?.omitted as Record<string, unknown> | undefined;
+        const page = fresh.page as {title?:string;url?:string} | undefined;
+        const refs = Array.isArray(fresh.refs) ? fresh.refs as ExistingRef[] : [];
+        const field = refs.length === 1 ? refs[0] : undefined;
+        if (fresh.mode !== "snapshot" || fresh.target_id !== observed.target_id || fresh.tab_id !== observed.tab_id
+          || page?.title !== observed.title || !sameBrowserUrl(page?.url, observed.url)
+          || snapshot?.format !== "semantic_v2" || typeof snapshot.id !== "string" || !snapshot.id
+          || snapshot.scope !== "subtree" || snapshot.complete !== true || snapshot.selected_nodes !== 1 || snapshot.total_nodes !== 1
+          || omitted?.css_hidden !== 0 || omitted.page_occluded !== 0
+          || !Array.isArray(fresh.content_refs) || fresh.content_refs.length !== 0
+          || !field?.ref || field.role !== focused.role || field.states?.focused !== true || field.states.protected === true
+          || field.states.disabled === true || !field.actions?.includes("type") || /password/i.test(field.role)) {
+          throw new Error("focused_text could not prove the exact captured field is still focused. Use ref-targeted browser type; native text was not sent.");
+        }
+        beforeInput(); signal?.throwIfAborted();
+        if (revision !== generation) throw new Error("A newer observation replaced the focused field. Native text was not sent.");
+      }
+      const reply=await timed("action_rpc",signal,()=>callBound(name,{...args,pid:capture.window.pid,window_id:capture.window.containerId,session,delivery_mode:"foreground"},signal));
+      const state=reply.structuredContent as Record<string,unknown>|undefined,delivery=(state?.delivery as {mode?:string}|undefined)?.mode;
+      if(reply.isError||state?.status!==undefined&&state.status!=="ok"||state?.effect!==undefined&&!["confirmed","unverifiable"].includes(String(state.effect))||delivery!==undefined&&delivery!=="foreground")throw new Error(`Cua refused native canvas input; do not replay without observing: ${JSON.stringify(state??reply.content)}`);
+      signal?.throwIfAborted();beforeInput();
+    },
     async act(observed: ExistingPage, action: ExistingAction, reference?: string, signal?: AbortSignal, beforeInput = () => {}) {
       if (currentPage !== observed) throw new Error("The browser observation is stale or does not belong to this binding. Look again.");
       const ref = reference ? observed.refs.find((entry) => entry.ref === reference) : undefined;
@@ -476,7 +571,8 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
       await check(signal, observed.window, true);
       beforeInput(); signal?.throwIfAborted();
       if (currentPage !== observed) throw new Error("The browser observation changed while input was being prepared. Look again.");
-      currentPage = undefined; currentDialog = undefined; generation++; // No failed or cancelled mutation may be replayed.
+      currentPage = undefined; currentDialog = undefined;
+      const actionGeneration = ++generation; // No failed or cancelled mutation may be replayed.
       const target = { target_id: observed.target_id, tab_id: observed.tab_id };
       if (action.action === "navigate") {
         if (!action.url || !/^https?:\/\//i.test(action.url)) throw new Error("Browser navigation needs an http(s) URL.");
@@ -495,9 +591,29 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
         // to the exact HWND; a background refusal never switches desktops.
         const keys = (action.key ?? "").toLowerCase().split("+").map((key) => key.trim()).filter(Boolean);
         if (!keys.length) throw new Error("A key or chord is required.");
-        const reply = await timed("action_rpc", signal, () => call(keys.length > 1 ? "hotkey" : "press_key", { pid: observed.window.pid, window_id: observed.window.containerId, session,
+        if (action.delivery === "foreground") {
+          if (!beforePrepare) throw new Error("Revealing this exact browser for foreground input is unavailable.");
+          await beforePrepare(observed.window);
+          await check(signal, observed.window, true);
+          const current = await bind(signal, observed.window);
+          if (current.tab.title !== observed.title || !sameBrowserUrl(current.tab.url, observed.url)) throw new Error("The active tab changed before foreground input. Observe again.");
+          await check(signal, observed.window, true);
+          beforeInput(); signal?.throwIfAborted();
+          if (generation !== actionGeneration) throw new Error("A newer browser observation replaced this foreground request. Observe again.");
+        }
+        const reply = await timed("action_rpc", signal, () => callBound(keys.length > 1 ? "hotkey" : "press_key", { pid: observed.window.pid, window_id: observed.window.containerId, session,
+          ...(action.delivery === "foreground" ? {delivery_mode:"foreground"} : {}),
           ...(keys.length > 1 ? { keys } : { key: keys[0] }) }, signal));
-        if (reply.isError) throw new Error(`Cua refused existing Chrome keyboard input: ${JSON.stringify(reply.content)}`);
+        const state = reply.structuredContent as Record<string, unknown> | undefined;
+        const delivery = (state?.delivery as { mode?: string } | undefined)?.mode;
+        // Native tools may report an unsuccessful effect in a successful MCP
+        // envelope. Accept dispatch evidence only, never a partial/refused key
+        // or a delivery mode that silently changed the requested behavior.
+        if (reply.isError || state?.status !== undefined && state.status !== "ok"
+          || state?.effect !== undefined && !["confirmed", "unverifiable"].includes(String(state.effect))
+          || delivery !== undefined && delivery !== (action.delivery ?? "background")) {
+          throw new Error(`Cua refused existing Chrome keyboard input: ${JSON.stringify(state ?? reply.content)}`);
+        }
       } else throw new Error(`Unsupported existing-browser action: ${action.action}`);
       signal?.throwIfAborted(); beforeInput();
     },

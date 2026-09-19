@@ -1,0 +1,13 @@
+{
+  "name": "hands-pitch-video",
+  "private": true,
+  "description": "Remotion template project for the relay's pitch-video kit. Scenes are data (video/script.json); these are the scene templates.",
+  "type": "module",
+  "dependencies": {
+    "@remotion/bundler": "4.0.526",
+    "@remotion/renderer": "4.0.526",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.526"
+  }
+}

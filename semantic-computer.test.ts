@@ -8,6 +8,34 @@ const page = (): Snapshot => ({ kind: "browser", identity: "1:2:https://example.
 
 const alertDialog = (): DialogObservation => ({ present: true, dialog_id: "dialog-7", kind: "alert", window: "Search", url: "https://example.test/", binding: {} });
 
+test("explicit delivery is confined to browser keys and survives the semantic adapter", async () => {
+  for (const delivery of ["foreground", "background"] as const) {
+    for (const action of ["attach", "tabs", "snapshot", "navigate", "click", "type", "scroll", "dialog"] as const) {
+      expect(BrowserSchema.safeParse({ action, delivery, ...(action === "dialog" ? { operation: "inspect" } : {}) }).success).toBe(false);
+    }
+    const action = BrowserSchema.parse({ action: "key", key: "Ctrl+P", delivery }), received: unknown[] = [];
+    const computer = createSemanticComputer({ windows: async () => [], observe: async () => page(), act: async (_snapshot, input) => { received.push(input); } });
+    await computer.browser({ action: "snapshot" });
+    await computer.browser(action);
+    expect(received).toEqual([{ action: "key", key: "Ctrl+P", delivery }]);
+  }
+  expect(BrowserSchema.safeParse({ action: "key", key: "Ctrl+P", delivery: "automatic" }).success).toBe(false);
+  expect(BrowserSchema.parse({ action: "key", key: "Enter" })).toEqual({ action: "key", key: "Enter" });
+});
+
+test("canvas schema requires explicit foreground, integer points and a fresh dedicated capture",async()=>{
+  for(const invalid of [{action:"canvas_click",x:4,y:5},{action:"canvas_click",x:4.5,y:5,delivery:"foreground"},{action:"canvas_drag",x:4,y:5,delivery:"foreground"},{action:"focused_text",text:"Title",delivery:"foreground"},{action:"snapshot",x:4,y:5}])expect(BrowserSchema.safeParse(invalid).success).toBe(false);
+  const seen:unknown[]=[],received:unknown[]=[];
+  const computer=createSemanticComputer({windows:async()=>[],observe:async options=>{seen.push(options.nativeCanvas);return {...page(),...(options.nativeCanvas?{image:{type:"image" as const,mimeType:"image/png",data:"fixture"},canvasCoordinates:{width:1000,height:800},binding:{canvas:{private:true}}}:{})};},act:async(_s,a)=>{received.push(a);}});
+  await computer.browser({action:"snapshot",screenshot:true});
+  await expect(computer.browser({action:"canvas_click",delivery:"foreground",x:4,y:5})).rejects.toThrow("canvas_snapshot");
+  const capture=await computer.browser({action:"canvas_snapshot"});expect(JSON.stringify(capture.content)).toContain("1000 x 800");
+  await computer.browser({action:"canvas_click",delivery:"foreground",x:4,y:5});
+  expect(received).toEqual([{action:"canvas_click",delivery:"foreground",x:4,y:5}]);
+  expect(seen).toEqual([undefined,true,undefined]);
+  await expect(computer.browser({action:"canvas_click",delivery:"foreground",x:4,y:5})).rejects.toThrow("canvas_snapshot");
+});
+
 test("interruption observations expose only bounded control metadata with explicit visibility and exact identity", async () => {
   const seen = { ...page(), binding: { window: "pid1:hwnd2:nonce3" }, elements: [
     { ...page().elements[0]!, visible: true }, { ...page().elements[1]!, visible: false },

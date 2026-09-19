@@ -1,0 +1,393 @@
+{
+  "caseId": "matrix-video-motion-v2",
+  "createdAt": "2026-09-19T17:46:07.127Z",
+  "verdict": "pass-with-advisories",
+  "finalRunId": "7031f76b-2353-4d37-997e-ba19ce3a06cb",
+  "previewUrl": "http://127.0.0.1:7777/artifacts/7031f76b-2353-4d37-997e-ba19ce3a06cb/index.html",
+  "videoUrl": "http://127.0.0.1:7777/artifacts/7031f76b-2353-4d37-997e-ba19ce3a06cb/media/video.mp4",
+  "revisionUrl": "http://127.0.0.1:7777/artifacts/7031f76b-2353-4d37-997e-ba19ce3a06cb/cheat-sheet.html",
+  "flashcardsUrl": "http://127.0.0.1:7777/artifacts/7031f76b-2353-4d37-997e-ba19ce3a06cb/flashcards.html",
+  "artDirection": "Mathematical editorial film and learning object; ivory/ink/cobalt, four large trusted typeset equation scenes, actual ManimGL geometry, original warm-keys instrumental music and readable responsive companion.",
+  "authorship": "Every final HTML/CSS/JS/storyboard edit was authored through actual Hands Astra-low generation/patch contracts. Coordinator supplied briefs, observations, tests and reviewer records only.",
+  "runtimeChecks": 37,
+  "independentAudit": "out/artifacts/7031f76b-2353-4d37-997e-ba19ce3a06cb/independent-inspection.json",
+  "freshChecks": 15,
+  "sourceFilesExactMatch": 9,
+  "mediaFilesExactMatch": 4,
+  "priorIndependentChecks": 70,
+  "movie": {
+    "durationSeconds": 104.042667,
+    "width": 1280,
+    "height": 720,
+    "fps": 24,
+    "sha256": "7ab3ede4379bb55cc16d6dd286930fd4ce933c3a41502454e5a371150563a815",
+    "actualManimAssets": [
+      {
+        "scene": "basis-and-return",
+        "engine": "3b1b/ManimGL",
+        "version": "1.7.2",
+        "matrix": [
+          [
+            2,
+            1
+          ],
+          [
+            1,
+            1
+          ]
+        ],
+        "determinant": 1,
+        "inverse": [
+          [
+            1,
+            -1
+          ],
+          [
+            -1,
+            2
+          ]
+        ],
+        "file": "assets/matrix-basis-and-return.mp4",
+        "sha256": "c933306cae2c89e4ff977e2972a20c2f755cc0828966d25f54e01dd1b5205ada"
+      },
+      {
+        "scene": "collapse",
+        "engine": "3b1b/ManimGL",
+        "version": "1.7.2",
+        "matrix": [
+          [
+            1,
+            2
+          ],
+          [
+            1,
+            2
+          ]
+        ],
+        "determinant": 0,
+        "inverse": null,
+        "file": "assets/matrix-collapse.mp4",
+        "sha256": "bcea2b72fa098aa17775081801c36c0d1ff15a5e7414120f88f865b71733c9cd"
+      }
+    ],
+    "fullDecodePassed": true,
+    "audio": "Verified original instrumental AAC music, no narration",
+    "audioVerification": {
+      "audible": true,
+      "nonClipping": true,
+      "fadesVerified": true,
+      "durationSeconds": 104.04266666666666,
+      "sampleRate": 48000,
+      "channels": 2,
+      "peakDbfs": -8.374,
+      "rmsDbfs": -22.144,
+      "firstQuarterSecondRmsDbfs": -58.487,
+      "lastQuarterSecondRmsDbfs": -68.722,
+      "clippedSamples": 0,
+      "sha256": "66ddc2d79628a2a14b7d73709765c090a700b40173e533aaebc3a3a6d5071bcd"
+    }
+  },
+  "creativeScores": [
+    {
+      "view": "creative-review-1",
+      "passed": true,
+      "hierarchy": 4,
+      "typography": 4,
+      "composition": 4,
+      "distinctiveness": 4,
+      "briefFit": 4
+    },
+    {
+      "view": "creative-review-2",
+      "passed": true,
+      "hierarchy": 4,
+      "typography": 4,
+      "composition": 4,
+      "distinctiveness": 4,
+      "briefFit": 4
+    },
+    {
+      "view": "creative-review-3",
+      "passed": true,
+      "hierarchy": 4,
+      "typography": 4,
+      "composition": 4,
+      "distinctiveness": 4,
+      "briefFit": 4
+    }
+  ],
+  "runs": [
+    {
+      "runId": "44f3c3ee-b0ed-486e-8c9f-d062e6e298b5",
+      "status": "needs-review",
+      "elapsedMs": 360860,
+      "modelCalls": [
+        {
+          "record": "creating-26.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 11946,
+          "stopReason": "stop"
+        },
+        {
+          "record": "creative-review-73.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 833,
+          "stopReason": "stop"
+        },
+        {
+          "record": "creative-review-76.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 823,
+          "stopReason": "stop"
+        },
+        {
+          "record": "creative-review-79.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 1009,
+          "stopReason": "stop"
+        },
+        {
+          "record": "planning-5.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 2550,
+          "stopReason": "stop"
+        },
+        {
+          "record": "review-35.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 288,
+          "stopReason": "stop"
+        }
+      ],
+      "jevDecisions": [
+        {
+          "action": "research",
+          "durationMs": 393
+        },
+        {
+          "action": "execute",
+          "durationMs": 760
+        },
+        {
+          "action": "execute",
+          "durationMs": 365
+        },
+        {
+          "action": "stop",
+          "durationMs": 984
+        }
+      ],
+      "failedChecks": [
+        {
+          "name": "creative-review-1",
+          "detail": "{\"passed\":false,\"summary\":\"The companion page has a strong editorial opening, but the visible lesson frame falls short of the requested mathematical film direction. Dense explanatory copy, small equations and a black/cyan geometry panel weaken the ivory/ink/cobalt experience. This assessment covers only the supplied desktop screenshot; motion, music, player behavior and revision pages remain unverified.\",\"issues\":[{\"severity\":\"error\",\"file\":\"video.mp4\",\"detail\":\"The visible scene does not meet the brief's equation-led editorial art direction: a black slide pairs a substantial paragraph with small matrices and a dim cyan grid. Redesign this scene around one large equation and a more prominent basis-vector demonstration, using ivory/ink/cobalt consistently. Distribute the paragraph's ideas across successive teaching beats rather than presenting them together.\"},{\"severity\":\"warning\",\"file\":\"video.mp4\",\"detail\":\"The paragraph uses programming-style matrix notation before repeating the same values in formatted matrices below. Remove the inline arrays, retain proper matrix notation, and place concise destination labels beside the corresponding basis vectors. This would reduce reading load and connect the algebra directly to the geometry.\"},{\"severity\":\"warning\",\"file\":\"index.html\",\"detail\":\"The oversized introductory title pushes the player to roughly halfway down the supplied viewport, leaving its lower portion and controls outside the capture. Tighten the desktop introduction or offer a player-first arrangement so viewers can see more of the lesson and its controls on arrival without losing the editorial title.\"},{\"severity\":\"warning\",\"file\":\"index.html\",\"detail\":\"The metadata says '1 MIN 44 SEC PLANNED,' which reads as production status rather than a finished learning object. After runtime validation, replace it with the actual duration and a learner-facing description.\"}],\"hierarchy\":{\"score\":4,\"evidence\":\"The small uppercase subject label, large two-line serif title, cobalt italic emphasis and short introduction establish a clear page hierarchy. Within the player, the white heading leads visibly into explanation and geometry, although the equations deserve greater prominence.\"},\"typography\":{\"score\":3,\"evidence\":\"The page title's deliberate break after 'Undo the' and italic 'transformation.' are effective. The video is less refined: 'Move the basis. Bring / it back.' has an awkward phrase break, and inline bracket arrays compete with the separately typeset matrices below. Shorter copy and larger mathematical notation would improve teaching readability.\"},\"composition\":{\"score\":3,\"evidence\":\"Aligned page margins, a restrained header rule and open space beside the title create an orderly desktop composition. The visible video uses a conventional text-left/diagram-right split, with dense copy above small equations and substantial dark space above the grid. Rebalance the frame around the geometry and a single dominant mathematical statement.\"},\"distinctiveness\":{\"score\":3,\"evidence\":\"The ivory background, ink serif headline and cobalt italic word give the website an editorial identity without a pile of cards. That identity does not carry convincingly into the black presentation frame, whose sans-serif paragraph and cyan grid feel like a separate instructional template. Extend the page's typographic and color system into the film.\"},\"briefFit\":{\"score\":3,\"evidence\":\"The visible frame includes a consistent numerical matrix and inverse, explains columns as basis-vector destinations, and shows a transformed grid. The page explicitly promises instrumental music without narration and links to revision and recall materials. However, the requested huge concise equations and cohesive editorial-cobalt film treatment are not achieved in this frame. The screenshot cannot establish actual music, inverse-return motion, remaining mathematical coverage, captions, control functionality or revision-page quality.\"}}"
+        },
+        {
+          "name": "creative-review-2",
+          "detail": "{\"passed\":false,\"summary\":\"The mobile page establishes a coherent ivory, ink and cobalt editorial identity, but the lesson becomes a miniature desktop slide inside the player. Its mathematical content is not comfortably readable at this size. The surrounding controls also need clearer sound-state communication and tighter integration. This assessment covers only the supplied mobile screenshot; motion, music, captions, interactions and revision pages require separate inspection.\",\"issues\":[{\"severity\":\"error\",\"file\":\"index.html / video.mp4\",\"detail\":\"The approximately 330-pixel-wide video displays a dense split layout with tiny prose, matrices and a small geometric diagram. The worked mathematics cannot be comfortably read on this mobile presentation. Recompose teaching frames around one large equation or geometric action at a time, enlarge labels, and provide a readable scene-synchronized transcript below the player. Fullscreen alone should not be the readability solution.\"},{\"severity\":\"warning\",\"file\":\"index.html\",\"detail\":\"The native player shows a muted-speaker icon while the external button reads “Mute sound.” Synchronize the button label, icon and accessible state with the actual media state; show “Enable sound” when muted and preserve the no-audible-autoplay behavior.\"},{\"severity\":\"warning\",\"file\":\"index.html\",\"detail\":\"The dark player panel gives substantial vertical space to separate sound, volume and fullscreen controls while the instructional image remains small. Consolidate these into a compact, consistently aligned toolbar, keeping touch targets generous and allowing the video to use the available width.\"},{\"severity\":\"warning\",\"file\":\"index.html\",\"detail\":\"The metadata wraps “PLANNED” onto its own line even though a loaded player displays a 1:44 duration. Replace production-status wording with learner-facing metadata such as “Matrix inversion · 1:44” and keep it on a deliberate line.\"}],\"hierarchy\":{\"score\":3,\"evidence\":\"The large two-line “Undo the transformation.” heading clearly leads, followed by a concise introduction and the player. Within the player, however, the instructional mathematics is much smaller than the surrounding sound and fullscreen controls, reversing the intended teaching priority.\"},\"typography\":{\"score\":3,\"evidence\":\"The upright serif title paired with cobalt italic “transformation.” is expressive, and the introductory text has comfortable line spacing. The tracked uppercase metadata breaks awkwardly at “PLANNED,” and the embedded slide’s equations and explanatory copy shrink below practical mobile reading size.\"},\"composition\":{\"score\":3,\"evidence\":\"Consistent roughly 20-pixel side margins, a fine header rule and measured spacing create an orderly mobile column. The player composition is less resolved: a shallow instructional image sits above a comparatively tall control area, and the desktop-style split teaching frame does not adapt to the narrow viewport.\"},\"distinctiveness\":{\"score\":3,\"evidence\":\"The field-notes masthead, ivory background and italic cobalt title establish a recognizable editorial direction without a pile of cards. That direction does not yet extend convincingly into the generic underlined navigation, outlined utility buttons and tiny dense video slide. Carry the editorial equation scale and restrained rules into the player and scene transcript.\"},\"briefFit\":{\"score\":3,\"evidence\":\"The screenshot visibly supplies revision and recall links, a 1:44 player, seeking controls, volume and fullscreen affordances, plus explicit instrumental-music/no-narration copy. The requested excellent mobile learning experience is weakened by unreadable in-frame mathematics. Actual audio, animation quality, caption loading, mathematical completeness and companion-page quality cannot be established from this still.\"}}"
+        },
+        {
+          "name": "creative-review-3",
+          "detail": "{\"passed\":false,\"summary\":\"The contact sheet shows a coherent ivory/ink/cobalt identity and a mathematically connected lesson, but the film remains predominantly a repeated headline-and-paragraph slide system. Essential equations are subordinate to slogans, and the worked example is compressed into prose rather than visually taught. This falls short of the requested mathematical editorial film. Motion, music, playback behavior and companion pages cannot be assessed from these stills.\",\"issues\":[{\"severity\":\"error\",\"file\":\"video.mp4\",\"detail\":\"The requirement for huge, concise key equations is visibly unmet. Scenes 03–06 give most of their visual emphasis to headlines while the identity, inverse formula, numerical inverse and Ax=b calculation appear in small inline text. Set these as large, properly typeset display equations and matrices; show the worked calculation in distinct aligned steps, with supporting prose reduced to one short explanation.\"},{\"severity\":\"warning\",\"file\":\"video.mp4\",\"detail\":\"Scenes 01, 03, 04, 05, 06 and 08 repeat essentially the same composition: large upper-left headline, broad empty middle, short rule, low paragraph and footer. Color changes do not establish the requested layout variety. Introduce a formula-led spread, a spatial before/after transformation comparison, an aligned calculation layout and a genuinely distinct closing mark.\"},{\"severity\":\"warning\",\"file\":\"video.mp4\",\"detail\":\"The geometry scenes place several competing reading tasks beside the diagrams: explanatory paragraph, small numeric matrices, graph annotation and a long bottom caption. Enlarge the geometric teaching area, label the basis-vector destinations directly, and separate the matrix definition from the undo demonstration into readable visual states. Verify their sequencing and dwell time in the actual MP4.\"},{\"severity\":\"warning\",\"file\":\"video.mp4\",\"detail\":\"Mathematical notation is inconsistent across layouts: the geometry scenes use spatial matrices, whereas the formula and worked-example scenes use nested bracket strings and inline arithmetic. Use consistent bracketed matrices, stacked fractions, superscripts and aligned equalities throughout; reserve inline notation for brief supporting sentences.\"},{\"severity\":\"warning\",\"file\":\"contact-sheet.png\",\"detail\":\"This evidence supports only a still-frame design assessment. Inspect the actual MP4 for the complete inverse return, singular collapse, readable pacing and required instrumental score, and inspect rendered desktop/mobile player and revision pages separately before claiming overall acceptance.\"}],\"hierarchy\":{\"score\":3,\"evidence\":\"Large headlines such as “The round trip is identity” and “Find the input” establish clear entry points, with consistent chapter labels and footer rules. However, the actual identity and solution calculations sit in much smaller secondary paragraphs, reversing the desired priority of mathematical content over slogans.\"},\"typography\":{\"score\":3,\"evidence\":\"Bold sans-serif titles, restrained metadata and generally clean left alignment create a coherent system. The closing title breaks cleanly across two lines. Mathematical typography is substantially weaker: the general inverse formula and worked example are rendered as dense inline bracket notation rather than legible display mathematics.\"},\"composition\":{\"score\":2,\"evidence\":\"Six of eight frames reuse the upper headline/lower paragraph structure with large unoccupied centers. The two geometry frames provide useful variation, but the diagrams occupy only part of each frame while explanatory text is tightly packed alongside them. Reallocate the empty centers to dominant equations and diagram-led teaching rather than retaining a uniform slide scaffold.\"},\"distinctiveness\":{\"score\":2,\"evidence\":\"Cobalt title fields, ivory formula backgrounds, tiny editorial labels and thin rules create a recognizable surface treatment, but the repeated layout remains template-like. The closing frame repeats the opening treatment instead of introducing a distinct closing mark, and the numerical example has no bespoke visual structure. Build the visual language around basis-vector movement, matrix columns and reversal rather than primarily color and slogans.\"},\"briefFit\":{\"score\":3,\"evidence\":\"Visible content covers column destinations for A=[[2,1],[1,1]], its inverse, both identity products, the nonzero determinant condition, x=(2,1) for b=(5,3), direct numerical solving, and a dependent-column singular example with the correct no-solutions-or-infinitely-many qualification. The palette also matches the brief. However, the requested equation-led art direction and varied editorial layouts are not achieved; motion, actual ManimGL provenance, music and companion-site quality remain unverified by this contact sheet.\"}}"
+        }
+      ]
+    },
+    {
+      "runId": "1922969e-c007-4069-9313-9b5bb221c0fe",
+      "status": "needs-review",
+      "elapsedMs": 258191,
+      "modelCalls": [
+        {
+          "record": "creative-review-60.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 651,
+          "stopReason": "stop"
+        },
+        {
+          "record": "creative-review-63.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 599,
+          "stopReason": "stop"
+        },
+        {
+          "record": "creative-review-66.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 736,
+          "stopReason": "stop"
+        },
+        {
+          "record": "repair-13.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 3655,
+          "stopReason": "stop"
+        },
+        {
+          "record": "review-22.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 221,
+          "stopReason": "stop"
+        }
+      ],
+      "jevDecisions": [
+        {
+          "action": "research",
+          "durationMs": 406
+        },
+        {
+          "action": "execute",
+          "durationMs": 349
+        },
+        {
+          "action": "execute",
+          "durationMs": 320
+        },
+        {
+          "action": "stop",
+          "durationMs": 822
+        }
+      ],
+      "failedChecks": [
+        {
+          "name": "creative-review-2",
+          "detail": "{\"passed\":false,\"summary\":\"The mobile companion has a coherent ivory/ink/cobalt editorial identity and clear controls, but its central teaching image is too small to read comfortably. This screenshot does not establish the equation-scene repairs, playback behavior, motion, or audio quality.\",\"issues\":[{\"severity\":\"error\",\"file\":\"index.html\",\"detail\":\"At this mobile width, the film's equations, explanatory text, and geometry labels are effectively illegible inside the roughly 350 × 197 player. Preserve the full geometry view, but provide a readable current-scene equation and concise transcript directly alongside the player on mobile. Inspect the equation result holds at this width and ensure fullscreen is an enhancement rather than the only readable learning mode.\"},{\"severity\":\"warning\",\"file\":\"index.html\",\"detail\":\"The custom control panel occupies nearly as much vertical space as the film, with Fullscreen isolated on a second row and a two-line readiness message below. Group sound and fullscreen actions more compactly, give volume a clear aligned row, and shorten the status message to bring chapter navigation closer to the image.\"}],\"hierarchy\":{\"score\":4,\"evidence\":\"The small tracked subject label, large two-line serif title, cobalt italic emphasis, and short introduction create a clear editorial hierarchy. The dark player/control region reads as the primary interactive destination.\"},\"typography\":{\"score\":3,\"evidence\":\"The title's break between 'Undo the' and 'transformation.' is intentional, and the introductory paragraph has comfortable line spacing. However, the actual film's miniature equations and supporting copy are not comfortably readable at the displayed mobile size.\"},\"composition\":{\"score\":3,\"evidence\":\"Consistent approximately 20-pixel side margins align the navigation, title, player, and chapters without horizontal overflow. The tall stacked control panel competes with the shallow video frame and pushes chapters to the bottom of the viewport.\"},\"distinctiveness\":{\"score\":4,\"evidence\":\"The field-notes masthead, numbered lesson label, ivory ground, ink serif headline, and cobalt italic word establish a specific mathematical-editorial character rather than a generic hero followed by cards.\"},\"briefFit\":{\"score\":3,\"evidence\":\"Visible revision and recall links, timestamped chapter buttons, sound/volume controls, fullscreen affordances, and the explicit instrumental-music/no-narration description align with the brief. The displayed geometry scene is too small for mobile teaching, and this still cannot verify first-click unmuting, seeking behavior, captions, fresh equation scenes, or audible music.\"}}"
+        }
+      ]
+    },
+    {
+      "runId": "1fed9528-7b7b-4a65-be35-a182b36f5586",
+      "status": "failed",
+      "elapsedMs": 1367,
+      "modelCalls": [],
+      "jevDecisions": [
+        {
+          "action": "stop",
+          "durationMs": 425
+        }
+      ],
+      "terminalReason": "Jev stopped the artifact plan before source retrieval."
+    },
+    {
+      "runId": "ef8da96a-7402-4979-97b0-7517ac4eee66",
+      "status": "needs-review",
+      "elapsedMs": 64232,
+      "modelCalls": [
+        {
+          "record": "creative-review-31.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 472,
+          "stopReason": "stop"
+        },
+        {
+          "record": "creative-review-34.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 610,
+          "stopReason": "stop"
+        },
+        {
+          "record": "creative-review-37.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 676,
+          "stopReason": "stop"
+        },
+        {
+          "record": "repair-13.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 2007,
+          "stopReason": "stop"
+        },
+        {
+          "record": "review-22.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 236,
+          "stopReason": "stop"
+        }
+      ],
+      "jevDecisions": [
+        {
+          "action": "research",
+          "durationMs": 467
+        },
+        {
+          "action": "execute",
+          "durationMs": 343
+        },
+        {
+          "action": "execute",
+          "durationMs": 425
+        },
+        {
+          "action": "stop",
+          "durationMs": 369
+        }
+      ],
+      "failedChecks": [
+        {
+          "name": "creative-review-3",
+          "detail": "{\"passed\":false,\"summary\":\"The supplied film contact sheet shows a polished, coherent mathematical editorial design. However, it does not show the repaired companion interface or revision pages, so the focused mobile repair cannot receive visual acceptance. Preserve the accepted film; provide actual companion-page captures for review.\",\"issues\":[{\"severity\":\"error\",\"file\":\"index.html\",\"detail\":\"The supplied image contains only film frames, not the companion UI targeted by this repair. Supply actual production-route renders at 390×844 and 1440×900 showing the compact header, player, sound/volume/fullscreen controls, and current scene readalong directly before chapters. Include an initial-state player capture demonstrating that optional native captions do not overlay the burned-in captions. This is an acceptance-evidence gap, not an observed defect in the unseen implementation.\"},{\"severity\":\"warning\",\"file\":\"video.mp4\",\"detail\":\"Stills establish visual composition only. They cannot establish inverse-return motion, reading holds, soundtrack quality, or playback behavior. Retain the accepted movie unchanged and report separate runtime inspection rather than treating this contact sheet as verification of those properties.\"}],\"hierarchy\":{\"score\":4,\"evidence\":\"The opening 'Undo the transformation.' and closing 'Uniquely reversible.' serve as strong editorial anchors. In the algebra scenes, large centered equations dominate, with short task labels beneath and explanatory captions separated by a thin rule. Geometry scenes distinguish the left explanatory column from the right coordinate field.\"},\"typography\":{\"score\":4,\"evidence\":\"Concise bold headings, generously sized matrix entries, clearly raised inverse notation, and restrained supporting text create a consistent scale. The inverse formula has a legible fraction and distinct negative off-diagonal entries; the solve scene clearly separates the inverse matrix, known output, and recovered input. Mobile companion typography is not visible.\"},\"composition\":{\"score\":4,\"evidence\":\"Cobalt title and statement frames alternate with ivory equation spreads and dark geometry panels. Centered algebra receives purposeful breathing room, while the geometry frames use asymmetric text-and-diagram arrangements. Repeated footer rules and margins provide continuity without turning every scene into a uniform card.\"},\"distinctiveness\":{\"score\":4,\"evidence\":\"The ivory/ink/cobalt palette supports a recognizable mathematical editorial identity. Cobalt diagonal entries, underlined operation labels, large closing statements, and the contrast between precise typeset algebra and dark transformed grids provide subject-specific character rather than decorative styling alone.\"},\"briefFit\":{\"score\":3,\"evidence\":\"Visible film frames address basis movement, inverse reversal, identity, the determinant formula, the consistent numerical inverse, solving for (2,1), and singular information loss. The singular caption correctly allows no solutions or infinitely many. However, the requested repair concerns adjacent mobile teaching copy, compact controls, and default caption state, none of which appears in the supplied contact sheet. Provide companion renders and separately inspect their interactions to complete acceptance.\"}}"
+        }
+      ]
+    },
+    {
+      "runId": "7031f76b-2353-4d37-997e-ba19ce3a06cb",
+      "status": "complete",
+      "elapsedMs": 37920,
+      "modelCalls": [
+        {
+          "record": "creative-review-26.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 439,
+          "stopReason": "stop"
+        },
+        {
+          "record": "creative-review-29.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 567,
+          "stopReason": "stop"
+        },
+        {
+          "record": "creative-review-32.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 487,
+          "stopReason": "stop"
+        }
+      ],
+      "jevDecisions": [
+        {
+          "action": "research",
+          "durationMs": 450
+        },
+        {
+          "action": "execute",
+          "durationMs": 355
+        },
+        {
+          "action": "execute",
+          "durationMs": 391
+        },
+        {
+          "action": "deliver",
+          "durationMs": 305
+        }
+      ],
+      "failedChecks": []
+    }
+  ],
+  "totalRecordedRunMs": 722570,
+  "repairAndValidationRunMs": 361710,
+  "totalOutputTokens": 28805,
+  "observedHarnessImprovements": [
+    "Typed mathematical storyboard concepts eliminate prose-only algebra slides while preserving model-authored lesson content.",
+    "Exact storyboard and asset hash checks permit UI-only repair to reuse the existing104-second movie.",
+    "Ready-plan Jev eligibility no longer permits an unsupported stop before a proved read-only continuation. The1.367-second failed run is retained.",
+    "Creative review is scoped to each supplied image: film contact sheet does not fail because separately reviewed UI screenshots are absent. The64.232-second false-negative review run is retained.",
+    "Actual production CSP audits caught broken sound-from-zero, print/export promises and chapter behavior that simple screenshot checks missed."
+  ],
+  "limitations": [
+    "The identity hero typesets A⁻¹A=I; supporting film caption states either round trip and companions explicitly give both A⁻¹A=AA⁻¹=I. Showing both in the hero would improve standalone pedagogy but no incorrect claim is present.",
+    "The worked inverse uses an inversion arrow without A/A⁻¹ labels; its title, exact entries, determinant and adjacent transcript clarify the operation.",
+    "Geometry grid and arrows are smaller/fainter than equation heroes. They are readable at native/fullscreen; mobile needs the requested adjacent readalong. Do not infer small-screen formula readability solely from the full-size frame review.",
+    "Music was verified by decoded waveform and playback metadata, not a subjective listening assessment. Measurable motion was found in2of3 runtime samples; the mostly settled opening title did not meet the content-band MAD threshold.",
+    "The status “Ready. Music optional.” is mildly ambiguous but the page explicitly says instrumental music/no narration and the sound toggle works. Listening is optional; score presence is verified.",
+    "Native browser controls temporarily cover lower film copy while visible; the adjacent readalong preserves the complete teaching text and fullscreen exposes the native landscape composition."
+  ]
+}

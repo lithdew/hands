@@ -1,0 +1,187 @@
+{
+  "schemaVersion": 1,
+  "id": "matrix-video-motion-v2",
+  "title": "Undo the transformation — a crafted matrix inversion film",
+  "asOf": "2026-09-20",
+  "rawUserTask": "Use Three Blue One Brown's tool to create a video on matrix inversion using Remotion, plus cheat sheets and flash cards.",
+  "task": "Produce a clear original 60–120 second lesson on matrix inversion for a first linear algebra student. Interpret '3Blue1Brown's tool' as 3b1b's ManimGL and say that assumption in the README. Generate the lesson storyboard, a printable cheat sheet and usable flashcards through the Hands specialist. Render actual ManimGL geometry clips and composite the finished video with Remotion through the trusted media renderer. Cover a linear transformation as movement of basis vectors, the inverse undoing that transformation, the identity condition, the nonzero-determinant condition, a worked 2x2 numerical example, solving Ax=b, and why a singular matrix cannot be inverted. Use original wording and animations, cite the provided primary sources, and never imply endorsement by 3Blue1Brown. Return to Jev for bounded render/validate/delivery actions. Inspect the actual MP4 and rendered revision pages before claiming success. Refine the experience with strong motion design and original instrumental music. Use the editorial-cobalt theme and expressive motion, varied kinetic-title, statement, editorial and closing-mark layouts alongside actual Manim geometry. Art direction: mathematical editorial film, ivory/ink/cobalt, huge concise key equations, visually paced reveals and deliberate negative space. Keep enough time to read and understand, with geometric animation doing the teaching. Create a restrained warm-keys instrumental score at 92 BPM, intensity 0.55, seed 29, gainDb -5. Music is required; omit narration. The film must sound and move, and must never be described as silent. Make the companion website feel like a designed learning object: an excellent large player, concise chapter navigation, visible sound and fullscreen controls, useful mobile scene transcript, and beautifully typeset revision pages. The player must load captions, support seeking and sound control without autoplaying audible media. Avoid a generic video inside a pile of cards or prominent evaluator jargon. Preserve all mathematical requirements; final content must be authored by Hands via Astra low. Use 90-110 seconds if needed for legibility.\n\nThis is a focused companion-UI-only repair of saved Hands run 1922969e-c007-4069-9313-9b5bb221c0fe. The freshly rendered 104-second film already has correct, clear trusted math layouts, actual ManimGL geometry and verified original instrumental music. Preserve storyboard.json EXACTLY byte-for-byte, the accepted media/assets, scene times, math, captions, sources and revision/card content. The runtime will reuse the verified film, not render it again. Do not alter scene designs, geometry or score for this repair.\n\nImplement the observed mobile layout and caption fixes in companionRepairBrief. Move the time-synced current scene readalong DIRECTLY below the player/controls and BEFORE the chapter grid. At 390x844 it must be easy to see the readable current equation/scene near the player, with a compact header/intro and a compact sound-volume-fullscreen row; shorten routine status copy. Keep 44px comfortable touch targets, keyboard access and no horizontal overflow. The mobile film is a complete landscape composition; the adjacent readable equation/explanation supplies small-screen teaching detail while fullscreen exposes the native movie. Avoid duplicate default native-caption boxes over the already burned-in movie captions: retain all timed captions and an accessible opt-in control, initially off, and keep the readalong. Preserve first-click unmuting from zero, actual fullscreen, film-visible chapter seeks, honest print/data navigation and all twelve usable cards. Hands must author every changed final file via the normal Astra-low patch contract, then return to Jev for bounded validation and delivery. Do not hand-edit final artifacts or weaken the opaque-origin sandbox.\n\nAll original mathematical/film requirements remain in force; this repair only changes the companion viewing experience. Use the verified unchanged movie from the checkpoint.",
+  "assumptions": [
+    "The requested 3Blue1Brown tool is ManimGL (3b1b/manim), not the separate Manim Community distribution.",
+    "This is an introductory explanation of real square matrices, with 2x2 worked examples. General non-square pseudoinverses are outside scope.",
+    "An original instrumental score is mandatory. No voice imitation or downloaded commercial song. Use the original music synthesizer supplied by the runtime."
+  ],
+  "sourcePacket": "evals/cases/matrix-video.sources.json",
+  "contentRequirements": [
+    "Explain that A maps basis vectors to its columns, using column-vector convention consistently.",
+    "Show at least one actual ManimGL animation of a nonsingular numeric A followed by computed A inverse, with the grid and basis vectors returning to their starting positions.",
+    "State A inverse A = A A inverse = I for a square invertible matrix; order of composition matters.",
+    "State for a 2x2 A=[[a,b],[c,d]], det(A)=ad-bc and A inverse=(1/det(A))*[[d,-b],[-c,a]] when determinant is nonzero.",
+    "Use one internally consistent numerical example across the video, cheat sheet and at least two flashcards. Independently check both products give I and Ax=b for the displayed solution.",
+    "Show or explain a singular example with dependent columns and determinant zero; lost information means no unique reverse transformation. A singular Ax=b may have no solutions or infinitely many, so do not say it always has no solution.",
+    "Explain algebraic use x=A inverse b, while noting that numerical software usually solves the linear system directly rather than explicitly forming the inverse.",
+    "Give the cheat sheet a short self-test with answers and the flashcards retrieval-practice questions rather than merely copied paragraphs."
+  ],
+  "artifacts": [
+    "storyboard.json matching workflows/media/storyboard.ts, created by the allowed Hands specialist rather than a fixed completed fixture",
+    "video.mp4: 60–120 seconds, H.264, 1280x720, 24fps, plays/decodes completely",
+    "actual ManimGL asset MP4(s), renderer manifest, source URLs and original lesson transcript",
+    "cheat-sheet.html: self-contained printable document with definitions, formulas, worked example, singular warning and short self-test answers",
+    "flashcards.html: self-contained keyboard-usable reveal/hide answers, at least 10 original question/answer cards",
+    "flashcards.csv or flashcards.json: portable card data with the same questions and answers",
+    "README.md explaining local opening, sources, assumptions, tool versions, actual checks and remaining limitations"
+  ],
+  "renderer": {
+    "entrypoint": "workflows/media/render.ts",
+    "api": "renderStoryboard(specPath, outputDir, options?)",
+    "schema": "workflows/media/storyboard.ts",
+    "allowedVisuals": [
+      "title",
+      "bullets",
+      "matrix",
+      "evidence",
+      "closing"
+    ],
+    "matrixInterface": "scene.matrix is a numeric 2x2 array with each entry in [-5,5]; scene.visual='matrix'. The trusted renderer computes the determinant and inverse, generates actual ManimGL animation, and composites it in Remotion. No model-generated executable code is passed to Manim.",
+    "output": "render-manifest.json has engine versions, timing, artifact hashes, full-decode status, matrix/inverse data and sources; contact-sheet.png plus per-scene stills are for human visual inspection.",
+    "failurePolicy": "Missing Manim/OpenGL or failed render is an incomplete task. Do not silently replace Manim with a lookalike SVG animation and call it passed.",
+    "design": "design:{theme:editorial-cobalt,motion:expressive}; varied scene layout/tone and purposefully paced actual Manim geometry",
+    "mathInterface": {
+      "separateFromManim": "scene.math is for large trusted typeset equation layouts on non-matrix visual scenes. Keep scene.visual=matrix and scene.matrix only for actual Manim geometry.",
+      "kinds": [
+        {
+          "kind": "identity"
+        },
+        {
+          "kind": "inverse-formula"
+        },
+        {
+          "kind": "inverse-example",
+          "matrix": [
+            [
+              2,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ]
+        },
+        {
+          "kind": "solve",
+          "matrix": [
+            [
+              2,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          "vector": [
+            5,
+            3
+          ]
+        }
+      ],
+      "constraints": "Worked matrix/vector inputs are bounded integers; inverse-example/solve require invertible matrix; solve requires vector. Math body<=110characters and duration>=8seconds, with12–14seconds explicitly required here. Complete exact result reveals by5.2seconds; hold it afterward.",
+      "expectedArithmetic": "det(A)=1; A^-1=[[1,-1],[-1,2]]; A^-1*[5,3]=[2,1]; both inverse products equal I and A*[2,1]=[5,3]."
+    }
+  },
+  "handoffRequirements": {
+    "toAgent": "Jev selects a multimedia/math specialist using one allowed model; that agent reasons about the math and writes the lesson/revision artifacts plus bounded JSON storyboard.",
+    "backToJev": "Resume Jev after specialist output to select grounded finite actions: validate manifest/math, render, inspect known artifacts, and deliver/open exact outputs. Record decisions and actual tool outcomes, not only plan text.",
+    "allowedModels": [
+      "gpt-5.6-luna",
+      "gemini-3.8-flash",
+      "gpt-6-astra"
+    ],
+    "effort": "low",
+    "provenanceRequired": [
+      "Hands run id",
+      "agent model and start/end",
+      "Jev dispatch and resume decisions",
+      "artifact hashes",
+      "Manim invocation and output",
+      "Remotion render",
+      "visual inspection"
+    ]
+  },
+  "rubric": {
+    "mustPass": [
+      "The actual Hands run delegates creative work to an allowed model and resumes Jev to execute bounded completion steps; external handcrafted final artifacts do not count.",
+      "A complete 60–120 second MP4 is rendered, metadata matches and the entire file decodes; representative frames and motion are inspected.",
+      "The artifact uses actual 3b1b ManimGL output and actual Remotion composition, with recorded versions and output asset hashes.",
+      "All formulas and worked values are correct; invertibility and singular-system qualifications are accurate; no elementwise-reciprocal misconception or multiplication-order mistake.",
+      "Video presents a connected explanation from geometry to algebra to an example. Captions are readable and allow sufficient time; no cropped formula or overloaded slide.",
+      "Printable cheat sheet and at least ten usable flashcards exist, load locally and agree with the video. Flashcard reveal/hide interaction works using a keyboard.",
+      "Primary sources are cited and original wording/animations are used. Manim interpretation is disclosed; no 3Blue1Brown endorsement/voice-copying claim.",
+      "Success report distinguishes mathematical checks, full decode and actual visual inspection; any dependency or playback failure leaves the case incomplete.",
+      "Creative acceptance requires purposeful typography, composition and motion, concise story-led copy, and a companion website with a deliberate desktop/mobile layout.",
+      "The final MP4 contains actual verified AAC instrumental music with audible level, no clipping, arrangement variation and intro/outro fades; full decode and duration pass.",
+      "Inspect real motion at multiple timestamps, not just still images. Observe the complete inverse return and non-invertible case, readable overlays, and actual player sound/fullscreen/chapter controls.",
+      "The four algebra concepts use actual scene.math kinds identity,inverse-formula,inverse-example,solve, with the specified integer A and b. Each lasts12–14seconds, body<=110characters, and the full computed equation remains visible after its reveal; long prose is not substituted for typeset math.",
+      "The verified final film is90–110seconds, preserves actual nonsingular inverse-return and singular ManimGL scenes, and has verified original instrumental music with no narration. Companion chapter/caption/transcript times agree with the final timeline.",
+      "Through the real opaque-origin artifact route at both required widths, Enable sound from volume0 unmutes in one click, fullscreen works, film chapter selection preserves/reveals the player, and no visible print/export affordance promises a blocked action. Preserve the sandbox security policy.",
+      "Independently inspect full-size identity/formula/inverse/solve result-hold frames for exact math and legibility, plus actual motion at multiple timestamps. Check companion links and flashcards with real keyboard interaction; record any failure instead of claiming success from schema/decode alone.",
+      "For the UI-only checkpoint repair, preserve the accepted storyboard and verified movie unchanged. At 390x844, the current scene equation/readalong appears directly below the player before chapters; mobile controls/header are compact, and optional native captions do not duplicate the burned-in caption by default. Captions remain available and keyboard/touch controls remain usable."
+    ]
+  },
+  "performance": {
+    "record": [
+      "total elapsed ms",
+      "specialist model latency",
+      "Jev selection/resume latency",
+      "Manim ms by scene",
+      "Remotion render ms",
+      "validation ms",
+      "repair attempts"
+    ],
+    "guidance": "Generate all artifacts in one specialist phase where possible. Use numeric storyboard contracts for safe reusable rendering. Render once after schema/math validation; re-render only for an observed defect."
+  },
+  "qualityProfile": "creative",
+  "artifactContract": {
+    "requiredFiles": [
+      "index.html",
+      "storyboard.json",
+      "cheat-sheet.html",
+      "flashcards.html",
+      "flashcards.json",
+      "README.md"
+    ]
+  },
+  "revision": 4,
+  "companionRepairBrief": {
+    "observedRunId": "1922969e-c007-4069-9313-9b5bb221c0fe",
+    "source": "Independent actual-production-route isolated browser audit at 1440x900 and 390x844, with 38 passing controls and real visual mobile defects. See independent-inspection.json.",
+    "issues": [
+      {
+        "severity": "error",
+        "file": "index.html",
+        "name": "Current equation too far below the mobile player",
+        "detail": "The new readalong is placed after the eight-button chapter grid. On the 390x844 production-route viewport, the film is small and the current readable equation is outside the first view. Put the current scene readalong directly after the screen/player section and before chapters. Compact the header, intro and controls so the current teaching content is visibly close to the player; do not remove essential controls or math."
+      },
+      {
+        "severity": "warning",
+        "file": "index.html",
+        "name": "Default native captions obscure the already-captioned film",
+        "detail": "The native text track is showing by default on top of burned-in captions. At 81 seconds the browser displays both adjacent cues at their shared boundary; at 80.8 and 81.2 it displays one. This is a boundary-only duplicate, not persistent cue overlap, but even one native caption can obscure the equation in the small player. Keep all timed native captions available, initially hidden/off, with accessible opt-in native or explicit captions control. Preserve the adjacent readalong and burned-in movie captions. Do not remove or rewrite the accepted movie."
+      }
+    ],
+    "preserve": [
+      "Exact storyboard and 104-second verified movie/media hash; no new media render.",
+      "Four clear exact equation scenes, complete inverse return and singular geometry, original instrumental music.",
+      "All 38 passing control checks: sound from zero, normal mute, fullscreen, native playback, timed caption availability, chapters, local navigation, twelve keyboard-usable cards.",
+      "Opaque artifact sandbox and no control-API access."
+    ]
+  },
+  "motionDirection": {
+    "skill": "motion-design",
+    "personality": "Premium mathematical editorial: calm clarity and confident revelation, not decorative spectacle.",
+    "narrative": "Setup: see the basis move. Action: see the inverse bring it home. Resolution: connect geometry to identity, a formula and one solved input. Singular geometry explains why reversal can fail.",
+    "staging": "The exact equation or actual geometry is the primary teaching element. Supporting label/highlight is secondary; the quiet coordinate/reference field supplies continuity. Do not add unrelated motion, particles or a competing ambient loop.",
+    "timing": "Purposeful eased position/scale/opacity transitions supplied by the trusted renderer. Lead with the equation, then supporting notation; preserve long still reading holds after the staged reveal. No constant all-elements-at-once motion.",
+    "inspection": "Review full result holds as well as midpoint frames; observe forward transform, inverse return and singular collapse, not only contact-sheet thumbnails."
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "caseId": "hands-onboarding-prototype",
+  "runId": "b57a00e9-c996-445f-bbbf-c6e4f0d91ae4",
+  "verdict": "pass-with-advisories",
+  "passed": true,
+  "previewUrl": "/artifacts/b57a00e9-c996-445f-bbbf-c6e4f0d91ae4/index.html",
+  "finalAttempt": {
+    "elapsedMs": 39937,
+    "resumeOf": "afba8267-93c3-42b8-9b54-b16c482d1f11",
+    "jev": {
+      "calls": 4,
+      "durationMs": 1445
+    },
+    "specialists": {
+      "calls": 4,
+      "durationMs": 34026
+    },
+    "routing": {
+      "calls": 1,
+      "durationMs": 811
+    },
+    "runtimeChecks": 18,
+    "independentChecks": 44
+  },
+  "earlierAttempts": [
+    {
+      "runId": "d797d57b-5e91-4a0e-9ee6-c3690fb98fed",
+      "elapsedMs": 9846,
+      "status": "failed-before-generation",
+      "defect": "Source-free brief had no truthful proceed option."
+    },
+    {
+      "runId": "afba8267-93c3-42b8-9b54-b16c482d1f11",
+      "elapsedMs": 119397,
+      "status": "needs-review",
+      "defects": [
+        "Mobile craft gate failed.",
+        "Independent real interaction audit found sandbox-blocked form submit."
+      ]
+    }
+  ],
+  "scope": {
+    "browser": "Fresh isolated Chromium with actual production artifactResponse and opaque sandbox CSP, 1440x900 and 390x844. No signed-in profile or account actions.",
+    "visual": "All three states at both sizes directly inspected; task images recaptured with CSS animation fast-forwarded. Full below-fold output checked.",
+    "keyboard": "Separate flow used Tab, typing, Enter, back/reset; visible focus and reduced-motion styles checked.",
+    "limits": "Not physical-device testing or a general reliability benchmark. This artifact is deliberately a local conceptual prototype."
+  },
+  "advisories": [
+    {
+      "severity": "warning",
+      "file": "prototype.css",
+      "detail": "Some stage-rail labels remain compact. Both mobile correction and result states require ordinary vertical scrolling; primary controls remain reachable without overflow."
+    },
+    {
+      "severity": "warning",
+      "file": "index.html",
+      "detail": "Desktop repeats the gesture motif at two scales. This is coherent but could be simplified in another design iteration."
+    }
+  ],
+  "defectsRepaired": [
+    {
+      "owner": "Hands specialist",
+      "detail": "Replaced form-submit dependency with semantic button click handlers compatible with the opaque sandbox. Moved mobile primary action above examples and retained the gesture motif; increased support-copy sizing."
+    },
+    {
+      "owner": "Shared trusted runtime",
+      "detail": "User-activated read-only local artifact navigation was narrowly allowed by the root agent while preserving opaque CSP and control-route isolation. Independent brand navigation now passes at both sizes."
+    }
+  ],
+  "evidence": {
+    "manifest": "out/artifacts/b57a00e9-c996-445f-bbbf-c6e4f0d91ae4/manifest.json",
+    "inspection": "out/artifacts/b57a00e9-c996-445f-bbbf-c6e4f0d91ae4/independent-inspection.json",
+    "interactionChecks": "out/artifacts/b57a00e9-c996-445f-bbbf-c6e4f0d91ae4/independent-review/interaction-checks.json"
+  },
+  "timingLimit": "39.937s is the final checkpoint repair/validation attempt, not fresh creation or total end-to-end elapsed time. No controlled speedup claim."
+}

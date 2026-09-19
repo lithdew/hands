@@ -1,0 +1,21 @@
+{
+  "name": "puk-mathvideo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Scene templates for a mathematics explainer in manim's visual language, rendered with Remotion. Sources only: the kit (../mathvideo.ts) installs and renders a working copy outside the repository.",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@remotion/bundler": "4.0.526",
+    "@remotion/cli": "4.0.526",
+    "@remotion/renderer": "4.0.526",
+    "katex": "0.16.22",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.526"
+  },
+  "devDependencies": {
+    "@types/katex": "0.16.7",
+    "@types/react": "19.2.7"
+  },
+  "sideEffects": ["*.css"]
+}

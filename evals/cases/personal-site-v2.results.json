@@ -1,0 +1,239 @@
+{
+  "caseId": "personal-site-v2",
+  "createdAt": "2026-09-19T17:22:22.593Z",
+  "verdict": "pass-with-advisories",
+  "finalRunId": "82203752-a9b2-439e-aa7d-ef58c7b9c4b8",
+  "previewUrl": "http://127.0.0.1:7777/artifacts/82203752-a9b2-439e-aa7d-ef58c7b9c4b8/index.html",
+  "projectUrl": "http://127.0.0.1:7777/artifacts/82203752-a9b2-439e-aa7d-ef58c7b9c4b8/hands.html",
+  "artDirection": "Warm paper, ink and cobalt; oversized offset typography, asymmetric editorial composition and a working local handoff workbench.",
+  "authorship": "All final HTML/CSS/JS came from actual Hands Astra-low generation and focused patch calls. Coordinator supplied briefs and observed criticism only.",
+  "runtimeChecks": 25,
+  "independentCraftMedian": 4,
+  "independentCraftMinimum": 3,
+  "independentAudit": "out/artifacts/82203752-a9b2-439e-aa7d-ef58c7b9c4b8/independent-inspection.json",
+  "freshChecks": 6,
+  "sourceFilesExactMatch": 6,
+  "screenshots": [
+    "out/artifacts/82203752-a9b2-439e-aa7d-ef58c7b9c4b8/preview/independent/desktop-index.png",
+    "out/artifacts/82203752-a9b2-439e-aa7d-ef58c7b9c4b8/preview/independent/mobile-index.png",
+    "out/artifacts/82203752-a9b2-439e-aa7d-ef58c7b9c4b8/preview/independent/mobile-corrected-output.png"
+  ],
+  "runs": [
+    {
+      "runId": "fa1e7786-8eaf-4a08-a971-5b966a10a8f0",
+      "status": "failed",
+      "elapsedMs": 187953,
+      "modelCalls": [
+        {
+          "record": "creating-20.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 13011,
+          "stopReason": "stop"
+        },
+        {
+          "record": "plan-contract-repair-8.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 1899,
+          "stopReason": "stop"
+        },
+        {
+          "record": "planning-5.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 1895,
+          "stopReason": "stop"
+        },
+        {
+          "record": "repair-33.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 1441,
+          "stopReason": "stop"
+        },
+        {
+          "record": "review-28.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 362,
+          "stopReason": "stop"
+        }
+      ],
+      "jevDecisions": [
+        {
+          "action": "research",
+          "durationMs": 325
+        },
+        {
+          "action": "execute",
+          "durationMs": 863
+        },
+        {
+          "action": "repair",
+          "durationMs": 337
+        }
+      ],
+      "terminalReason": "Exact edit must match once in provenance.json; no uncertain replacement is allowed."
+    },
+    {
+      "runId": "d5fa9436-1ea3-4516-82c9-156b12329ba1",
+      "status": "complete",
+      "elapsedMs": 59452,
+      "modelCalls": [
+        {
+          "record": "creative-review-45.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 579,
+          "stopReason": "stop"
+        },
+        {
+          "record": "creative-review-48.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 483,
+          "stopReason": "stop"
+        },
+        {
+          "record": "repair-29.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 2144,
+          "stopReason": "stop"
+        },
+        {
+          "record": "review-23.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 431,
+          "stopReason": "stop"
+        },
+        {
+          "record": "review-38.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 221,
+          "stopReason": "stop"
+        }
+      ],
+      "jevDecisions": [
+        {
+          "action": "research",
+          "durationMs": 345
+        },
+        {
+          "action": "execute",
+          "durationMs": 348
+        },
+        {
+          "action": "repair",
+          "durationMs": 395
+        },
+        {
+          "action": "execute",
+          "durationMs": 333
+        },
+        {
+          "action": "execute",
+          "durationMs": 358
+        },
+        {
+          "action": "deliver",
+          "durationMs": 316
+        }
+      ]
+    },
+    {
+      "runId": "0dad8c17-2bd1-4247-a5c5-605b11b8299f",
+      "status": "needs-review",
+      "elapsedMs": 44736,
+      "modelCalls": [
+        {
+          "record": "creative-review-32.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 456,
+          "stopReason": "stop"
+        },
+        {
+          "record": "creative-review-35.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 543,
+          "stopReason": "stop"
+        },
+        {
+          "record": "repair-16.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 1129,
+          "stopReason": "stop"
+        },
+        {
+          "record": "review-25.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 326,
+          "stopReason": "stop"
+        }
+      ],
+      "jevDecisions": [
+        {
+          "action": "research",
+          "durationMs": 391
+        },
+        {
+          "action": "execute",
+          "durationMs": 344
+        },
+        {
+          "action": "execute",
+          "durationMs": 345
+        },
+        {
+          "action": "stop",
+          "durationMs": 378
+        }
+      ]
+    },
+    {
+      "runId": "82203752-a9b2-439e-aa7d-ef58c7b9c4b8",
+      "status": "complete",
+      "elapsedMs": 27233,
+      "modelCalls": [
+        {
+          "record": "creative-review-27.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 656,
+          "stopReason": "stop"
+        },
+        {
+          "record": "creative-review-30.json",
+          "model": "gpt-6-astra",
+          "outputTokens": 617,
+          "stopReason": "stop"
+        }
+      ],
+      "jevDecisions": [
+        {
+          "action": "research",
+          "durationMs": 351
+        },
+        {
+          "action": "execute",
+          "durationMs": 396
+        },
+        {
+          "action": "execute",
+          "durationMs": 340
+        },
+        {
+          "action": "deliver",
+          "durationMs": 313
+        }
+      ]
+    }
+  ],
+  "totalRecordedRunMs": 319374,
+  "totalOutputTokens": 26193,
+  "observedHarnessImprovements": [
+    "Planner guidance now keeps local provenance out of public URL seeds.",
+    "Exact-edit failure safely preserved the original generation for checkpoint resume.",
+    "Failed independent craft review now triggers an immediate focused model patch.",
+    "Production artifact navigation now allows user-activated read-only local documents while keeping opaque sandbox and control-API isolation.",
+    "Final Jev eligibility excludes unsupported stop when all mandatory recorded checks pass."
+  ],
+  "limitations": [
+    "The visual language is coherent and deliberate, scored around4/5; the stage instrument remains restrained rather than visually exceptional.",
+    "Mobile initially presents the task/correction setup before stage/output; explicit Apply now reveals the actual revised result.",
+    "The workbench is a clearly labeled local interactive concept, not a live model or computer connection.",
+    "Source packet facts were supplied directly; failed file:// fetch attempts did not invalidate their inline provenance."
+  ]
+}

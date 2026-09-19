@@ -1,0 +1,162 @@
+{
+  "date": "2026-09-20",
+  "caseId": "hands-pitch-motion-v2",
+  "runId": "b53aeab3-37bd-4617-b526-a7276e3ba4ae",
+  "passed": true,
+  "verdict": "pass-with-advisories",
+  "previewUrl": "/artifacts/b53aeab3-37bd-4617-b526-a7276e3ba4ae/index.html",
+  "scope": "The motion/music redesign of the Hands launch film. All authored content and repairs came through actual Astra-low specialist and Jev workflows; the trusted renderer produced the media. Independent work was testing, faithful evidence capture and QA reports only. This report does not count the older silent pitch as another attempt in this redesign chain.",
+  "result": {
+    "description": "A 75-second Remotion film with seven layouts, three tones, original instrumental music, a correction diagram, two actual inspected Hands outputs and an interactive desktop/mobile player.",
+    "runtimeChecks": { "passed": 25, "total": 25 },
+    "independentChecks": { "passed": 51, "total": 51 },
+    "independentBrowserAndIntegrityChecks": { "passed": 43, "total": 43 },
+    "browserErrors": 0,
+    "jevDeliverAtMs": 148138,
+    "artifactDeliveredAtMs": 148142,
+    "independentCraftScores": { "hierarchy": 4, "typography": 4, "composition": 4, "distinctiveness": 4, "briefFit": 4 },
+    "countsNote": "The 43 browser/integrity checks are included in the 51 independent checks. Runtime checks and independent checks overlap in subject matter; their sum is not a sample size or reliability estimate."
+  },
+  "attempts": [
+    {
+      "runId": "eeb7ac7c-b7e2-4de3-919e-c39c24878b9b",
+      "status": "failed-before-generation",
+      "elapsedMs": 52487,
+      "resumeOf": null,
+      "outcome": "Planning and plan-contract repair returned; the resulting plan stated that only the calculus image was visible and required a second image. Jev stopped before source retrieval. No film was generated.",
+      "causeAssessment": "Diagnosed as incomplete/truncated evidence context: long first-artifact inspection details crowded later image identity out of the planner's visible packet. The saved plan confirms the missing-second-image conclusion; the original input packet was not persisted, so the exact truncation boundary is not independently reconstructed here. Both model responses stopped normally, not from output-token truncation.",
+      "models": { "model": "gpt-6-astra", "effort": "low", "calls": 2, "durationMs": 51321, "outputTokens": 4666 },
+      "jevDecisions": { "calls": 1, "durationMs": 325 },
+      "jevRouting": { "calls": 1, "durationMs": 818 },
+      "evidence": "out/artifacts/eeb7ac7c-b7e2-4de3-919e-c39c24878b9b/events.json"
+    },
+    {
+      "runId": "a00e0598-490f-4982-8b49-0045454f1b0a",
+      "status": "needs-review",
+      "elapsedMs": 253475,
+      "resumeOf": null,
+      "outcome": "Fresh generation/render after the planning failure. All three creative views failed: generic task-card grid, duplicate mobile controls/small scene text, unreadable research overview and missing explicit correction branch. The closing milestone and editorial line breaks also needed work.",
+      "models": { "model": "gpt-6-astra", "effort": "low", "calls": 6, "durationMs": 143948, "outputTokens": 12440 },
+      "jevDecisions": { "calls": 4, "durationMs": 2287 },
+      "jevRouting": { "calls": 1, "durationMs": 811 },
+      "renderer": { "renderMs": 82438, "totalMs": 100353 },
+      "evidence": "out/artifacts/a00e0598-490f-4982-8b49-0045454f1b0a/manifest.json"
+    },
+    {
+      "runId": "f350abc9-1de0-4c30-80a3-610a4e2fcbdd",
+      "status": "needs-review",
+      "elapsedMs": 207102,
+      "resumeOf": "a00e0598-490f-4982-8b49-0045454f1b0a",
+      "outcome": "Repaired composition, correction path, focused research image and player. Independent production-browser/integrity checks passed 39/39, but primary task labels remained about 8 CSS pixels in the mobile inline film. The mobile creative gate and independent acceptance stayed failed.",
+      "models": { "model": "gpt-6-astra", "effort": "low", "calls": 5, "durationMs": 95561, "outputTokens": 8739 },
+      "jevDecisions": { "calls": 4, "durationMs": 1923 },
+      "jevRouting": { "calls": 1, "durationMs": 870 },
+      "renderer": { "renderMs": 80814, "totalMs": 101849 },
+      "evidence": "out/artifacts/f350abc9-1de0-4c30-80a3-610a4e2fcbdd/independent-inspection.json"
+    },
+    {
+      "runId": "b53aeab3-37bd-4617-b526-a7276e3ba4ae",
+      "status": "complete",
+      "elapsedMs": 148142,
+      "resumeOf": "f350abc9-1de0-4c30-80a3-610a4e2fcbdd",
+      "outcome": "Accepted after actual re-render. Four shortened task labels use 52px film type; the concise request uses 36px. The player has a shared scene index, 44px seek/control targets, 14px clock, distinct companion headings and honest landscape guidance. Unrendered opening text was removed from the transcript.",
+      "models": { "model": "gpt-6-astra", "effort": "low", "calls": 5, "durationMs": 50591, "outputTokens": 3549 },
+      "jevDecisions": { "calls": 4, "durationMs": 1879 },
+      "jevRouting": { "calls": 1, "durationMs": 913 },
+      "renderer": { "renderMs": 71724, "totalMs": 88970 },
+      "evidence": "out/artifacts/b53aeab3-37bd-4617-b526-a7276e3ba4ae/independent-inspection.json"
+    }
+  ],
+  "totals": {
+    "recordedAttempts": 4,
+    "recordedWorkflowMs": 661206,
+    "recordedWorkflowSeconds": 661.206,
+    "finalAttemptMs": 148142,
+    "modelCalls": 18,
+    "modelDurationMs": 341421,
+    "modelOutputTokens": 29394,
+    "jevDecisionCalls": 13,
+    "jevDecisionDurationMs": 6414,
+    "jevRoutingCalls": 4,
+    "jevRoutingDurationMs": 3412,
+    "allJevCalls": 17,
+    "allJevDurationMs": 9826,
+    "renderedAttempts": 3,
+    "rendererRenderMs": 234976,
+    "rendererTotalMs": 291172,
+    "method": "Sum the four recorded attempt elapsedMs values; sum agent_returned, jev_decision and routed event durations separately. Output tokens come from 18 saved model-response usage records. Renderer phase measurements are component totals and must not be added again to workflow elapsed time.",
+    "chainSearch": "Matching launch-film plan/progress/manifest records and all hands-pitch-motion-v2, v2-retry, v3 and v4 logs identify these four runs. a00e0598 is a fresh retry, not a checkpoint child of the planning failure; f350abc9 and b53aeab3 have explicit parentRunId links. No additional matching run was found.",
+    "exclusions": ["Human/independent review time and pauses between attempts", "Renderer/layout preflight work and shared runtime implementation/testing", "Earlier silent-pitch evaluations and other creative cases"],
+    "interpretation": "A repaired accepted case, not a fresh-run reliability estimate, controlled model comparison or end-to-end speedup measurement. 661.206s is recorded workflow time, not elapsed session wall time."
+  },
+  "media": {
+    "engine": "Remotion 4.0.526",
+    "codec": "H.264",
+    "width": 1280,
+    "height": 720,
+    "fps": 24,
+    "frames": 1800,
+    "durationSeconds": 75.050667,
+    "sha256": "82029aa6fa4a4dc248197886c94e47da247391a258024ad8e4235c7c27000ca4",
+    "fullDecodePassed": true,
+    "motionEvidence": "Actual MP4 frames at 20% and 60% of three scenes show task progression, workflow/correction reveal and faithful artifact push-in. Metrics exclude header/caption/progress bands. The previous run's eight native stills and six motion samples were visually inspected; seven final native stills are hash-identical, and the changed final scene plus two fresh motion samples were inspected directly.",
+    "audio": {
+      "codec": "AAC",
+      "sampleRate": 48000,
+      "channels": 2,
+      "generator": "Hands original-score-v1",
+      "style": "minimal-electronic",
+      "tempoBpm": 112,
+      "intensity": 0.7,
+      "seed": 73,
+      "gainDb": -4,
+      "externalSamples": [],
+      "narration": false,
+      "originalScoreSha256": "27f643e69f6812982497daaae42055f1b449bfe13d0b09ea5ac54b536eca3c1f",
+      "decodedPcmSha256": "dece1c69512085a677cbd6423b123cf5c9cf9902802a195163a4b1f364f3c716",
+      "peakDbfs": -7.307,
+      "rmsDbfs": -21.9,
+      "firstQuarterSecondRmsDbfs": -60.391,
+      "lastQuarterSecondRmsDbfs": -66.933,
+      "clippedSamples": 0,
+      "verification": "Independently decoded the actual final AAC stream to PCM; repository measurement function exactly reproduced runtime measurements and confirmed original-score hash. This establishes sound-bearing media, headroom and edge attenuation; no ear-based audition or musical-taste claim."
+    }
+  },
+  "actualEvidenceImages": [
+    {
+      "imageId": "artifact-1",
+      "runId": "f7db73c3-bb83-4312-bbdc-a9395d34dc71",
+      "path": "preview/question-and-solution-Q5-focused.png",
+      "sha256": "7ec6a2f2c2a282b37371f670614cd7fe7fe171a7b1ea6390ad6efc5d9eb085bc",
+      "description": "Faithful focused original calculus Q5 prompt and complete worked solution, from an independently accepted Hands output; no mathematical content redrawn."
+    },
+    {
+      "imageId": "artifact-2",
+      "runId": "2da3987e-b999-4bb8-af12-98ecea72e761",
+      "path": "preview/research-credit-focused.png",
+      "sha256": "234af28f5a039f0016fb8cbe160b691a75798cb676ea3e2ede8f58b75ffdb9f7",
+      "description": "Faithful unchanged report-section crop: Long-horizon credit heading, full method-description paragraph, known-correct-skill limitation and HiPER/SkillGate primary-source links. No text, DOM, CSS or pixels rewritten; no compositing."
+    }
+  ],
+  "browserAudit": {
+    "environment": "Fresh isolated Chromium at 1440x900 and 390x844 against the actual production artifact route and opaque-origin CSP; GET/HEAD only, no account profile or desktop hand control.",
+    "verified": ["Play/pause and advancing/stopped time", "One-click sound and recovery from volume zero", "12 caption cues loaded and toggled", "Keyboard seeking, play/pause and visible focus", "All seven chapter controls seek and retain the visible player", "All eight scene notes and shared index update", "Fullscreen entry and exit", "44px control/seek targets, 14px clock, readable 16px companion text", "User-activated local evidence, transcript, README and storyboard links", "No horizontal overflow or JavaScript/console errors"],
+    "integrity": "All six authored file hashes, the MP4 hash, original evidence images and copied render assets independently matched their recorded hashes."
+  },
+  "limits": [
+    "The accepted outcome required a planning retry and two rendered repairs; it is not an unbiased success-rate sample.",
+    "Independent craft scores are subjective observations, not a claim of user taste.",
+    "Opening line break and secondary portrait-film labels could be refined; fine paper detail needs native/landscape/fullscreen viewing, with readable adjacent notes available.",
+    "No physical-phone or full screen-reader certification and no continuous 75-second ear-and-eye viewing claim.",
+    "Existing source math/research reviews are attributed, not a fresh formal proof or research replication.",
+    "Saved local artifact evidence is not a recorded live desktop task, deployment, accelerator submission or general Hands reliability claim."
+  ],
+  "evidence": {
+    "manifest": "out/artifacts/b53aeab3-37bd-4617-b526-a7276e3ba4ae/manifest.json",
+    "inspection": "out/artifacts/b53aeab3-37bd-4617-b526-a7276e3ba4ae/independent-inspection.json",
+    "browser": "out/artifacts/b53aeab3-37bd-4617-b526-a7276e3ba4ae/independent-review/player-checks.json",
+    "audio": "out/artifacts/b53aeab3-37bd-4617-b526-a7276e3ba4ae/independent-review/independent-audio-check.json",
+    "render": "out/artifacts/b53aeab3-37bd-4617-b526-a7276e3ba4ae/render.json",
+    "privateEvidencePolicy": "Raw traces, screenshots, media and inspection records remain under ignored out/. This tracked report contains only bounded measurements, public-safe provenance and limitations."
+  }
+}
