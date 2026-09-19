@@ -361,7 +361,8 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
       log(`Jev: ${inApp.status} (${inApp.reason})`);
       check();
       if (inApp.status === "cancelled" || signal.aborted) return;
-      if (inApp.status === "denied" || declined) { mine.text = "Stopped: you declined that action."; return; }
+      if (declined) { mine.text = "Stopped: you declined that action."; return; }
+      if (inApp.status === "denied") { mine.text = `Stopped by the action check: ${inApp.reason}`; return; }
       if (inApp.status !== "done") return handOver(`${app.name}: ${inApp.status}: ${inApp.reason}`, inApp);
       mine.text = `Done: ${planned[0]!.intent.goal}`;
       return;
@@ -415,7 +416,8 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
     log(`Jev: ${result.status} (${result.reason})`);
     check();
     if (result.status === "cancelled" || signal.aborted) return;
-    if (result.status === "denied" || declined) { mine.text = "Stopped: you declined that action."; return; }
+    if (declined) { mine.text = "Stopped: you declined that action."; return; }
+    if (result.status === "denied") { mine.text = `Stopped by the action check: ${result.reason}`; return; }
     if (result.status !== "done") return handOver(`${result.status}: ${result.reason}`, result);
     const final = said === text && kind ? kind : await triage(said, catalog).catch(() => kind);
     check();

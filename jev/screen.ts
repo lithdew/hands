@@ -24,7 +24,7 @@
 
 import { debugLog, type Hand } from "../desktop";
 import { argumentsFor, describeAction, elementLabels, gateObservation, isLooping, jevState, KEYS, MOVES, type Action, type Deps, type RunOptions, type RunResult, type StepRecord } from "./cua";
-import { assessRisk, blocksAction, isRisky, needsApproval, type Risk } from "./gate";
+import { assessRisk, blocksAction, isRisky, needsApproval, RISK_FLAGS, RISK_THRESHOLD, type Risk } from "./gate";
 import { COMPOSE_LABEL, composeText, type Intent } from "./intent";
 import { choice, noul, type Answers, type ChoiceResponse, type NoulResponse, type Questions } from "./jev";
 import { describeElement, withVisionElements, type Observation, type UiElement } from "./observe";
@@ -324,7 +324,18 @@ export async function runScreens(hand: Hand, goal: Intent | (() => Intent), deps
         if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
         if (instructionChanged()) break;
       }
-      if (risk && blocksAction(risk)) return end("denied", "This action conflicts with the current user instruction.");
+      if (risk && blocksAction(risk)) {
+        // A consequential action, or one that contradicts the user, ends the run. A reversible step that Jev merely
+        // judges off the goal (scrolling an article at off_goal 0.50 ended whole tasks) is held back instead, so the
+        // next look picks a different move; three in a row still give up.
+        const threshold = opts.riskThreshold?.() ?? RISK_THRESHOLD;
+        const consequential = RISK_FLAGS.some((flag) => flag !== "off_goal" && risk!.flags[flag] >= threshold) || (risk.authorization?.contradictsUser ?? 0) >= 0.5;
+        if (consequential || ++heldBack > 2) return end("denied", "This action conflicts with the current user instruction.");
+        log(`look ${n}: not doing "${did}": Jev judged it off the goal (${risk.flags.off_goal.toFixed(2)})`);
+        memory.history.push(`held back "${did}": judged off the goal -> choose a different next step`);
+        steps.push({ n, did, risk: risk.level, outcome: "held back as off-goal" });
+        break;
+      }
       if (risk && needsApproval(risk, opts.riskThreshold?.())) {
         // Committing over a value the screen shows differently is how a table gets booked for the wrong day.
         if (decision.doubts?.length) {
