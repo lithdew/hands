@@ -32,7 +32,7 @@ import { CONTACTS, SIM_HAND, SIM_TODAY, World } from "./sim";
 // ---------------------------------------------------------------- tasks
 
 type Verdict = { ok: boolean; why: string };
-type Task = { id: string; said: string; check(world: World): Verdict; hints(world: World): string[] };
+type Task = { id: string; said: string; /** Said afterwards, to the same hand, with the first task's page still open. */ then?: string; check(world: World): Verdict; hints(world: World): string[] };
 
 const has = (text: string, ...patterns: RegExp[]) => patterns.every((p) => p.test(text));
 const verdict = (problems: (string | false)[]): Verdict => { const bad = problems.filter(Boolean) as string[]; return { ok: bad.length === 0, why: bad.join("; ") || "as asked" }; };
@@ -94,6 +94,26 @@ const BEYOND: Task[] = [
     "Send the text in Messages first, then save the note in Google Keep."),
 ];
 
+// Two accounts, and requests that carry on from what is open. `--only=account`. From a real run: "search up the email
+// from ananth sent to my northwestern email" was searched for, as words, in the private account; "reply to it" then
+// went back to the default account in a new tab.
+const SCHOOL = "chi.li@u.northwestern.edu";
+const ACCOUNTS = [{ email: "chi@example.com", label: "personal" }, { email: SCHOOL }];
+const ACCOUNT_TASKS: Task[] = [
+  custom("account-find", "search up the email from ananth sent to my northwestern email",
+    (w) => verdict([w.gmail.account !== SCHOOL && `it is in ${w.gmail.account}`, !/ananth/i.test(w.gmail.query ?? "") && `the search was ${JSON.stringify(w.gmail.query)}`, /northwestern/i.test(w.gmail.query ?? "") && "the account's name was searched for as a word"]),
+    "Open Gmail in the Northwestern account and search for mail from Ananth."),
+  { ...custom("account-reply", "search up the email from ananth sent to my northwestern email",
+    (w) => { const [r] = w.gmail.replies; return verdict([w.gmail.replies.length !== 1 && `${w.gmail.replies.length} replies sent`, !!r && r.account !== SCHOOL && `replied from ${r.account}`, !!r && r.to !== "Ananth Rao" && `replied to ${r.to}`, !!r && !has(r.body, /thanks/i, /be there/i) && `reply was ${JSON.stringify(r.body)}`]); },
+    "Open the email from Ananth, click 'Reply', type the reply, click 'Send'."), then: "reply to the one about the lab meeting and say thanks I will be there" },
+  { ...custom("account-sticky", "search up the email from ananth sent to my northwestern email",
+    (w) => verdict([w.gmail.account !== SCHOOL && `it went back to ${w.gmail.account}`, !/registrar/i.test(w.gmail.query ?? "") && `the search was ${JSON.stringify(w.gmail.query)}`]),
+    "Search the same account for mail from the registrar."), then: "now find the email from the registrar" },
+  custom("account-send", "email Sam from my school account to remind him about the lab meeting on thursday",
+    (w) => { const [m] = w.gmail.sent; return verdict([w.gmail.sent.length !== 1 && `${w.gmail.sent.length} emails sent`, !!m && m.account !== SCHOOL && `sent from ${m.account}`, !!m && m.to.join() !== "sam.rivera@example.com" && `sent to ${m.to.join()}`, !!m && !/lab meeting/i.test(m.body) && `body was ${JSON.stringify(m.body)}`]); },
+    "Compose in the Northwestern account, fill the fields, click 'Send'."),
+];
+
 // ---------------------------------------------------------------- metering
 
 /** What the oracle planner is charged. jev/README.md measured 2.3 to 2.9 s on a toy image; real screens took about 10 s. */
@@ -140,9 +160,11 @@ async function runOne(task: Task, strategy: Strategy, round: number, ask: Ask, l
   const screenDeps = { ...deps, perform: async (_hand: unknown, action: ScreenAction) => world.act(action, describeScreenAction(action)) };
   if (strategy === "pilot") {
     try {
-      const pilot = createPilot({ ...screenDeps, contacts: CONTACTS, store: LEARNED, today: () => SIM_TODAY, open: async (_hand, url) => world.open(url) });
-      const result = await pilot.run(SIM_HAND, task.said, LIMITS);
-      status = result.status; reason = result.reason; intentBy = `${result.by}: ${result.detail}`;
+      const pilot = createPilot({ ...screenDeps, contacts: CONTACTS, store: LEARNED, today: () => SIM_TODAY, open: async (_hand, url) => world.open(url), accounts: () => ACCOUNTS, here: async () => world.here() });
+      let result = await pilot.run(SIM_HAND, task.said, LIMITS);
+      intentBy = `${result.by}: ${result.detail}`;
+      if (task.then && result.status === "done") { log(`then: "${task.then}"`); result = await pilot.run(SIM_HAND, task.then, LIMITS); intentBy += ` | then ${result.by}: ${result.detail}`; }
+      status = result.status; reason = result.reason;
       const taken = Math.round(performance.now() - started + m.virtualMs);
       await result.learning; // off the clock: it happens after the user has their result
       const { ok, why } = task.check(world);
@@ -176,7 +198,7 @@ function report(runs: Run[]) {
   const cell = (s: string | number, w: number) => String(s).padEnd(w);
   console.log(`\n${cell("task", 19)}${cell("strategy", 9)}${cell("ok", 5)}${cell("status", 13)}${cell("looks", 6)}${cell("jev rq", 7)}${cell("rounds", 7)}${cell("llm", 5)}${cell("vision", 7)}${cell("actions", 8)}${cell("model s", 8)}intent by`);
   for (const r of runs) {
-    console.log(`${cell(r.task, 19)}${cell(r.strategy, 9)}${cell(r.ok ? "yes" : "NO", 5)}${cell(r.status, 13)}${cell(r.meter.looks, 6)}${cell(r.meter.jevRequests, 7)}${cell(r.meter.jevRounds, 7)}${cell(`${r.meter.llm.filter((c) => c.what !== "general_plan").length}${r.meter.llm.some((c) => c.what === "general_plan") ? "+bg" : ""}`, 5)}${cell(r.meter.planner, 7)}${cell(r.acted.length, 8)}${cell((r.ms / 1000).toFixed(1), 8)}${r.intentBy.slice(0, 70)}${r.ok ? "" : `   <- ${r.why}${r.status === "done" ? "" : ` (${r.reason})`}`}`);
+    console.log(`${cell(r.task, 19)}${cell(r.strategy, 9)}${cell(r.ok ? "yes" : "NO", 5)}${cell(r.status, 13)}${cell(r.meter.looks, 6)}${cell(r.meter.jevRequests, 7)}${cell(r.meter.jevRounds, 7)}${cell(`${r.meter.llm.filter((c) => c.what !== "general_plan").length}${r.meter.llm.some((c) => c.what === "general_plan") ? "+bg" : ""}`, 5)}${cell(r.meter.planner, 7)}${cell(r.acted.length, 8)}${cell((r.ms / 1000).toFixed(1), 8)}${r.intentBy.slice(0, 110)}${r.ok ? "" : `   <- ${r.why}${r.status === "done" ? "" : ` (${r.reason})`}`}`);
   }
   console.log(`\n${cell("strategy", 10)}${cell("solved", 9)}${cell("said done", 10)}${cell("jev rounds", 11)}${cell("llm calls", 10)}${cell("vision", 7)}${cell("model s/task", 13)}at 100 ms a round`);
   for (const s of STRATEGIES) {
@@ -196,7 +218,7 @@ if (import.meta.main) {
   const flag = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split("=")[1];
   const rounds = Number(flag("rounds") ?? 1), only = flag("only"), verbose = process.argv.includes("--verbose");
   const strategies = (flag("strategy")?.split(",") ?? [...STRATEGIES]) as Strategy[];
-  const tasks = [...TASKS, ...BEYOND].filter((t) => (only ? only.split(",").some((o) => t.id.includes(o)) : !t.id.startsWith("beyond")));
+  const tasks = [...TASKS, ...BEYOND, ...ACCOUNT_TASKS].filter((t) => (only ? only.split(",").some((o) => t.id.includes(o)) : !t.id.startsWith("beyond") && !t.id.startsWith("account")));
   const ask = createJev(), llm = createOpenAI();
   await ask("ready", { ready: { type: "noul", instructions: "The text says ready." } }); // the first request opens the connection
 

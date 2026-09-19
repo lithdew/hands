@@ -88,14 +88,47 @@ const field = (key: string, name: string, value: string, zone: Zone = "main", wi
 
 // ---- Gmail
 
+/** Two signed-in accounts, as Gmail has them at /u/0 and /u/1. The first is where a plain mail.google.com lands. */
+export const MAILBOXES: Record<string, string[]> = {
+  "chi@example.com": [
+    "Sam Rivera, Re: Q3 planning, Sounds good. See you at the meeting, 9:12 AM",
+    "Alex Chen, Deck for Monday, Can you take a look at slide 4 before we send it, 8:40 AM",
+    "OpenTable, Your reservation at Bella Napoli is confirmed, Sep 17",
+    "Dr. Patel's Office, Appointment reminder, Your appointment is on Tuesday at 3:00 PM, Sep 17",
+    "Dana Whitfield, Lunch next week?, Are you free Thursday, Sep 16",
+    "GitHub, [puk] Pull request #12 opened by teammate, Sep 16",
+    "Mom, Photos from the weekend, Sep 15",
+    "Jordan Blake, Invoice 2291, Attached is the invoice for August, Sep 14",
+  ],
+  "chi.li@u.northwestern.edu": [
+    "Ananth Rao, Lab meeting moved to Thursday, We are in room 3.14 at two, please confirm, 10:02 AM",
+    "Registrar, Fall enrollment opens Monday, Sep 18",
+    "Prof. Okafor, Reading for week 2, Chapters 3 and 4, Sep 17",
+    "Northwestern IT, Password expires in 14 days, Sep 16",
+    "Ananth Rao, Draft of the poster, Attached is the first draft, Sep 12",
+    "Career Services, Resume workshop, Sep 11",
+  ],
+};
+const DEFAULT_ACCOUNT = Object.keys(MAILBOXES)[0]!;
+
 class Gmail extends App {
+  account = DEFAULT_ACCOUNT;
   compose: { chips: string[]; raw: string; subject: string; body: string; suggest: (typeof CONTACTS)[number][] } | null = null;
-  sent: { to: string[]; subject: string; body: string }[] = [];
+  sent: { to: string[]; subject: string; body: string; account: string }[] = [];
+  /** The search that is showing, and the message that is open (an index into the account's mailbox). */
+  query: string | null = null; message: number | null = null;
+  reply: { body: string } | null = null;
+  replies: { to: string; body: string; account: string }[] = [];
   error: string | null = null;
   justSent = false;
 
   open(url: URL) {
-    this.compose = null; this.error = null; this.justSent = false;
+    this.compose = null; this.error = null; this.justSent = false; this.query = null; this.message = null; this.reply = null;
+    // authuser picks the account. An address that is not signed in lands in the default one, as Google's chooser would after a click.
+    const asked = url.searchParams.get("authuser")?.toLowerCase(), index = /\/u\/(\d)\//.exec(url.pathname)?.[1];
+    this.account = asked && asked in MAILBOXES ? asked : index && Object.keys(MAILBOXES)[Number(index)] ? Object.keys(MAILBOXES)[Number(index)]! : asked ? DEFAULT_ACCOUNT : url.searchParams.has("authuser") || index ? DEFAULT_ACCOUNT : DEFAULT_ACCOUNT;
+    const search = /^#search\/(.+)$/.exec(url.hash);
+    if (search) this.query = decodeURIComponent(search[1]!.replace(/\+/g, " "));
     if (url.searchParams.get("view") === "cm") {
       this.compose = { chips: [], raw: "", subject: url.searchParams.get("su") ?? "", body: url.searchParams.get("body") ?? "", suggest: [] };
       const to = url.searchParams.get("to");
@@ -104,26 +137,36 @@ class Gmail extends App {
     }
   }
 
+  private rows(): { row: string; at: number }[] {
+    const all = MAILBOXES[this.account]!.map((row, at) => ({ row, at }));
+    if (this.query === null) return all;
+    const from = /from:\(?([^)]+?)\)?(?:\s|$)/i.exec(this.query)?.[1]?.toLowerCase(), words = this.query.replace(/from:\(?[^)]+?\)?(?:\s|$)/i, "").toLowerCase().split(/\s+/).filter((w) => w && !/^(or|and)$/.test(w));
+    return all.filter(({ row }) => (!from || row.split(",")[0]!.toLowerCase().includes(from)) && words.every((w) => row.toLowerCase().includes(w.replace(/[()]/g, ""))));
+  }
+
   page(): Page {
     const specs: Spec[] = [
-      button("menu", "Main menu", "top"), link("home", "Gmail", "top"), field("search", "Search mail", "", "top", "search"), button("search_options", "Show search options", "top"),
-      button("support", "Support", "top"), button("settings", "Settings", "top"), button("apps", "Google apps", "top"), button("account", "Google Account: Chi Li (chi@example.com)", "top"),
+      button("menu", "Main menu", "top"), link("home", "Gmail", "top"), field("search", "Search mail", this.query ?? "", "top", "search"), button("search_options", "Show search options", "top"),
+      button("support", "Support", "top"), button("settings", "Settings", "top"), button("apps", "Google apps", "top"), button("account", `Google Account: Chi Li (${this.account})`, "top"),
       button("compose", "Compose", "left"), link("inbox", "Inbox 3", "left", "navigation"), link("starred", "Starred", "left", "navigation"), link("snoozed", "Snoozed", "left", "navigation"),
       link("sent", "Sent", "left", "navigation"), link("drafts", "Drafts 1", "left", "navigation"), link("more", "More", "left", "navigation"), button("new_label", "Create new label", "left"),
-      { key: "tab_primary", role: "tab", name: "Primary", zone: "main" }, { key: "tab_promotions", role: "tab", name: "Promotions", zone: "main" }, { key: "tab_social", role: "tab", name: "Social", zone: "main" },
-      button("refresh", "Refresh", "main"), button("select_all", "Select", "main"),
-      ...[
-        "Sam Rivera, Re: Q3 planning, Sounds good. See you at the meeting, 9:12 AM",
-        "Alex Chen, Deck for Monday, Can you take a look at slide 4 before we send it, 8:40 AM",
-        "OpenTable, Your reservation at Bella Napoli is confirmed, Sep 17",
-        "Dr. Patel's Office, Appointment reminder, Your appointment is on Tuesday at 3:00 PM, Sep 17",
-        "Dana Whitfield, Lunch next week?, Are you free Thursday, Sep 16",
-        "GitHub, [puk] Pull request #12 opened by teammate, Sep 16",
-        "Mom, Photos from the weekend, Sep 15",
-        "Jordan Blake, Invoice 2291, Attached is the invoice for August, Sep 14",
-      ].map((row, i) => link(`mail_${i}`, row, "main", "inbox")),
     ];
-    const texts = ["Inbox", "1-8 of 214"];
+    const texts: string[] = [];
+    let title = `Inbox (3) - ${this.account} - Gmail`;
+    if (this.message !== null) {
+      const [from, subject, ...rest] = MAILBOXES[this.account]![this.message]!.split(", ");
+      title = `${subject} - ${this.account} - Gmail`;
+      specs.push(button("back", this.query === null ? "Back to Inbox" : "Back to Search results", "main"), button("archive", "Archive", "main"), button("delete", "Delete", "main"), button("mark_unread", "Mark as unread", "main"),
+        button("reply", "Reply", "main", subject), button("forward", "Forward", "main", subject), button("more_message", "More", "main", subject));
+      texts.push(subject!, `From: ${from}`, rest.join(", "));
+      if (this.reply) specs.push(field("reply_body", "Message Body", this.reply.body, "main", "Reply"), button("reply_send", "Send", "main", "Reply"), button("reply_discard", "Discard draft", "main", "Reply"));
+    } else {
+      const rows = this.rows();
+      if (this.query !== null) title = `Search results - ${this.account} - Gmail`;
+      specs.push({ key: "tab_primary", role: "tab", name: "Primary", zone: "main" }, { key: "tab_promotions", role: "tab", name: "Promotions", zone: "main" }, button("refresh", "Refresh", "main"), button("select_all", "Select", "main"),
+        ...rows.map(({ row, at }) => link(`mail_${at}`, row, "main", this.query === null ? "inbox" : "search results")));
+      texts.push(this.query === null ? "Inbox" : `Search results for ${JSON.stringify(this.query)}`, rows.length ? `1-${rows.length} of ${rows.length}` : "No messages matched your search.");
+    }
     if (this.justSent) { specs.push(button("undo", "Undo", "bottom"), link("view_message", "View message", "bottom")); texts.unshift("Message sent"); }
     const c = this.compose;
     if (c) {
@@ -131,7 +174,7 @@ class Gmail extends App {
       specs.push(
         button("c_minimize", "Minimize", "dialog", "New Message"), button("c_popout", "Pop-out", "dialog", "New Message"), button("c_close", "Save & close", "dialog", "New Message"),
         { ...field("to", "To recipients", to, "dialog", "New Message") }, link("cc", "Add Cc recipients", "dialog", "New Message"), link("bcc", "Add Bcc recipients", "dialog", "New Message"),
-        ...c.suggest.map((s, i) => ({ key: `suggest_${i}`, role: "option", name: `${s.name} ${s.email}`, zone: "dialog" as Zone, within: "Contact suggestions" })),
+        ...c.suggest.map((sg, i) => ({ key: `suggest_${i}`, role: "option", name: `${sg.name} ${sg.email}`, zone: "dialog" as Zone, within: "Contact suggestions" })),
         field("subject", "Subject", c.subject, "dialog", "New Message"), field("body", "Message Body", c.body, "dialog", "New Message"),
         button("send", "Send", "dialog", "New Message"), button("send_options", "More send options", "dialog", "New Message"), button("formatting", "Formatting options", "dialog", "New Message"),
         button("attach", "Attach files", "dialog", "New Message"), button("insert_link", "Insert link", "dialog", "New Message"), button("emoji", "Insert emoji", "dialog", "New Message"),
@@ -140,7 +183,8 @@ class Gmail extends App {
       texts.push("New Message");
     }
     if (this.error) { specs.push(button("error_ok", "OK", "dialog", "Error")); texts.unshift(`Error: ${this.error}`); }
-    return { title: "Inbox (3) - chi@example.com - Gmail", url: "https://mail.google.com/mail/u/0/#inbox", specs, texts };
+    const index = Object.keys(MAILBOXES).indexOf(this.account);
+    return { title, url: `https://mail.google.com/mail/u/${index}/#${this.message !== null ? "inbox/message" : this.query !== null ? `search/${encodeURIComponent(this.query)}` : "inbox"}`, specs, texts };
   }
 
   private resolve() { // leaving the To field: addresses become chips, a bare name stays unresolved
@@ -154,20 +198,31 @@ class Gmail extends App {
     const c = this.compose;
     if (key === "error_ok") return void (this.error = null);
     if (key === "compose") { this.compose ??= { chips: [], raw: "", subject: "", body: "", suggest: [] }; this.focus = "to"; return; }
+    if (key.startsWith("mail_") && !c) { this.message = Number(key.slice(5)); this.reply = null; return; }
+    if (key === "back") { this.message = null; this.reply = null; return; }
+    if (key === "inbox" || key === "home") { this.message = null; this.query = null; this.reply = null; return; }
+    if (key === "reply" && this.message !== null) { this.reply ??= { body: "" }; this.focus = "reply_body"; return; }
+    if (key === "reply_discard") return void (this.reply = null);
+    if (key === "reply_send" && this.reply && this.message !== null) {
+      if (!this.reply.body.trim()) return void (this.error = "Send this message without text in the body?");
+      this.replies.push({ to: MAILBOXES[this.account]![this.message]!.split(", ")[0]!, body: this.reply.body, account: this.account }); this.reply = null; this.justSent = true; return;
+    }
     if (!c) return;
-    if (key.startsWith("suggest_")) { const s = c.suggest[Number(key.slice(8))]; if (s) { c.chips.push(s.email); c.raw = ""; c.suggest = []; this.focus = "subject"; } return; }
+    if (key.startsWith("suggest_")) { const sg = c.suggest[Number(key.slice(8))]; if (sg) { c.chips.push(sg.email); c.raw = ""; c.suggest = []; this.focus = "subject"; } return; }
     if (key !== "to") this.resolve();
     if (key === "discard" || key === "c_close") return void (this.compose = null);
     if (key === "send") {
       if (c.raw) return void (this.error = `The address "${c.raw}" in the "To" field was not recognized. Please make sure that all addresses are properly formed.`);
       if (!c.chips.length) return void (this.error = "Please specify at least one recipient.");
-      this.sent.push({ to: c.chips, subject: c.subject, body: c.body }); this.compose = null; this.justSent = true;
+      this.sent.push({ to: c.chips, subject: c.subject, body: c.body, account: this.account }); this.compose = null; this.justSent = true;
     }
   }
 
   setField(key: string, text: string) {
+    if (key === "search") return void (this.query = text.trim() || null, this.message = null);
+    if (key === "reply_body" && this.reply) return void (this.reply.body = text);
     const c = this.compose;
-    if (!c || key === "search") return;
+    if (!c) return;
     if (key !== "to") this.resolve();
     if (key === "to") {
       c.chips = []; c.raw = text.trim();
@@ -451,6 +506,9 @@ export class World {
     const seen = JSON.stringify([page.url, page.title, page.specs.map((s) => [s.key, s.name, s.value]), page.texts, this.current.focus]);
     return { elements, texts: [`page: ${page.title}`, `address: ${page.url}`, ...page.texts], frames: [page.title], fingerprint: Bun.hash(seen).toString(16) };
   }
+
+  /** The page the browser is on, as win/jev.ts reads it off the hand: for requests that carry on from it. */
+  here(): { url: string; title: string } { const page = this.current.page(); return { url: page.url, title: page.title }; }
 
   /** The app's own stable name for an element of the last look ("send", "slot_2_0"). Evals label gold targets with it. */
   keyOf(id: string): string | undefined { return this.keys.get(id); }

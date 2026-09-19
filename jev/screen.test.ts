@@ -96,7 +96,7 @@ describe("runScreens", () => {
     });
     const result = await runScreens(SIM_HAND, EMAIL, depsFor(world, jev.ask, approvals));
     expect(result.status).toBe("done");
-    expect(world.gmail.sent).toEqual([{ to: ["sam.rivera@example.com"], subject: "Reminder", body: "See you at ten." }]);
+    expect(world.gmail.sent).toEqual([{ to: ["sam.rivera@example.com"], subject: "Reminder", body: "See you at ten.", account: "chi@example.com" }]);
     expect(jev.decisions()).toHaveLength(2); // the form, then the look that sees "Message sent"
     expect(jev.gates()).toHaveLength(4); // one gate request per action, as in cua.ts
     expect(approvals).toHaveLength(1);
@@ -198,7 +198,7 @@ describe("approval", () => {
       approve: async () => { throw new Error("The exact send was already requested"); },
       perform: async (_hand, action) => world.act(action, describeScreenAction(action)) });
     expect(result.status).toBe("done");
-    expect(world.gmail.sent).toEqual([{ to: [EMAIL.inputs.recipient!], subject: EMAIL.inputs.subject!, body: EMAIL.inputs.body! }]);
+    expect(world.gmail.sent).toEqual([{ to: [EMAIL.inputs.recipient!], subject: EMAIL.inputs.subject!, body: EMAIL.inputs.body!, account: "chi@example.com" }]);
     const sendChecks = jev.gates().filter((call) => call.state.action.startsWith('click button "Send"'));
     expect(sendChecks).toHaveLength(2); // Initial empty form, then actual fields after filling.
     expect(sendChecks[0]!.state.observation.fields.every((field: any) => !field.value)).toBe(true);

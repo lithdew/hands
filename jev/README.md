@@ -196,6 +196,38 @@ Contacts come from `contacts.json` (`PUK_CONTACTS`), learned recipes live in
 real page**: the unit tests cover the pure parts and the page scripts parse and
 run against a fake DOM.
 
+### Accounts, and carrying on from what is open (`accounts.ts`)
+
+From a real run: "search up the email from ananth sent to my northwestern email" was run in the hand's first Gmail
+account, the private one, as the search `from:ananth (northwestern OR @northwestern.edu)`, again and again with other
+words. "Reply to it" then opened a new tab in the default account and lost the email. Nothing knew that "my
+northwestern email" is an ACCOUNT, or that the hand was already standing on the email.
+
+- **An account is a slot Jev chooses, never a search term.** Two plain questions: how the request names the account
+  (`school`, `work`, `personal`, `by_name`, `not_said`) and, for names, which listed address. Asked as one question,
+  Jev was sure of "my northwestern email" (0.91) and torn on "my school account" (0.47 against 0.49): getting from
+  "school" to ".edu" to the address is a hop, and code does hops (`kindOf`). 12 of 12 phrasings, including "my work
+  account" with no work account known (handed back as unknown, not guessed) and a contact's name not being taken for
+  one of the user's accounts.
+- **Code builds the url.** Google takes `authuser=<address>`: `gmailUrl` lands in that account with the search or the
+  draft already there, and no account switcher to operate. "Find the email from ananth in my northwestern email" is
+  two Jev round trips and no LLM.
+- **Code checks the page.** A Gmail title carries its address. If it is not the one the task needs, the run stops and
+  says which account to sign in on that hand. Comparing two addresses is not a judgment.
+- **The account stays.** With no account named, a Google page the hand is on keeps its account.
+- **A request that carries on is not sent anywhere.** The hand's page goes into the request (`on_screen`) and a Noul
+  asks whether the request is about the thing already open. If so no recipe link is used: the planner is told the page
+  and may return an empty url, and Jev works from what is open, in the same tab and account.
+- The list of accounts is `accounts.json` (`PUK_ACCOUNTS`, gitignored) plus every address a hand sees in a Gmail title.
+  Named an account nobody knows, `win/jev.ts` looks through the hand's `/mail/u/0..3` once. A handover tells Pi the
+  page, the accounts, and to stay in the tab and account.
+
+`bun jev/tasks.eval.ts --only=account --strategy=pilot`: 4 of 4 (find in the school account 0.8 s; find, then reply to
+the right one of two emails from the same sender, from the same account; find, then another search that stays in the
+account; send from "my school account"). All 18 pilot tasks: 18 of 18. The Gmail in `sim.ts` has two accounts, search,
+messages and replies for this. **Not run against real Gmail**: `authuser` for an address that is not signed in shows
+Google's chooser, which the wrong-account check is meant to catch.
+
 Known gaps: the simulator's pages are mine; a custom widget on a real page may
 not expose its value the way the simulated date picker does (that is why `facts`
 exist); a modal dialog is only handled because `win/observe.ts` hit-tests every
@@ -308,7 +340,8 @@ transcript so far on each line, and an empty line as the end of the utterance.
 | `listen.ts` | Per-word triage, task list, dispatch to free hands, refine / restart / cancel | **Run live** in `--dry` mode (real Jev and OpenAI, no hand). Unit tested. |
 | `quick.ts` | Jev builds a simple intent with no LLM | **Run live.** Unit tested. |
 | `pilot.ts` | `createPilot`: understand (recipes, learned, quick) in one Jev round, else one LLM plan; drive; learn | **Run live** on the simulated apps (14/14). Unit tested. Wired into `win/jev.ts`, never run on a real page. |
-| `recipes.ts` | Jev builds the whole intent for email, table, note and text tasks: closed-set slots, literal spans, deep links, overflow guards | **Run live** (`recipes.eval.ts`, 40/40). Unit tested. |
+| `accounts.ts` | The user's own accounts: which one a request names, the url that lands in it, the check that the page is in it | **Run live** through the evals. Unit tested. Wired into `win/jev.ts`, never run on real Gmail. |
+| `recipes.ts` | Jev builds the whole intent for email (send and find), table, note and text tasks: closed-set slots, literal spans, deep links, overflow guards | **Run live** (`recipes.eval.ts`, 40/40). Unit tested. |
 | `plan.ts`, `learned.ts` | One text plan from an LLM before the first look; a plan that worked becomes a recipe Jev fills in alone | **Run live** through the pilot eval. Unit tested. |
 | `screen.ts` | `decideScreen`, `runScreens`: a screen's worth of actions per request, gates in parallel, per-control and per-fact checks | **Run live** on the simulated apps only. Unit tested. |
 | `ground.ts`, `ground.eval.ts`, `fixtures/` | Every way of offering a screen to Jev that was tried, and the eval that ranked them | **Run live**, about 4,900 requests. No unit tests. |

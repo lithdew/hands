@@ -20,6 +20,7 @@
  */
 import { askModel, createDesktopAgent, type AgentStatus, type DesktopAgentOptions } from "../ai";
 import { debugLog, redact, type InstalledApp } from "../desktop";
+import { accountBook, accountShown, wrongAccount, type AccountBook } from "../jev/accounts";
 import type { RunResult } from "../jev/cua";
 import { choice, createJev, jevApiKey, noul, type Ask } from "../jev/jev";
 import { fileStore, type LearnedStore } from "../jev/learned";
@@ -49,7 +50,7 @@ const DESK = { target: { kind: "desktop", display_id: "primary" }, delivery_mode
 type Runtime = Awaited<ReturnType<typeof createDesktopAgent>>;
 type Speaking = Parameters<Runtime["prompt"]>[3];
 export type JevFirstOptions = DesktopAgentOptions & { jevFirst?: {
-  ask?: Ask; llm?: Llm; agent?: typeof createDesktopAgent; contacts?: Contact[]; store?: LearnedStore;
+  ask?: Ask; llm?: Llm; agent?: typeof createDesktopAgent; contacts?: Contact[]; store?: LearnedStore; accounts?: AccountBook;
   /** Seams for tests: the loop that drives, the two window reads, and what the user is looking at. */
   run?: typeof runScreens; observe?: typeof observeHand; browserWindow?: typeof browserWindow; frontOf?: typeof frontOf; browserTarget?: typeof browserTarget; onScreen?: () => Promise<string | null>;
 } };
@@ -125,6 +126,8 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
   let settled = Promise.withResolvers<void>();
   settled.resolve();
   let said = "", fullUtterance: string | undefined, rebuilding = 0, startedAt = 0;
+  /** The user's account the task being driven belongs in, when it names one. The observer holds every look against it. */
+  let wantedAccount: string | undefined;
   let liveAuthorization: (() => string) | undefined;
   const authorization = () => liveAuthorization?.() ?? fullUtterance ?? said;
   /** Where the hand's browser was last sent and has not been touched since, so a link opened early is not loaded twice. */
@@ -178,6 +181,32 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
     await pageSettled(hand, 3000);
   }
 
+  // The user's accounts: what they wrote down, plus every address this hand sees in a Gmail title.
+  const book = opts.jevFirst?.accounts ?? await accountBook();
+  /** The page the hand's browser is on, when it has one open. A request may carry on from it, and its account stays. */
+  const here = async () => {
+    const window = await (opts.jevFirst?.browserWindow ?? browserWindow)(hand).catch(() => null);
+    const raw = window && await handBrowser(hand).evaluate(window, "JSON.stringify({ url: location.href, title: document.title })").catch(() => null);
+    if (typeof raw !== "string") return null;
+    const page = JSON.parse(raw) as { url: string; title: string };
+    return /^https?:/.test(page.url) ? page : null;
+  };
+  /** Gmail has the user's accounts at /u/0, /u/1, ... Each one's title carries its address. Looked through once, when a request names an account nobody knows. */
+  async function discoverAccounts(): Promise<void> {
+    const seen = new Set<string>();
+    for (let n = 0; n < 4; n++) {
+      const window = await browserWindow(hand);
+      if (!window) return;
+      await handBrowser(hand).navigate(window, `https://mail.google.com/mail/u/${n}/`);
+      await pageSettled(hand);
+      const page = await here();
+      const address = page && new RegExp(`/mail/u/${n}/`).test(page.url) ? accountShown([`page: ${page.title}`]) : null;
+      if (!address || seen.has(address)) return; // past the last account Gmail sends us somewhere else
+      seen.add(address);
+      if (book.seen(address)) log(`Jev found the account ${address} on this hand`);
+    }
+  }
+
   async function signedIn(): Promise<void> {
     const wall = await handWall(hand).catch(() => null);
     if (wall) throw new SignedOut(wall.how);
@@ -186,7 +215,16 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
     ask, llm, perform, settleMs: 150, log,
     authorization,
     // The page's own address says when a click has landed on a sign-in page; only then is the page asked again.
-    observe: async () => { const seen = await (opts.jevFirst?.observe ?? observeHand)(hand); if (wallInTexts(seen.texts, hand.id)) await signedIn(); return seen; },
+    observe: async () => {
+      const seen = await (opts.jevFirst?.observe ?? observeHand)(hand);
+      if (wallInTexts(seen.texts, hand.id)) await signedIn();
+      const shown = accountShown(seen.texts), wanted = wantedAccount;
+      if (shown && book.seen(shown)) log(`Jev found the account ${shown} on this hand`);
+      // Comparing two addresses is code's job. Working on in the wrong inbox is how a search for a school email ran in the private one.
+      const other = wrongAccount(wanted, seen.texts);
+      if (other) throw new SignedOut(`Hand ${hand.id}'s browser opened ${other}, not ${wanted}: that account is not signed in on this hand. Run \`bun win/desktop.ts login ${hand.id}\`, add ${wanted} there, and close the window.`);
+      return seen;
+    },
     screenshot: async () => new Uint8Array(Buffer.from(await capture(hand), "base64")),
     approve: ({ action, risk }) => new Promise<boolean>((resolve) => {
       const signal = controllerSignal;
@@ -212,7 +250,7 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
     at = url;
   }
   const onScreen = opts.jevFirst?.onScreen ?? (async () => { const front = await userForeground().catch(() => null); return front ? titleForPlanner(front.title) : null; });
-  const pilot = createPilot({ ...deps, open, onScreen, drive, contacts: opts.jevFirst?.contacts ?? await loadContacts(), store: opts.jevFirst?.store ?? await fileStore() });
+  const pilot = createPilot({ ...deps, open, onScreen, drive, here, accounts: () => book.all(), contacts: opts.jevFirst?.contacts ?? await loadContacts(), store: opts.jevFirst?.store ?? await fileStore() });
 
   /** One Jev request: which app, and what kind of request this is. */
   async function triage(text: string, catalog: InstalledApp[]): Promise<Triage> {
@@ -231,7 +269,9 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
       log(`Jev hands over to Pi: ${why}`);
       phase = "pi";
       const steps = done?.steps.map((s) => `${s.did} -> ${s.outcome}`).slice(-8) ?? [];
-      const note = `\n\nThe Jev controller stopped in this hand (${why}).${steps.length ? ` Its recorded steps were: ${steps.join("; ")}.` : ""} Get a fresh compact observation of the current window and keep completed work. If an input failed, inspect its result before retrying it. Reuse applications that are still open; reopen a needed application only if its window has closed.`;
+      const page = await here().catch(() => null), known = book.all();
+      const where = `${page ? ` The hand's browser is on ${JSON.stringify(page.title.slice(0, 120))}: stay in that tab and that account, and do not open a new tab or go back to another account unless the request says so.` : ""}${known.length > 1 ? ` The user's accounts are ${known.map((a) => a.email).join(", ")}; a phrase like "my school email" names one of them, it is not a search term. Gmail opens in one with https://mail.google.com/mail/u/?authuser=ADDRESS .` : ""}`;
+      const note = `\n\nThe Jev controller stopped in this hand (${why}).${steps.length ? ` Its recorded steps were: ${steps.join("; ")}.` : ""} Get a fresh compact observation of the current window and keep completed work. If an input failed, inspect its result before retrying it. Reuse applications that are still open; reopen a needed application only if its window has closed.${where}`;
       await pi.prompt(said + note, opened, authorization(), speaking);
     };
 
@@ -252,6 +292,15 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
     if (signal.aborted) return;
     if (startingRevision !== rebuilding) return handOver("the request changed while Jev was starting. Apply the latest instruction before opening or driving an application", null);
     check();
+    // "My work email", and nobody knows a work account: look through the hand's Gmail accounts once, then read the request again.
+    if (understood?.unknownAccount) {
+      mine.currentTool = "Looking for that account";
+      await desktop.launch(hand, { id: BROWSER, name: "Web browser" } as unknown as InstalledApp);
+      await discoverAccounts().catch(() => {});
+      understood = await pilot.read(text).catch(() => null);
+      if (signal.aborted) return;
+      if (understood?.unknownAccount) { mine.error = `I do not know which of your accounts that is. This hand is signed in to: ${book.all().map((a) => a.email).join(", ") || "none I have seen"}. Sign the other one in with \`bun win/desktop.ts login ${hand.id}\`, or list it in accounts.json.`; return; }
+    }
     const route = routeRequest(kind, understood?.by ?? null);
     log(`Jev routes this to ${route.to}${route.to === "native" ? ` (${route.app})` : ""}`);
     if (route.to === "vision") return handOver(route.why, null);
@@ -338,6 +387,7 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
     const front = await frontWindowOf(hand);
     check();
     const sized = front ? { ...hand, width: front.rect[2], height: front.rect[3] } : hand;
+    wantedAccount = understood.tasks.map((t) => t.intent.account).find(Boolean);
     const outcome = await pilot.run(sized, said, { ...runOptions, maxPlans: 2 }, understood);
     const result = completed = { status: outcome.status, reason: outcome.reason, steps: outcome.runs.flatMap((r) => r.steps) } satisfies RunResult;
     mine.currentTool = null;
@@ -385,7 +435,7 @@ export async function createJevFirstAgent(opts: JevFirstOptions): Promise<Runtim
     },
     async prompt(text, opened = [], utterance, speaking) {
       if (phase === "jev" || pi.status().running) throw new Error("The agent is busy. Stop it before starting another task.");
-      phase = "jev"; said = text; fullUtterance = utterance; at = null; declined = false; startedAt = Date.now(); rebuilding++;
+      phase = "jev"; said = text; fullUtterance = utterance; at = null; wantedAccount = undefined; declined = false; startedAt = Date.now(); rebuilding++;
       liveAuthorization = speaking?.authorization;
       mine = { task: text, text: "", error: null, currentTool: "Jev is reading the request", approval: null, events: [] };
       abort = new AbortController(); controllerAbort = new AbortController(); controllerSignal = AbortSignal.any([abort.signal, controllerAbort.signal]); settled = Promise.withResolvers<void>();

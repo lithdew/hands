@@ -37,6 +37,8 @@ export type Intent = {
   doneWhen: string;
   /** Things the user said not to do. */
   avoid: string[];
+  /** The user's account the task belongs in, by address. Code keeps the hand in it (accounts.ts); it is never a search term. */
+  account?: string;
   /** Exact values the result must have ("party size: 4 people"). screen.ts will not commit anything while the screen shows otherwise. */
   facts?: string[];
   /** Keys to press one after another on a screen that does not change (a calculator: "1","2","×","3","1","="). screen.ts maps them all to controls in one request. */

@@ -23,7 +23,8 @@ import type { Intent } from "./intent";
 import { generalise, learnedIntent, memoryStore, type LearnedStore } from "./learned";
 import { planTasks } from "./plan";
 import { quickIntent } from "./quick";
-import { readRequest, type Contact } from "./recipes";
+import type { Account } from "./accounts";
+import { readRequest, type Contact, type Here } from "./recipes";
 import { runScreens, type ScreenDeps } from "./screen";
 
 // ---------------------------------------------------------------- types
@@ -31,7 +32,7 @@ import { runScreens, type ScreenDeps } from "./screen";
 export type Tier = "recipe" | "learned" | "quick" | "plan";
 /** `start`: where to go first, or null to work on whatever the hand has open. */
 export type PilotTask = { intent: Intent; start: string | null; shape: string; wantsAnswer: boolean };
-export type Understood = { by: Tier; detail: string; tasks: PilotTask[]; /** Set when a plan could be learned from once it has worked. */ teach?: () => Promise<void> };
+export type Understood = { by: Tier; detail: string; tasks: PilotTask[]; /** The request named an account of the user's that nobody knows yet. */ unknownAccount?: boolean; /** Set when a plan could be learned from once it has worked. */ teach?: () => Promise<void> };
 export type PilotResult = { by: Tier; detail: string; status: RunResult["status"]; reason: string; runs: RunResult[]; wantsAnswer: boolean; /** Resolves when background learning is over. Never rejects. */ learning: Promise<void> };
 
 export type PilotDeps = ScreenDeps & {
@@ -42,6 +43,10 @@ export type PilotDeps = ScreenDeps & {
   today?: () => Date;
   /** The loop that drives a task. Default: screen.ts `runScreens`. A seam for tests. */
   drive?: typeof runScreens;
+  /** The user's own accounts, as known right now (a hand learns more as it sees them). */
+  accounts?: () => readonly Account[];
+  /** What the hand's browser shows right now, so a request can carry on from it and an account can stay. */
+  here?: () => Promise<Here | null>;
   /** Title of the window the user is looking at, for requests that point at it. Only the planner is told. */
   onScreen?: () => Promise<string | null>;
 };
@@ -56,8 +61,10 @@ export function createPilot(deps: PilotDeps) {
   const store = deps.store ?? memoryStore(), log = deps.log ?? (() => {}), today = deps.today ?? (() => new Date());
 
   /** Tier one alone: one round of Jev, or null when only a plan will do. Cheap enough to run on a sentence that is still being spoken. */
+  const context = async () => ({ today: today(), contacts: deps.contacts, accounts: deps.accounts?.() ?? [], here: await deps.here?.().catch(() => null) ?? null });
+
   async function read(said: string): Promise<Understood | null> {
-    const ctx = { today: today(), contacts: deps.contacts };
+    const ctx = await context();
     const [reading, learned, quick] = await Promise.all([
       readRequest(deps.ask, said, ctx),
       learnedIntent(deps.ask, said, store).catch(() => null),
@@ -68,19 +75,21 @@ export function createPilot(deps: PilotDeps) {
     if (learned) return { by: "learned", detail: `${learned.shape} (${learned.confidence.toFixed(2)})`, tasks: one(learned.intent, null, learned.shape) };
     // quick.ts will claim anything that mentions a site. Jev's own word that the request is only that is what makes it safe.
     // And only for a site it knows: for "open calculator" it answers "nothing to open, type calculator", which is not a task.
-    if (quick?.launcher === "browser" && quick.url && reading.task === "other" && reading.simple >= SIMPLE_ENOUGH && reading.twoTasks < 0.5) return { by: "quick", detail: `simple ${reading.simple.toFixed(2)}`, tasks: one(quick, null, "open or search a site") };
+    if (reading.unknownAccount) return { by: "recipe", detail: "an account nobody knows yet", tasks: [], unknownAccount: true };
+    if (quick?.launcher === "browser" && quick.url && reading.task === "other" && reading.simple >= SIMPLE_ENOUGH && reading.twoTasks < 0.5 && reading.continues < 0.6) return { by: "quick", detail: `simple ${reading.simple.toFixed(2)}`, tasks: one(quick, null, "open or search a site") };
 
     return null;
   }
 
   async function understand(said: string): Promise<Understood> {
     const first = await read(said);
-    if (first) return first;
+    if (first && !first.unknownAccount) return first;
     // The quick model planned every request tried, two-app ones included, in 2 to 4 s; the deep one took 5 to 8.
     const onScreen = await deps.onScreen?.().catch(() => null);
-    const planned = await planTasks(deps.llm, said, { today: today(), contacts: deps.contacts, onScreen }, "quick");
+    const planned = await planTasks(deps.llm, said, { ...(await context()), onScreen }, "quick");
     return { by: "plan", detail: `${planned.length} task${planned.length === 1 ? "" : "s"}`,
-      tasks: planned.map((t) => ({ intent: t.intent, start: t.intent.url!, shape: t.intent.goal, wantsAnswer: t.wantsAnswer })),
+      // No url: the plan carries on from the page the hand is on.
+      tasks: planned.map((t) => ({ intent: t.intent, start: t.intent.url, shape: t.intent.goal, wantsAnswer: t.wantsAnswer })),
       teach: async () => { for (const task of planned) { const recipe = await generalise(deps.llm, said, task).catch(() => null); if (recipe) { store.add(recipe); log(`learned: ${recipe.shape}`); } } } };
   }
 
