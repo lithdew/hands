@@ -329,7 +329,7 @@ public static class PukWin
                     // HasWindow calls into the shell. Verify again immediately
                     // before moving; a reused handle must never be reclaimed.
                     if (!SameOwner(hwnd, entry.Value)) { retired.Add(entry.Key); mine.Remove(entry.Key); continue; }
-                    desktop.MoveWindow(hwnd);
+                    desktop.MoveWindow(hwnd, true);
                     if (hwnd == active && SameOwner(hwnd, entry.Value)) Focus(userFocus);
                 }
                 catch (Exception)
@@ -696,7 +696,7 @@ public static class PukWin
                     if (Find(rest) == null) Desktop.Create().SetName(rest);
                     reply = "ok " + Desktop.FromDesktop(Need(rest));
                 }
-                else if (words[0] == "move") { Need(words[2]).MoveWindow(new IntPtr(long.Parse(words[1]))); reply = "ok"; }
+                else if (words[0] == "move") { Need(words[2]).MoveWindow(new IntPtr(long.Parse(words[1])), true); reply = "ok"; }
                 else if (words[0] == "grab") reply = Grab(new IntPtr(long.Parse(words[1])));
                 else if (words[0] == "boost") reply = "ok " + Boost(uint.Parse(words[1]));
                 else if (words[0] == "viewport") reply = Viewport(new IntPtr(long.Parse(words[1])));
