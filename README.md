@@ -18,6 +18,7 @@ macOS 14 or newer on Apple Silicon or Intel, [Bun](https://bun.com) 1.4 or newer
 ```
 bun install
 echo 'TYPESAFE_API_KEY=...' > .env     # Bun loads .env on its own
+echo 'OPENAI_API_KEY=...' >> .env      # only for `bun live`: the voice is OpenAI's gpt-live-1
 pi                                     # then /login, once: signs in the model provider
 ```
 
@@ -32,8 +33,10 @@ The language model goes through [pi-ai](https://github.com/earendil-works/pi/tre
 | `CLICKER_WRITER_MODEL`, `CLICKER_ANSWER_MODEL` | `HANDS_MODEL` | the clicker's per-step writer, and the reader of its last screen |
 | `CLICKER_BROWSER` | `Google Chrome` | any Chromium browser with Chrome's scripting dictionary |
 | `CLICKER_EMAIL` | none | enables the clicker's `type_email` action |
+| `OPENAI_API_KEY` | required by `bun live` | the voice |
+| `HANDS_LIVE_MODEL`, `HANDS_LIVE_VOICE`, `HANDS_LIVE_BACKEND` | `gpt-live-1`, `marin`, `gpt-5.6-luna` | the voice, how it sounds, and the Responses model behind it that turns what was said into tool calls |
 
-Grant your terminal **Screen Recording** and **Accessibility** in System Settings > Privacy & Security, and let it control your browser the first time macOS asks. Without the first, captures are wallpaper. Without the second, synthetic clicks are silently dropped, and both commands refuse to drive the machine.
+Grant your terminal **Screen Recording** and **Accessibility** in System Settings > Privacy & Security (and **Microphone**, for `bun live`), and let it control your browser the first time macOS asks. Without the first, captures are wallpaper. Without the second, synthetic clicks are silently dropped, and both commands refuse to drive the machine.
 
 ## Use
 
@@ -42,6 +45,8 @@ bun hands "prompt"                                   # one task
 bun hands --background "prompt"                      # any app or site, without taking your mouse, keyboard or focus
 bun hands --name Lefty --color 4f8cff "prompt"       # the hand on screen: its name and colour (--no-hand runs without one)
 bun hands                                            # a prompt per line, same conversation
+bun live                                             # hold right Option, say what you want, and hands go and do it
+bun live --quiet --say "open the calculator and work out 12 times 12"   # the same without a microphone or a speaker
 bun clicker "open the Playground"                    # dry run: one step, prints what it would do
 bun clicker "open the Playground" --act              # drives the machine, up to 100 steps
 bun clicker "log in" --act --steps 20 --delay 3      # longer and slower
@@ -74,6 +79,26 @@ While it runs, the agent is on screen: an emoji hand with its name on a tag unde
 - **Any colour.** `--color 4f8cff` (or `'#4f8cff'`, or `HANDS_COLOR`) makes the hand, and the ring it taps with, that colour; without it the hand is the emoji's own yellow. Colour emoji are pictures, so there is no colour to set: each glyph is set in type, photographed into a bitmap, and every pixel given the tint at the brightness it had. The shading survives, the pen stays black, and the skin comes out the colour asked for.
 - **It never gets in the way, and it is in your recordings.** The window ignores the mouse, cannot take the focus, and belongs to a process with no Dock icon. The agent must not see its own hand: it would cover the very thing it points at, and its tag would be read back as text. A window is captured by id, which leaves the hand out anyway. A display capture would not, so for exactly as long as one of those takes, the hand's window tells the window server to leave it out of captures, and the agent waits to hear that it has before it shoots (measured: out of 12 of 12 of the agent's captures, in every capture between them). So a screen recording shows the hand throughout a background run, and throughout a foreground run but for a blink at each of the agent's looks. The window also declares itself 99% opaque, which no eye can tell, so that the check for "is my browser window covered?" knows to look through it.
 - **How it is drawn.** `src/hand.ts` spawns itself as a second process and sends it one JSON cue per line. That process is an AppKit app driven from `bun:ffi` like everything else here: a transparent window the size of the display, and a few Core Animation layers (the glyph, the ring, the tag). Core Animation plays every motion inside the window server, so nothing draws frames and an idle hand costs about 1% of a core. It is a process of its own because the agent's thread stalls for a second at a time in OCR and tree walks, and because a fault in a drawing must never end a run: if the renderer dies, the cues become no-ops. All timing is the agent's side: it waits out the glide (160 to 520 ms) before it presses, so what is pressed visibly answers to the hand.
+
+## Live: hold a key and say it
+
+`bun live` is the whole thing in one gesture. Hold the **right Option** key, say what you want done, let go. A voice hears it, answers in a few words, and sends out hands: one, or several at once when the parts are independent ("open the calculator and work out twelve times twelve, and have another hand find the top story on Hacker News" is two hands, working side by side, each with its own name and colour). When a hand finishes, the voice tells you what it found.
+
+- **The panel.** In the bottom right corner, one card per hand, headed in that hand's glove colour (the colour its hand wears out on the screen): a live picture of the window it is working in, with its hand drawn over the picture where the real one is, and under it what it is doing this moment, or what came of it. Up to eight hands can be out; as they pile up, the cards that matter least fold down to their headers, the ones at work last, so the column always fits the screen, and a finished hand keeps its answer showing. Click a card for its sheet: what it was told, every tool call as a verb and what it was done to, what it said, and a box to tell it something; `↵` sends, `esc` goes back, `⌘W` closes the hand for good, and there are buttons to pause, stop and close. A card disappears while you have that hand's own window in front of you, since then you are looking at the real thing.
+- **The dock.** Under the cards, the voice, in the yellow of the hand emoji itself, and nothing else in the panel is that yellow. While you hold the key it opens up with your words in large type as they are heard, and the fingers of its hand rise with your voice; they drum while it thinks; and when it answers, the same two colours turn the other way round, so you can tell who is talking without reading a label. The type is what ships with every Mac (Superclarendon for names, Avenir Next for what is read), so nothing is fetched.
+- **Click a hand to stop it where it is.** The hand on the screen can be clicked: it stops in its place, its card opens, and the box has the keyboard, so you can type what it should do instead. An empty `↵`, or Resume, lets it carry on.
+- **Or say it.** "Tell Lefty to also check Friday." "How are the hands getting on?" "Stop Righty." "Close them all." The voice always knows who is out, on what, what each is doing, its last few actions, and what the finished ones found.
+
+How it is put together (`src/live.ts` is the wiring, and none of the three parts knows of the others):
+
+- **The voice** is one `gpt-live-1` session over the `openai` library's `LiveWS`, and the loop is the one in OpenAI's guides with nothing built on top of it. `session.start` names the model, the voice, PCM at 24 kHz, the conversation instructions, and **Responses delegation**: a backend model (`gpt-5.6-luna`) with five function tools, `start_hands`, `steer_hand`, `stop_hands`, `close_hands` and `get_hands`. gpt-live-1 is full duplex and "manages when to listen and speak as audio streams continuously", so an open session is sent `session.input_audio.append` without a break, at the pace it was recorded: the microphone while the key is held, silence while it is not. The key is this application's control of its own microphone; when you have finished, what you want, and whether to delegate it are the model's to decide, from the audio. Its speech, `session.output_audio.delta`, is queued for playback in order (not while the key is held, and what is queued is dropped when the key goes down: that is talking over it). The backend's tool calls arrive as nested `response.event`s: a call is whole at `response.output_item.done`, and when the response is `completed` every call is carried out here, answered with `response.item.create` (a `function_call_output`), and the response continued with `response.create`. Transcript deltas are captions, and nothing else.
+  - *The voice is kept current* with the two documented appends: `session.commentary.append`, which it speaks, when a hand finishes or fails, and `session.thinking.append`, which it only knows, with how every hand is getting on: every twenty seconds while they are working and something has changed, and not while anyone is talking. The backend's instructions are updated with `session.update` whenever who is out changes.
+  - *Cost and lifetime*: an open session costs $0.05 a minute, so after a minute with nothing said it is closed the documented way (`session.close`, then `session.closed`), and started again when the key is next held (what is said meanwhile is buffered through the connection, as the guide suggests) or a hand has something to report. A session started again is told how the hands stand; they outlive sessions.
+  - *Two things learned the hard way, both by departing from the guides*: a note sent just as the user finishes a sentence gets in the way of the voice deciding what to do with it (it then delegated one turn in five by itself; left alone, five in five); and anything that guesses at turns, mutes and unmutes around them, sends audio in bursts, or second-guesses whether the voice "really" delegated makes it worse, not better. An earlier version did all of those.
+- **The hands** are ordinary `hands --background --json` processes, up to eight. `--json` makes a hand something another program can run: commands in on stdin (`prompt`, `steer`, `pause`, `resume`, `stop`), and on stdout a JSON line for everything it does: each tool call and result, what it says, every cue its on-screen hand is sent (which is how the panel draws that hand, and knows its window), a click on the hand, and how each run ended. A `steer` to a working hand is queued by pi and read after its current turn; to an idle one it is a new prompt in the same conversation.
+- **The shell** (`src/shell.ts`) is the key, the microphone, the speaker, the panel and a camera, all bun:ffi with no thread of its own: AppKit, WebKit and the microphone's AudioQueue deliver on the main run loop, which is the JS thread, pumped on a timer. The key is polled, so there is no event tap and no permission, and it is read from the modifier flags (`CGEventSourceFlagsState`, where each side's Option has a bit of its own: the key-state table never shows a modifier as down); a keystroke while Option is held means you are typing a character, and cancels. The microphone is kept warm: open all the time, remembering its last third of a second in memory and sending nothing, so that a press hands over audio from just *before* the key went down and never clips the start of a sentence (first audio 0.1 ms after the press, against 55 to 100 ms for a microphone that has to start). The price is the system's microphone light staying on; `--cold-mic` opens it only while the key is held. The speaker is an `AVAudioPlayerNode`, which is the guide's "queue the audio for playback in order" as an object: what is scheduled on it plays after what came before, or at once if nothing is left, on the system's audio thread rather than this one, and it is opened once and left running. gpt-live-1 sends its speech a tenth of a second at a time, exactly as fast as it is spoken, with a stall of 130 to 190 ms every few seconds that it never makes up (measured), and only as fast as it is sent audio itself. So the silence between presses is paced by the clock and not by a timer's ticks (which ran 3% slow, and the speech with them), and the speaker's queue is kept 200 ms ahead with silence: restored in the voice's pauses, where more silence cannot be heard, and let down in them again after a burst from the network. (It was an AudioQueue first, which takes what is queued on a dry queue as already in the past and throws part of it away: crackle, then nothing. It also took half a second to start for each sentence.) The panel is a borderless, non-activating `NSPanel` holding a `WKWebView` on a page served from this process (`src/ui/`), two classes made at run time so that it can take the keyboard and the first click; pictures of the hands' windows come from SkyLight's window capture, about 7 ms each and no file. The page's socket opens only to the key the panel was started with: anything on a Mac can reach a local port, a web page included, and this one steers agents that work the Mac.
+
+Tested with synthesized speech through `--say`, which goes down the same path as the microphone: two hands from one sentence, a correction spoken a second after a request (it became a `steer_hand` to the hand already on it), a clarification ("book a table" … "Dim Sum Library, tomorrow, three people" became one complete task), a status question answered from the notes, closing everything, and a session hung up on and started again mid-conversation. The key is tested against posted key events and the warm microphone on its own; the speaker against a recording of the voice replayed at its measured cadence, stalls and a network hiccup included, with `HANDS_DEBUG` printing every time silence had to go into the middle of speech (in a real exchange: never).
 
 ## Background mode
 
@@ -189,6 +214,9 @@ src/
   cli.ts          `clicker` and `clicker inspect`
   llm.ts          pi-ai model runtime, model resolution, the service tier
   tools.ts        computer use as agent tools
+  live.ts         `bun live`: the voice (gpt-live-1), the hands it sends out, and the panel that shows them
+  shell.ts        the live orchestrator's key, microphone, speaker, web panel and window camera
+  ui/             the panel's page: a card per hand, its transcript and steer box, the voice's captions
   hand.ts         the hand on screen: the cues the tools send, and the process that draws them
   agent.ts        `hands`: the pi agent, its system prompt, transcript pruning
 tests/            pure logic: dates, merging, reading order, echo filter, the OCR cache,
@@ -200,6 +228,7 @@ tests/            pure logic: dates, merging, reading order, echo filter, the OC
 ```
 bun test
 bun run typecheck
+HANDS_DEBUG=1 bun live --quiet --say "…"   # every Live event and panel command on stderr; SIGUSR2 hangs up on the voice
 ```
 
 ## Known limits
@@ -209,6 +238,8 @@ bun run typecheck
 - Two identical labels get only a coarse region hint and split the classifier's vote.
 - Chords go by US-layout keycodes; typed text does not.
 - What is typed shows on the hand's tag, as it does in the terminal. In a recording of a foreground run the hand drops out for the moment of each of the agent's own screen captures.
+- `bun live`: what you say goes to OpenAI, and each hand's screen goes to its own model as above. Option is a modifier too, so the key listens only when nothing is typed while it is held, and the first tenth of a second after it goes down is lost to the microphone starting. Two hands in the same app get in each other's way (the browser excepted: each has its own window), so the voice is told not to do that.
+- The OCR crop handed to Vision starts on a 4-pixel boundary on purpose: off it, Core Image reads past the end of ImageIO's buffer, which on a 3840x2160 capture is a guard page and a bus error (macOS 26.5; see `recognizeText`).
 - Passwords are never typed. Rely on the browser's password manager or an SSO button.
 
 ## License

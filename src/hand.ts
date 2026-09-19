@@ -28,11 +28,12 @@ export interface Subject {
 
 export type Tint = [red: number, green: number, blue: number]; // each 0 to 1
 
-interface Cue {
+export interface Cue {
   name?: string;
   color?: Tint;
   shy?: boolean; // stay out of screen captures; the renderer answers with a line once it has
   subject?: Subject;
+  size?: Point; // how big the subject is, for whoever draws the hand somewhere else: the renderer has no use for it
   pose?: Pose;
   label?: string;
   at?: Point; // points from the subject's top-left corner, which is what a capture's pixels are
@@ -62,7 +63,7 @@ export const quote = (text: string): string => {
 };
 
 let renderer: Bun.Subprocess<"pipe", "pipe", "inherit"> | null = null;
-let answers: { read(): Promise<unknown> } | null = null; // the renderer's replies: one line per `shy`
+const shyAcks: (() => void)[] = []; // who is waiting to hear that the hand is out of captures
 let riding = "";
 let last: Point = [0, 0];
 let resting: ReturnType<typeof setTimeout> | undefined;
@@ -71,18 +72,34 @@ function send(cue: Cue): void {
   try {
     renderer?.stdin.write(`${JSON.stringify(cue)}\n`);
     renderer?.stdin.flush();
+    if (renderer) hand.onCue?.(cue);
   } catch {
     renderer = null; // the renderer is gone: the run carries on unseen
   }
 }
 
+/** What the renderer says back, a line at a time: an empty line once it is out of captures, `click` when the hand is clicked. */
+async function listen(replies: ReadableStream<Uint8Array>): Promise<void> {
+  let pending = "";
+  const decoder = new TextDecoder();
+  for await (const chunk of replies) {
+    const lines = (pending + decoder.decode(chunk, { stream: true })).split("\n");
+    pending = lines.pop() ?? "";
+    for (const line of lines) line === "click" ? hand.onClick?.() : shyAcks.shift()?.();
+  }
+}
+
 /** Every call is a no-op until `start`, so the tools pose without asking whether anyone is watching. */
 export const hand = {
+  /** Whoever runs the hand from outside (the orchestrator's picture of it) hears every cue it is sent, and every click on it. */
+  onCue: null as ((cue: Cue) => void) | null,
+  onClick: null as (() => void) | null,
+
   /** Come on screen: top right of the main display, where the system says hello too. Without a colour the hand is the emoji's own yellow. */
   start(name: string, color?: Tint): void {
     const spawned = (renderer = Bun.spawn([process.execPath, import.meta.path], { stdin: "pipe", stdout: "pipe", stderr: "inherit" }));
     spawned.unref();
-    answers = spawned.stdout.getReader();
+    void listen(spawned.stdout).catch(() => {});
     void spawned.exited.then(() => renderer === spawned && (renderer = null));
     const [x, y, width] = macos.displays()[0]?.frame ?? [0, 0, 1440, 900];
     riding = "";
@@ -98,7 +115,7 @@ export const hand = {
   async unseen<T>(work: () => Promise<T>): Promise<T> {
     if (!renderer) return work();
     send({ shy: true });
-    await Promise.race([answers?.read().catch(() => {}), Bun.sleep(500)]); // a renderer that has died or hung costs half a second, not the run
+    await Promise.race([new Promise<void>((heard) => shyAcks.push(heard)), Bun.sleep(500)]); // a renderer that has died or hung costs half a second, not the run
     try {
       return await work();
     } finally {
@@ -110,7 +127,7 @@ export const hand = {
   look(subject: Subject, [width, height]: Point): void {
     if (!renderer) return;
     const key = String(subject.window ?? subject.origin);
-    if (key !== riding) send({ subject, at: (last = [width / 2, height / 2]) });
+    if (key !== riding) send({ subject, size: [width, height], at: (last = [width / 2, height / 2]) });
     riding = key;
     void hand.cue("look", "looking");
   },
@@ -154,7 +171,7 @@ const FOREVER = 1e9;
 const SCREEN_SAVER_LEVEL = 1000;
 
 /** The glyph of each pose, and where it touches what it points at, as a fraction of its box: a fingertip, a pen's point, a palm. Read off renders. */
-const POSES: Record<Pose, [glyph: string, x: number, y: number]> = {
+export const POSES: Record<Pose, [glyph: string, x: number, y: number]> = {
   wave: ["👋", 0.45, 0.75],
   point: ["👆", 0.28, 0.11],
   press: ["👆", 0.28, 0.11],
@@ -207,8 +224,9 @@ async function render(): Promise<void> {
   const pool = call(call(cls("NSAutoreleasePool"), "alloc", "ptr"), "init", "ptr");
   const app = call(cls("NSApplication"), "sharedApplication", "ptr");
   call(app, "setActivationPolicy:", "bool,i64", 1); // accessory: no Dock icon, no menu bar, never the app in front
-  const win = call(call(cls("NSWindow"), "alloc", "ptr"), "initWithContentRect:styleMask:backing:defer:", "ptr,f64,f64,f64,f64,u64,u64,bool", 0, 0, 100, 100, 0, 2, false);
-  for (const [selector, value] of [["setOpaque:", false], ["setHasShadow:", false], ["setIgnoresMouseEvents:", true], ["setReleasedWhenClosed:", false]] as const) call(win, selector, "void,bool", value);
+  // A panel that does not activate its app: a click on the hand must interrupt the hand, not take the user out of the app they are in.
+  const win = call(call(cls("NSPanel"), "alloc", "ptr"), "initWithContentRect:styleMask:backing:defer:", "ptr,f64,f64,f64,f64,u64,u64,bool", 0, 0, 100, 100, 1 << 7, 2, false);
+  for (const [selector, value] of [["setOpaque:", false], ["setHasShadow:", false], ["setIgnoresMouseEvents:", true], ["setReleasedWhenClosed:", false], ["setHidesOnDeactivate:", false]] as const) call(win, selector, "void,bool", value); // prettier-ignore
   call(win, "setBackgroundColor:", OBJECT, call(cls("NSColor"), "clearColor", "ptr"));
   call(win, "setAlphaValue:", "void,f64", 0.99); // not for the eye: it is how macos.ts knows this window, as wide as a display, covers nothing
   call(win, "setCollectionBehavior:", "void,u64", 1 | (1 << 3) | (1 << 6) | (1 << 8)); // on every desktop and over full screen apps, out of Mission Control and the window cycle
@@ -255,6 +273,9 @@ async function render(): Promise<void> {
   let spot: Point = [0, 0];
   let [name, status] = ["", ""];
   let tint: Tint | null = null;
+  let anchor: Point = [0, 0]; // where in its box the current glyph touches the hand's position
+  let tagWidth = 0;
+  let hovered = false;
   const pictures = new Map<string, unknown>();
 
   /**
@@ -308,11 +329,12 @@ async function render(): Promise<void> {
     const [width, height] = structOf(label, "size", 2).map(Math.ceil) as Point;
     call(words, "setString:", OBJECT, label);
     call(words, "setFrame:", RECT, 9, (TAG_PT - height) / 2, width, height);
-    call(tag, "setBounds:", RECT, 0, 0, width + 18, TAG_PT);
+    call(tag, "setBounds:", RECT, 0, 0, (tagWidth = width + 18), TAG_PT);
   };
 
   const strike = (pose: Pose, count = 1, swipe: Point = [0, -1]) => {
     const [symbol, x, y] = POSES[pose];
+    anchor = [x, y];
     call(glyph, "removeAllAnimations");
     call(glyph, "setContents:", OBJECT, picture(symbol));
     call(glyph, "setAnchorPoint:", PAIR, x, y); // so the glyph touches the hand's position, and turns and shrinks about it
@@ -355,7 +377,11 @@ async function render(): Promise<void> {
   /** Keep the window over the subject's display, the rider on the subject's corner, and the stacking right. */
   const follow = () => {
     // Nothing is drawn by events, but an app that never takes them off its queue is one the system calls unresponsive.
-    for (let event; (event = call(app, "nextEventMatchingMask:untilDate:inMode:dequeue:", "ptr,u64,ptr,ptr,bool", 0xffffffffffffffffn, null, str("kCFRunLoopDefaultMode"), true)); ) call(app, "sendEvent:", OBJECT, event);
+    // The one event that means something is a press on the hand, which only arrives while the mouse is over it (below).
+    for (let event; (event = call(app, "nextEventMatchingMask:untilDate:inMode:dequeue:", "ptr,u64,ptr,ptr,bool", 0xffffffffffffffffn, null, str("kCFRunLoopDefaultMode"), true)); ) {
+      if (hovered && Number(call(event, "type", "u64")) === 1) process.stdout.write("click\n"); // NSEventTypeLeftMouseDown
+      call(app, "sendEvent:", OBJECT, event);
+    }
     if (!riding) return;
     let frame: Frame = [riding.origin[0], riding.origin[1], 2, 2];
     if (riding.window !== undefined) {
@@ -382,6 +408,20 @@ async function render(): Promise<void> {
       call(stage, "setFrame:", RECT, 0, 0, display[2], display[3]);
     }
     call(rider, "setPosition:", PAIR, frame[0] - display[0], frame[1] - display[1]);
+
+    // The window is a display wide and lets every click through, except while the mouse is on the hand or its tag:
+    // then it takes them, so the hand can be clicked, and it swells a little to say so.
+    const [mouseX, mouseY] = macos.mouseLocation();
+    const [handX, handY] = [frame[0] + spot[0], frame[1] + spot[1]];
+    const within = (left: number, top: number, width: number, height: number) => mouseX >= left && mouseY >= top && mouseX < left + width && mouseY < top + height;
+    const over =
+      within(handX - anchor[0] * BOX_PT, handY - anchor[1] * BOX_PT, BOX_PT, BOX_PT) ||
+      within(handX + BOX_PT * (0.5 - anchor[0]) - tagWidth / 2, handY + BOX_PT * (1 - anchor[1]) + 6, tagWidth, TAG_PT);
+    if (over !== hovered) {
+      hovered = over;
+      call(win, "setIgnoresMouseEvents:", "void,bool", !over);
+      call(body, "setValue:forKeyPath:", "void,ptr,ptr", call(cls("NSNumber"), "numberWithDouble:", "ptr,f64", over ? 1.12 : 1), str("transform.scale"));
+    }
     call(cls("CATransaction"), "commit");
     call(cls("CATransaction"), "flush");
   };

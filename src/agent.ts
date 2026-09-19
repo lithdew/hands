@@ -149,12 +149,13 @@ export async function createAgent(options: { cwd: string; runDir: string; model?
 }
 
 /** Stream the agent's words and one line per tool call to the terminal, and everything in full to the run folder. */
-function report(agent: Agent, runDir: string): void {
+function report(agent: Agent, runDir: string, terminal = true): void {
   const file = join(runDir, "agent.log");
   const record = (line: string) => appendFileSync(file, `${line}\n`);
+  const console = terminal ? globalThis.console : { log() {}, error() {} };
   let streaming = false;
   agent.subscribe((event) => {
-    if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") {
+    if (terminal && event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") {
       process.stdout.write(event.assistantMessageEvent.delta);
       streaming = true;
     } else if (event.type === "message_end" && event.message.role === "assistant") {
@@ -189,6 +190,72 @@ function personify(agent: Agent): void {
   });
 }
 
+/** What a managed hand is told, a JSON line at a time. A `prompt` to a hand at work is a `steer`. */
+export type Command = { type: "prompt" | "steer"; text: string } | { type: "pause" | "resume" | "stop" };
+
+/**
+ * `--json`: the hand as a process that someone else runs, the orchestrator for one. Commands come in on stdin and
+ * everything the hand does goes out on stdout, a JSON line each: what it is told and says, each tool call and
+ * its result, every cue its on-screen hand is sent (so its picture can be drawn elsewhere), a click on that hand,
+ * and its status, which ends a run as `done`, `failed`, `stopped`, or `paused` with the answer so far.
+ */
+async function manage(agent: Agent): Promise<void> {
+  const emit = (event: object) => process.stdout.write(`${JSON.stringify(event)}\n`);
+  let working = false;
+  let pausing = false;
+  let lastPlace = 0;
+
+  agent.subscribe((event) => {
+    if (event.type === "tool_execution_start") emit({ type: "tool", name: event.toolName, args: brief(event.args, 300) });
+    else if (event.type === "tool_execution_end") {
+      const blocks: { type: string; text?: string }[] = event.result?.content ?? [];
+      emit({ type: "result", error: event.isError, text: brief(blocks.map((block) => block.text ?? `[${block.type}]`).join(" "), 300) });
+    } else if (event.type === "message_end" && event.message.role === "assistant") {
+      for (const block of event.message.content) if (block.type === "text" && block.text.trim()) emit({ type: "say", text: block.text });
+    }
+  });
+  // A drag streams its position a hundred times a second: the picture elsewhere needs ten.
+  hand.onCue = (cue) => {
+    const placeOnly = cue.at && !cue.pose && !cue.subject;
+    if (placeOnly && performance.now() - lastPlace < 100) return;
+    if (placeOnly) lastPlace = performance.now();
+    emit({ type: "cue", ...cue });
+  };
+
+  const run = async (text: string) => {
+    working = true;
+    pausing = false;
+    macos.interrupt(false);
+    emit({ type: "status", status: "working" });
+    await ask(agent, text).catch((error) => emit({ type: "say", text: `failed: ${error}` }));
+    working = false;
+    const ended = agent.state.messages.at(-1);
+    const reason = ended?.role === "assistant" ? ended.stopReason : "error";
+    const answer = ended?.role === "assistant" ? ended.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("\n") : "";
+    const status = pausing ? "paused" : reason === "aborted" ? "stopped" : reason === "error" ? "failed" : "done";
+    emit({ type: "status", status, answer });
+    await hand.cue(status === "done" ? "done" : status === "paused" ? "wait" : "stop", status);
+  };
+  const halt = (pause: boolean) => {
+    if (!working) return;
+    pausing = pause;
+    macos.interrupt();
+    agent.abort();
+  };
+  hand.onClick = () => (emit({ type: "clicked" }), halt(true)); // a click on the hand stops it where it is
+
+  emit({ type: "ready" });
+  for await (const line of console) {
+    if (!line.trim()) continue;
+    const command = JSON.parse(line) as Command;
+    if (command.type === "pause" || command.type === "stop") halt(command.type === "pause");
+    else if (command.type === "resume") void (working || run("Carry on from where you were interrupted."));
+    else if (command.type !== "prompt" && command.type !== "steer") continue;
+    else if (working) agent.steer({ role: "user", content: [{ type: "text", text: command.text }], timestamp: Date.now() });
+    else void run(command.text);
+  }
+}
+
 const USAGE = `usage: hands [prompt] [--background] [--name NAME] [--color HEX] [--no-hand] [--cwd DIR] [--out DIR] [--model provider/model] [--thinking LEVEL]
 
 An agent that drives this Mac: ${config.DEFAULT_MODEL} at ${config.DEFAULT_THINKING} effort, with read, bash, edit, write and computer use.
@@ -214,10 +281,12 @@ async function main(argv: string[]): Promise<void> {
       name: { type: "string", default: config.handName() },
       color: { type: "string", default: config.handColor() },
       "no-hand": { type: "boolean", default: false },
+      json: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
   });
   if (values.help) return void console.log(USAGE);
+  if (values.json) console.log = console.error; // stdout is the event stream: nothing else may write a line to it
   const tint = values.color === undefined ? undefined : tintOf(values.color);
   if (tint === null) {
     console.error(`--color wants a hex colour such as 4f8cff, not ${JSON.stringify(values.color)}`);
@@ -230,11 +299,12 @@ async function main(argv: string[]): Promise<void> {
   }
   const runDir = resolve(values.out);
   const agent = await createAgent({ cwd: resolve(values.cwd), runDir, model: values.model, thinking: values.thinking, background: values.background });
-  report(agent, runDir);
+  report(agent, runDir, !values.json);
   if (!values["no-hand"]) {
     hand.start(values.name, tint);
     personify(agent);
   }
+  if (values.json) return manage(agent);
   console.log(`run folder: ${runDir}\nabort: Ctrl-C, or slam the mouse into a screen's top-left corner.`);
   if (values.background) console.log("background: working behind your windows. Your mouse, keyboard and focus stay yours.");
 

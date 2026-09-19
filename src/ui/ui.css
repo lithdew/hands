@@ -1,0 +1,472 @@
+/*
+ * The panel in the corner. Two voices, told apart by colour alone:
+ *   the dock is the voice you talk to, in the yellow of the hand emoji itself, and only the dock is ever that yellow;
+ *   each card is a hand, headed in its own glove colour, the same one its hand wears out on the screen.
+ * Everything is flat colour inside an ink outline with one hard shadow, like cut-out cards, so it reads over any desktop.
+ * Type is what ships with every Mac: Superclarendon for names, Avenir Next for everything that is read.
+ */
+
+:root {
+  --palm: #ffcb3d;
+  --ink: #1c1408; /* the brown-black of the emoji hand's own shading, not a neutral black */
+  --sheet: #ffffff;
+  --shade: #6e6455;
+  --alarm: #d7263d;
+  --column: 380px;
+  font: 500 13.5px/1.4 "Avenir Next", "Avenir", -apple-system, sans-serif;
+  color: var(--ink);
+  -webkit-user-select: none;
+  -webkit-font-smoothing: antialiased;
+  cursor: default;
+}
+html,
+body {
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+}
+[hidden] {
+  display: none !important;
+}
+
+#column {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 2px 6px 6px 2px; /* room for the shadows: the window is cut to this box */
+}
+#deck {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+/* ------------------------------------------------------------------ a hand's card */
+
+.card {
+  width: var(--column);
+  box-sizing: border-box;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  box-shadow: 4px 4px 0 var(--ink);
+  background: var(--ink);
+  overflow: hidden;
+  transition: width 0.2s cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+.card.open {
+  width: 520px;
+}
+.card.dealt {
+  animation: deal 0.32s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+@keyframes deal {
+  from {
+    transform: translateX(60px) rotate(3deg);
+    opacity: 0;
+  }
+}
+
+.card header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 42px;
+  padding: 0 12px 0 8px;
+  background: var(--glove);
+}
+.pose {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--sheet);
+  font-size: 16px;
+  line-height: 1;
+}
+.name {
+  font: 700 17px/1 "Superclarendon", "Rockwell", Georgia, serif;
+  letter-spacing: 0.01em;
+}
+.doing {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.78;
+}
+.card:not(.strip) .doing {
+  visibility: hidden; /* a full card says it in its footer, in full */
+}
+.state {
+  font-weight: 600;
+  font-size: 12.5px;
+}
+.card time {
+  font-weight: 600;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+.card.working .state::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--ink);
+  animation: beat 1.1s ease-in-out infinite;
+}
+@keyframes beat {
+  50% {
+    transform: scale(0.45);
+  }
+}
+
+/* the picture of the hand's window: whole, never cropped, so a tall window makes a narrow picture */
+.view {
+  display: grid;
+  place-items: center;
+  border-top: 2px solid var(--ink);
+  background: #2b2418;
+  min-height: 88px;
+}
+.screen {
+  position: relative;
+  aspect-ratio: var(--shape, 16 / 10);
+  width: min(100%, calc(var(--tall, 212px) * var(--ratio, 1.6)));
+}
+.screen img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.screen img:not([src]) {
+  display: none;
+}
+.marker {
+  position: absolute;
+  font-size: 26px;
+  line-height: 1;
+  transform: translate(-28%, -10%);
+  /* the glove colour again, as the outline of the hand in the picture */
+  filter: drop-shadow(1.5px 0 0 var(--glove)) drop-shadow(-1.5px 0 0 var(--glove)) drop-shadow(0 1.5px 0 var(--glove)) drop-shadow(0 -1.5px 0 var(--glove)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+  transition:
+    left 0.3s ease,
+    top 0.3s ease;
+  pointer-events: none;
+}
+.brief {
+  margin: 0;
+  padding: 22px 26px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 15px;
+  line-height: 1.4;
+  text-align: center;
+}
+.now {
+  margin: 0;
+  padding: 9px 13px 10px;
+  border-top: 2px solid var(--ink);
+  background: var(--ink);
+  color: var(--sheet);
+  font-size: 14px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.card.open .now {
+  -webkit-line-clamp: 8;
+}
+.card.strip .view,
+.card.strip .now {
+  display: none;
+}
+.card.strip.finished .now {
+  display: -webkit-box; /* a folded hand that has finished still says what came of it */
+  -webkit-line-clamp: 2;
+  padding: 7px 13px 8px;
+  font-size: 13.5px;
+}
+
+/* the sheet: what the hand was asked, what it did, what it said, and a box to tell it something */
+.sheet {
+  background: var(--sheet);
+  border-top: 2px solid var(--ink);
+}
+.log {
+  list-style: none;
+  margin: 0;
+  padding: 12px 14px 4px;
+  max-height: 236px;
+  overflow-y: auto;
+  -webkit-user-select: text;
+  cursor: text;
+}
+.log li {
+  margin: 0 0 7px;
+  overflow-wrap: anywhere;
+}
+.log .asked {
+  font-weight: 600;
+  font-size: 14.5px;
+  padding-left: 9px;
+  border-left: 4px solid var(--palm); /* your words: the voice's yellow */
+}
+.log .did {
+  color: var(--ink);
+}
+.verb {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 7px;
+  border-radius: 9px;
+  background: var(--glove);
+  font-weight: 600;
+  font-size: 12.5px;
+}
+.log .got {
+  margin-left: 14px;
+  color: var(--shade);
+  font-size: 12.5px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.log .got.error {
+  color: var(--alarm);
+}
+.log .said {
+  font-size: 14.5px;
+}
+.log .mark {
+  color: var(--shade);
+  font-size: 12px;
+  text-align: right;
+}
+
+.sheet form {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 4px 14px 10px;
+}
+.sheet input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 14.5px;
+  color: var(--ink);
+  background: var(--sheet);
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  padding: 7px 10px;
+  outline: none;
+}
+.sheet input:focus {
+  box-shadow: 0 0 0 3px var(--glove);
+}
+button {
+  font: inherit;
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: var(--sheet);
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  padding: 4px 11px;
+}
+button:hover {
+  background: var(--glove);
+}
+button:focus-visible {
+  outline: 3px solid var(--glove);
+  outline-offset: 1px;
+}
+.send {
+  background: var(--ink);
+  color: var(--sheet);
+}
+.send:hover {
+  color: var(--ink);
+}
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px 12px;
+}
+.keys {
+  margin-left: auto;
+  color: var(--shade);
+  font-size: 12px;
+}
+kbd {
+  display: inline-block;
+  min-width: 14px;
+  margin-left: 8px;
+  padding: 0 5px;
+  border: 1.5px solid var(--shade);
+  border-bottom-width: 3px;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 11.5px;
+  text-align: center;
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------ the dock: the voice */
+
+#dock {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  width: var(--column);
+  box-sizing: border-box;
+  padding: 12px 16px 13px 14px;
+  border: 2px solid var(--ink);
+  border-radius: 18px;
+  box-shadow: 4px 4px 0 var(--ink);
+  background: var(--palm);
+  color: var(--ink);
+  transition:
+    background 0.18s,
+    color 0.18s;
+}
+/* the key is down: a red light, there and gone with the key */
+#dock.listening::after {
+  content: "";
+  align-self: flex-start;
+  flex: none;
+  width: 11px;
+  height: 11px;
+  margin: 3px -4px 0 0;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: #e5342b;
+  animation: beat 1.1s ease-in-out infinite;
+}
+#dock.thinking .words {
+  opacity: 0.6; /* heard, and no longer being added to by you */
+}
+#dock.speaking {
+  background: var(--ink); /* the other voice: the same two colours, the other way round */
+  color: var(--palm);
+}
+.words {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-weight: 600;
+  font-size: 19px;
+  line-height: 1.32;
+  overflow-wrap: anywhere;
+  /* a long sentence keeps its newest words in sight */
+  max-height: calc(1.32em * 6);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+#dock.idle .words {
+  font: 700 15px/1.3 "Superclarendon", "Rockwell", Georgia, serif;
+}
+#dock.idle {
+  padding: 9px 16px 10px 12px;
+  align-items: center;
+}
+.words.waiting {
+  opacity: 0.55;
+}
+
+/* five fingers on a palm: they rise with your voice, drum while it thinks, and move when it speaks */
+.palm {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  width: 46px;
+  height: 46px;
+  padding: 0 0 15px 1px;
+  box-sizing: border-box;
+}
+.palm::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 35px;
+  height: 17px;
+  border-radius: 5px 5px 11px 11px;
+  background: currentColor;
+}
+.palm i {
+  width: 6.5px;
+  height: calc(var(--rest) + var(--reach) * var(--level, 0));
+  border-radius: 4px 4px 0 0;
+  background: currentColor;
+  transition: height 0.09s linear;
+}
+.palm i:nth-child(1) { --rest: 9px; --reach: 9px; } /* prettier-ignore */
+.palm i:nth-child(2) { --rest: 14px; --reach: 13px; } /* prettier-ignore */
+.palm i:nth-child(3) { --rest: 16px; --reach: 15px; } /* prettier-ignore */
+.palm i:nth-child(4) { --rest: 13px; --reach: 13px; } /* prettier-ignore */
+.palm i:nth-child(5) {
+  --rest: 15px;
+  --reach: 5px;
+  position: absolute; /* the thumb: out of the side of the palm, from lower down */
+  left: 29px;
+  bottom: 5px;
+  width: 7.5px;
+  border-radius: 4px;
+  transform: rotate(52deg);
+  transform-origin: bottom center;
+}
+#dock.idle .palm {
+  transform: scale(0.72);
+  transform-origin: left center;
+  margin-right: -10px;
+}
+#dock.thinking .palm i:not(:nth-child(5)) {
+  animation: drum 0.9s ease-in-out infinite;
+}
+#dock.thinking .palm i:nth-child(2) { animation-delay: 0.09s; } /* prettier-ignore */
+#dock.thinking .palm i:nth-child(3) { animation-delay: 0.18s; } /* prettier-ignore */
+#dock.thinking .palm i:nth-child(4) { animation-delay: 0.27s; } /* prettier-ignore */
+@keyframes drum {
+  0%,
+  45%,
+  100% {
+    transform: translateY(0);
+  }
+  22% {
+    transform: translateY(5px);
+  }
+}
+#dock.speaking .palm i {
+  animation: talk 0.5s ease-in-out infinite alternate;
+}
+#dock.speaking .palm i:nth-child(2) { animation-duration: 0.37s; } /* prettier-ignore */
+#dock.speaking .palm i:nth-child(3) { animation-duration: 0.61s; } /* prettier-ignore */
+#dock.speaking .palm i:nth-child(4) { animation-duration: 0.43s; } /* prettier-ignore */
+@keyframes talk {
+  to {
+    height: calc(var(--rest) + var(--reach));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

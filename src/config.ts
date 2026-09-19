@@ -34,3 +34,7 @@ export const email = (): string | null => process.env.CLICKER_EMAIL || null;
 /** What the hand on screen is called, and its colour as hex (none: the emoji's own yellow). */
 export const handName = (): string => process.env.HANDS_NAME || "Hands";
 export const handColor = (): string | undefined => process.env.HANDS_COLOR || undefined;
+/** `hands live`: the voice, how it sounds, and the Responses model behind it that turns what was said into tool calls. */
+export const liveModel = (): string => process.env.HANDS_LIVE_MODEL || "gpt-live-1";
+export const liveVoice = (): string => process.env.HANDS_LIVE_VOICE || "marin";
+export const liveBackend = (): string => process.env.HANDS_LIVE_BACKEND || "gpt-5.6-luna";

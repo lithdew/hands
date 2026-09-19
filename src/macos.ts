@@ -2,8 +2,8 @@
  * macOS adapter: synthetic input, app control, screen capture, Vision OCR, and the accessibility tree.
  *
  * This is the only module that touches Quartz, ApplicationServices, Vision, or AppleScript, all of it
- * through bun:ffi (hand.ts draws the agent's hand with the runtime bound here, and nothing else). A Linux
- * adapter would provide the same functions over xdotool and AT-SPI.
+ * through bun:ffi (hand.ts draws the agent's hand, and shell.ts the orchestrator's panel and sound, with the
+ * runtime bound here). A Linux adapter would provide the same functions over xdotool and AT-SPI.
  *
  * bun:ffi cannot return a struct, so nothing here calls a function that returns CGPoint or CGRect:
  * Cocoa hands those over as NSValue through key-value coding, and AX and CG write them to a pointer.
@@ -85,6 +85,12 @@ function bind() {
     sym,
     fn,
     send,
+    /** Bring in a framework that is not among the ones above, so its classes exist and `fn` finds its symbols. */
+    load: (path: string): void => {
+      const handle = libc.dlopen(path, 1);
+      if (!handle) throw new Error(`cannot load ${path}`);
+      handles.push(handle);
+    },
     kCFBooleanTrue: read.ptr(sym("kCFBooleanTrue") as never, 0) as unknown as Ref,
     getClass: fn("objc_getClass", ["cstring"], "ptr"),
     selector: fn("sel_registerName", ["cstring"], "ptr"),
@@ -246,6 +252,9 @@ export const objc = {
     return native().send(returns!, ...args);
   }),
   fn: (name: string, args: FFITypeOrString[], returns: FFITypeOrString): Native => native().fn(name, args, returns),
+  load: (path: string): void => native().load(path),
+  /** A global the frameworks export, such as kCFRunLoopCommonModes: the pointer stored at the symbol. */
+  constant: (name: string): Ref => read.ptr(native().sym(name) as never, 0) as unknown as Ref,
 };
 
 const sleep = (ms: number) => Bun.sleep(ms);
