@@ -9,6 +9,11 @@ const req: LlmRequest = {
 };
 
 describe("responsesBody", () => {
+  test("the standalone planner also enforces low as the minimum effort", () => {
+    expect(responsesBody({ ...req, effort: "high" }).reasoning).toEqual({ effort: "high" });
+    expect(() => responsesBody({ ...req, effort: "off" as never })).toThrow();
+  });
+
   test("asks for strict structured output", () => {
     const body = responsesBody(req) as any;
     expect(body.model).toBe("gpt-test");
@@ -16,6 +21,7 @@ describe("responsesBody", () => {
     expect(body.input[0].content).toEqual([{ type: "input_text", text: "hello" }]);
     expect(body.text.format).toEqual({ type: "json_schema", name: "reply", strict: true, schema: { type: "object" } });
     expect(body.store).toBe(false);
+    expect(body.reasoning).toEqual({ effort: "low" });
   });
 
   test("attaches a screenshot as a data url", () => {
@@ -68,12 +74,14 @@ describe("createOpenAI", () => {
   });
 
   test("names the missing key", () => {
-    const saved = process.env.OPENAI_API_KEY;
+    const saved = process.env.OPENAI_API_KEY, alias = process.env.OAI;
     delete process.env.OPENAI_API_KEY;
+    delete process.env.OAI;
     try {
       expect(() => createOpenAI()).toThrow(/OPENAI_API_KEY is not set/);
     } finally {
       if (saved !== undefined) process.env.OPENAI_API_KEY = saved;
+      if (alias !== undefined) process.env.OAI = alias;
     }
   });
 });

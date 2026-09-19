@@ -20,7 +20,7 @@ function fakeJev(reply: (name: string, state: any) => Reply | undefined) {
     calls.push({ state, questions });
     const answers: Record<string, unknown> = {};
     for (const [name, q] of Object.entries(questions)) {
-      const r = reply(name, state);
+      const r = reply(name, state) ?? (name === "cut" ? "none" : undefined);
       if (q.type === "noul") answers[name] = { type: "noul", noul: typeof r === "number" ? r : 0 };
       else answers[name] = { type: "choice", probabilities: {}, ...(typeof r === "object" ? r : { choice: String(r), confidence: 0.9 }) };
     }
@@ -349,5 +349,107 @@ describe("createListener", () => {
     const { l } = listener({ ask: down });
     expect(() => l.warm()).not.toThrow();
     await settle();
+  });
+});
+
+describe("listener integration races", () => {
+  const literal = (goal: string): Intent => ({ goal, launcher: "none", url: null, inputs: {}, doneWhen: "done", avoid: [] });
+
+  test("cancellation appended without spaces is heard before the worker is released", async () => {
+    const jev = fakeJev((name, state) => ({ relation: state.new_words?.includes("不要") ? "retracts" : "new_task", startable: 0.99, route: "jev" })[name]);
+    const { l, jobs } = listener({ ask: jev.ask, buildIntent: literal });
+    l.hear("打开笔记");
+    await settle();
+    expect(jobs).toHaveLength(1);
+    await l.finish("打开笔记，不，先不要打开");
+    await l.idle();
+    expect(jev.triage().at(-1)!.state.new_words).toBe("，不，先不要打开");
+    expect(l.tasks[0]!.status).toBe("cancelled");
+    expect(jobs[0]!.job.signal.aborted).toBe(true);
+  });
+
+  test("text that completes a word refines the intent even without a new space", async () => {
+    const jev = fakeJev((name, state) => ({ relation: state.tasks?.length ? "refines" : "new_task", startable: 0.99, route: "jev" })[name]);
+    const { l, jobs } = listener({ ask: jev.ask, buildIntent: literal });
+    l.hear("Search for capy");
+    await settle();
+    await l.finish("Search for capybaras");
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]!.job.intent().goal).toBe("Search for capybaras");
+    jobs[0]!.end();
+    await l.idle();
+  });
+
+  test("Stop during intent building prevents the late build from reserving a hand", async () => {
+    const built = Promise.withResolvers<Intent>();
+    let building = false;
+    const jev = fakeJev((name) => ({ relation: "new_task", startable: 0.99, route: "jev" })[name]);
+    const { l, jobs } = listener({ ask: jev.ask, buildIntent: () => { building = true; return built.promise; } });
+    l.hear("Open notes");
+    await settle();
+    expect(building).toBe(true);
+    l.cancel();
+    built.resolve(literal("Open notes"));
+    await settle();
+    await l.finish();
+    expect(jobs).toHaveLength(0);
+    expect(l.tasks).toHaveLength(0);
+  });
+
+  test("new creation and worker completion cannot reserve the same hand", async () => {
+    const jev = fakeJev((name) => ({ relation: "new_task", startable: 0.99, route: "jev" })[name]);
+    const available = Promise.withResolvers<Hand[]>();
+    let listings = 0;
+    const { l, jobs } = listener({ ask: jev.ask, buildIntent: literal, hands: async () => ++listings === 1 ? [hands[0]!] : available.promise });
+    l.hear("Open notes");
+    await settle();
+    expect(jobs).toHaveLength(1);
+    l.hear("Open notes and open files");
+    await settle();
+    jobs[0]!.end();
+    available.resolve([hands[0]!]);
+    await l.finish();
+    expect(jobs).toHaveLength(2);
+    expect(l.tasks.map((t) => t.status)).toEqual(["done", "running"]);
+    jobs[1]!.end();
+    await l.idle();
+  });
+});
+
+describe("Jev task cut points", () => {
+  const buildIntent: NonNullable<ListenDeps["buildIntent"]> = (goal) => ({ goal, launcher: "none", url: null, inputs: {}, doneWhen: "Done", avoid: [] });
+  async function until(check: () => boolean) {
+    for (let i = 0; !check() && i < 100; i++) await Bun.sleep(5);
+    expect(check()).toBe(true);
+  }
+  test("two independent requests in one STT delta reserve different hands before release", async () => {
+    const jev = fakeJev((name, state) => name === "relation" ? "new_task" : name === "route" ? "llm" : name === "startable" ? 1 : name === "cut" && state.new_words.startsWith("Open notes.") ? "cut_0" : undefined);
+    const { l, jobs } = listener({ ask: jev.ask, buildIntent });
+    l.hear("Open notes. Also find a capybara photo in the browser.");
+    await until(() => jobs.length === 2);
+    expect(jobs.map((j) => j.hand)).toEqual([1, 2]);
+    expect(jobs.map((j) => j.job.intent().goal)).toEqual(["Open notes", ". Also find a capybara photo in the browser."]);
+    expect(jobs.every((j) => j.job.speechEnds())).toBe(true);
+    await l.finish(); jobs.forEach((j) => j.end()); await l.idle();
+  });
+  test("a connector alone is never offered as a task to split off", async () => {
+    const jev = fakeJev((name) => name === "relation" ? "new_task" : name === "route" ? "jev" : name === "startable" ? 1 : undefined);
+    const { l, jobs } = listener({ ask: jev.ask, buildIntent });
+    l.hear("Open notes"); await until(() => jobs.length === 1);
+    l.hear("Open notes and separately open calculator"); await until(() => jobs.length === 2);
+    expect(jev.triage().at(-1)!.questions).not.toHaveProperty("cut");
+    expect(jobs[1]!.job.intent().goal).toBe("and separately open calculator");
+    await l.finish(); jobs.forEach((j) => j.end()); await l.idle();
+  });
+  test("Jev can keep dependent steps together and notify the worker of refinements", async () => {
+    const jev = fakeJev((name, state) => name === "relation" ? state.tasks.length ? "refines" : "new_task" : name === "route" ? "llm" : name === "startable" ? 1 : undefined);
+    const { l, jobs } = listener({ ask: jev.ask, buildIntent });
+    l.hear("Open notes and write a plan"); await until(() => jobs.length === 1);
+    const updates: string[] = [];
+    const unsubscribe = jobs[0]!.job.onUpdate!((intent) => updates.push(intent.goal));
+    l.hear("Open notes and write a plan for tomorrow"); await until(() => updates.length === 1);
+    expect(updates[0]).toContain("for tomorrow"); expect(jobs).toHaveLength(1);
+    await l.finish(); expect(updates).toHaveLength(2);
+    unsubscribe(); jobs[0]!.end(); await l.idle();
   });
 });

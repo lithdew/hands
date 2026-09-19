@@ -19,6 +19,7 @@
 //   terminalApprove                        asks y/N on the terminal
 
 import { noul, type Ask } from "./jev";
+import { z } from "zod";
 
 // ---------------------------------------------------------------- types
 
@@ -39,6 +40,7 @@ export type Approve = (req: { hand: number; action: string; risk: Risk }) => Pro
 
 /** Pause when any flag is at least this likely. */
 export const RISK_THRESHOLD = Number(process.env.PUK_RISK_THRESHOLD ?? 0.5);
+const probability = z.number().min(0).max(1);
 
 // Jev reads questions literally, so each one is a plain positive statement.
 const QUESTIONS = {
@@ -69,6 +71,8 @@ export async function assessRisk(ask: Ask, ctx: { goal: string; avoid: string[];
 }
 
 export function needsApproval(risk: Risk, threshold = RISK_THRESHOLD): boolean {
+  // Invalid configuration or scores must pause, never silently clear an action.
+  if (!probability.safeParse(threshold).success || !probability.safeParse(risk.level).success) return true;
   return risk.level >= threshold;
 }
 

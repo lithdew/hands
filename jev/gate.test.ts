@@ -44,6 +44,13 @@ describe("needsApproval", () => {
     expect(needsApproval(risk(0.5), 0.5)).toBe(true);
     expect(needsApproval(risk(0.99), 0.5)).toBe(true);
   });
+
+  test("invalid thresholds and risk scores cannot disable approval", () => {
+    for (const value of [NaN, Infinity, -1, 1.01]) {
+      expect(needsApproval(risk(0), value)).toBe(true);
+      expect(needsApproval(risk(value), 0.5)).toBe(true);
+    }
+  });
 });
 
 describe("terminalApprove", () => {

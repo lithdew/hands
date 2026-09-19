@@ -1,8 +1,10 @@
 # jev/: Jev drives the hands (branch `jev-cua`)
 
-Written 2026-09-19. Everything for this feature lives in this folder. Outside it
-the branch only adds `@typesafe-ai/sdk` to `package.json` and `bun.lock`.
-`desktop.ts` and `pip.ts` are imported and not edited.
+Originally written by Chi on `jev-cua`, merged into `desktop-pip` at `eb3c4c8`
+on 2026-09-19. The panel uses `listen.ts` as its live coordinator: accepted tasks start Pi workers on free hands immediately, refinements steer the same worker, and retractions cancel it. The app supplies a literal intent builder, so there is no second intent LLM. Pi provides OpenAI/Anthropic/Vertex Gemini, Bash and **external Cua Driver MCP** input/screenshots. The SDK transport in `jev.ts` is shared with `ai.ts`.
+
+The rest of this document describes the standalone Jev/AT-SPI loop and its
+original measurements. It is not the external CUA SDK.
 
 ## What it does
 
@@ -54,21 +56,19 @@ string or a coordinate, and is documented as weak with raw numbers. So:
 - **Models never hand us a command.** The intent's launcher is a closed set
   (`browser | terminal | files | none`) and its url must be http(s).
 
-This **replaces items 4 and 5 of "What is next" in `docs/handoff.md`**, and
-changes one decision there: the vision model no longer proposes each action
-with Jev only gating it. Jev decides every action; vision is the escalation.
-Reason: that was the explicit direction for this branch (2026-09-19).
+In Chi's original standalone branch, Jev decides each action and vision is the escalation. The integrated panel instead reuses his live coordinator with Pi workers and external Cua MCP. See the root handoff for that path; the measurements below retain their original standalone scope.
 
 ## Listening while the user speaks
 
 `listen.ts` is fed the whole transcript every time it grows by a word. Each
-time, one Jev request answers three independent questions:
+time, one Jev request answers independent questions (including an optional cut choice in the merged version):
 
 | Question | Answers | What code does with it |
 | --- | --- | --- |
 | `relation` | `no_request`, `covered`, `refines`, `new_task`, `retracts` | start, amend, ignore or cancel a task |
 | `startable` | 0..1 | at 0.6 a hand starts, before the sentence is over |
-| `route` | `jev`, `llm` | who builds the full intent |
+| `route` | `jev`, `llm` | who builds the full intent in the standalone adapter |
+| `cut` (when candidates exist) | `none` or an offered boundary | split independent requests delivered in one STT delta; dependent steps stay together |
 
 - **The opening move is always Jev's.** `quick.ts` picks a launcher, a site
   from a closed list and the words to type as a literal run of what was said.
@@ -93,8 +93,9 @@ time, one Jev request answers three independent questions:
 const listener = createListener({ ask, llm, hands: listHands, work: handWork(deps) });
 listener.warm();                   // hotkey down: open the connection (first call is ~1 s cold)
 listener.hear("search wiki");      // every partial transcript, whole sentence so far
-await listener.finish();           // hotkey up
+await listener.finish(finalText);  // hotkey up; optional corrected final transcript
 await listener.idle();             // all hands done
+listener.cancel();                 // Stop: abort pending decisions and all queued/running tasks
 ```
 
 For `transcribe.ts` there is also a pipe: `bun jev/listen.ts stdin` takes the
@@ -175,17 +176,22 @@ bun install
 ```
 
 Keys go in `.env` or `.env.local`, both gitignored (the names are already in `.env.example`):
-`TYPESAFE_API_KEY`, `OPENAI_API_KEY`.
+`TYPESAFE_API_KEY`, `OPENAI_API_KEY`. The existing `JEV_API_KEY`/`JEV`/`jev_key`
+and `OAI` aliases also work.
 
-Optional: `PUK_INTENT_MODEL` (default `gpt-5.4-mini`),
-`PUK_PLANNER_QUICK_MODEL` (`gpt-5.4-mini`), `PUK_PLANNER_DEEP_MODEL`
+Optional: `PUK_INTENT_MODEL` (default `gpt-5.6-luna`),
+`PUK_PLANNER_QUICK_MODEL` (`gpt-5.6-luna`), `PUK_PLANNER_DEEP_MODEL`
 (`gpt-6-astra`), `PUK_RISK_THRESHOLD` (0.5), `PUK_MIN_CONFIDENCE` (0.45),
 `PUK_PYTHON` (`/usr/bin/python3`), `OPENAI_BASE_URL`.
+The intent and quick planner also honor `OPENAI_MODEL`. Intent/quick calls
+use low reasoning effort; the deep planner uses high. `JEV_MODEL` selects
+the shared Jev model. The panel's provider/effort routing is documented in the
+root README; these `PUK_*` planner overrides apply to the standalone loop.
 
 ## First 10 minutes
 
 ```sh
-bun test                                   # 94 pass (22 existing + 72 here)
+bun test                                   # combined app and Jev regression tests
 bun jev/jev.ts ping                        # one Noul round trip; proves the key
 bun jev/intent.ts "search wikipedia for capybaras"    # prints the Intent
 
@@ -238,19 +244,20 @@ has something to stand on.
    wikipedia" and at "email sam@example.com", but only 0.29 at "can you
    email". Jev reads literally: "email" names no site. More examples in the
    question's criteria are the way to move it.
-10. **Transcripts that rewrite themselves.** Words are tracked by position. A
-   transcriber that revises earlier words ("wiki pedia" to "wikipedia") shifts
-   those positions. It self-corrects on the final pass, since llm tasks are
-   rebuilt from the full sentence, but a Jev-built task could keep a stale
-   word.
+10. **Transcript revisions are handled by the merged listener.** It tracks
+   consumed characters, including appended Chinese text and completed words.
+   Rewriting earlier text cancels superseded tasks and rebuilds from the new
+   utterance. `finish(finalText)` accepts the last STT correction atomically.
+   A failed final decision aborts partial tasks before releasing workers.
 11. **Typed text with newlines.** `wtype` sends a newline as Enter, which
    submits in most chat boxes. The gate sees the text but not that.
 
 ## Safety
 
-- Every action except `wait` goes through `gate.ts`. At or above the
+- Every in-loop action except `wait` goes through `gate.ts`. At or above the
   threshold it pauses for `approve`. The terminal version answers no when
-  there is no terminal. `hotkey.ts` can supply its own `Approve`.
+  there is no terminal. The standalone launch precedes this loop. The panel
+  instead uses Pi's installed-app launch gate and exact-action approval UI.
 - The gate's state holds the goal and the action, and nothing read off the
   screen except the target's own label, so a page cannot talk the gate down.
   Jev's *policy* state does include screen text; TypeSafe documents Jev as
@@ -277,5 +284,8 @@ const results = await Promise.all(hands.map((h) => runIntent(h, intent, deps)));
 
 ## Merging
 
-Based on `desktop-pip` (3acdddd). Merge `desktop-pip` first, then this. The
-only files touched outside `jev/` are `package.json` and `bun.lock`.
+The original branch was based on `desktop-pip` (`3acdddd`), with only
+`package.json` and `bun.lock` overlapping the app work. Those dependencies are
+combined now. Listener cancellation, final revisions, character offsets and
+hand reservation have regression coverage in the merged tree. See the root
+[handoff](../docs/handoff.md) for current verification and eval results.

@@ -41,7 +41,7 @@ export type Intent = {
 
 // ---------------------------------------------------------------- config
 
-export const INTENT_MODEL = process.env.PUK_INTENT_MODEL ?? "gpt-5.4-mini";
+export const INTENT_MODEL = process.env.PUK_INTENT_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-5.6-luna";
 
 const MAX_INPUTS = 40;
 const MAX_INPUT_CHARS = 8_000;

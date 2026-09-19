@@ -1,48 +1,20 @@
-// listen.ts — Jev listens while the user is still speaking.
+// Jev coordinates live speech: new tasks, refinements, retractions, and optional
+// cut points when STT delivers several requests in one delta. One independent
+// question batch classifies each newest transcript; stale replies are discarded.
 //
-// Every time the transcript grows by a word, the whole sentence so far goes to
-// Jev. One request, three independent questions:
+// Each free hand starts a cancellable worker immediately. Other tasks queue.
+// Job.onUpdate steers a running worker; finish validates the final utterance
+// before releasing held consequential actions. Pi is the app's worker. The
+// default handWork adapter retains Chi's standalone quick/intent/CUA experiment.
 //
-//   relation    how do the new words relate to the tasks we already have?
-//               no_request | covered | refines | new_task | retracts
-//   startable   has enough been said to start working? ("search wikipedia for"
-//               is enough to open Wikipedia; the search term can arrive later)
-//   route       can Jev build the intent itself (quick.ts), or does it need
-//               the LLM to work out what is meant (intent.ts)?
-//
-// Code does the rest. A startable new task gets an intent and a free hand at
-// once, so the hand is already working while the user talks. Words that refine
-// a task rebuild its intent in place, and the running loop in cua.ts picks it
-// up at its next step. "Never mind" cancels. A task whose hand finished is
-// kept as "done", so Jev sees its words as covered and does not start it again.
-//
-// A hand that starts on half a sentence must not act on half a sentence.
-// While the speaker is talking a hand may open, click and scroll, but it does
-// not type, the gate is stricter, and what the gate flags is held. When the
-// speaker has finished, the loop decides again against the final intent.
-//
-// The opening move is always Jev's (quick.ts, about 300 ms), so Gmail is
-// already loading while the user is still dictating. A task routed to the LLM
-// gets its full intent once, when the sentence has stopped moving. If that
-// last build fails, the task is cancelled: a hand never acts on a fragment.
-//
-//   const listener = createListener(deps);
-//   listener.hear("search wiki");  listener.hear("search wikipedia for"); ...
-//   await listener.finish();       // hotkey released
-//   await listener.idle();         // all hands done
-//
-// CLI: bun jev/listen.ts say [--wps=3] [--dry] <sentence...>   speak a sentence, word by word
-//      bun jev/listen.ts stdin [--dry]     each line is the transcript so far; an empty line ends it
-//
-// `stdin` is the seam for transcribe.ts: pipe partial transcripts in.
+// CLI: bun jev/listen.ts say [--wps=3] [--dry] <sentence...>
+//      bun jev/listen.ts stdin [--dry]
 
 import { listHands, type Hand } from "../desktop";
-import { APP_START_MS, openFor, runIntent, type Deps, type RunResult } from "./cua";
-import { RISK_THRESHOLD, terminalApprove } from "./gate";
-import { parseIntent, type Intent } from "./intent";
+import type { Deps, RunResult } from "./cua";
+import type { Intent } from "./intent";
 import { choice, createJev, noul, type Ask } from "./jev";
-import { createOpenAI, type Llm } from "./openai";
-import { quickIntent } from "./quick";
+import type { Llm } from "./openai";
 
 // ---------------------------------------------------------------- types
 
@@ -68,12 +40,16 @@ export type Job = {
   signal: AbortSignal;
   /** A promise while the speaker is still talking, null once they have finished. */
   speechEnds: () => Promise<void> | null;
+  /** Notify a running worker when Jev refines this task. */
+  onUpdate?: (listener: (intent: Intent) => void) => () => void;
 };
 export type Work = (hand: Hand, job: Job) => Promise<RunResult>;
 
 export type ListenDeps = {
   ask: Ask;
-  llm: Llm;
+  llm?: Llm;
+  /** An existing agent can own planning; it need not pay for a second intent LLM. */
+  buildIntent?: (request: string, route: "jev" | "llm", final: boolean) => Intent | Promise<Intent>;
   hands: () => Promise<Hand[]>;
   work: Work;
   log?: (line: string) => void;
@@ -84,20 +60,26 @@ export type Listener = {
   warm(): void;
   /** The whole transcript so far. Call on every partial result. Returns at once. */
   hear(transcript: string): void;
-  /** The speaker has finished. Resolves once the last words have been dealt with. */
-  finish(): Promise<void>;
+  /** The speaker has finished. An optional final STT result replaces the partial atomically. */
+  finish(transcript?: string): Promise<void>;
+  /** Stop this listener and its queued/running tasks. Late replies are discarded. */
+  cancel(): void;
   /** Resolves when no task is waiting or running. */
   idle(): Promise<void>;
   readonly tasks: readonly Task[];
 };
 
 type Live = Task & {
+  /** Character offsets also work when speech does not contain spaces. */
+  startChar: number;
   abort: AbortController;
   run: number;
   settled: Promise<void>;
   stale: boolean;
   /** A loop is on the hand. Outlives `status` briefly when a task is taken back mid-step. */
   working: boolean;
+  superseded: boolean;
+  listeners: Set<(intent: Intent) => void>;
 };
 
 // ---------------------------------------------------------------- config
@@ -106,7 +88,7 @@ type Live = Task & {
 const START_THRESHOLD = 0.6;
 /**
  * Below this confidence in `relation`, wait for another word before touching an
- * existing task. Not applied to the final pass, and not to a new task: there
+ * existing task. Not applied to the final pass, or to the first task: there
  * `startable` is the gate. Real Jev said new_task 0.49, startable 0.75 at
  * "search wikipedia for", which is exactly when a hand should start.
  */
@@ -116,116 +98,158 @@ export const SPEAKING_RISK_THRESHOLD = 0.25;
 
 const QUESTIONS = {
   relation: choice(
-    "The speaker is talking to a computer assistant. `new_words` are what they said since the last task was recorded. How do `new_words` relate to `tasks`?",
+    "How does the FIRST request in new_words relate to the existing tasks? Consider the first request if several arrived together. Opening an app followed by saying what to do in that app is one continuing task: opening notes then drafting, or opening a browser then searching/viewing something.",
     {
       no_request:
         "`new_words` ask for nothing: filler, a greeting, thinking aloud, or the first words of a sentence that does not yet say what to do.",
       covered: "`new_words` only repeat what a task in `tasks` already says.",
       refines:
-        "`new_words` continue or correct the latest task in `tasks` that is not done: they finish its sentence, add a detail, or change one.",
-      new_task: "`new_words` ask for something that no task in `tasks` covers.",
+        "The new words continue or correct the latest task: finish its sentence, add a detail, or add a step using that task's app or output.",
+      new_task: "The new words ask for a separate, independent job with its own target and purpose. Another desktop could work on it in parallel.",
       retracts: "`new_words` take the latest task back: never mind, stop, cancel that, do not do it.",
     },
   ),
-  startable: noul("Enough has been said to start working: it is clear what to open first, even if details are still to come.", {
+  startable: noul("Enough of the FIRST request in new_words has been said to start working: it is clear what to open first, even if details are still to come.", {
     true: "For example 'search wikipedia for': Wikipedia can be opened already. 'email sam': the mail site can be opened already. 'find my tax': the file manager can be opened already.",
     false: "For example 'can you please', 'I need to' or 'search for': nothing says what to open yet.",
   }),
-  route: choice("Who can work out what the speaker wants?", {
+  route: choice("Who can work out the FIRST request in new_words?", {
     jev: "A simple request: open a well-known website, an app or a folder, and perhaps type words the speaker said literally, such as a search term.",
     llm: "It needs writing or planning: a message or email to compose, a reply, several steps, or text to type that the speaker did not say word for word.",
   }),
 };
+
+/** Candidate boundaries are only options. Jev decides whether the following
+ * phrase is independent, or is another step/detail/correction of the same task. */
+function cutPoints(text: string) {
+  return [...text.matchAll(/\s+(?:and|also|then|meanwhile|separately|plus)\b|[.!?;,。！？；，]\s*|另外|然后|同时/giu)]
+    .map((match) => ({ at: match.index, before: text.slice(0, match.index).trim(), after: text.slice(match.index).trim() }))
+    .filter((cut) => {
+      const content = cut.before.replace(/\b(?:and|also|then|meanwhile|separately|plus|please)\b|另外|然后|同时/giu, "");
+      return /[\p{L}\p{N}]/u.test(content) && /[\p{L}\p{N}]/u.test(cut.after);
+    })
+    .slice(0, 12).map((cut, i) => ({ id: `cut_${i}`, ...cut }));
+}
 
 // ---------------------------------------------------------------- listener
 
 export function createListener(deps: ListenDeps): Listener {
   const log = deps.log ?? (() => {});
   const tasks: Live[] = [];
+  const abort = new AbortController();
+  const ask: Ask = (state, questions, options) => deps.ask(state, questions, {
+    ...options, signal: options?.signal ? AbortSignal.any([abort.signal, options.signal]) : abort.signal,
+  });
 
   // One utterance: from the first word to finish().
   let latest = "";
   let finished = false;
   let handled = { text: "", finished: false };
-  let consumed = 0; // words already turned into a task, or taken back
+  let consumed = ""; // transcript prefix already turned into a task, or taken back
   let speech = Promise.withResolvers<void>();
   let speaking = false;
   let pump: Promise<void> | null = null;
+  let ending: Promise<void> | null = null;
+  let scheduling = Promise.resolve();
+  let epoch = 0;
+  let utteranceStart = 0;
+  let finalError: Error | null = null;
+  const currentPass = (version: number) => !abort.signal.aborted && version === epoch;
 
   const open = () => tasks.findLast((t) => t.status === "waiting" || t.status === "running");
   const job = (task: Live): Job => ({
     intent: () => task.intent,
     signal: task.abort.signal,
     speechEnds: () => (speaking ? speech.promise : null),
+    onUpdate: (listener) => { task.listeners.add(listener); return () => { task.listeners.delete(listener); }; },
   });
 
   // ---- hands
 
   async function freeHand(): Promise<Hand | undefined> {
+    const hands = await deps.hands();
     const busy = new Set(tasks.filter((t) => t.working).map((t) => t.hand));
-    return (await deps.hands()).find((h) => !busy.has(h.id));
+    return hands.find((h) => !busy.has(h.id));
   }
 
   function start(task: Live, hand: Hand) {
+    if (abort.signal.aborted || task.abort.signal.aborted || task.status !== "waiting") return;
     const run = ++task.run;
     task.status = "running";
     task.working = true;
     task.hand = hand.id;
     log(`task ${task.id} -> hand ${hand.id}: ${task.intent.goal}`);
-    task.settled = deps
-      .work(hand, job(task))
+    task.settled = Promise.resolve()
+      .then(() => deps.work(hand, job(task)))
       .then((result) => {
         if (run !== task.run) return; // restarted since; this result is of the old run
         task.working = false;
         task.result = result;
-        task.status = result.status === "done" || result.status === "dry_run" ? "done" : result.status === "cancelled" ? "cancelled" : "failed";
+        if (task.status === "running") task.status = result.status === "done" || result.status === "dry_run" ? "done" : result.status === "cancelled" ? "cancelled" : "failed";
         log(`task ${task.id} ${task.status}: ${result.reason}`);
       })
       .catch((err) => {
         if (run !== task.run) return;
         task.working = false;
-        task.status = "failed";
+        if (task.status === "running") task.status = task.abort.signal.aborted ? "cancelled" : "failed";
         log(`task ${task.id} failed: ${err instanceof Error ? err.message : err}`);
       })
-      .then(startWaiting);
+      .then(startWaiting)
+      .catch((err) => log(`Could not reserve a hand: ${err instanceof Error ? err.message : err}`));
   }
 
-  async function startWaiting() {
-    for (const task of tasks.filter((t) => t.status === "waiting")) {
-      const hand = await freeHand();
-      if (!hand) return;
-      start(task, hand);
-    }
+  function startWaiting(): Promise<void> {
+    // Creating a task and finishing a worker can race across the hands() await.
+    // Reserve each hand in one queue before starting another worker on it.
+    const next = scheduling.then(async () => {
+      for (const task of tasks.filter((t) => t.status === "waiting")) {
+        if (abort.signal.aborted) return;
+        const hand = await freeHand();
+        if (!hand) return;
+        start(task, hand);
+      }
+    });
+    scheduling = next.catch(() => {}); // A failed lookup must not poison later reservations.
+    return next;
   }
 
   /** Same hand, from the top: what to open changed, so amending in place is not enough. */
-  async function restart(task: Live) {
+  async function restart(task: Live, version: number) {
     const hand = (await deps.hands()).find((h) => h.id === task.hand);
     task.abort.abort();
     task.run++; // the old run's result no longer counts
     await task.settled;
     task.working = false;
+    if (!currentPass(version) || task.status !== "running") return;
     task.abort = new AbortController();
+    task.status = "waiting";
     if (hand) start(task, hand);
+    else await startWaiting();
   }
 
   // ---- intents
 
   /** Jev's own intent when it can make one. The LLM when it cannot, or when `full` is asked of an llm task. */
   async function build(request: string, route: "jev" | "llm", full: boolean): Promise<{ intent: Intent; route: "jev" | "llm" }> {
+    if (deps.buildIntent) return { intent: await deps.buildIntent(request, route, full), route };
     if (route === "jev" || !full) {
-      const quick = await quickIntent(deps.ask, request);
+      const { quickIntent } = await import("./quick");
+      const quick = await quickIntent(ask, request);
       if (quick) return { intent: quick, route };
     }
+    if (!deps.llm) throw new Error("This listener needs an intent builder or an LLM to plan the task.");
+    const { parseIntent } = await import("./intent");
     return { intent: await parseIntent(deps.llm, request), route: "llm" };
   }
 
-  async function create(request: string, startWord: number, route: "jev" | "llm", isFinal: boolean) {
+  async function create(request: string, startWord: number, startChar: number, route: "jev" | "llm", isFinal: boolean, version: number) {
     const built = await build(request, route, isFinal);
+    if (!currentPass(version)) return;
     const task: Live = {
       id: tasks.length + 1,
       request,
       startWord,
+      startChar,
       ...built,
       status: "waiting",
       hand: null,
@@ -234,29 +258,31 @@ export function createListener(deps: ListenDeps): Listener {
       run: 0,
       settled: Promise.resolve(),
       // An llm task that started on Jev's opening move still owes the real intent.
-      stale: built.route === "llm" && !isFinal,
+      stale: !deps.buildIntent && built.route === "llm" && !isFinal,
       working: false,
+      superseded: false,
+      listeners: new Set(),
     };
     tasks.push(task);
     log(`task ${task.id} (${task.route}): ${JSON.stringify(task.intent.inputs)} ${task.intent.url ?? task.intent.launcher}`);
-    const hand = await freeHand();
-    if (hand) start(task, hand);
-    else log(`task ${task.id} is waiting for a free hand`);
+    await startWaiting();
+    if (task.status === "waiting") log(`task ${task.id} is waiting for a free hand`);
   }
 
-  async function refine(task: Live, request: string, isFinal: boolean) {
+  async function refine(task: Live, request: string, isFinal: boolean, version: number) {
     task.request = request;
     // The LLM is slow and the sentence is still moving: rebuild once, when it has stopped.
-    if (task.route === "llm" && !isFinal) return void (task.stale = true);
+    if (!deps.buildIntent && task.route === "llm" && !isFinal) return void (task.stale = true);
     const before = task.intent;
     let built: Awaited<ReturnType<typeof build>>;
     try {
       built = await build(request, task.route, isFinal).catch((err) => {
-        if (!isFinal) throw err;
+        if (!isFinal || !currentPass(version)) throw err;
         log(`task ${task.id}: building the final intent failed, trying once more: ${err instanceof Error ? err.message : err}`);
         return build(request, task.route, true);
       });
     } catch (err) {
+      if (!currentPass(version)) return;
       if (!isFinal) return void (task.stale = true); // the next word, or the end of the sentence, tries again
       // What the task holds is a guess made on a fragment. Better no action than that one.
       task.abort.abort();
@@ -264,6 +290,7 @@ export function createListener(deps: ListenDeps): Listener {
       log(`task ${task.id} cancelled: could not work out what was finally asked (${err instanceof Error ? err.message : err})`);
       return;
     }
+    if (!currentPass(version) || task.abort.signal.aborted) return;
     // The LLM knows what to write but sometimes not where to start. Jev's opening move already picked a site.
     if (built.intent.launcher === "browser" && !built.intent.url && before.launcher === "browser") built.intent.url = before.url;
     task.intent = built.intent; // the running loop reads this at its next step
@@ -272,24 +299,41 @@ export function createListener(deps: ListenDeps): Listener {
     log(`task ${task.id} refined (${task.route}): ${JSON.stringify(task.intent.inputs)}`);
     const site = (i: Intent) => (i.url ? new URL(i.url).host : null);
     const moved = before.launcher !== task.intent.launcher || site(before) !== site(task.intent);
-    if (moved && task.status === "running") await restart(task);
+    if (moved && task.status === "running") await restart(task, version);
+    else for (const listener of task.listeners) listener(task.intent);
   }
 
   // ---- one pass over the transcript
 
-  async function pass(text: string, isFinal: boolean) {
-    const words = text.trim().split(/\s+/).filter(Boolean);
-    const newWords = words.slice(consumed).join(" ");
+  async function pass(text: string, isFinal: boolean, version: number) {
+    let newWords = text.slice(consumed.length).trim();
+    const pendingFrom = text.indexOf(newWords, consumed.length);
+    const cuts = cutPoints(newWords);
+    const beforeConsumed = consumed;
+    let boundary: number | undefined;
     if (newWords) {
-      const answers = await deps.ask(
+      const answers = await ask(
         {
-          transcript: words.join(" "),
+          transcript: text,
           new_words: newWords,
           speaker_has_finished: isFinal,
-          tasks: tasks.map((t) => ({ request: t.request, status: t.status })),
+          tasks: tasks.filter((t) => !t.superseded).map((t) => ({ request: t.request, status: t.status })),
         },
-        QUESTIONS,
+        {
+          ...QUESTIONS,
+          ...(cuts.length ? { cut: choice(
+            "Does new_words contain MORE THAN ONE independent task that different desktops could work on at once? Choose the earliest offered boundary between them, otherwise none. A later step using the same app, a detail, a correction, quoted content or a dependency is ONE task. For example 'open notes and write a plan' stays together; 'open notes and also find a capybara photo' may split. Do not split a dependent step such as saving what was just written.",
+            { none: "Keep these words together as one task.", ...Object.fromEntries(cuts.map((cut) => [cut.id, `Independent tasks: first ${JSON.stringify(cut.before)}, then ${JSON.stringify(cut.after)}.`])) },
+          ) } : {}),
+        },
       );
+      if (!currentPass(version)) return;
+      const cut = answers.cut && answers.cut.confidence >= 0.6 ? cuts.find((cut) => cut.id === answers.cut?.choice) : undefined;
+      if (cut) {
+        boundary = pendingFrom + cut.at;
+        text = text.slice(0, boundary).trimEnd();
+        newWords = text.slice(consumed.length).trim();
+      }
       const relation = answers.relation.choice;
       const sure = isFinal || answers.relation.confidence >= MIN_RELATION_CONFIDENCE;
       const current = open();
@@ -301,17 +345,17 @@ export function createListener(deps: ListenDeps): Listener {
       if (relation === "no_request") {
         // keep the words: they may turn out to be the start of a request
       } else if (relation === "new_task" || (relation === "refines" && !current)) {
-        if (startable) {
-          const startWord = consumed;
-          consumed = words.length;
-          await create(newWords, startWord, answers.route.choice, isFinal);
+        if (startable && (!current || sure)) {
+          const startWord = consumed.split(/\s+/).filter(Boolean).length;
+          await create(newWords, startWord, consumed.length, answers.route.choice, isFinal, version);
+          if (currentPass(version)) consumed = text;
         }
       } else if (!sure) {
         // not sure enough to change or drop a task on: wait for another word
       } else if (relation === "covered") {
-        consumed = words.length;
+        consumed = text;
       } else if (relation === "retracts") {
-        consumed = words.length;
+        consumed = text;
         if (current) {
           current.abort.abort();
           current.status = "cancelled";
@@ -319,27 +363,40 @@ export function createListener(deps: ListenDeps): Listener {
           // Its hand is free once the loop on it has stopped; `settled` ends in startWaiting.
         }
       } else if (current) {
-        consumed = words.length;
-        await refine(current, words.slice(current.startWord).join(" "), isFinal);
+        await refine(current, text.slice(current.startChar).trim(), isFinal, version);
+        if (currentPass(version)) consumed = text;
       }
     }
 
-    if (isFinal) {
+    // STT can deliver several sentences in one delta. Consume only the first
+    // task and let Jev classify the remainder against the updated task list.
+    if (boundary !== undefined && consumed !== beforeConsumed && currentPass(version)) {
+      await pass(latest, isFinal, version);
+      return;
+    }
+
+    if (isFinal && currentPass(version)) {
       for (const task of tasks.filter((t) => t.stale && (t.status === "waiting" || t.status === "running"))) {
-        await refine(task, task.request, true);
+        await refine(task, task.request, true, version);
       }
     }
   }
 
   async function drain() {
-    while (handled.text !== latest || handled.finished !== finished) {
+    while (!abort.signal.aborted && (handled.text !== latest || handled.finished !== finished)) {
       const now = { text: latest, finished };
+      const version = epoch;
       try {
-        await pass(now.text, now.finished);
+        await pass(now.text, now.finished, version);
       } catch (err) {
+        if (!currentPass(version)) continue;
         log(`listen: ${err instanceof Error ? err.message : err}`); // the next word gets another try
+        if (now.finished) {
+          finalError = err instanceof Error ? err : new Error(String(err));
+          stopTasks(tasks, "failed"); // never release a partial intent after final triage failed
+        }
       }
-      handled = now;
+      if (currentPass(version)) handled = now;
     }
   }
 
@@ -347,36 +404,80 @@ export function createListener(deps: ListenDeps): Listener {
   function kick(): Promise<void> {
     pump ??= drain().finally(() => {
       pump = null;
-      if (handled.text !== latest || handled.finished !== finished) void kick();
+      if (!abort.signal.aborted && (handled.text !== latest || handled.finished !== finished)) void kick();
     });
     return pump;
+  }
+
+  function stopTasks(targets: Live[], status: "cancelled" | "failed" = "cancelled") {
+    for (const task of targets) {
+      if (task.status === "waiting" || task.status === "running") {
+        task.status = status;
+        task.abort.abort();
+      }
+    }
+  }
+
+  async function finishUtterance() {
+    if (abort.signal.aborted) return;
+    finished = true;
+    try {
+      while (!abort.signal.aborted && (handled.text !== latest || !handled.finished)) await kick();
+      if (finalError) throw finalError;
+      for (const task of tasks.filter((t) => t.status === "running")) {
+        for (const listener of task.listeners) listener(task.intent);
+      }
+    } finally {
+      // Only validated final intents reach workers; failed/cancelled ones are aborted first.
+      speaking = false;
+      speech.resolve();
+      speech = Promise.withResolvers<void>();
+      latest = "";
+      finished = false;
+      handled = { text: "", finished: false };
+      consumed = "";
+      utteranceStart = tasks.length;
+      finalError = null;
+    }
+  }
+
+  function receive(transcript: string) {
+    if (finished || abort.signal.aborted) return;
+    transcript = transcript.trim().replace(/\s+/g, " ");
+    if (latest && !transcript.startsWith(latest)) {
+      // STT can revise earlier words, not just append. Their old word offsets
+      // are no longer meaningful; rebuild from the corrected utterance.
+      epoch++;
+      const old = tasks.slice(utteranceStart);
+      stopTasks(old);
+      for (const task of old) task.superseded = true;
+      consumed = "";
+      handled = { text: "", finished: false };
+    }
+    speaking = true;
+    latest = transcript;
   }
 
   return {
     tasks,
     warm() {
-      void deps.ask("ready", { ready: noul("The text says ready.") }).catch(() => {});
+      if (!abort.signal.aborted) void ask("ready", { ready: noul("The text says ready.") }).catch(() => {});
     },
     hear(transcript) {
-      if (finished) return;
-      speaking = true;
-      latest = transcript;
+      receive(transcript);
+      if (finished || abort.signal.aborted) return;
       void kick();
     },
-    async finish() {
-      finished = true;
-      try {
-        while (handled.text !== latest || !handled.finished) await kick();
-      } finally {
-        // The intent is final now. Release what the gate was holding, and be ready for the next utterance.
-        speaking = false;
-        speech.resolve();
-        speech = Promise.withResolvers<void>();
-        latest = "";
-        finished = false;
-        handled = { text: "", finished: false };
-        consumed = 0;
-      }
+    finish(transcript) {
+      if (transcript !== undefined && !ending) receive(transcript);
+      return ending ??= finishUtterance().finally(() => { ending = null; });
+    },
+    cancel() {
+      epoch++;
+      abort.abort();
+      stopTasks(tasks);
+      speaking = false;
+      speech.resolve();
     },
     async idle() {
       while (tasks.some((t) => t.working)) await Promise.all(tasks.filter((t) => t.working).map((t) => t.settled));
@@ -391,6 +492,8 @@ export function createListener(deps: ListenDeps): Listener {
 /** Open what the intent needs, then let Jev drive, careful while the speaker is still talking. */
 export function handWork(deps: Deps): Work {
   return async (hand, job) => {
+    const [{ APP_START_MS, openFor, runIntent }, { RISK_THRESHOLD }] = await Promise.all([import("./cua"), import("./gate")]);
+    if (job.signal.aborted) return { status: "cancelled", reason: "the task was taken back", steps: [] };
     await openFor(hand, job.intent());
     if (job.intent().launcher !== "none") await (deps.sleep ?? Bun.sleep)(APP_START_MS);
     return runIntent(hand, job.intent, deps, {
@@ -427,6 +530,7 @@ async function main(argv: string[]) {
   const started = performance.now();
   const log = (line: string) => console.log(`${((performance.now() - started) / 1000).toFixed(2).padStart(6)}s  ${line}`);
   const ask = createJev();
+  const [{ createOpenAI }, { terminalApprove }] = await Promise.all([import("./openai"), import("./gate")]);
   const llm = createOpenAI();
   const fakeHands = [1, 2, 3].map((id) => ({ id, pid: 0, display: "", width: 1280, height: 800 }));
   const listener = createListener({

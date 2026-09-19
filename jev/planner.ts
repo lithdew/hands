@@ -47,12 +47,14 @@ export type PlanInput = {
 /** The models Jev may route to. The descriptions are what Jev reads to choose. */
 export const PLANNERS = {
   quick: {
-    model: process.env.PUK_PLANNER_QUICK_MODEL ?? "gpt-5.4-mini",
+    model: process.env.PUK_PLANNER_QUICK_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-5.6-luna",
+    effort: "low",
     description:
       "Fast, small vision model. For a simple question about the current screen: where a control is, which window is open, what a dialog is asking.",
   },
   deep: {
     model: process.env.PUK_PLANNER_DEEP_MODEL ?? "gpt-6-astra",
+    effort: "high",
     description:
       "Slow, strong vision model. For when the approach itself is failing: repeated actions with no progress, an unfamiliar app, a task that needs several steps rethought.",
   },
@@ -155,6 +157,7 @@ export async function makePlan(llm: Llm, name: PlannerName, hand: Hand, input: P
   });
   const raw = await llm({
     model: PLANNERS[name].model,
+    effort: PLANNERS[name].effort,
     system: planSystem(hand),
     user,
     imagePng: input.screenshotPng,

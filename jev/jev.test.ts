@@ -71,6 +71,30 @@ describe("assertContract", () => {
 });
 
 describe("createJev", () => {
+  test("cancellation reaches the SDK request without retrying", async () => {
+    const abort = new AbortController(), started = Promise.withResolvers<void>();
+    let calls = 0;
+    const ask = createJev({ apiKey: "test", fetch: async (_url, init) => {
+      calls++; started.resolve();
+      return new Promise<Response>((_resolve, reject) => init?.signal?.addEventListener("abort", () => reject(new Error("cancelled")), { once: true }));
+    } });
+    const pending = ask("state", questions, { signal: abort.signal });
+    await started.promise;
+    abort.abort();
+    await expect(pending).rejects.toThrow("Jev request cancelled");
+    expect(calls).toBe(1);
+  });
+
+  test("malformed answers cannot echo a credential into an error", async () => {
+    const secret = "test-private-credential";
+    const { fetch } = fakeFetch({ move: { type: "choice", choice: secret, confidence: 1 } });
+    const ask = createJev({ apiKey: secret, fetch });
+    let message = "";
+    try { await ask("state", questions); } catch (error) { message = (error as Error).message; }
+    expect(message).toContain("not one of the offered labels");
+    expect(message).not.toContain(secret);
+  });
+
   test("posts state and questions to /v1/systemone with the key", async () => {
     const { fetch, calls } = fakeFetch({
       move: { type: "choice", choice: "wait", confidence: 0.8, probabilities: { click: 0.2, wait: 0.8 } },

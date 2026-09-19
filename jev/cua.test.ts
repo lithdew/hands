@@ -121,7 +121,7 @@ describe("runIntent", () => {
       ["wlrctl", "pointer", "move", "-100000", "-100000"],
       ["wlrctl", "pointer", "move", "550", "120"], // centre of e1, computed here, never by a model
       ["wlrctl", "pointer", "click", "left"],
-      ["wtype", "-s", "40", "-d", "8", "capybara"],
+      ["wtype", "-s", "40", "-d", "8", "--", "capybara"],
       ["wtype", "-s", "40", "-k", "Return"],
     ]);
   });
@@ -282,7 +282,7 @@ describe("runIntent", () => {
     const sh = fakeExec();
     const result = await runIntent(hand, intent, deps({ ask: jev.ask, llm: model.llm, observe: screens(home) }, sh.exec));
     expect(result.steps[0]!.did).toContain(`type ${COMPOSE_LABEL} ("largest living rodent")`);
-    expect(sh.input().at(-1)).toEqual(["wtype", "-s", "40", "-d", "8", "largest living rodent"]);
+    expect(sh.input().at(-1)).toEqual(["wtype", "-s", "40", "-d", "8", "--", "largest living rodent"]);
   });
 
   test("a dry run decides and touches nothing", async () => {
@@ -327,7 +327,7 @@ describe("runIntent while the speaker is still talking", () => {
     speech.resolve();
     const result = await run;
     expect(result.status).toBe("done");
-    expect(sh.input().at(-1)).toEqual(["wtype", "-s", "40", "-d", "8", "capybaras"]);
+    expect(sh.input().at(-1)).toEqual(["wtype", "-s", "40", "-d", "8", "--", "capybaras"]);
     expect(sh.input().flat()).not.toContain("wikipedia");
   });
 

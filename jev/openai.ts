@@ -11,12 +11,15 @@
 // Requires: OPENAI_API_KEY in .env.local. OPENAI_BASE_URL points it at any
 // server that speaks the Responses API.
 
+import { z } from "zod";
+
 // ---------------------------------------------------------------- types
 
 export type JsonSchema = { name: string; schema: Record<string, unknown> };
 
 export type LlmRequest = {
   model: string;
+  effort?: "low" | "medium" | "high";
   system: string;
   user: string;
   /** A PNG the model should look at, e.g. a hand's screenshot. */
@@ -42,6 +45,7 @@ export function responsesBody(req: LlmRequest): Record<string, unknown> {
   }
   return {
     model: req.model,
+    reasoning: { effort: z.enum(["low", "medium", "high"]).parse(req.effort ?? "low") },
     instructions: req.system,
     input: [{ role: "user", content }],
     text: { format: { type: "json_schema", name: req.schema.name, strict: true, schema: req.schema.schema } },
@@ -68,8 +72,8 @@ export function outputJson(body: unknown): unknown {
 export function createOpenAI(
   opts: { apiKey?: string; baseURL?: string; fetch?: FetchLike; timeoutMs?: number } = {},
 ): Llm {
-  const apiKey = opts.apiKey ?? process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY is not set. Put it in .env.local");
+  const apiKey = (opts.apiKey ?? process.env.OPENAI_API_KEY ?? process.env.OAI)?.trim();
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not set. Put it (or OAI) in .env");
   const baseURL = (opts.baseURL ?? process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/+$/, "");
   const doFetch = opts.fetch ?? fetch;
 
@@ -80,7 +84,7 @@ export function createOpenAI(
       body: JSON.stringify(responsesBody(req)),
       signal: AbortSignal.timeout(opts.timeoutMs ?? 60_000),
     });
-    if (!res.ok) throw new Error(`OpenAI ${req.model} failed (${res.status}): ${(await res.text()).slice(0, 400)}`);
+    if (!res.ok) throw new Error(`OpenAI ${req.model} failed (${res.status}): ${(await res.text()).replaceAll(apiKey, "[redacted]").slice(0, 400)}`);
     return outputJson(await res.json());
   };
 }
