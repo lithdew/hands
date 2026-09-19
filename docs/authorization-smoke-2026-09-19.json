@@ -413,5 +413,35 @@
     "authorizationAtLeast": 0.9,
     "conflictAndOffGoalBelow": 0.1,
     "blockingConflictOrOffGoalAtLeast": 0.5
+  },
+  "repeatConsistency": {
+    "command": "bun jev/authorization.eval.ts --live --out=out/evals/<fresh-directory>",
+    "additionalRequests": 24,
+    "valid": 24,
+    "passed": 24,
+    "falseApprovalPauses": 0,
+    "falseAllows": 0,
+    "policyChanged": false,
+    "note": "Two sequential passes, each with concurrency 3, over the same six fixtures and two adapters. Including the initial pass: 36/36 expected decisions, six distinct fixtures. Pi delegated-wording authorization was exactly at the 0.90 threshold in two of the three runs; no evidence of a robust margin. No UI actions or whole-task claims.",
+    "runs": [
+      {
+        "source": "out/evals/authorization-repeat-20260919T152307370Z-1/results.json",
+        "valid": 12,
+        "passed": 12,
+        "medianMs": 350.5,
+        "minMs": 307,
+        "maxMs": 971,
+        "delegatedWordAuthorization": { "pi": 0.91, "standalone": 0.93 }
+      },
+      {
+        "source": "out/evals/authorization-repeat-20260919T152307370Z-2/results.json",
+        "valid": 12,
+        "passed": 12,
+        "medianMs": 377,
+        "minMs": 330,
+        "maxMs": 858,
+        "delegatedWordAuthorization": { "pi": 0.90, "standalone": 0.93 }
+      }
+    ]
   }
 }
