@@ -24,7 +24,8 @@ test("creative acceptance cannot be granted by a positive summary with weak craf
 test("self-contained creative plans skip network research and publish real observable progress", async () => {
   const root=await mkdtemp(join(tmpdir(),"hands-no-research-"));let calls=0;
   try {
-    const result=await runArtifactWorkflow({request:"Build a local prototype"},{outputRoot:root,ask,model:async()=>({text:JSON.stringify([plan,bundle,review][calls++]),model:"gpt-5.6-luna"}),gather:async()=>{throw new Error("Unexpected network research");},preview:async()=>({checks:[],screenshots:[]})});
+    const readyAsk:Ask=async(state,questions,options)=>{if((state as any).phase==="plan_returned"){expect((state as any).boundedLocalPlanValidated).toBe(true);expect(Object.keys((questions.action as any).criteria)).toEqual(["research"]);}return ask(state,questions,options);};
+    const result=await runArtifactWorkflow({request:"Build a local prototype"},{outputRoot:root,ask:readyAsk,model:async()=>({text:JSON.stringify([plan,bundle,review][calls++]),model:"gpt-5.6-luna"}),gather:async()=>{throw new Error("Unexpected network research");},preview:async()=>({checks:[],screenshots:[]})});
     const progress=JSON.parse(await readFile(join(result.directory,"progress.json"),"utf8"));
     expect(progress.runId).toBe(result.runId);expect(progress.phase).toBe("complete");expect(progress.previewUrl).toBe(result.previewUrl);
     expect(progress.events.some((event:any)=>event.event==="jev_handoff")).toBe(true);

@@ -691,7 +691,8 @@ function makeEvalCard() {
   };
   actions.append(previewButton, open);
   const details = el('details', 'eval-log'); details.append(el('summary', null, 'Recent steps'), el('ol'));
-  card.append(head, el('h3', 'eval-title'), el('p', 'eval-meta'), el('p', 'eval-step'), actions, details);
+  const checks = el('details', 'eval-checks eval-log'); checks.append(el('summary', null, 'Checks'), el('ul'));
+  card.append(head, el('h3', 'eval-title'), el('p', 'eval-meta'), el('p', 'eval-step'), actions, details, checks);
   return card;
 }
 function updateEvalCard(card, run) {
@@ -715,6 +716,13 @@ function updateEvalCard(card, run) {
   if (card.dataset.events !== signature) {
     card.dataset.events = signature;
     log.replaceChildren(...events.slice(-10).reverse().map(event => el('li', null, evalDuration(event.atMs) + ' · ' + event.phase + ' · ' + (event.detail || event.event) + (event.model ? ' · ' + evalModel(event.model) : ''))));
+  }
+  const checkPanel = card.querySelector('.eval-checks'), checkSignature = JSON.stringify(checks);
+  checkPanel.hidden = !checks.length;
+  if (card.dataset.checks !== checkSignature) {
+    card.dataset.checks = checkSignature;
+    setText(checkPanel.querySelector('summary'), 'Checks · ' + (checks.length - failed) + ' passed' + (failed ? ' · ' + failed + ' need review' : ''));
+    checkPanel.querySelector('ul').replaceChildren(...[...checks].sort((a,b) => Number(a.passed)-Number(b.passed)).map(check => el('li', null, (check.passed ? 'Passed: ' : 'Needs review: ') + check.name + (check.detail ? ' — ' + check.detail : ''))));
   }
   card.title = 'Last recorded update ' + new Date(run.updatedAt).toLocaleTimeString() + (run.parentRunId ? '\nResumed from ' + run.parentRunId : '');
 }

@@ -6,6 +6,14 @@ const RUN_ID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const text = (value: unknown, limit: number) => typeof value === "string" ? value.slice(0, limit) : "";
 const number = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
 const timestamp = (value: unknown) => typeof value === "number" ? number(value) : typeof value === "string" ? number(Date.parse(value)) : 0;
+const checkDetail = (value: unknown) => {
+  if (typeof value !== "string") return "";
+  try {
+    const review = JSON.parse(value);
+    if (typeof review?.summary === "string") return text([review.summary, ...(Array.isArray(review.issues) ? review.issues.filter((issue:any) => issue?.severity === "error").slice(0,2).map((issue:any) => text(issue.detail,300)) : [])].filter(Boolean).join(" "),600);
+  } catch { /* Most mechanical check details are ordinary text. */ }
+  return text(value,600);
+};
 export type EvalProgress = {
   runId: string; kind: string; phase: string; model: string; request: string;
   updatedAt: number; startedAt: number; elapsedMs: number; parentRunId?: string; previewUrl?: string;
@@ -37,7 +45,7 @@ export function evalProgress(value: unknown, runId: string): EvalProgress | null
     ...(typeof item.count === "number" ? { count: number(item.count) } : {}),
     ...(typeof item.detail === "string" ? { detail: text(item.detail, 600) } : {}),
   }));
-  if (Array.isArray(source.checks)) result.checks = source.checks.slice(-80).filter(item => item && typeof item === "object" && typeof item.passed === "boolean").map(item => ({ name: text(item.name, 160), passed: item.passed, detail: text(item.detail, 600) }));
+  if (Array.isArray(source.checks)) result.checks = source.checks.slice(-80).filter(item => item && typeof item === "object" && typeof item.passed === "boolean").map(item => ({ name: text(item.name, 160), passed: item.passed, detail: checkDetail(item.detail) }));
   return result;
 }
 

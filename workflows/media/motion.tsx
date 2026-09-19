@@ -64,11 +64,11 @@ function Tasks({scene,frame,color,muted,accent,light,restrained}:{scene:Prepared
   const selected=Math.floor(frame/42)%tasks.length;
   return <>
     <div style={{position:"absolute",left:58,top:112}}><Fit width={435} height={275} id={`${scene.id}-tasks-heading`}><Words text={scene.title} frame={frame} width={435} size={scene.title.length>45?53:66} emphasis={scene.emphasis} color={color} accent={accent}/></Fit></div>
-    {scene.body&&<div style={{position:"absolute",left:60,top:402,fontSize:24,lineHeight:1.3,color:muted,opacity:rise(frame,14)}}><Fit width={405} height={123} id={`${scene.id}-tasks-subtitle`}>{scene.body}</Fit></div>}
+    {scene.body&&<div style={{position:"absolute",left:60,top:387,fontSize:36,lineHeight:1.18,color:muted,opacity:rise(frame,14)}}><Fit width={405} height={150} id={`${scene.id}-tasks-subtitle`}>{scene.body}</Fit></div>}
     <svg width="1280" height="555" style={{position:"absolute",inset:0}}><path d={points.map((p,i)=>`${i?"L":"M"}${p.x},${p.y+25}`).join(" ")} fill="none" stroke={light?"#cecec8":"#43454d"} strokeWidth="2"/>{points.map((p,i)=><circle key={i} cx={p.x} cy={p.y+25} r={selected===i?9:5} fill={selected===i?accent:muted} opacity={rise(frame,i*8)}/>)}</svg>
     {tasks.map((task,i)=>{const p=rise(frame,12+i*8),point=points[i]!,w=1195-point.x-30;
       return <div key={i} style={{position:"absolute",left:point.x+30,top:point.y,width:w,opacity:p,transform:`translateX(${(1-p)*(restrained?15:70)}px)`}}>
-        <div style={{fontSize:12,letterSpacing:2,color:muted,marginBottom:5}}>0{i+1}</div><Fit width={w} height={57} id={`${scene.id}-task-${i}`}><div style={{fontSize:tasks.length>4?24:29,lineHeight:1.12,fontWeight:selected===i?700:500,letterSpacing:-.6,color:selected===i?accent:color}}>{task}</div></Fit>
+        <div style={{fontSize:16,letterSpacing:2,color:muted,marginBottom:5}}>0{i+1}</div><Fit width={w} height={tasks.length>4?49:69} id={`${scene.id}-task-${i}`}><div style={{fontSize:tasks.length>4?33:52,lineHeight:1.06,fontWeight:selected===i?700:500,letterSpacing:-1.3,color:selected===i?accent:color}}>{task}</div></Fit>
       </div>;
     })}
   </>;
