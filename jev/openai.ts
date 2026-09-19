@@ -12,6 +12,7 @@
 // server that speaks the Responses API.
 
 import { z } from "zod";
+import { assertModel, modelEffort, serviceTier } from "../model-policy";
 
 // ---------------------------------------------------------------- types
 
@@ -44,8 +45,9 @@ export function responsesBody(req: LlmRequest): Record<string, unknown> {
     });
   }
   return {
-    model: req.model,
-    reasoning: { effort: z.enum(["low", "medium", "high"]).parse(req.effort ?? "low") },
+    model: assertModel("openai", req.model),
+    reasoning: { effort: modelEffort(req.model, z.enum(["low", "medium", "high"]).parse(req.effort ?? "low")) },
+    ...(serviceTier("openai") ? { service_tier: serviceTier("openai") } : {}),
     instructions: req.system,
     input: [{ role: "user", content }],
     text: { format: { type: "json_schema", name: req.schema.name, strict: true, schema: req.schema.schema } },

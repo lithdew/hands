@@ -54,9 +54,9 @@ export const PLANNERS = {
   },
   deep: {
     model: process.env.PUK_PLANNER_DEEP_MODEL ?? "gpt-6-astra",
-    effort: "high",
+    effort: "low",
     description:
-      "Slow, strong vision model. For when the approach itself is failing: repeated actions with no progress, an unfamiliar app, a task that needs several steps rethought.",
+      "Strong vision model at low reasoning effort. For when the approach itself is failing: repeated actions with no progress, an unfamiliar app, a task that needs several steps rethought.",
   },
 } as const;
 

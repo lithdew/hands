@@ -455,6 +455,7 @@ export async function runIntent(
   for (let n = 1; n <= maxSteps; n++) {
     if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
     const intent = current();
+    const instructionAtDecision = JSON.stringify(intent);
     // The look that judged the last action is also the look for this one.
     let obs = carried ?? (await look(hand));
     carried = null;
@@ -524,10 +525,18 @@ export async function runIntent(
           steps.push({ n, did, risk: risk.level, outcome: "denied by the user" });
           return end("denied", did);
         }
+        if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
+        const fresh = await look(hand);
+        if (fresh.fingerprint !== obs.fingerprint || JSON.stringify(current()) !== instructionAtDecision) {
+          carried = fresh;
+          log(`step ${n}: approval expired because the screen or instruction changed`);
+          continue;
+        }
       }
     }
 
     if (opts.signal?.aborted) return end("cancelled", "the task was taken back"); // it may have come during the gate
+    if (JSON.stringify(current()) !== instructionAtDecision) continue;
     await (deps.perform ? deps.perform(hand, decision.action) : perform(hand, decision.action, deps));
     await sleep(deps.settleMs ?? SETTLE_MS);
     const after = await look(hand);

@@ -374,6 +374,8 @@ export async function getHand(id: number): Promise<Hand | null> {
 // The agent uses the real Cua MCP server. Native helpers below remain useful
 // for desktop lifecycle, the CLI, and Chi's standalone experiment.
 export type CuaConnection = {
+  /** Discard buffered input on cancellation; actual held buttons are still released. */
+  cancelPendingInput?: () => void | Promise<void>;
   call(name: string, args?: Record<string, unknown>, signal?: AbortSignal): Promise<Awaited<ReturnType<Client["callTool"]>>>;
   close(): Promise<void>;
 };

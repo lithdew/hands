@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { checkAction, ComputerSchema, createDesktopAgent, providerModel, runBash, routeTask, routeCandidates, decideWithJev, EffortSchema, type RouteDecision, type Fetch, type GateContext, type GateResult } from "./ai";
+import { describe, expect, spyOn, test } from "bun:test";
+import { canRetryProvider, checkAction, ComputerSchema, createDesktopAgent, providerModel, runBash, routeTask, routeCandidates, decideWithJev, EffortSchema, type RouteDecision, type Fetch, type GateContext, type GateResult } from "./ai";
 import { createAssistantMessageEventStream, type AssistantMessage } from "@earendil-works/pi-ai";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type { CuaConnection, Hand, InstalledApp } from "./desktop";
@@ -7,6 +7,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { planAppOpen } from "./evals";
 import { tmpdir } from "node:os";
+import { createSemanticComputer, type PixelCapture } from "./semantic-computer";
 
 const context: GateContext = {
   task: "Read the documentation",
@@ -97,13 +98,229 @@ function scriptedModel(calls: { name: string; arguments: Record<string, unknown>
 
 const fixedRoute: typeof routeTask = async (_task, candidates) => ({ ...candidates.find((c) => c.difficulty === "standard")!, confidence: 1, latencyMs: 0, fallback: false, reason: "Test fixture" });
 const fakeDesktop = { discover: async () => [notes], state: async () => ({ width: 800, height: 600, windows: [] }) };
-function fakeCua(input: (name: string, args: Record<string, unknown>) => void | Promise<void> = () => {}): () => Promise<CuaConnection> {
+
+function failedMessage(model: ReturnType<typeof providerModel>, errorMessage = "HTTP 503 unavailable", content: AssistantMessage["content"] = []): AssistantMessage {
+  return { role: "assistant", api: model.api, provider: model.provider, model: model.id, timestamp: Date.now(), content, stopReason: "error", errorMessage,
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
+}
+
+function failureStream(message: AssistantMessage) {
+  const stream = createAssistantMessageEventStream();
+  stream.push({ type: "start", partial: message });
+  message.content.forEach((content, contentIndex) => {
+    if (content.type === "text") stream.push({ type: "text_delta", contentIndex, delta: content.text, partial: message });
+  });
+  stream.push({ type: "error", reason: "error", error: message });
+  return stream;
+}
+
+async function withAutoModels(run: () => Promise<void>) {
+  const overrides: Record<string, string | undefined> = {
+    OPENAI_API_KEY: "fixture-openai", OAI: undefined, OPENAI_MODEL: undefined, OPENAI_COMPLEX_MODEL: undefined,
+    GOOGLE_CLOUD_API_KEY: "fixture-vertex", GEMINI_API_KEY: undefined, GOOGLE_API_KEY: undefined, GEMINI: undefined,
+    GEMINI_BACKEND: "vertex", GEMINI_MODEL: undefined, GEMINI_COMPLEX_MODEL: undefined,
+  };
+  const before = Object.fromEntries(Object.keys(overrides).map((key) => [key, process.env[key]]));
+  const apply = (values: Record<string, string | undefined>) => {
+    for (const [key, value] of Object.entries(values)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  };
+  apply(overrides);
+  try { await run(); } finally { apply(before); }
+}
+
+describe("provider availability recovery", () => {
+  test("only empty availability errors are retryable; partial output, policy refusals, and aborts are terminal", () => {
+    const model = providerModel("openai", "gpt-5.6-luna");
+    for (const error of ["API_KEY_SERVICE_BLOCKED", "401 UNAUTHENTICATED", "429 RESOURCE_EXHAUSTED", "HTTP 503", "network timeout", "ECONNRESET"]) {
+      expect(canRetryProvider(failedMessage(model, error))).toBe(true);
+    }
+    for (const content of [
+      [{ type: "text" as const, text: "Already started an answer" }],
+      [{ type: "thinking" as const, thinking: "A partial plan" }],
+      [{ type: "toolCall" as const, id: "partial-tool", name: "open_app", arguments: { id: notes.id } }],
+    ]) expect(canRetryProvider(failedMessage(model, "503 unavailable", content))).toBe(false);
+    for (const error of ["403 content_policy violation", "503 safety filter", "429 refusal", "Malformed tool schema", "Request aborted"]) {
+      expect(canRetryProvider(failedMessage(model, error))).toBe(false);
+    }
+    expect(canRetryProvider({ ...failedMessage(model), stopReason: "aborted" })).toBe(false);
+    expect(canRetryProvider({ ...failedMessage(model), stopReason: "stop" })).toBe(false);
+  });
+
+  test("auto exhausts only Gemini, Luna and Astra at low effort, without cycling failures", async () => withAutoModels(async () => {
+    const attempts: { model: string; effort: unknown }[] = [];
+    const runtime = await createDesktopAgent({ hand, provider: "auto", router: fixedRoute, desktop: fakeDesktop,
+      streamFn: (model, _context, options) => {
+        attempts.push({ model: model.id, effort: options?.reasoning });
+        return failureStream(failedMessage(model));
+      },
+    });
+    try {
+      await runtime.prompt("Read the available notes");
+      expect(attempts).toEqual([
+        { model: "gemini-3.8-flash", effort: "low" }, { model: "gpt-5.6-luna", effort: "low" }, { model: "gpt-6-astra", effort: "low" },
+      ]);
+      expect(runtime.status().error).not.toBeNull();
+      await runtime.prompt("Try reading the notes again");
+      expect(attempts).toHaveLength(3);
+      expect(runtime.status().error).toContain("temporarily unavailable");
+    } finally { await runtime.close(); }
+  }));
+
+  test("fallback retains completed tool history and never repeats the completed action", async () => withAutoModels(async () => {
+    const attempts: string[] = [];
+    const launch = scriptedModel([{ name: "open_app", arguments: { id: notes.id } }]);
+    const done = scriptedModel([]);
+    let opened = 0, checks = 0, recoveredHistory = "";
+    const runtime = await createDesktopAgent({ hand, provider: "auto", router: fixedRoute,
+      desktop: { ...fakeDesktop, launch: async () => ++opened }, gate: async () => { checks++; return allow; },
+      streamFn: (model, context, options) => {
+        attempts.push(model.id);
+        if (attempts.length === 1) return launch(model, context, options);
+        if (attempts.length === 2) return failureStream(failedMessage(model, "API_KEY_SERVICE_BLOCKED"));
+        recoveredHistory = JSON.stringify(context.messages);
+        return done(model, context, options);
+      },
+    });
+    try {
+      await runtime.prompt("Open my notes and inspect them");
+      expect(attempts).toEqual(["gemini-3.8-flash", "gemini-3.8-flash", "gpt-5.6-luna"]);
+      expect(opened).toBe(1); expect(checks).toBe(1);
+      expect(recoveredHistory).toContain("Local Writer");
+      expect(recoveredHistory).toContain('"role":"toolResult"');
+      expect(recoveredHistory).not.toContain("API_KEY_SERVICE_BLOCKED");
+      expect(runtime.agent.state.messages.filter((message) => message.role === "toolResult")).toHaveLength(1);
+      expect(runtime.status()).toMatchObject({ running: false, provider: "openai", model: "gpt-5.6-luna", error: null });
+    } finally { await runtime.close(); }
+  }));
+
+  test("an unhealthy model is excluded from later tasks until its five-minute cooldown expires", async () => withAutoModels(async () => {
+    let now = Date.now();
+    const clock = spyOn(Date, "now").mockImplementation(() => now);
+    const candidates: string[][] = [], attempts: string[] = [];
+    const done = scriptedModel([]);
+    let runtime: Awaited<ReturnType<typeof createDesktopAgent>> | undefined;
+    try {
+      runtime = await createDesktopAgent({ hand, provider: "auto", desktop: fakeDesktop,
+        router: async (_task, available) => {
+          candidates.push(available.map((candidate) => candidate.model));
+          return { ...available.find((candidate) => candidate.difficulty === "standard") ?? available[0]!, confidence: 1, latencyMs: 0, fallback: false, reason: "Fixture" };
+        },
+        streamFn: (model, context, options) => {
+          attempts.push(model.id);
+          return attempts.length === 1 ? failureStream(failedMessage(model)) : done(model, context, options);
+        },
+      });
+      await runtime.prompt("Read my notes");
+      now += 60_000;
+      await runtime.prompt("Read the next page");
+      expect(candidates[1]).not.toContain("gemini-3.8-flash");
+      now += 5 * 60_000;
+      await runtime.prompt("Read one more page");
+      expect(candidates[2]).toContain("gemini-3.8-flash");
+      expect(attempts).toEqual(["gemini-3.8-flash", "gpt-5.6-luna", "gpt-5.6-luna", "gemini-3.8-flash"]);
+      expect(runtime.status().error).toBeNull();
+    } finally { await runtime?.close(); clock.mockRestore(); }
+  }));
+
+  test("auto never switches providers after partial text, a partial tool, or a policy refusal", async () => withAutoModels(async () => {
+    for (const [error, content] of [
+      ["HTTP 503", [{ type: "text", text: "Partial answer" }]],
+      ["HTTP 503", [{ type: "toolCall", id: "partial", name: "open_app", arguments: { id: notes.id } }]],
+      ["HTTP 403 content_policy refusal", []],
+    ] as [string, AssistantMessage["content"]][]) {
+      let requests = 0, inputs = 0;
+      const runtime = await createDesktopAgent({ hand, provider: "auto", router: fixedRoute,
+        desktop: { ...fakeDesktop, launch: async () => ++inputs }, gate: async () => allow,
+        streamFn: (model) => { requests++; return failureStream(failedMessage(model, error, content)); },
+      });
+      try {
+        await runtime.prompt("Open my notes");
+        expect(requests).toBe(1); expect(inputs).toBe(0);
+        expect(runtime.status().model).toBe("gemini-3.8-flash");
+        expect(runtime.status().error).not.toBeNull();
+      } finally { await runtime.close(); }
+    }
+  }));
+
+  test("an explicitly selected provider never triggers automatic fallback", async () => withAutoModels(async () => {
+    for (const provider of ["openai", "gemini"] as const) {
+      const attempts: string[] = [];
+      const runtime = await createDesktopAgent({ hand, provider, router: fixedRoute, desktop: fakeDesktop,
+        streamFn: (model) => { attempts.push(model.id); return failureStream(failedMessage(model)); },
+      });
+      try {
+        await runtime.prompt("Read my notes");
+        expect(attempts).toHaveLength(1);
+        expect(runtime.status().provider).toBe(provider);
+        expect(runtime.status().error).not.toBeNull();
+      } finally { await runtime.close(); }
+    }
+  }));
+
+  test("Stop prevents fallback even when the cancelled stream reports a retryable network error", async () => withAutoModels(async () => {
+    let ready = false, requests = 0;
+    const runtime = await createDesktopAgent({ hand, provider: "auto", router: fixedRoute, desktop: fakeDesktop,
+      streamFn: (model, _context, options) => {
+        requests++;
+        const stream = createAssistantMessageEventStream();
+        options?.signal?.addEventListener("abort", () => stream.push({ type: "error", reason: "error", error: failedMessage(model, "HTTP 503 network unavailable") }), { once: true });
+        ready = true;
+        return stream;
+      },
+    });
+    try {
+      const pending = runtime.prompt("Read my notes");
+      await until(() => ready); runtime.stop(); await pending;
+      expect(requests).toBe(1);
+      expect(runtime.status()).toMatchObject({ running: false, error: null });
+    } finally { await runtime.close(); }
+  }));
+});
+
+test("semantic reads skip the gate while writes keep the grounded target and denial", async () => {
+  let inputs = 0;
+  const checked: GateContext[] = [];
+  const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+    desktop: { ...fakeDesktop, semantic: (_hand, guard) => createSemanticComputer({
+      windows: async () => [], observe: async () => ({ kind: "native", identity: "window", title: "Settings", binding: {}, texts: [],
+        elements: [{ key: "save", role: "button", name: "Save", within: "Notifications", address: {} }] }),
+      act: async () => { inputs++; },
+    }, guard) },
+    gate: async (ctx) => { checked.push(ctx); return { decision: "blocked", risk: 1, reason: "Test denial" }; },
+    streamFn: scriptedModel([{ name: "computer_look", arguments: { what: "window" } }, { name: "computer_act", arguments: { action: "click", ref: "p1:0" } }]),
+  });
+  await runtime.prompt("Save notification settings.");
+  expect(checked).toHaveLength(1);
+  expect(checked[0]!.action).toMatchObject({ tool: "computer_act", observedTarget: { control: 'button "Save" in "Notifications"' } });
+  expect(inputs).toBe(0);
+  expect(runtime.status().error).toBe("Test denial");
+});
+
+test("Pi passes the priority tier through its real request payload hook", async () => {
+  const model = scriptedModel([]);
+  let payload: unknown;
+  const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute, desktop: fakeDesktop,
+    streamFn: async (selected, context, options) => {
+      payload = await options?.onPayload?.({ model: selected.id }, selected);
+      return model(selected, context, options);
+    },
+  });
+  await runtime.prompt("Say hello");
+  expect(payload).toMatchObject({ model: "gpt-5.6-luna", service_tier: "priority" });
+});
+function fakePng(width = 800, height = 600) {
   const png = Buffer.alloc(24);
   Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(png);
-  png.writeUInt32BE(800, 16); png.writeUInt32BE(600, 20);
+  png.writeUInt32BE(width, 16); png.writeUInt32BE(height, 20);
+  return png.toString("base64");
+}
+function fakeCua(input: (name: string, args: Record<string, unknown>) => void | Promise<void> = () => {}): () => Promise<CuaConnection> {
+  const data = fakePng();
   return async () => ({
     async call(name, args = {}) {
-      if (name === "get_desktop_state") return { content: [{ type: "image", mimeType: "image/png", data: png.toString("base64") }] };
+      if (name === "get_desktop_state") return { content: [{ type: "image", mimeType: "image/png", data }] };
       await input(name, args);
       return { content: [{ type: "text", text: "Input delivered" }] };
     },
@@ -116,6 +333,29 @@ async function until(check: () => boolean) {
 }
 
 describe("Pi agent runtime", () => {
+  test("a rejected Cua connection is evicted so the next screenshot can reconnect", async () => {
+    let connections = 0, closed = 0;
+    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+      desktop: { ...fakeDesktop, cua: async () => {
+        if (++connections === 1) throw new Error("Fixture Cua startup failed");
+        return { ...await fakeCua()(), close: async () => { closed++; } };
+      } },
+      streamFn: scriptedModel([{ name: "computer", arguments: { action: "screenshot" } }, { name: "computer", arguments: { action: "screenshot" } }]),
+    });
+    try {
+      await runtime.prompt("Inspect the desktop; retry a failed screenshot");
+      const results = runtime.agent.state.messages.filter((message) => message.role === "toolResult");
+      expect(connections).toBe(2);
+      expect(results).toHaveLength(2);
+      expect(results[0]!.isError).toBe(true);
+      expect(JSON.stringify(results[0])).toContain("Fixture Cua startup failed");
+      expect(results[1]!.isError).toBe(false);
+      expect(results[1]!.content.some((content) => content.type === "image")).toBe(true);
+      expect(runtime.status().error).toBeNull();
+    } finally { await runtime.close(); }
+    expect(closed).toBe(1);
+  });
+
   test("screenshots do not consume the action budget and a click executes through the gate", async () => {
     const commands: { name: string; args: Record<string, unknown> }[] = [];
     const checked: GateContext[] = [];
@@ -124,7 +364,7 @@ describe("Pi agent runtime", () => {
       { name: "computer", arguments: { action: "click", x: 150, y: 120, description: "Focus the empty document" } },
     ];
     const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
-      desktop: { ...fakeDesktop, cua: fakeCua((name, args) => { commands.push({ name, args }); }) },
+      desktop: { ...fakeDesktop, state: async () => ({ width: 800, height: 600, windows: [{ app: "writer", title: "Document", pid: 8, containerId: 9, focused: true }] }), cua: fakeCua((name, args) => { commands.push({ name, args }); }) },
       gate: async (ctx) => { checked.push(ctx); return allow; }, streamFn: scriptedModel(calls),
     });
     await runtime.prompt("Inspect and focus the document.");
@@ -162,9 +402,10 @@ describe("Pi agent runtime", () => {
     expect(JSON.stringify(runtime.agent.state.messages)).toContain("Keep all existing notes unchanged.");
   });
 
-  test("all three providers resolve to their native Pi transports", () => {
+  test("the allowed models resolve to their native Pi transports", () => {
     expect(providerModel("openai")).toMatchObject({ id: "gpt-5.6-luna", api: "openai-responses", thinkingLevelMap: { low: "low", medium: "medium", high: "high" } });
-    expect(providerModel("anthropic")).toMatchObject({ id: "claude-sonnet-5", api: "anthropic-messages", compat: { forceAdaptiveThinking: true } });
+    expect(providerModel("openai", "gpt-6-astra").api).toBe("openai-responses");
+    expect(() => providerModel("openai", "gpt-5.5")).toThrow("not enabled");
     expect(providerModel("gemini", "gemini-3.8-flash", "ai-studio").api).toBe("google-generative-ai");
     expect(providerModel("gemini", "gemini-3.8-flash", "vertex").api).toBe("google-vertex");
   });
@@ -210,6 +451,46 @@ describe("Pi agent runtime", () => {
     expect(cancelled.status()).toMatchObject({ running: false, approval: null });
   });
 
+  test("approval on an old screenshot cannot authorize pixels captured during review or a blind retry", async () => {
+    let changed = false, screenshots = 0, checks = 0;
+    const inputs: { name: string; x: unknown; y: unknown }[] = [];
+    const window = { app: "writer", title: "Document", pid: 8, containerId: 9, focused: true };
+    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+      desktop: { ...fakeDesktop, state: async () => ({ width: 800, height: 600, windows: [window] }), cua: async () => {
+        const driver = await fakeCua((name, args) => { inputs.push({ name, x: args.x, y: args.y }); })();
+        return { ...driver, call: async (name, args, signal) => {
+          const response = await driver.call(name, args, signal);
+          if (name !== "get_desktop_state") return response;
+          screenshots++;
+          return { ...response, content: response.content.map((content) => content.type === "image" && changed
+            ? { ...content, data: Buffer.concat([Buffer.from(content.data, "base64"), Buffer.from([1])]).toString("base64") }
+            : content) };
+        } };
+      } },
+      gate: async () => ++checks === 1 ? { decision: "approval", risk: 0.9, reason: "Review the exact control" } : allow,
+      streamFn: scriptedModel([
+        { name: "computer", arguments: { action: "screenshot" } },
+        { name: "computer", arguments: { action: "click", x: 100, y: 100, description: "Click the observed control" } },
+        { name: "computer", arguments: { action: "click", x: 100, y: 100, description: "Retry without looking again" } },
+        { name: "computer", arguments: { action: "screenshot" } },
+        { name: "computer", arguments: { action: "click", x: 180, y: 140, description: "Click the control in the new screenshot" } },
+      ]),
+    });
+    try {
+      const pending = runtime.prompt("Inspect the document and click the visible control");
+      await until(() => Boolean(runtime.status().approval));
+      changed = true;
+      expect(runtime.approve(runtime.status().approval!.id, true)).toBe(true);
+      await pending;
+      expect(inputs).toEqual([{ name: "click", x: 180, y: 140 }]);
+      expect(screenshots).toBe(4); // Initial, hidden review check, explicit fresh look, post-input.
+      const messages = JSON.stringify(runtime.agent.state.messages);
+      expect(messages).toContain("changed during review");
+      expect(messages).toContain("needs a fresh screenshot before input");
+      expect(runtime.status().error).toBeNull();
+    } finally { await runtime.close(); }
+  });
+
   test("app launches include the discovered command in the gate and reject unknown ids", async () => {
     const checked: GateContext[] = [];
     let launched = 0;
@@ -236,6 +517,242 @@ describe("Pi agent runtime", () => {
     const pending = runtime.prompt("Wait for a response");
     await until(() => ready); runtime.stop(); await pending;
     expect(runtime.status()).toMatchObject({ running: false, error: null });
+  });
+});
+
+describe("screenshot target binding", () => {
+  const window = { app: "paint", title: "Blank canvas", focused: true, pid: 12345, containerId: 7 };
+  const state = () => ({ width: 800, height: 600, windows: [{ ...window }] });
+  const image = () => ({ type: "image" as const, mimeType: "image/png", data: fakePng() });
+  const capture = (): PixelCapture => ({ window: { ...window }, width: 800, height: 600, digest: Bun.hash(fakePng()).toString(16) });
+  const click = { name: "computer", arguments: { action: "click", x: 160, y: 140, description: "Click the control observed in the canvas" } };
+
+  test("a bound semantic image permits direct pixel input without an extra screenshot", async () => {
+    const events: string[] = [], checked: GateContext[] = [];
+    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+      desktop: { ...fakeDesktop, state: async () => state(),
+        semantic: (_hand, guard) => createSemanticComputer({
+          windows: async () => [], act: async () => {},
+          observe: async (options) => {
+            expect(options.screenshot).toBe(true);
+            events.push("semantic_capture");
+            return { kind: "native", identity: "canvas", title: window.title, binding: {}, elements: [], texts: [], image: image(), capture: capture() };
+          },
+        }, guard),
+        cua: async () => {
+          const driver = await fakeCua()();
+          return { ...driver, call: async (name, args, signal) => { events.push(name); return driver.call(name, args, signal); } };
+        },
+      }, gate: async (context) => { checked.push(context); return allow; },
+      streamFn: scriptedModel([{ name: "computer_look", arguments: { what: "screen" } }, click]),
+    });
+    try {
+      await runtime.prompt("Inspect the canvas and click the observed control");
+      expect(events).toEqual(["semantic_capture", "click", "get_desktop_state"]); // Only the required post-input screenshot.
+      expect(checked).toHaveLength(1);
+      const first = runtime.agent.state.messages.find((message) => message.role === "toolResult");
+      expect(first?.role === "toolResult" && first.content.some((content) => content.type === "image")).toBe(true);
+      expect(runtime.status().error).toBeNull();
+    } finally { await runtime.close(); }
+  });
+
+  test.each(["digest", "pid", "window", "title", "width", "height"] as const)("mismatched %s metadata rejects semantic and Cua images and clears the old frame", async (mismatch) => {
+    for (const source of ["semantic", "cua"] as const) {
+      const invalid = capture();
+      if (mismatch === "digest") invalid.digest = "mismatched-image";
+      if (mismatch === "pid") invalid.window = { ...invalid.window!, pid: 54321 };
+      if (mismatch === "window") invalid.window = { ...invalid.window!, containerId: 8 };
+      if (mismatch === "title") invalid.window = { ...invalid.window!, title: "A different canvas" };
+      if (mismatch === "width") invalid.width = 900;
+      if (mismatch === "height") invalid.height = 700;
+      let screenshots = 0, inputs = 0;
+      const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+        desktop: { ...fakeDesktop, state: async () => state(),
+          semantic: (_hand, guard) => createSemanticComputer({
+            windows: async () => [], act: async () => {},
+            observe: async () => ({ kind: "native", identity: "canvas", title: window.title, binding: {}, elements: [], texts: [], image: image(), capture: invalid }),
+          }, guard),
+          cua: async () => {
+            const driver = await fakeCua(() => { inputs++; })();
+            return { ...driver, call: async (name, args, signal) => {
+              const response = await driver.call(name, args, signal);
+              return name === "get_desktop_state"
+                ? { ...response, structuredContent: { puk_snapshot: ++screenshots === 1 ? capture() : invalid } }
+                : response;
+            } };
+          },
+        }, gate: async () => allow,
+        streamFn: scriptedModel([
+          { name: "computer", arguments: { action: "screenshot" } },
+          source === "semantic" ? { name: "computer_look", arguments: { what: "screen" } } : { name: "computer", arguments: { action: "screenshot" } },
+          click,
+        ]),
+      });
+      try {
+        await runtime.prompt("Inspect the canvas before clicking the observed control");
+        const results = runtime.agent.state.messages.filter((message) => message.role === "toolResult");
+        expect(results[0]!.isError).toBe(false);
+        expect(results[1]!.isError).toBe(true);
+        expect(JSON.stringify(results[1])).toContain("screenshot no longer matches");
+        expect(results[2]!.isError).toBe(true);
+        expect(JSON.stringify(results[2])).toContain("needs a fresh screenshot before input");
+        expect(inputs).toBe(0);
+      } finally { await runtime.close(); }
+    }
+  });
+
+  test("a legacy screenshot that retargets while capture is in flight cannot authorize input", async () => {
+    let current = { ...window }, inputs = 0;
+    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+      desktop: { ...fakeDesktop, state: async () => ({ width: 800, height: 600, windows: [{ ...current }] }),
+        cua: async () => {
+          const driver = await fakeCua(() => { inputs++; })();
+          return { ...driver, call: async (name, args, signal) => {
+            if (name === "get_desktop_state") current = { ...window, pid: 87654, containerId: 8, title: "A different app" };
+            return driver.call(name, args, signal); // No binding metadata from this legacy driver.
+          } };
+        },
+      }, gate: async () => allow, streamFn: scriptedModel([{ name: "computer", arguments: { action: "screenshot" } }, click]),
+    });
+    try {
+      await runtime.prompt("Inspect the canvas and click the observed control");
+      const results = runtime.agent.state.messages.filter((message) => message.role === "toolResult");
+      expect(results[0]!.isError).toBe(true);
+      expect(JSON.stringify(results[0])).toContain("window changed while capturing");
+      expect(results[1]!.isError).toBe(true);
+      expect(inputs).toBe(0);
+    } finally { await runtime.close(); }
+  });
+
+  test.each(["state", "capture"] as const)("a failed %s refresh invalidates the previous screenshot before a same-window click", async (failure) => {
+    let turn = 0, failRefresh = false, inputs = 0;
+    const model = scriptedModel([
+      { name: "computer", arguments: { action: "screenshot" } },
+      { name: "computer", arguments: { action: "screenshot" } },
+      click,
+    ]);
+    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+      desktop: { ...fakeDesktop, state: async () => {
+        if (failure === "state" && failRefresh) { failRefresh = false; throw new Error("Fixture refresh failed"); }
+        return state();
+      }, cua: async () => {
+        const driver = await fakeCua(() => { inputs++; })();
+        return { ...driver, call: async (name, args, signal) => {
+          if (failure === "capture" && name === "get_desktop_state" && failRefresh) { failRefresh = false; throw new Error("Fixture refresh failed"); }
+          return driver.call(name, args, signal);
+        } };
+      } }, gate: async () => allow,
+      streamFn: (...args) => { if (++turn === 2) failRefresh = true; return model(...args); },
+    });
+    try {
+      await runtime.prompt("Refresh the screenshot before clicking the control");
+      const results = runtime.agent.state.messages.filter((message) => message.role === "toolResult");
+      expect(results[0]!.isError).toBe(false);
+      expect(results[1]!.isError).toBe(true);
+      expect(JSON.stringify(results[1])).toContain("Fixture refresh failed");
+      expect(results[2]!.isError).toBe(true);
+      expect(JSON.stringify(results[2])).toContain("needs a fresh screenshot before input");
+      expect(inputs).toBe(0);
+    } finally { await runtime.close(); }
+  });
+});
+
+describe("computer coordinate contract", () => {
+  const size = { width: 1342, height: 891 };
+  const window = { app: "paint", title: "Canvas", focused: true, pid: 12345, containerId: 7 };
+  const target = { pid: 12345, window_id: 4278190080 };
+  const screenshot = { name: "computer", arguments: { action: "screenshot" } };
+  const coordinateDesktop = (input: Parameters<typeof fakeCua>[0]) => ({
+    ...fakeDesktop, state: async () => ({ ...size, windows: [{ ...window }] }),
+    cua: async () => {
+      const driver = await fakeCua(input)();
+      return { ...driver, call: async (name: string, args?: Record<string, unknown>, signal?: AbortSignal) => {
+        if (name === "get_desktop_state") return { content: [{ type: "image" as const, mimeType: "image/png", data: fakePng(size.width, size.height) }] };
+        if (name === "list_windows") return { content: [], structuredContent: { windows: [{ app_name: window.app, title: window.title, ...target }] } };
+        return driver.call(name, args, signal);
+      } };
+    },
+  });
+
+  test("Gemini normalized clicks and bounded strokes send the same resolved pixels to the gate and Cua", async () => {
+    const checked: GateContext[] = [], inputs: { name: string; args: Record<string, unknown> }[] = [];
+    const strokes = [[{ x: 250, y: 200 }, { x: 500, y: 700 }, { x: 1000, y: 1000 }]];
+    const pixels = [[{ x: 336, y: 178 }, { x: 671, y: 624 }, { x: 1341, y: 890 }]];
+    const runtime = await createDesktopAgent({ hand, provider: "gemini", apiKey: "test", router: fixedRoute,
+      desktop: coordinateDesktop((name, args) => { inputs.push({ name, args }); }),
+      gate: async (context) => { checked.push(context); return allow; },
+      streamFn: scriptedModel([
+        screenshot,
+        { name: "computer", arguments: { action: "click", coordinate_space: "normalized_1000", x: 310, y: 80 } },
+        { name: "computer", arguments: { action: "draw", coordinate_space: "normalized_1000", strokes } },
+      ]),
+    });
+    try {
+      await runtime.prompt("Click the observed brush and draw a three-point stroke in the canvas");
+      expect(checked).toHaveLength(2);
+      expect(checked[0]!.action).toMatchObject({ args: { coordinate_space: "normalized_1000", x: 310, y: 80 }, resolvedPixels: { coordinate_space: "pixels", x: 416, y: 71 }, screenshot: size });
+      expect(checked[1]!.action).toMatchObject({ args: { coordinate_space: "normalized_1000", strokes }, resolvedPixels: { coordinate_space: "pixels", strokes: pixels }, screenshot: size });
+      expect(inputs.map((input) => input.name)).toEqual(["click", "mouse_button_down", "mouse_drag", "mouse_drag", "mouse_button_up"]);
+      expect(inputs[0]!.args).toMatchObject({ x: 416, y: 71 });
+      expect(inputs[1]!.args).toMatchObject({ ...target, ...pixels[0]![0]! });
+      expect(inputs[2]!.args).toMatchObject({ ...target, ...pixels[0]![1]! });
+      expect(inputs[3]!.args).toMatchObject({ ...target, ...pixels[0]![2]! });
+      expect(inputs[4]!.args).toEqual(target);
+      expect(runtime.status().error).toBeNull();
+    } finally { await runtime.close(); }
+  });
+
+  test.each(["omitted", "pixels"] as const)("Gemini rejects %s units for coordinate-bearing actions before input", async (units) => {
+    const coordinate_space = units === "omitted" ? undefined : units;
+    const proposals = [
+      { action: "click", x: 500, y: 300 }, { action: "move", x: 500, y: 300 }, { action: "scroll", x: 500, y: 300, dy: 2 },
+      { action: "batch", actions: [{ action: "click", x: 500, y: 300 }, { action: "key", key: "tab" }] },
+      { action: "draw", strokes: [[{ x: 100, y: 100 }, { x: 250, y: 250 }]] },
+    ];
+    const inputs: string[] = [];
+    const runtime = await createDesktopAgent({ hand, provider: "gemini", apiKey: "test", router: fixedRoute,
+      desktop: coordinateDesktop((name) => { inputs.push(name); }), gate: async () => allow,
+      streamFn: scriptedModel([screenshot, ...proposals.map((proposal) => ({ name: "computer", arguments: { ...proposal, ...(coordinate_space ? { coordinate_space } : {}) } }))]),
+    });
+    try {
+      await runtime.prompt("Inspect the canvas before any coordinate input");
+      expect(inputs).toEqual([]);
+      const results = runtime.agent.state.messages.filter((message) => message.role === "toolResult");
+      expect(results[0]!.isError).toBe(false);
+      expect(results.slice(1)).toHaveLength(proposals.length);
+      expect(results.slice(1).every((result) => result.isError)).toBe(true);
+      expect(JSON.stringify(results.slice(1))).toContain("normalized_1000");
+    } finally { await runtime.close(); }
+  });
+
+  test("OpenAI legacy coordinates remain literal image pixels when units are omitted", async () => {
+    const checked: GateContext[] = [], inputs: Record<string, unknown>[] = [];
+    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+      desktop: coordinateDesktop((_name, args) => { inputs.push(args); }), gate: async (context) => { checked.push(context); return allow; },
+      streamFn: scriptedModel([screenshot, { name: "computer", arguments: { action: "click", x: 310, y: 80 } }]),
+    });
+    try {
+      await runtime.prompt("Click the control in the screenshot");
+      expect(inputs).toHaveLength(1);
+      expect(inputs[0]).toMatchObject({ x: 310, y: 80 });
+      expect(checked[0]!.action).toMatchObject({ resolvedPixels: { coordinate_space: "pixels", x: 310, y: 80 }, screenshot: size });
+      expect(runtime.status().error).toBeNull();
+    } finally { await runtime.close(); }
+  });
+
+  test("an out-of-range normalized point rejects the whole batch before its first click", async () => {
+    const inputs: string[] = [];
+    const runtime = await createDesktopAgent({ hand, provider: "gemini", apiKey: "test", router: fixedRoute,
+      desktop: coordinateDesktop((name) => { inputs.push(name); }), gate: async () => allow,
+      streamFn: scriptedModel([screenshot, { name: "computer", arguments: { action: "batch", coordinate_space: "normalized_1000", actions: [
+        { action: "click", x: 250, y: 250 }, { action: "click", x: 1001, y: 500 },
+      ] } }]),
+    });
+    try {
+      await runtime.prompt("Click two observed controls in the same screenshot");
+      expect(inputs).toEqual([]);
+      expect(JSON.stringify(runtime.agent.state.messages)).toContain("between 0 and 1000");
+    } finally { await runtime.close(); }
   });
 });
 
@@ -331,6 +848,56 @@ describe("Cua held drawing strokes", () => {
       await runtime.prompt("Draw in the canvas.");
       expect(input).toEqual(["mouse_button_down", "mouse_drag", "mouse_button_up"]);
       expect(runtime.status().running).toBe(false);
+    }
+  });
+
+  test("Stop and refinement discard buffered strokes before releasing the pointer", async () => {
+    for (const change of ["stop", "refine"] as const) {
+      const input: string[] = [];
+      const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+        desktop: { ...desktop, cua: async () => {
+          const driver = await drawingCua((name) => {
+            input.push(name);
+            if (name === "mouse_drag") {
+              if (change === "stop") runtime.stop();
+              else runtime.refine("Stop drawing and inspect the existing canvas");
+            }
+          })();
+          return { ...driver, cancelPendingInput: async () => { input.push("discard_buffered_input"); } };
+        } }, gate: async () => allow, streamFn: scriptedModel(calls),
+      });
+      try {
+        await runtime.prompt("Draw two lines freehand in Paint");
+        expect(input).toEqual(["mouse_button_down", "mouse_drag", "discard_buffered_input", "mouse_button_up"]);
+        expect(runtime.status().running).toBe(false);
+      } finally { await runtime.close(); }
+    }
+  });
+
+  test("a rejected buffered-input discard closes Cua without mouse_up or a buffered flush", async () => {
+    for (const change of ["stop", "refine"] as const) {
+      const events: string[] = [];
+      let flushed = 0;
+      const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+        desktop: { ...desktop, cua: async () => {
+          const driver = await drawingCua((name) => {
+            events.push(name);
+            if (name === "mouse_drag") {
+              if (change === "stop") runtime.stop();
+              else runtime.refine("Stop drawing and inspect the canvas");
+            }
+            if (name === "mouse_button_up") flushed++;
+          }, [native], async () => { events.push("close"); })();
+          return { ...driver, cancelPendingInput: async () => { events.push("discard_failed"); throw new Error("Fixture discard failed"); } };
+        } }, gate: async () => allow, streamFn: scriptedModel(calls),
+      });
+      try {
+        await runtime.prompt("Draw two lines freehand in Paint");
+        expect(events).toEqual(["mouse_button_down", "mouse_drag", "discard_failed", "close"]);
+        expect(flushed).toBe(0);
+        expect(runtime.status().running).toBe(false);
+      } finally { await runtime.close(); }
+      expect(events.filter((event) => event === "close")).toHaveLength(1);
     }
   });
 
@@ -515,7 +1082,7 @@ describe("Pi work during live speech", () => {
     expect(runtime.status().error).toBeNull();
   });
 
-  test("Jev can raise the model and effort when a live task becomes harder", async () => {
+  test("Jev can switch to Astra for a harder task while retaining low effort", async () => {
     const speaking = speech();
     const seen: { model: string; effort: unknown }[] = [];
     const model = scriptedModel([]);
@@ -527,9 +1094,9 @@ describe("Pi work during live speech", () => {
     await until(() => seen.length === 1);
     runtime.refine("Open notes and debug the subtle concurrency bug described there");
     await until(() => seen.length === 2);
-    expect(seen).toEqual([{ model: "gpt-5.6-luna", effort: "low" }, { model: "gpt-6-astra", effort: "high" }]);
+    expect(seen).toEqual([{ model: "gpt-5.6-luna", effort: "low" }, { model: "gpt-6-astra", effort: "low" }]);
     speaking.end(); await pending;
-    expect(runtime.status()).toMatchObject({ model: "gpt-6-astra", effort: "high", error: null });
+    expect(runtime.status()).toMatchObject({ model: "gpt-6-astra", effort: "low", error: null });
   });
 
   test("an obsolete action cannot execute after an update arrives during its gate", async () => {
@@ -660,7 +1227,7 @@ describe("model and effort routing", () => {
     };
     try {
       expect(routeCandidates("openai", { keyAvailable: () => true, resolveModel }).find((c) => c.difficulty === "complex"))
-        .toMatchObject({ model: "gpt-5.6-luna", effort: "high" });
+        .toMatchObject({ model: "gpt-5.6-luna", effort: "low" });
       process.env.OPENAI_COMPLEX_MODEL = "not-a-model";
       expect(() => routeCandidates("openai", { keyAvailable: () => true, resolveModel })).toThrow("absent from catalog");
     } finally {
@@ -668,18 +1235,18 @@ describe("model and effort routing", () => {
       if (before.complex === undefined) delete process.env.OPENAI_COMPLEX_MODEL; else process.env.OPENAI_COMPLEX_MODEL = before.complex;
     }
   });
-  test("low is the minimum effort across every configured provider", () => {
+  test("routing keeps every configured model at low effort", () => {
     for (const invalid of ["off", "none", "minimal"]) expect(EffortSchema.safeParse(invalid).success).toBe(false);
-    for (const provider of ["openai", "anthropic", "gemini"] as const) {
-      expect(routeCandidates(provider, { keyAvailable: () => true }).map((c) => c.effort)).toEqual(["low", "medium", "high"]);
+    for (const provider of ["openai", "gemini"] as const) {
+      expect(routeCandidates(provider, { keyAvailable: () => true }).map((c) => c.effort)).toEqual(["low", "low", "low"]);
     }
   });
   test("selects only configured model/effort pairs and honors a pinned model", async () => {
     const route = await routeTask("Fix a subtle concurrent queue bug", candidates, { apiKey: "test", fetch: routingAnswer("openai_complex") });
-    expect(route).toMatchObject({ provider: "openai", difficulty: "complex", effort: "high", fallback: false });
+    expect(route).toMatchObject({ provider: "openai", difficulty: "complex", effort: "low", fallback: false });
     expect(candidates.every((c) => c.provider === "openai")).toBe(true);
     expect(routeCandidates("openai", { model: "gpt-5.6-luna", keyAvailable: () => true }).every((c) => c.model === "gpt-5.6-luna")).toBe(true);
-    expect(routeCandidates("anthropic", { keyAvailable: () => true }).every((c) => c.model === "claude-sonnet-5")).toBe(true);
+    expect(routeCandidates("gemini", { keyAvailable: () => true }).every((c) => c.model === "gemini-3.8-flash")).toBe(true);
   });
   test("unknown choices, low confidence, and outages use a known fallback", async () => {
     for (const fetch of [routingAnswer("made-up-model"), routingAnswer("openai_routine", 0.1), async () => new Response("unavailable", { status: 503 })]) {
@@ -687,15 +1254,15 @@ describe("model and effort routing", () => {
     }
   });
   test("votes split across equivalent providers do not increase effort", async () => {
-    const candidates = (["openai", "anthropic", "gemini"] as const).flatMap((provider) => routeCandidates(provider, { keyAvailable: () => true }));
-    const route = await routeTask("Open notes", candidates, { apiKey: "test", fetch: async () => Response.json({ answers: { route: { type: "choice", choice: "openai_routine", confidence: 0.3, probabilities: { openai_routine: 0.5, gemini_routine: 0.45, anthropic_routine: 0.05 } } } }) });
+    const candidates = (["openai", "gemini"] as const).flatMap((provider) => routeCandidates(provider, { keyAvailable: () => true }));
+    const route = await routeTask("Open notes", candidates, { apiKey: "test", fetch: async () => Response.json({ answers: { route: { type: "choice", choice: "openai_routine", confidence: 0.3, probabilities: { openai_routine: 0.5, gemini_routine: 0.5 } } } }) });
     expect(route).toMatchObject({ difficulty: "routine", effort: "low", fallback: false });
   });
 
   test("automatic routing offers one model per difficulty, with low as the floor", () => {
     const candidates = routeCandidates("auto", { keyAvailable: () => true });
     expect(candidates.map((c) => [c.difficulty, c.model, c.effort])).toEqual([
-      ["routine", "gpt-5.6-luna", "low"], ["standard", "claude-sonnet-5", "medium"], ["complex", "gpt-6-astra", "high"],
+      ["routine", "gpt-5.6-luna", "low"], ["standard", "gemini-3.8-flash", "low"], ["complex", "gpt-6-astra", "low"],
     ]);
   });
   test("Stop while routing never starts the LLM or an action", async () => {

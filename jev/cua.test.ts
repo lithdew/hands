@@ -182,6 +182,41 @@ describe("runIntent", () => {
     expect(sh.input().at(-1)).toEqual(["wlrctl", "pointer", "click", "left"]);
   });
 
+  test("a changed screen expires approval before the proposed input can run", async () => {
+    const jev = fakeJev((name) => ({ move: "click", target: "e2", spends_money: 0.8 })[name]);
+    const sh = fakeExec();
+    let approvals = 0;
+    const changed = { ...home, fingerprint: "different-controls" };
+    const result = await runIntent(hand, intent, deps({ ask: jev.ask, observe: screens(home, changed), approve: async () => { approvals++; return true; } }, sh.exec), { maxSteps: 1 });
+    expect(result.status).toBe("out_of_steps");
+    expect(approvals).toBe(1);
+    expect(sh.input()).toEqual([]);
+  });
+
+  test("a corrected instruction expires approval even if the screen is unchanged", async () => {
+    let current = intent;
+    const jev = fakeJev((name) => ({ move: "click", target: "e2", spends_money: 0.8 })[name]);
+    const sh = fakeExec();
+    const result = await runIntent(hand, () => current, deps({ ask: jev.ask, observe: screens(home), approve: async () => {
+      current = { ...intent, avoid: ["Do not click Search."] };
+      return true;
+    } }, sh.exec), { maxSteps: 1 });
+    expect(result.status).toBe("out_of_steps");
+    expect(sh.input()).toEqual([]);
+  });
+
+  test("a correction arriving during an allowed gate prevents the old input", async () => {
+    let current = intent;
+    const jev = fakeJev((name) => {
+      if (name === "irreversible") current = { ...intent, inputs: { search_query: "otters" } };
+      return { move: "type", input: "search_query", field: "e1" }[name];
+    });
+    const sh = fakeExec();
+    const result = await runIntent(hand, () => current, deps({ ask: jev.ask, observe: screens(home) }, sh.exec), { maxSteps: 1 });
+    expect(result.status).toBe("out_of_steps");
+    expect(sh.input()).toEqual([]);
+  });
+
   test("a safe action does not bother the user", async () => {
     const jev = fakeJev((name, { state }) => {
       if (name === "goal_met") return state.history.length ? 0.9 : 0;
