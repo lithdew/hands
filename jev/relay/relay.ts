@@ -95,6 +95,13 @@ export type Kit = {
   /** After every write of a step (the first, a redo, a mend after a failed build): mend what code can mend, then say what is still wrong. Exact checks by code, closed checks in bulk by Jev, small repairs by the LLM. What it returns goes back to the writer with its own files. */
   review?: (ctx: KitContext, step: Step) => Promise<string[]>;
 
+  // -- from the mock-exam branch. NOT YET WIRED into this relay: link following and the build's repair list run only on branch relay-mock-exam.
+  follow?: number | { hops: number; perHop?: number; perHost?: number };
+  /** Told to the director only: how to plan this kind of task. */
+  hints?: string;
+  /** How many times a failed build may send its repair list back to the writer. */
+  repairs?: number;
+
   // -- build
   /** After the files are written: render, bundle, validate. Its log goes to the check and the judge; a failed build sends the files back to their writer with the log, once. A kit with a build gets a build step whether or not the director planned one. */
   build?: (ws: Workspace, ctx: KitContext) => Promise<{ ok: boolean; log: string; outputs: string[] }>;
