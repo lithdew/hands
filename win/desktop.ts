@@ -438,7 +438,15 @@ export async function restoreExistingBrowsers(hands: Hand[]): Promise<void> {
     const saved = await savedBrowsers.read(hand.id);
     if (!saved) continue;
     // Restore is bind-only: no focus changes, setup or new permission prompts.
-    await existingTargets.restore(hand, saved).catch(error => debugLog("win.browser.restore", { hand: hand.id, error: String(error) }));
+    try { await existingTargets.restore(hand, saved); }
+    catch (error) {
+      // A selection that cannot be restored must not leave the hand pointed at a dead Chrome binding: every task
+      // would be routed to the attached-browser path and fail there. Forget it so the hand uses its own browser;
+      // the user can pick their Chrome again from the panel.
+      debugLog("win.browser.restore", { hand: hand.id, error: String(error), action: "forgot the saved Chrome selection; the hand uses its private browser" });
+      await existingTargets.detach(hand).catch((detachError) => debugLog("win.browser.restore", { hand: hand.id, detach: String(detachError) }));
+      await savedBrowsers.save(hand.id, null).catch(() => { /* the binding is already gone; the file is only a hint */ });
+    }
   }
 }
 export async function attachExistingBrowser(hand: Hand, choice: BrowserChoice = {}, signal?: AbortSignal): Promise<BrowserTarget> {
@@ -523,11 +531,20 @@ export function createDriverPool(connect: (hand: Hand, closed: () => void) => Pr
   };
 }
 
+/** PUK_CUA_DRIVER, then PATH, then the user install, then the copy vendored under
+ * out/tools (newest version first): a fresh clone or a shell without the installer's
+ * PATH entry must not turn every Cua call into an install prompt. */
 async function cuaDriver(): Promise<string> {
-  const installed = `${(await windowsFolders()).local}\\Programs\\Cua\\cua-driver\\bin\\cua-driver.exe`;
-  const path = Bun.which(WSL ? "cua-driver.exe" : "cua-driver") ?? await fromWindows(installed);
-  if (!await Bun.file(path).exists()) throw new Error("Install Cua Driver for Windows: irm https://cua.ai/driver/install.ps1 | iex");
-  return path;
+  const candidates: string[] = [];
+  if (process.env.PUK_CUA_DRIVER) candidates.push(process.env.PUK_CUA_DRIVER);
+  const onPath = Bun.which(WSL ? "cua-driver.exe" : "cua-driver");
+  if (onPath) candidates.push(onPath);
+  candidates.push(await fromWindows(`${(await windowsFolders()).local}\\Programs\\Cua\\cua-driver\\bin\\cua-driver.exe`));
+  const tools = join(ROOT, "out", "tools");
+  const vendored = [...new Bun.Glob("cua-driver-*/**/cua-driver.exe").scanSync({ cwd: tools, onlyFiles: true })].sort().reverse().map((file) => join(tools, file));
+  candidates.push(...vendored);
+  for (const path of candidates) if (await Bun.file(path).exists()) return path;
+  throw new Error("Install Cua Driver for Windows: irm https://cua.ai/driver/install.ps1 | iex");
 }
 
 /** Native Windows keeps the MCP transport alive across Hands restarts. WSL
