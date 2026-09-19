@@ -1,0 +1,234 @@
+{
+  "date": "2026-09-20",
+  "scope": "Two additional creative cases only. Content/code emitted and repaired through actual Hands workflows/eval.ts, with fresh Jev handoff and delivery. Independent reviewers authored QA/reports only.",
+  "accepted": 2,
+  "cases": [
+    {
+      "caseId": "hands-onboarding-prototype",
+      "runId": "b57a00e9-c996-445f-bbbf-c6e4f0d91ae4",
+      "verdict": "pass-with-advisories",
+      "passed": true,
+      "previewUrl": "/artifacts/b57a00e9-c996-445f-bbbf-c6e4f0d91ae4/index.html",
+      "finalAttempt": {
+        "elapsedMs": 39937,
+        "resumeOf": "afba8267-93c3-42b8-9b54-b16c482d1f11",
+        "jev": {
+          "calls": 4,
+          "durationMs": 1445
+        },
+        "specialists": {
+          "calls": 4,
+          "durationMs": 34026
+        },
+        "routing": {
+          "calls": 1,
+          "durationMs": 811
+        },
+        "runtimeChecks": 18,
+        "independentChecks": 44
+      },
+      "earlierAttempts": [
+        {
+          "runId": "d797d57b-5e91-4a0e-9ee6-c3690fb98fed",
+          "elapsedMs": 9846,
+          "status": "failed-before-generation",
+          "defect": "Source-free brief had no truthful proceed option."
+        },
+        {
+          "runId": "afba8267-93c3-42b8-9b54-b16c482d1f11",
+          "elapsedMs": 119397,
+          "status": "needs-review",
+          "defects": [
+            "Mobile craft gate failed.",
+            "Independent real interaction audit found sandbox-blocked form submit."
+          ]
+        }
+      ],
+      "scope": {
+        "browser": "Fresh isolated Chromium with actual production artifactResponse and opaque sandbox CSP, 1440x900 and 390x844. No signed-in profile or account actions.",
+        "visual": "All three states at both sizes directly inspected; task images recaptured with CSS animation fast-forwarded. Full below-fold output checked.",
+        "keyboard": "Separate flow used Tab, typing, Enter, back/reset; visible focus and reduced-motion styles checked.",
+        "limits": "Not physical-device testing or a general reliability benchmark. This artifact is deliberately a local conceptual prototype."
+      },
+      "advisories": [
+        {
+          "severity": "warning",
+          "file": "prototype.css",
+          "detail": "Some stage-rail labels remain compact. Both mobile correction and result states require ordinary vertical scrolling; primary controls remain reachable without overflow."
+        },
+        {
+          "severity": "warning",
+          "file": "index.html",
+          "detail": "Desktop repeats the gesture motif at two scales. This is coherent but could be simplified in another design iteration."
+        }
+      ],
+      "defectsRepaired": [
+        {
+          "owner": "Hands specialist",
+          "detail": "Replaced form-submit dependency with semantic button click handlers compatible with the opaque sandbox. Moved mobile primary action above examples and retained the gesture motif; increased support-copy sizing."
+        },
+        {
+          "owner": "Shared trusted runtime",
+          "detail": "User-activated read-only local artifact navigation was narrowly allowed by the root agent while preserving opaque CSP and control-route isolation. Independent brand navigation now passes at both sizes."
+        }
+      ],
+      "evidence": {
+        "manifest": "out/artifacts/b57a00e9-c996-445f-bbbf-c6e4f0d91ae4/manifest.json",
+        "inspection": "out/artifacts/b57a00e9-c996-445f-bbbf-c6e4f0d91ae4/independent-inspection.json",
+        "interactionChecks": "out/artifacts/b57a00e9-c996-445f-bbbf-c6e4f0d91ae4/independent-review/interaction-checks.json"
+      },
+      "timingLimit": "39.937s is the final checkpoint repair/validation attempt, not fresh creation or total end-to-end elapsed time. No controlled speedup claim."
+    },
+    {
+      "caseId": "gravitational-wave-editorial",
+      "runId": "17c77cfa-6d3b-4461-85d7-e3966d40aaff",
+      "passed": true,
+      "verdict": "pass-with-advisories",
+      "previewUrl": "/artifacts/17c77cfa-6d3b-4461-85d7-e3966d40aaff/index.html",
+      "posterUrl": "/artifacts/17c77cfa-6d3b-4461-85d7-e3966d40aaff/poster.html",
+      "finalAttempt": {
+        "elapsedMs": 42043,
+        "resumeOf": "0c89be63-1ad5-4c18-bc81-803e58ee9cad",
+        "jev": {
+          "calls": 4,
+          "durationMs": 1388
+        },
+        "specialists": {
+          "calls": 4,
+          "durationMs": 33588
+        },
+        "routing": {
+          "calls": 1,
+          "durationMs": 806
+        },
+        "runtimeChecks": 24,
+        "independentBrowserChecks": 45
+      },
+      "earlierAttempts": [
+        {
+          "runId": "0c89be63-1ad5-4c18-bc81-803e58ee9cad",
+          "elapsedMs": 130638,
+          "runtimeStatus": "complete",
+          "independentStatus": "failed-one-control",
+          "defect": "Script-driven Print button blocked by the actual opaque sandbox; held acceptance until repaired."
+        }
+      ],
+      "print": {
+        "pages": 1,
+        "pageSizePoints": [
+          841.92,
+          1191.12
+        ],
+        "format": "A3 portrait, approximately297x420mm",
+        "path": "independent-review/poster-a3.pdf",
+        "sha256": "2a45899e57dca8225ec7c44d9080fb4db985286a0ca7165e369fbdcaa8527767",
+        "method": "Chromium print derivative of actual Hands HTML/CSS, pdfinfo dimensions, pdftoppm rasterization and complete direct image inspection; no content authored outside Hands.",
+        "visual": "Clear title/illustration/facts/source hierarchy, no clipping or accidental extra page; references readable at full A3."
+      },
+      "sourceReview": {
+        "passed": true,
+        "retrievedPrimarySources": [
+          "https://arxiv.org/pdf/1602.03837",
+          "https://gwosc.org/events/GW150914/"
+        ],
+        "checked": [
+          "Detection 14 September 2015 and publication 11 February 2016 are distinct and supported.",
+          "Only approximate dimensionless peak strain 10^-21 is shown; no mixed masses/distance estimates.",
+          "h=DeltaL/L is correctly described as differential arm-length strain.",
+          "Illustration labeled schematic, uncalibrated and not measured.",
+          "Binary merger interpretation presented as evidence/model, no fabricated affiliation or conference."
+        ],
+        "retrievalLimit": "Broad discovery search failed; both seeded primary sources were actually retrieved."
+      },
+      "advisories": [
+        {
+          "severity": "warning",
+          "file": "editorial.css",
+          "detail": "Mobile schematic caption and narrow poster fact columns could use more breathing room; they remain legible without overflow."
+        },
+        {
+          "severity": "warning",
+          "file": "index.html",
+          "detail": "Expanded companion is a long reading page. Native disclosures keep the default view compact; no pagination or long-page navigation was requested."
+        }
+      ],
+      "evidence": {
+        "manifest": "out/artifacts/17c77cfa-6d3b-4461-85d7-e3966d40aaff/manifest.json",
+        "inspection": "out/artifacts/17c77cfa-6d3b-4461-85d7-e3966d40aaff/independent-inspection.json",
+        "browser": "out/artifacts/17c77cfa-6d3b-4461-85d7-e3966d40aaff/independent-review/interaction-print-checks.json"
+      },
+      "timingLimit": "42.043s is a final checkpoint repair/validation attempt, not fresh generation or total end-to-end wall time."
+    }
+  ],
+  "productionRepairs": [
+    {
+      "caseId": "hands-onboarding-prototype",
+      "runId": "b57a00e9-c996-445f-bbbf-c6e4f0d91ae4",
+      "file": "repair-10.json",
+      "model": "gpt-6-astra",
+      "usage": {
+        "input": 3,
+        "output": 1283,
+        "cacheRead": 0,
+        "cacheWrite": 14004,
+        "reasoning": 0,
+        "totalTokens": 15290
+      },
+      "edits": 11,
+      "replacements": 0,
+      "scope": "Actual production BundlePatch observation, not a controlled contract comparison.",
+      "durationMs": 12870,
+      "usageNote": "SDK-reported token metadata; these are actual single repair observations, not controlled benchmarks."
+    },
+    {
+      "caseId": "gravitational-wave-editorial",
+      "runId": "17c77cfa-6d3b-4461-85d7-e3966d40aaff",
+      "file": "repair-13.json",
+      "model": "gpt-6-astra",
+      "usage": {
+        "input": 3,
+        "output": 365,
+        "cacheRead": 0,
+        "cacheWrite": 26036,
+        "reasoning": 0,
+        "totalTokens": 26404
+      },
+      "edits": 5,
+      "replacements": 0,
+      "scope": "Actual production BundlePatch observation, not a controlled contract comparison.",
+      "durationMs": 5129,
+      "usageNote": "SDK-reported token metadata; these are actual single repair observations, not controlled benchmarks."
+    }
+  ],
+  "observer": {
+    "implementation": [
+      "win/eval-observer.ts",
+      "win/eval-observer.test.ts",
+      "win/panel.html",
+      "win/serve.ts"
+    ],
+    "boundedRead": "Latest 12 valid progress records, last 40 events, strict same-run preview URL validation, local GET endpoint behind existing request guard.",
+    "nativeTests": {
+      "tests": 17,
+      "assertions": 137,
+      "command": "bun test win/eval-observer.test.ts win/panel-artifacts.test.ts win/serve.test.ts"
+    },
+    "typecheck": "bun x tsc --noEmit passed after observer integration.",
+    "isolatedFixtureAudit": {
+      "checks": 10,
+      "passed": 10,
+      "evidence": "out/win/eval-observer-audit/checks.json"
+    },
+    "actualLivePanelAudit": {
+      "checks": 8,
+      "passed": 8,
+      "evidence": "out/win/live-eval-observer.json",
+      "scope": "Fresh isolated Chromium against restarted :7777; actual progress and interactive sandboxed artifact; no mutation requests; desktop snapshots explicitly blocked, so this is not a browser-stream inspection."
+    }
+  },
+  "limitations": [
+    "Both accepted cases required a checkpoint repair and independent inspection. Do not describe this as a fresh 2/2 success rate.",
+    "Reported final-attempt times exclude earlier attempts, coordinator inspection and broader session wall time; no end-to-end speedup claim.",
+    "Creative scores judge observed stills. Actual interaction and print checks are separately recorded."
+  ]
+}
