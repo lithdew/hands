@@ -275,7 +275,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     if (action.challenge_submit && decision?.kind !== "captcha") throw new Error("A CAPTCHA submission needs a currently observed visible challenge; inspect it first.");
     if (!decision) return;
     if (decision.action === "user_takeover") throw new Error(decision.guidance);
-    if (["screenshot", "snapshot", "tabs"].includes(action.action ?? "") || action.action === "dialog" && action.operation === "inspect") return;
+    if (["screenshot", "snapshot", "canvas_snapshot", "tabs"].includes(action.action ?? "") || action.action === "dialog" && action.operation === "inspect") return;
     const control = current?.controls.find(control => "ref" in control && control.ref === action.ref);
     if (decision.kind === "captcha" && action.action === "batch") throw new Error("Use single grounded actions for a CAPTCHA so each submitted answer and its fresh result remain within the two-attempt budget.");
     const submission = decision.kind === "captcha" && (action.challenge_submit === true
@@ -326,7 +326,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     return { name, label: name, description, parameters: jsonSchema as TSchema, executionMode: "sequential", execute: async (_id, args, signal) => {
       signal?.throwIfAborted();
       const meta = args as { action?: string; what?: string; operation?: string };
-      const readOnly = ["apps", "jev", "computer_look"].includes(name) || name === "computer" && meta.action === "screenshot" || name === "computer_browser" && (["tabs", "snapshot"].includes(meta.action ?? "") || meta.action === "dialog" && meta.operation === "inspect");
+      const readOnly = ["apps", "jev", "computer_look"].includes(name) || name === "computer" && meta.action === "screenshot" || name === "computer_browser" && (["tabs", "snapshot", "canvas_snapshot"].includes(meta.action ?? "") || meta.action === "dialog" && meta.operation === "inspect");
       if (!readOnly) assertLatestInput();
       const end = trace?.span("tool_execution", { tool: name, action: meta.action ?? meta.what });
       try {
@@ -715,7 +715,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
         }
       }
       if (denied || ++calls > 120) return { block: true, terminate: true, reason: denied ? "The user declined this action. Stop and wait for another request." : "The 120-tool limit was reached. Summarize progress and wait for another request." };
-      if (["apps", "jev", "computer_look"].includes(toolCall.name) || (toolCall.name === "computer" && (args as { action: string }).action === "screenshot") || (toolCall.name === "computer_browser" && (["tabs", "snapshot"].includes((args as { action: string }).action) || (args as { action: string }).action === "dialog" && (args as { operation?: string }).operation === "inspect"))) return;
+      if (["apps", "jev", "computer_look"].includes(toolCall.name) || (toolCall.name === "computer" && (args as { action: string }).action === "screenshot") || (toolCall.name === "computer_browser" && (["tabs", "snapshot", "canvas_snapshot"].includes((args as { action: string }).action) || (args as { action: string }).action === "dialog" && (args as { operation?: string }).operation === "inspect"))) return;
       if (modelRevision !== revision) return { block: true, reason: "The spoken instruction changed. Read the queued update before acting." };
       if (toolCall.name === "bash") {
         const command = args as { command: string; cwd?: string };

@@ -244,7 +244,7 @@ textarea#prompt::placeholder{color:var(--faint)}
 .eval-note{margin:0;color:var(--muted);font-size:12px}
 #eval-runs{display:grid;gap:8px;overflow:auto;min-height:0;scrollbar-width:thin}
 #eval-runs:empty::before{content:"No observed evaluations yet.";color:var(--faint);font-size:12px}
-.eval-card{padding:10px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--panel);display:grid;gap:6px;min-width:0}
+.eval-card{padding:10px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--panel);display:grid;grid-template-columns:minmax(0,1fr);gap:6px;min-width:0}
 .eval-head{display:flex;gap:8px;align-items:baseline;justify-content:space-between;font:11px/1.4 var(--mono)}
 .eval-phase{color:var(--blue);overflow-wrap:anywhere}.eval-card[data-done=true] .eval-phase{color:var(--green)}
 .eval-card[data-review=true] .eval-phase{color:var(--amber)}
@@ -253,7 +253,7 @@ textarea#prompt::placeholder{color:var(--faint)}
 .eval-meta,.eval-step{margin:0;font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
 .eval-step{color:var(--text)}
 .eval-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.eval-actions a{font-size:12px;color:var(--blue)}
-.eval-log{font-size:11.5px;color:var(--muted)}.eval-log summary{cursor:pointer}.eval-log ol{padding-left:18px;max-height:140px;overflow:auto;overflow-wrap:anywhere}
+.eval-log{font-size:11.5px;color:var(--muted);min-width:0}.eval-log summary{cursor:pointer}.eval-log ol,.eval-log ul{padding-left:18px;max-height:140px;overflow:auto;overflow-wrap:anywhere}
 #eval-dialog{width:min(1100px,94vw);height:min(820px,90vh);padding:0;border:1px solid var(--line-3);border-radius:var(--r-lg);background:var(--panel);color:var(--text)}
 #eval-dialog::backdrop{background:#000b}.eval-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}
 #eval-dialog-title{margin:0;font-size:14px}#eval-frame{display:block;width:100%;height:calc(100% - 57px);border:0;background:#fff}

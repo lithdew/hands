@@ -245,21 +245,21 @@
     ],
     "boundedRead": "Latest 12 valid progress records, last 40 events, strict same-run preview URL validation, local GET endpoint behind existing request guard.",
     "nativeTests": {
-      "tests": 17,
-      "assertions": 137,
+      "tests": 18,
+      "assertions": 138,
       "command": "bun test win/eval-observer.test.ts win/panel-artifacts.test.ts win/serve.test.ts"
     },
     "typecheck": "bun x tsc --noEmit passed after observer integration.",
     "isolatedFixtureAudit": {
-      "checks": 10,
-      "passed": 10,
+      "checks": 11,
+      "passed": 11,
       "evidence": "out/win/eval-observer-audit/checks.json"
     },
     "actualLivePanelAudit": {
-      "checks": 8,
-      "passed": 8,
-      "evidence": "out/win/live-eval-observer.json",
-      "scope": "Fresh isolated Chromium against restarted :7777; actual progress and interactive sandboxed artifact; no mutation requests; desktop snapshots explicitly blocked, so this is not a browser-stream inspection."
+      "checks": 12,
+      "passed": 12,
+      "evidence": "out/win/live-eval-observer-v2.json",
+      "scope": "Fresh isolated Chromium against restarted :7777; actual accepted matrix film, concrete check explanations, sidebar/mobile wrapping, caption state preserved across polling and revision-sheet navigation. Local GET requests only; desktop snapshots blocked. Previous onboarding run aged out of the bounded recent list."
     }
   },
   "limitations": [
