@@ -3,6 +3,7 @@ import { mkdtemp, readFile, readdir, rmdir, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRunTrace, toolTraceOutcome } from "./run-trace";
+import { BrowserSchema } from "./semantic-computer";
 
 function memoryTrace(options: Partial<Parameters<typeof createRunTrace>[0]> = {}) {
   const lines: string[] = [];
@@ -46,6 +47,24 @@ test("gate, approval and actual execution get distinct monotonic spans", async (
   expect(summary.phases.approval?.totalMs).toBe(20_000);
   expect(summary.phases.tool_execution).toEqual({ count: 1, totalMs: 60, failed: 1, interrupted: 0 });
   expect(records().filter((r) => r.kind === "span_end").map((r) => r.durationMs)).toEqual([350, 20_000, 60]);
+});
+
+test("all supported browser actions survive event and span metadata while free-form actions are dropped", async () => {
+  const { trace, records, lines } = memoryTrace();
+  const actions = BrowserSchema.shape.action.options;
+  for (const action of actions) {
+    trace.event("tool_proposed", { tool: "computer_browser", action });
+    trace.span("tool_execution", { tool: "computer_browser", action })({ outcome: "ok" });
+  }
+  for (const action of ["canvas_click PRIVATE_TARGET", "dialog:inspect PRIVATE_MESSAGE", "focused_text\nPRIVATE_BODY", "accept", " canvas_snapshot"]) {
+    trace.event("tool_result", { tool: "computer_browser", action });
+  }
+  trace.finish("ok"); await trace.flush();
+  for (const kind of ["tool_proposed", "span_start", "span_end"]) {
+    expect(records().filter(record => record.kind === kind).map(record => record.action)).toEqual(actions);
+  }
+  expect(records().filter(record => record.kind === "tool_result").every(record => record.action === undefined)).toBe(true);
+  expect(lines.join("")).not.toContain("PRIVATE_");
 });
 
 test("browser attachment and bounded semantic recovery keep only diagnostic categories", async () => {

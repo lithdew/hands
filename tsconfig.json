@@ -27,6 +27,6 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
   },
-  // Remotion template projects have their own dependencies (react, remotion), installed where they are built, not here.
-  "exclude": ["node_modules", "out", "tmp", "my-video", "jev/relay/kits/*/remotion", "jev/relay/kits/mathvideo"]
+  // Exported deliverables and Remotion templates are independent projects with their own dependencies.
+  "exclude": ["node_modules", "out", "tmp", "deliverables", "my-video", "jev/relay/kits/*/remotion", "jev/relay/kits/mathvideo"]
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { adoptable, bindWindowCapture, capturedImage, createDriverPool, createExistingBrowserTargets, createWindowTracker, frontWindow, handFor, helperReply, isPrivateBrowser, launchedBrowserWindow, signInLine, type RawWindow, type WindowOwner } from "./desktop";
+import { adoptable, bindWindowCapture, capturedImage, createDriverPool, createExistingBrowserTargets, createWindowTracker, frontWindow, handFor, helperReply, isPrivateBrowser, launchedBrowserWindow, signInLine, type BrowserActivity, type RawWindow, type WindowOwner } from "./desktop";
 import { serverResources, virtualKey } from "./serve";
 import type { CuaConnection, Hand } from "../desktop";
 
@@ -228,7 +228,7 @@ describe("existing browser target ownership", () => {
   const hand: Hand = { id: 1, pid: 7, display: "Puk hand 1", width: 1280, height: 800 };
   const chrome = (id = 901, pid = 82): RawWindow => ({ app: "chrome", title: "Inbox - Google Chrome", focused: true, pid, containerId: id,
     ownerNonce: id.toString(16).padStart(16, "0"), rect: [40, 40, 1360, 900] });
-  function fixture() {
+  function fixture(activity?: () => BrowserActivity) {
     let available = [chrome()], current: RawWindow | null = chrome(), failed = false, preparations = 0, healthy = true;
     const calls: string[] = [];
     let validate: (() => Promise<RawWindow>) | undefined;
@@ -239,7 +239,7 @@ describe("existing browser target ownership", () => {
       read: async () => reading ?? current,
       release: async (hand) => { calls.push(`release ${hand.id}`); },
       endSession: async () => { calls.push("end disconnected session"); },
-      prepare: async (_hand, checked, signal, resume) => { preparations++; if (resume) calls.push("resume only"); validate = checked; signal?.throwIfAborted(); if (failed) throw new Error("Cua permission denied"); healthy = true; return { healthy: () => healthy, close: async () => { calls.push("end session"); } }; },
+      prepare: async (_hand, checked, signal, resume) => { preparations++; if (resume) calls.push("resume only"); validate = checked; signal?.throwIfAborted(); if (failed) throw new Error("Cua permission denied"); healthy = true; return { healthy: () => healthy, ...(activity ? { activity } : {}), close: async () => { calls.push("end session"); } }; },
     });
     return { targets, calls, preparations: () => preparations, validate: () => validate!(), fail: () => { failed = true; }, expire: () => { healthy = false; }, found: (windows: RawWindow[]) => { available = windows; },
       current: (window: RawWindow | null) => { current = window; }, reading: (promise: Promise<RawWindow | null>) => { reading = promise; } };
@@ -263,6 +263,22 @@ describe("existing browser target ownership", () => {
     expect(f.targets.target(hand)).toMatchObject({ mode: "existing", window_id: 901, ready: true });
     expect(f.calls).toEqual(["claim 1 901", "resume only"]);
     expect(await f.validate()).toEqual(chrome());
+  });
+
+  test("browser activity stays with its exact target and diagnostic failure cannot change readiness", async () => {
+    let broken = false;
+    let activity: BrowserActivity = { active: { phase: "snapshot_rpc", sequence: 1, startedAt: 1000 } };
+    const f = fixture(() => { if (broken) throw new Error("diagnostic unavailable"); return activity; });
+    await f.targets.attach(hand);
+    expect(f.targets.target(hand)).toMatchObject({ mode: "existing", window_id: 901, ready: true, activity });
+    activity = { last: { phase: "snapshot_rpc", sequence: 1, durationMs: 24000, outcome: "ok" } };
+    expect(f.targets.target(hand)).toMatchObject({ activity });
+    broken = true;
+    expect(f.targets.target(hand)).toMatchObject({ mode: "existing", window_id: 901, ready: true });
+    expect(f.targets.target(hand)).not.toHaveProperty("activity");
+    expect(f.preparations()).toBe(1);
+    await f.targets.detach(hand);
+    expect(f.targets.target(hand)).toEqual({ mode: "private" });
   });
 
   test("expired grants and recycled saved windows stay disconnected in existing mode", async () => {

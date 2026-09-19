@@ -76,23 +76,26 @@ describe("existing Chrome binding", () => {
   function fixture(diagnostics: Parameters<typeof existingBrowserInput>[4] = {}, canFocus = true) {
     let window: ExistingBrowserWindow = { pid: 90, containerId: 1234, ownerNonce: "0000000000000123", title: "Inbox - Google Chrome", rect: [1, 1, 1000, 800] };
     const calls: { name: string; args: Record<string, unknown> }[] = [];
-    let bind = 0, exact = true, setup = false, denied = false;
+    let bind = 0, tabGeneration = 0, exact = true, setup = false, denied = false;
+    const tabCapabilities = new Map<string, { targetId: string; generation: number }>();
     let tabs = [{ title: "Inbox", url: "https://mail.example/", active: true as boolean | null }];
     let pageOverride: { title: string; url: string } | undefined;
     let outcome: Record<string, unknown> = { status: "ok" };
     let outcomeError = false;
-    let dialog: Record<string, unknown> = { present: true, dialog_id: "dialog-7", kind: "alert" };
-    let onCall: ((name: string, args: Record<string, unknown>) => void) | undefined;
+    let dialog: Record<string, unknown> = { present: false };
+    let onCall: ((name: string, args: Record<string, unknown>) => void | Promise<void>) | undefined;
     let onFocus: (() => void | Promise<void>) | undefined;
-    let nativeSize=[1000,800],focusedEditable=false;
+    let nativeSize=[1000,800],nativePixel=0,focusedEditable=false;
     let nativeOutcome: Record<string, unknown> = {}, nativeError = false;
     let scopeOverride: Record<string, unknown> = {};
+    let snapshotOverride: Record<string, unknown> = {};
     const call: CuaConnection["call"] = async (name, args = {}) => {
-      calls.push({ name, args }); onCall?.(name, args);
+      calls.push({ name, args }); await onCall?.(name, args);
       if (denied) throw new Error("browser_consent_required: user denied this request");
       if (name === "get_browser_state" && args.pid) {
         if (setup) throw new Error("browser_requires_setup: use browser_prepare");
         bind++;
+        tabs.forEach((_, i) => tabCapabilities.set(`tab-${bind}-${i}`, { targetId: `target-${bind}`, generation: tabGeneration }));
         return response({ status: "ok", mode: "bind", target_id: `target-${bind}`, binding_quality: exact ? "exact" : "heuristic", mutation_allowed: exact,
           tabs: tabs.map((tab, i) => ({ ...tab, tab_id: `tab-${bind}-${i}` })) });
       }
@@ -103,11 +106,17 @@ describe("existing Chrome binding", () => {
       if (name === "get_browser_state") return response({ status: "ok", mode: "snapshot", target_id: args.target_id, tab_id: args.tab_id,
         snapshot: { id: "p17", format: "semantic_v2" }, page: pageOverride ?? { title: tabs[0]!.title, url: tabs[0]!.url }, outline: "Inbox\nCompose\nDraft saved",
         refs: [{ ref: "p17:1", role: "button", name: "Compose", actions: ["click"] }, { ref: "p17:2", role: "textbox", name: "Subject", actions: ["type"],states:{focused:focusedEditable} },
-          { ref: "p17:3", role: "generic", name: null, actions: ["scroll", "pointer"] }] });
-      if(name==="get_window_state") {const png=Buffer.alloc(24);Buffer.from([137,80,78,71,13,10,26,10]).copy(png);png.writeUInt32BE(nativeSize[0]!,16);png.writeUInt32BE(nativeSize[1]!,20);return {content:[{type:"image",mimeType:"image/png",data:png.toString("base64")}],structuredContent:{screenshot_width:nativeSize[0],screenshot_height:nativeSize[1],...nativeOutcome},isError:nativeError};}
+          { ref: "p17:3", role: "generic", name: null, actions: ["scroll", "pointer"] }], ...snapshotOverride });
+      if(name==="get_window_state") {const png=Buffer.alloc(25);Buffer.from([137,80,78,71,13,10,26,10]).copy(png);png.writeUInt32BE(nativeSize[0]!,16);png.writeUInt32BE(nativeSize[1]!,20);png[24]=nativePixel;return {content:[{type:"image",mimeType:"image/png",data:png.toString("base64")}],structuredContent:{screenshot_width:nativeSize[0],screenshot_height:nativeSize[1],...nativeOutcome},isError:nativeError};}
       if (name === "browser_prepare") { setup = false; return response({ status: "ok", prepared: true }); }
-      if (name === "browser_dialog") return response({ status: "ok", target_id: args.target_id, tab_id: args.tab_id,
-        ...dialog, ...(args.action === "inspect" ? {} : { action: args.action }) });
+      if (name === "browser_dialog") {
+        const original = tabCapabilities.get(String(args.tab_id));
+        if (!original || original.targetId !== args.target_id || original.generation !== tabGeneration) {
+          return response({ status: "refused", code: "browser_tab_not_found", message: "The original capability no longer has a live CDP page target" });
+        }
+        return response({ status: "ok", target_id: args.target_id, tab_id: args.tab_id,
+          ...dialog, ...(args.action === "inspect" ? {} : { action: args.action }) });
+      }
       return { ...response(outcome), isError: outcomeError };
     };
     const input = existingBrowserInput(call, async () => window, "account-test", canFocus ? async (observed) => {
@@ -119,14 +128,292 @@ describe("existing Chrome binding", () => {
       page: (value: typeof pageOverride) => { pageOverride = value; },
       outcome: (value: typeof outcome, isError = false) => { outcome = value; outcomeError = isError; },
       dialog: (value: typeof dialog) => { dialog = value; },
+      closeAndReopenTab: () => { tabGeneration++; },
       onCall: (fn: NonNullable<typeof onCall>) => { onCall = fn; },
       nativeSize:(width:number,height:number)=>{nativeSize=[width,height];}, focusedEditable:(value=true)=>{focusedEditable=value;},
+      nativePixel:(value:number)=>{nativePixel=value;},
       nativeOutcome:(value:typeof nativeOutcome,isError=false)=>{nativeOutcome=value;nativeError=isError;},
       scope:(value:typeof scopeOverride)=>{scopeOverride=value;},
+      snapshotState:(value:typeof snapshotOverride)=>{snapshotOverride=value;},
       onFocus: (fn: NonNullable<typeof onFocus>) => { onFocus = fn; } };
   }
   const mutations = (f: ReturnType<typeof fixture>) => f.calls.filter((call) => !["get_browser_state", "get_window_state", "end_session", "focus_existing"].includes(call.name)
     && !(call.name === "browser_dialog" && call.args.action === "inspect"));
+  const dialogFixture = () => { const f = fixture(); f.dialog({ present: true, dialog_id: "dialog-7", kind: "alert" }); return f; };
+
+  test("visual canvas capture reads only exact bindings and native pixels, and revokes old DOM refs", async () => {
+    const events:ExistingBrowserTiming[]=[],f=fixture({timing:event=>events.push(event)}),page=await f.input.snapshot();
+    f.calls.length=0;events.length=0;
+    const capture=await f.input.captureVisual();
+    expect(capture.page).toBeUndefined();expect(capture).not.toHaveProperty("refs");expect(capture).not.toHaveProperty("snapshot_id");
+    expect(f.calls.map(call=>call.name)).toEqual(["get_browser_state","get_window_state","get_browser_state","browser_dialog"]);
+    expect(f.calls.at(-1)?.args).toMatchObject({target_id:capture.binding.target_id,tab_id:capture.binding.tab.tab_id,action:"inspect"});
+    expect(f.calls.filter(call=>call.name==="get_browser_state").every(call=>call.args.pid===90&&call.args.target_id===undefined&&call.args.snapshot_format===undefined)).toBe(true);
+    expect(events.filter(event=>event.phase==="capture_rpc").map(event=>event.event)).toEqual(["start","end"]);
+    await expect(f.input.act(page,{action:"click"},"p17:1")).rejects.toThrow("stale");
+    await f.input.canvasAct(capture,{action:"canvas_click",delivery:"foreground",x:30,y:40});
+    expect(mutations(f).map(call=>call.name)).toEqual(["click"]);
+    await expect(f.input.canvasAct(capture,{action:"canvas_click",delivery:"foreground",x:30,y:40})).rejects.toThrow("stale");
+  });
+
+  test("visual captures dispatch one explicit foreground key with current exact binding and no DOM traversal", async () => {
+    for(const [key,name,args] of [["f","press_key",{key:"f"}],["ctrl+1","hotkey",{keys:["ctrl","1"]}]] as const){
+      const f=fixture(),capture=await f.input.captureVisual();f.calls.length=0;
+      await f.input.canvasAct(capture,{action:"key",delivery:"foreground",key});
+      expect(mutations(f)).toEqual([{name,args:{pid:90,window_id:1234,session:"account-test",delivery_mode:"foreground",...args}}]);
+      expect(f.calls.some(call=>call.name==="get_browser_state"&&(call.args.target_id||call.args.snapshot_format))).toBe(false);
+      expect(f.calls.find(call=>call.name==="browser_dialog")?.args).toMatchObject({target_id:capture.binding.target_id,tab_id:capture.binding.tab.tab_id,action:"inspect"});
+      await expect(f.input.canvasAct(capture,{action:"key",delivery:"foreground",key})).rejects.toThrow("stale");
+    }
+    const f=fixture(),capture=await f.input.captureVisual();
+    await expect(f.input.canvasAct(capture,{action:"focused_text",delivery:"foreground",text:"unsafe"},"old-ref")).rejects.toThrow("include_refs:true");
+    expect(mutations(f)).toEqual([]);
+  });
+
+  test("read-only canvas verification preserves the original capability only for identical fresh PNG bytes", async () => {
+    for (const includeRefs of [false, true]) {
+      const f = fixture(), capture = includeRefs ? await f.input.captureCanvas(await f.input.snapshot()) : await f.input.captureVisual();
+      const original = structuredClone(capture); f.calls.length = 0;
+      await f.input.assertCanvasCurrent(capture);
+      expect(capture).toEqual(original);
+      expect(f.calls.map(call => call.name)).toEqual(["get_window_state", "get_browser_state", "browser_dialog"]);
+      expect(f.calls.at(-1)?.args).toMatchObject({ action: "inspect", target_id: original.binding.target_id, tab_id: original.binding.tab.tab_id });
+      expect(mutations(f)).toEqual([]);
+      await f.input.canvasAct(capture, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 });
+      expect(mutations(f).map(call => call.name)).toEqual(["click"]);
+      await expect(f.input.canvasAct(capture, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 })).rejects.toThrow("stale");
+    }
+  });
+
+  test("changed PNG bytes or image dimensions revoke an approval even with unchanged URL, title and window", async () => {
+    for (const changed of ["pixels", "dimensions"]) {
+      const f = fixture(), capture = await f.input.captureVisual(); f.calls.length = 0;
+      if (changed === "pixels") f.nativePixel(1); else f.nativeSize(900, 700);
+      await expect(f.input.assertCanvasCurrent(capture)).rejects.toThrow("canvas pixels changed");
+      expect(mutations(f)).toEqual([]);
+      f.nativePixel(0); f.nativeSize(1000, 800);
+      await expect(f.input.assertCanvasCurrent(capture)).rejects.toThrow("stale");
+      await expect(f.input.canvasAct(capture, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 })).rejects.toThrow("stale");
+      expect(mutations(f)).toEqual([]);
+    }
+  });
+
+  test("canvas verification retains exact owner, frame, original tab, lifecycle and cancellation guards", async () => {
+    for (const change of ["pid", "nonce", "move", "resize", "title", "url", "reopened-tab", "cancel", "capture-refused", "dialog"]) {
+      const f = fixture(), capture = await f.input.captureVisual(), abort = new AbortController(); f.calls.length = 0;
+      f.onCall(name => {
+        if (name !== "get_window_state") return;
+        if (change === "pid") f.mutateWindow({ pid: 91 });
+        if (change === "nonce") f.mutateWindow({ ownerNonce: "0000000000009999" });
+        if (change === "move") f.mutateWindow({ rect: [20, 1, 1000, 800] });
+        if (change === "resize") f.mutateWindow({ rect: [1, 1, 900, 700] });
+        if (change === "title") f.mutateWindow({ title: "Different - Google Chrome" });
+        if (change === "url") f.tabs([{ title: "Inbox", url: "https://other.test/", active: true }]);
+        if (change === "reopened-tab") f.closeAndReopenTab();
+        if (change === "cancel") abort.abort();
+        if (change === "capture-refused") f.nativeOutcome({ status: "refused" });
+        if (change === "dialog") f.dialog({ present: true, dialog_id: "new-dialog", kind: "confirm" });
+      });
+      await expect(f.input.assertCanvasCurrent(capture, abort.signal)).rejects.toThrow();
+      await expect(f.input.canvasAct(capture, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 })).rejects.toThrow("stale");
+      expect(mutations(f)).toEqual([]);
+    }
+  });
+
+  test("superseded canvas verification cannot restore its old capability or erase a newer capture", async () => {
+    const f = fixture(), old = await f.input.captureVisual(); let newer: typeof old | undefined, replacing = false;
+    f.onCall(async name => {
+      if (name === "get_window_state" && !replacing) { replacing = true; newer = await f.input.captureVisual(); }
+    });
+    await expect(f.input.assertCanvasCurrent(old)).rejects.toThrow("changed");
+    await expect(f.input.canvasAct(old, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 })).rejects.toThrow("stale");
+    expect(mutations(f)).toEqual([]);
+    expect(newer).toBeDefined();
+    await f.input.canvasAct(newer!, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 });
+    expect(mutations(f).map(call => call.name)).toEqual(["click"]);
+  });
+
+  test("a visual key timeout consumes its capture without declaring grant expiry or replaying input", async () => {
+    const f=fixture(),capture=await f.input.captureVisual();f.calls.length=0;
+    f.onCall(name=>{if(name==="hotkey")throw new Error("Request timed out");});
+    await expect(f.input.canvasAct(capture,{action:"key",delivery:"foreground",key:"ctrl+1"})).rejects.toThrow("timed out");
+    expect(f.input.healthy()).toBe(true);
+    expect(mutations(f).map(call=>call.name)).toEqual(["hotkey"]);
+    await expect(f.input.canvasAct(capture,{action:"key",delivery:"foreground",key:"ctrl+1"})).rejects.toThrow("stale");
+    expect(f.calls.some(call=>["start_session","browser_prepare"].includes(call.name))).toBe(false);
+  });
+
+  test("visual captures reject changing ownership, frame, page or generation during capture and input", async () => {
+    for(const stage of ["capture","input"]){
+      for(const change of ["pid","nonce","move","resize","title","url","tab","generation","cancel","correction"]){
+        const f=fixture(),abort=new AbortController();let revise=false;
+        const capture=stage==="input"?await f.input.captureVisual():undefined;
+        const mutate=async()=>{
+          if(change==="pid")f.mutateWindow({pid:91});
+          if(change==="nonce")f.mutateWindow({ownerNonce:"0000000000009999"});
+          if(change==="move")f.mutateWindow({rect:[20,1,1000,800]});
+          if(change==="resize")f.mutateWindow({rect:[1,1,900,700]});
+          if(change==="title")f.mutateWindow({title:"Changed - Google Chrome"});
+          if(change==="url")f.tabs([{title:"Inbox",url:"https://other.test/",active:true}]);
+          if(change==="tab")f.tabs([{title:"Other",url:"https://mail.example/",active:true}]);
+          if(change==="generation")await f.input.snapshot();
+          if(change==="cancel")abort.abort();
+          if(change==="correction")revise=true;
+        };
+        if(stage==="capture"){
+          if(change==="correction")continue; // Input revisions gate mutations, not read-only capture.
+          f.onCall(async name=>{if(name==="get_window_state")await mutate();});
+          await expect(f.input.captureVisual(abort.signal)).rejects.toThrow();
+        }else{
+          f.onFocus(mutate);
+          await expect(f.input.canvasAct(capture!,{action:"key",delivery:"foreground",key:"f"},undefined,abort.signal,()=>{if(revise)throw new Error("task revised");})).rejects.toThrow();
+          await expect(f.input.canvasAct(capture!,{action:"key",delivery:"foreground",key:"f"})).rejects.toThrow("stale");
+        }
+        expect(mutations(f)).toEqual([]);
+      }
+    }
+  });
+
+  test("canvas re-attestation rejects a closed and reopened tab with the identical title and URL", async () => {
+    for (const includeRefs of [false, true]) for (const stage of ["capture", "input"]) {
+      const f = fixture(), page = includeRefs ? await f.input.snapshot() : undefined;
+      const capture = stage === "input" ? page ? await f.input.captureCanvas(page) : await f.input.captureVisual() : undefined;
+      f.calls.length = 0;
+      f.onCall((name, args) => {
+        if (stage === "capture" && name === "get_window_state" || stage === "input" && name === "get_browser_state" && args.pid) f.closeAndReopenTab();
+      });
+      if (stage === "capture") await expect(page ? f.input.captureCanvas(page) : f.input.captureVisual()).rejects.toThrow("browser_tab_not_found");
+      else {
+        await expect(f.input.canvasAct(capture!, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 })).rejects.toThrow("browser_tab_not_found");
+        await expect(f.input.canvasAct(capture!, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 })).rejects.toThrow("stale");
+      }
+      expect(f.calls.filter(call => call.name === "browser_dialog")).toHaveLength(1);
+      expect(mutations(f)).toEqual([]);
+    }
+  });
+
+  test("canvas attestation retains the original capability despite fresh bind IDs and rejects wrong response IDs", async () => {
+    for (const change of [{ target_id: "replacement" }, { tab_id: "replacement" }, { present: undefined }]) {
+      const f = fixture(), capture = await f.input.captureVisual(); f.calls.length = 0;
+      f.dialog({ present: false, ...change });
+      await expect(f.input.canvasAct(capture, { action: "key", delivery: "foreground", key: "f" })).rejects.toThrow("original canvas tab");
+      const inspect = f.calls.find(call => call.name === "browser_dialog")!;
+      expect(inspect.args).toMatchObject({ target_id: capture.binding.target_id, tab_id: capture.binding.tab.tab_id, action: "inspect" });
+      expect(mutations(f)).toEqual([]);
+    }
+    const f = fixture(), capture = await f.input.captureVisual(); f.calls.length = 0;
+    await f.input.canvasAct(capture, { action: "key", delivery: "foreground", key: "f" });
+    expect(f.calls.find(call => call.name === "browser_dialog")?.args).toMatchObject({ target_id: "target-1", tab_id: "tab-1-0" });
+    expect(mutations(f).map(call => call.name)).toEqual(["press_key"]);
+  });
+
+  test("a dialog discovered by canvas attestation requires normal inspection and never receives canvas input", async () => {
+    for (const stage of ["capture", "input"]) for (const kind of ["alert", "confirm", "prompt"]) {
+      const f = fixture(), capture = stage === "input" ? await f.input.captureVisual() : undefined;
+      f.dialog({ present: true, dialog_id: "dialog-7", kind }); f.calls.length = 0;
+      if (stage === "capture") await expect(f.input.captureVisual()).rejects.toThrow("browser dialog inspect");
+      else await expect(f.input.canvasAct(capture!, { action: "key", delivery: "foreground", key: "Enter" })).rejects.toThrow("browser dialog inspect");
+      expect(f.calls.filter(call => call.name === "browser_dialog").map(call => call.args.action)).toEqual(["inspect"]);
+      expect(mutations(f)).toEqual([]);
+      expect(await f.input.inspectDialog()).toMatchObject({ present: true, kind, dialog_id: "dialog-7" });
+      expect(mutations(f)).toEqual([]);
+    }
+  });
+
+  test("a cancellation, correction or new observation during original-tab attestation prevents canvas input", async () => {
+    for (const change of ["cancel", "correction", "observation", "blocked-attestation"]) {
+      const f = fixture(), capture = await f.input.captureVisual(), abort = new AbortController(); let corrected = false;
+      f.onCall(async (name) => {
+        if (name !== "browser_dialog") return;
+        if (change === "cancel") abort.abort();
+        if (change === "correction") corrected = true;
+        if (change === "observation") await f.input.snapshot();
+        if (change === "blocked-attestation") throw new Error("Page.getFrameTree timed out");
+      });
+      await expect(f.input.canvasAct(capture, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 }, undefined, abort.signal,
+        () => { if (corrected) throw new Error("instruction changed"); })).rejects.toThrow();
+      await expect(f.input.canvasAct(capture, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 })).rejects.toThrow("stale");
+      expect(mutations(f)).toEqual([]);
+    }
+  });
+
+  test("activity reports bounded fixed metadata and an older completion cannot erase overlapping capture", async () => {
+    let epoch=1000,tick=0,count=0;
+    const first=Promise.withResolvers<void>(),second=Promise.withResolvers<void>(),started1=Promise.withResolvers<void>(),started2=Promise.withResolvers<void>();
+    const f=fixture({epochNow:()=>++epoch,now:()=>++tick});
+    f.onCall(async name=>{if(name!=="get_window_state")return;if(++count===1){started1.resolve();await first.promise;}else{started2.resolve();await second.promise;}});
+    const one=f.input.captureVisual().then(()=>null,error=>error);await started1.promise;
+    const older=f.input.activity().active!;expect(older).toMatchObject({phase:"capture_rpc",startedAt:expect.any(Number)});
+    const two=f.input.captureVisual();await started2.promise;
+    const newer=f.input.activity().active!;expect(newer.sequence).toBeGreaterThan(older.sequence);
+    first.resolve();expect(String(await one)).toContain("changed");
+    expect(f.input.activity().active).toEqual(newer);
+    second.resolve();await two;
+    const done=f.input.activity();expect(done.active).toBeUndefined();expect(done.last).toMatchObject({durationMs:expect.any(Number),outcome:"ok"});
+    expect(JSON.stringify(done)).not.toMatch(/Inbox|mail\.example|target-|tab-|ref|screenshot/);
+    done.last!.phase="prepare_rpc";expect(f.input.activity().last?.phase).not.toBe("prepare_rpc");
+  });
+
+  test("single-token queries reach Cua without entering bind or input arguments", async () => {
+    const f = fixture();
+    const first = await f.input.snapshot(undefined, { query: "Subject" });
+    const current = await f.input.snapshot(undefined, { query: "  Body  " });
+    expect(f.calls.filter(call => call.args.snapshot_format === "semantic_v2").map(call => call.args)).toEqual([
+      { target_id: first.target_id, tab_id: first.tab_id, snapshot_format: "semantic_v2", include_screenshot: false, query: "Subject", session: "account-test" },
+      { target_id: current.target_id, tab_id: current.tab_id, snapshot_format: "semantic_v2", include_screenshot: false, query: "Body", session: "account-test" },
+    ]);
+    expect(f.calls.filter(call => call.args.pid).every(call => !("query" in call.args))).toBe(true);
+    await expect(f.input.act(first, { action: "type", text: "stale" }, "p17:2")).rejects.toThrow("stale");
+    await f.input.act(current, { action: "type", text: "current" }, "p17:2");
+    expect(mutations(f)).toEqual([{ name: "browser_type", args: { target_id: current.target_id, tab_id: current.tab_id, ref: "p17:2", text: "current", replace: true, session: "account-test" } }]);
+    const unfiltered = await f.input.snapshot();
+    expect(f.calls.findLast(call => call.args.target_id === unfiltered.target_id)?.args).not.toHaveProperty("query");
+  });
+
+  test("multiword and empty queries keep a full Cua snapshot for local alternative matching", async () => {
+    for (const query of ["recipient subject message body send", "Message Body", "Subject\tBody", "Subject\nBody", "Subject\u00a0Body", "", " \t "]) {
+      const f = fixture(), observed = await f.input.snapshot(undefined, { query });
+      const rpc = f.calls.find(call => call.args.snapshot_format);
+      expect(rpc?.args).not.toHaveProperty("query");
+      expect(rpc?.args).toMatchObject({ target_id: observed.target_id, tab_id: observed.tab_id, snapshot_format: "semantic_v2", include_screenshot: false });
+      expect(observed.refs.map(ref => ref.ref)).toEqual(["p17:1", "p17:2", "p17:3"]);
+      expect(mutations(f)).toEqual([]);
+    }
+  });
+
+  test("queried observations still reject wrong targets and expire all earlier references", async () => {
+    for (const mismatch of [{ target_id: "wrong-target" }, { tab_id: "wrong-tab" }]) {
+      const f = fixture(), old = await f.input.snapshot(); f.calls.length = 0;
+      f.snapshotState(mismatch);
+      await expect(f.input.snapshot(undefined, { query: "Subject" })).rejects.toThrow("Browser snapshot metadata");
+      expect(f.calls.filter(call => call.args.snapshot_format).map(call => call.args.query)).toEqual(["Subject"]);
+      await expect(f.input.act(old, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+      expect(mutations(f)).toEqual([]);
+    }
+    const f = fixture(), old = await f.input.snapshot();
+    f.onCall((name, args) => { if (name === "get_browser_state" && args.snapshot_format) f.mutateWindow({ ownerNonce: "replacement-owner" }); });
+    await expect(f.input.snapshot(undefined, { query: "Subject" })).rejects.toThrow("window changed");
+    await expect(f.input.act(old, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+    expect(mutations(f)).toEqual([]);
+  });
+
+  test("one read-only retry preserves the query and cannot accept changed page identity", async () => {
+    const f = fixture(), old = await f.input.snapshot(); f.calls.length = 0;
+    f.page({ title: "Another page", url: "https://other.example/" });
+    await expect(f.input.snapshot(undefined, { query: "Subject" })).rejects.toThrow("changed while observing");
+    expect(f.calls.filter(call => call.args.snapshot_format).map(call => call.args.query)).toEqual(["Subject", "Subject"]);
+    await expect(f.input.act(old, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+    expect(mutations(f)).toEqual([]);
+  });
+
+  test("an overlong query is rejected before any RPC and invalidates prior references", async () => {
+    const f = fixture(), old = await f.input.snapshot(); f.calls.length = 0;
+    await expect(f.input.snapshot(undefined, { query: "x".repeat(201) })).rejects.toThrow("at most 200");
+    await expect(f.input.act(old, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+    expect(f.calls).toEqual([]);
+    await f.input.snapshot(undefined, { query: "x".repeat(200) });
+    expect(f.calls.find(call => call.args.snapshot_format)?.args.query).toBe("x".repeat(200));
+  });
 
   test("canvas capture uses the native Cua screenshot pixel space and one explicit targeted foreground click",async()=>{
     const f=fixture(),page=await f.input.snapshot(),capture=await f.input.captureCanvas(page);
@@ -219,6 +506,8 @@ describe("existing Chrome binding", () => {
       for (const failure of [
         { message: "browser_consent_required: use browser_prepare", structured: false },
         { message: "Cua transport closed", structured: false },
+        { message: "This Cua hand was disconnected", structured: false },
+        { message: "Cua broker lease expired or disconnected", structured: false },
         { message: "this session has ended; call start_session explicitly", structured: false },
         { message: "browser_requires_setup", structured: true },
         { message: "Cua transport closed", structured: true },
@@ -263,7 +552,7 @@ describe("existing Chrome binding", () => {
   });
 
   test("a dialog can be inspected after a timed-out input without repeating input or blocked DOM reads", async () => {
-    const f = fixture(), snapshot = await f.input.snapshot();
+    const f = dialogFixture(), snapshot = await f.input.snapshot();
     f.onCall(name => { if (name === "browser_click") throw new Error("Runtime.callFunctionOn timed out after 20s"); });
     await expect(f.input.act(snapshot, { action: "click" }, "p17:1")).rejects.toThrow("timed out");
     const callsBefore = f.calls.length, observed = await f.input.inspectDialog();
@@ -274,7 +563,7 @@ describe("existing Chrome binding", () => {
   });
 
   test("dialog resolution re-attests the active tab and uses the exact inspected capability once", async () => {
-    const f = fixture(), snapshot = await f.input.snapshot(), observed = await f.input.inspectDialog();
+    const f = dialogFixture(), snapshot = await f.input.snapshot(), observed = await f.input.inspectDialog();
     await expect(f.input.act(snapshot, { action: "click" }, "p17:1")).rejects.toThrow("stale");
     await f.input.resolveDialog(observed, "accept", "dialog-7");
     expect(mutations(f)).toEqual([{ name: "browser_dialog", args: { target_id: observed.target_id, tab_id: observed.tab_id, action: "accept", dialog_id: "dialog-7", delivery_mode: "background", session: "account-test" } }]);
@@ -287,14 +576,14 @@ describe("existing Chrome binding", () => {
 
   test("inspection never automatically resolves any dialog kind", async () => {
     for (const kind of ["alert", "confirm", "prompt", "beforeunload", "other"]) {
-      const f = fixture(); f.dialog({ present: true, dialog_id: "dialog-7", kind });
+      const f = dialogFixture(); f.dialog({ present: true, dialog_id: "dialog-7", kind });
       expect(await f.input.inspectDialog()).toMatchObject({ present: true, kind });
       expect(mutations(f)).toEqual([]);
     }
   });
 
   test("absent, stale, replaced or malformed dialog capabilities cannot be resolved", async () => {
-    const f = fixture(), old = await f.input.inspectDialog();
+    const f = dialogFixture(), old = await f.input.inspectDialog();
     await expect(f.input.resolveDialog(old, "dismiss", "wrong-id")).rejects.toThrow("id does not match");
     const fresh = await f.input.inspectDialog();
     await expect(f.input.resolveDialog(old, "dismiss", "dialog-7")).rejects.toThrow("stale");
@@ -311,33 +600,33 @@ describe("existing Chrome binding", () => {
 
   test("dialog resolution rejects a changed native window, frame or active page before input", async () => {
     for (const change of [{ ownerNonce: "0000000000009999" }, { pid: 91 }, { title: "Another tab - Google Chrome" }, { rect: [1, 1, 1100, 800] as [number, number, number, number] }]) {
-      const f = fixture(), observed = await f.input.inspectDialog(); f.mutateWindow(change);
+      const f = dialogFixture(), observed = await f.input.inspectDialog(); f.mutateWindow(change);
       await expect(f.input.resolveDialog(observed, "accept", "dialog-7")).rejects.toThrow("window changed");
       expect(mutations(f)).toEqual([]);
     }
-    const f = fixture(), observed = await f.input.inspectDialog();
+    const f = dialogFixture(), observed = await f.input.inspectDialog();
     f.tabs([{ title: "Inbox", url: "https://other.example/", active: true }]);
     await expect(f.input.resolveDialog(observed, "dismiss", "dialog-7")).rejects.toThrow("active Chrome tab changed");
     expect(mutations(f)).toEqual([]);
   });
 
   test("cancellation or a correction during dialog revalidation consumes the inspection without input", async () => {
-    const f = fixture(), observed = await f.input.inspectDialog(), abort = new AbortController();
+    const f = dialogFixture(), observed = await f.input.inspectDialog(), abort = new AbortController();
     f.onCall(name => { if (name === "get_browser_state") abort.abort(); });
     await expect(f.input.resolveDialog(observed, "dismiss", "dialog-7", abort.signal)).rejects.toThrow();
     expect(mutations(f)).toEqual([]);
     await expect(f.input.resolveDialog(observed, "dismiss", "dialog-7")).rejects.toThrow("stale");
-    const g = fixture(), dialog = await g.input.inspectDialog(); let checks = 0;
+    const g = dialogFixture(), dialog = await g.input.inspectDialog(); let checks = 0;
     await expect(g.input.resolveDialog(dialog, "accept", "dialog-7", undefined, () => { if (++checks === 2) throw new Error("instruction changed"); })).rejects.toThrow("instruction changed");
     expect(mutations(g)).toEqual([]);
   });
 
   test("dialog attestation failure has no raw-input fallback and failed resolution cannot replay", async () => {
-    const f = fixture(); await f.input.attach();
+    const f = dialogFixture(); await f.input.attach();
     f.onCall(name => { if (name === "browser_dialog") throw new Error("Page.getFrameTree timed out after 20s"); });
     await expect(f.input.inspectDialog()).rejects.toThrow("Exact-tab/URL attestation must succeed");
     expect(mutations(f)).toEqual([]);
-    const g = fixture(), observed = await g.input.inspectDialog();
+    const g = dialogFixture(), observed = await g.input.inspectDialog();
     g.onCall((name, args) => { if (name === "browser_dialog" && args.action !== "inspect") throw new Error("resolution response lost"); });
     await expect(g.input.resolveDialog(observed, "accept", "dialog-7")).rejects.toThrow("response lost");
     await expect(g.input.resolveDialog(observed, "accept", "dialog-7")).rejects.toThrow("stale");
@@ -345,7 +634,7 @@ describe("existing Chrome binding", () => {
   });
 
   test("mismatched dialog resolution response cannot authorize later actions", async () => {
-    const f = fixture(), observed = await f.input.inspectDialog();
+    const f = dialogFixture(), observed = await f.input.inspectDialog();
     f.dialog({ present: true, dialog_id: "different-dialog", kind: "alert" });
     await expect(f.input.resolveDialog(observed, "accept", "dialog-7")).rejects.toThrow("did not confirm");
     await expect(f.input.resolveDialog(observed, "accept", "dialog-7")).rejects.toThrow("stale");

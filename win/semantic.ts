@@ -4,7 +4,7 @@
  * applied to Windows: exact snapshot tokens are used for native controls.
  */
 import type { Hand, InstalledApp } from "../desktop";
-import { createSemanticComputer, type Element, type PixelCapture, type Snapshot } from "../semantic-computer";
+import { createSemanticComputer, observedTabInventory, type Element, type PixelCapture, type Snapshot } from "../semantic-computer";
 import { attachExistingBrowser, browserTarget, browserWindow, captureBound, capturedImage, detachExistingBrowser, driver, existingBrowser, existingBrowserCandidates, frontOf, handBrowser, handState, launchInstalledApp, type RawWindow } from "./desktop";
 import type { ExistingBrowserSnapshot, ExistingCanvas, ExistingDialog } from "./browser";
 import { observeHand, pageSettled } from "./observe";
@@ -91,19 +91,48 @@ export function semanticComputer(hand: Hand, beforeInput: () => void = () => {})
       if (!observed.present || !dialog?.present || dialog.dialog_id !== observed.dialog_id) throw new Error("Inspect the current page dialog before resolving it.");
       await browser.resolveDialog(dialog, operation, observed.dialog_id, signal, beforeInput);
     },
+    async assertVisualTargetCurrent(snapshot, signal) {
+      const browser = existingBrowser(hand), canvas = snapshot.binding.canvas as ExistingCanvas | undefined;
+      const assertTarget = async () => {
+        signal?.throwIfAborted();
+        if (browserTarget(hand).mode !== "existing" || !browser || browser !== existingBrowser(hand)
+          || snapshot.binding.browser && snapshot.binding.browser !== browser || !canvas
+          || !snapshot.image || !snapshot.canvasCoordinates || snapshot.image.data !== canvas.image.data
+          || snapshot.canvasCoordinates.width !== canvas.width || snapshot.canvasCoordinates.height !== canvas.height) {
+          throw new Error("The existing canvas connection or its image changed. Observe again.");
+        }
+        const window = await front();
+        if (identity(window) !== snapshot.binding.window || identity(window) !== identity(canvas.window)
+          || window.title !== snapshot.title || window.title !== canvas.window.title
+          || window.rect.some((n, i) => n !== canvas.window.rect[i])) throw new Error("The canvas window changed before visual verification. Observe again.");
+        signal?.throwIfAborted();
+      };
+      await assertTarget();
+      await browser!.assertCanvasCurrent(canvas!, signal);
+      await assertTarget();
+    },
     async observe(options): Promise<Snapshot> {
       options.signal?.throwIfAborted();
       const window = await front();
       if (browserTarget(hand).mode === "existing") {
-        const observed = await existingBrowser(hand)!.snapshot(options.signal);
+        if(options.nativeCanvas&&!options.includeRefs){
+          const browser=existingBrowser(hand)!,canvas=await browser.captureVisual(options.signal),current=await front();
+          if(browser!==existingBrowser(hand)||identity(current)!==identity(window)||identity(canvas.window)!==identity(window)
+            ||current.title!==canvas.window.title||current.rect.some((n,i)=>n!==canvas.window.rect[i]))throw new Error("The existing Chrome window changed during visual capture. Observe again.");
+          return {kind:"browser",identity:`${identity(current)}:${canvas.binding.tab.url}`,title:current.title,url:canvas.binding.tab.url,
+            visualOnly:true,elements:[],texts:["Connected to the user's existing Chrome. Visual-only capture; DOM fields were not read."],
+            observedTabs:observedTabInventory(canvas.binding.tabs),image:canvas.image,canvasCoordinates:{width:canvas.width,height:canvas.height},
+            binding:{window:identity(current),size:current.rect.slice(2).join("x"),canvas,browser}};
+        }
+        const observed = await existingBrowser(hand)!.snapshot(options.signal, { query: options.query });
         const current = await front();
         if (identity(current) !== identity(window) || identity(observed.window) !== identity(window) || current.title !== observed.window.title
           || current.rect.slice(2).join("x") !== observed.window.rect.slice(2).join("x")) throw new Error("The existing Chrome window changed while observing it. Look again.");
         const elements = existingBrowserElements(observed.refs);
         const canvas=options.nativeCanvas?await existingBrowser(hand)!.captureCanvas(observed,options.signal):undefined;
         return { kind: "browser", identity: `${identity(current)}:${observed.url}`, title: current.title, url: observed.url, elements,
+          observedTabs: observedTabInventory(observed.tabs),
           texts: ["Connected to the user's existing Chrome. Only the active tab shown in the preview receives input.",
-            ...observed.tabs.slice(0, 8).map((tab) => `${tab.active === true ? "Active" : "Inactive"} tab: ${tab.title} ${tab.url}`),
             ...observed.outline.split("\n").filter((line) => !/password/i.test(line)).slice(0, 31)],
           ...(canvas?{image:canvas.image,canvasCoordinates:{width:canvas.width,height:canvas.height}}:options.screenshot || !elements.length ? await pixels(current) : {}),
           binding: { window: identity(current), size: current.rect.slice(2).join("x"), existing: observed,...(canvas?{canvas}: {}) } };
@@ -146,13 +175,15 @@ export function semanticComputer(hand: Hand, beforeInput: () => void = () => {})
       };
       const window = await checkTarget();
       const target = { pid: window.pid, window_id: window.containerId, session };
-      if (snapshot.binding.existing) {
+      if (snapshot.binding.existing || snapshot.binding.canvas) {
         if (browserTarget(hand).mode !== "existing") throw new Error("The existing Chrome connection changed after observation. Attach and look again.");
-        if(["canvas_click","canvas_drag","focused_text"].includes(action.action)){
+        if(snapshot.binding.browser&&snapshot.binding.browser!==existingBrowser(hand))throw new Error("The existing Chrome connection changed after visual capture. Observe again.");
+        if(["canvas_click","canvas_drag","focused_text"].includes(action.action)||action.action==="key"&&snapshot.binding.canvas){
           const canvas=snapshot.binding.canvas as ExistingCanvas|undefined;
           if(!canvas||!snapshot.image||!snapshot.canvasCoordinates)throw new Error("Take canvas_snapshot before canvas input.");
           await existingBrowser(hand)!.canvasAct(canvas,action,element?String(element.address.browser_ref):undefined,signal,beforeInput);return;
         }
+        if(!snapshot.binding.existing)throw new Error("This visual capture has no DOM refs. Take a semantic snapshot for this action.");
         await existingBrowser(hand)!.act(snapshot.binding.existing as ExistingBrowserSnapshot, action,
           element ? String(element.address.browser_ref) : undefined, signal, beforeInput);
         return;

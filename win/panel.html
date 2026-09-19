@@ -645,7 +645,10 @@ function updateTile(slot, w, s) {
   const name = tile.querySelector('.tile-name');
   name.dataset.hand = w.hand; setText(name, 'Hand ' + w.hand);
   setText(tile.querySelector('.tile-state'), STATE_WORD[state]);
-  setText(tile.querySelector('.tile-now'), artifact ? artifact.kind + ' · ' + (artifact.progress || artifact.phase) : labelOf(w.agent, state));
+  const phase = w.agent.running && w.browser?.mode === 'existing' ? w.browser.activity?.active : null;
+  const phaseName = ({native_check:'Checking window',bind_rpc:'Checking browser target',snapshot_rpc:'Reading page',capture_rpc:'Capturing browser view',action_rpc:'Applying browser input',prepare_rpc:'Connecting browser'})[phase?.phase];
+  const phaseText = phaseName && Number.isFinite(phase.startedAt) ? phaseName + ' · ' + Math.max(0, Math.floor((Date.now() - phase.startedAt) / 1000)) + 's' : null;
+  setText(tile.querySelector('.tile-now'), artifact ? artifact.kind + ' · ' + (artifact.progress || artifact.phase) : phaseText || labelOf(w.agent, state));
   const spoken = s.listener.tasks.find(t => t.hand === w.hand && (t.status === 'running' || t.status === 'waiting'));
   setText(tile.querySelector('.tile-task'), (w.agent.running && w.agent.task) || spoken?.request || (state === 'error' && w.agent.error) || '');
   renderTimeline(tile.querySelector('.tile-phases'), artifact);

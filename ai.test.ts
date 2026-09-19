@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { planAppOpen } from "./evals";
 import { tmpdir } from "node:os";
 import { createSemanticComputer, type PixelCapture, type Snapshot } from "./semantic-computer";
+import type { VisualTargetModel } from "./visual-target";
 
 const context: GateContext = {
   task: "Read the documentation",
@@ -467,15 +468,19 @@ test("semantic reads skip the gate while writes keep the grounded target and den
 
 describe("canvas observation privilege", () => {
   const capture = { name: "computer_browser", arguments: { action: "canvas_snapshot" } };
+  const visualTargetModel: VisualTargetModel = async prompt => ({ stopReason: "stop", text: JSON.stringify({
+    start: { category: "canvas", label: "Visible drawing canvas", uncertainty: "low" },
+    end: prompt.includes('"action":"canvas_drag"') ? { category: "canvas", label: "Visible drawing canvas", uncertainty: "low" } : null,
+  }) });
   const state = async () => ({ width: 800, height: 600, windows: [], browser: { mode: "existing", pid: 101, window_id: 202, ownerNonce: "0123456789abcdef" } });
   const page = (nativeCanvas?: boolean): Snapshot => ({ kind: "browser", identity: "fixture", title: "Canvas", url: "https://example.test/", texts: [],
     elements: [{ key: "title", role: "textbox", name: "Title", editable: true, address: {} }],
-    binding: nativeCanvas ? { canvas: { private: true } } : {},
+    binding: nativeCanvas ? { window: "fixture-owner", canvas: { private: true } } : {},
     ...(nativeCanvas ? { image: { type: "image", mimeType: "image/png", data: fakePng() }, canvasCoordinates: { width: 800, height: 600 } } : {}) });
 
   test("more than thirty canvas captures neither invoke the mutation gate nor consume its budget", async () => {
     let captures = 0, inputs = 0; const checked: GateContext[] = [];
-    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute, visualTargetModel,
       desktop: { ...fakeDesktop, state, semantic: (_hand, guard) => createSemanticComputer({ windows: async () => [],
         observe: async options => { if (options.nativeCanvas) captures++; return page(options.nativeCanvas); }, act: async () => { inputs++; },
       }, guard) },
@@ -484,7 +489,8 @@ describe("canvas observation privilege", () => {
     });
     try {
       await runtime.prompt("Inspect the canvas repeatedly, then click the observed point once");
-      expect(captures).toBe(31); expect(inputs).toBe(1); expect(checked).toHaveLength(1);
+      // The single input returns one fresh visual capture for the next action.
+      expect(captures).toBe(32); expect(inputs).toBe(1); expect(checked).toHaveLength(1);
       expect(checked[0]!.action).toMatchObject({ tool: "computer_browser", args: { action: "canvas_click", delivery: "foreground" }, observedTarget: { canvasCoordinates: { width: 800, height: 600 } } });
       expect(runtime.status().error).toBeNull();
       expect(JSON.stringify(runtime.agent.state.messages)).not.toContain("30-action limit");
@@ -498,7 +504,7 @@ describe("canvas observation privilege", () => {
       { action: "focused_text", ref: "p1:0", text: "Proposed title" },
     ]) {
       const checked: GateContext[] = [], verdict = Promise.withResolvers<GateResult>(); let inputs = 0;
-      const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+      const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute, visualTargetModel,
         desktop: { ...fakeDesktop, state, semantic: (_hand, guard) => createSemanticComputer({ windows: async () => [],
           observe: async options => page(options.nativeCanvas), act: async () => { inputs++; },
         }, guard) },
@@ -516,6 +522,177 @@ describe("canvas observation privilege", () => {
         expect(JSON.stringify(runtime.agent.state.messages)).toContain("instruction changed during the action check");
       } finally { verdict.resolve(allow); await runtime.close(); }
     }
+  });
+
+  const pointer = { name: "computer_browser", arguments: { action: "canvas_click", delivery: "foreground", x: 80, y: 18 } };
+  test("canvas approval rechecks original pixels and cannot authorize a same-URL overlay or blind retry", async () => {
+    for (const changedPixels of [false, true]) for (const input of [pointer, { name: "computer_browser", arguments: { action: "canvas_drag", delivery: "foreground", x: 80, y: 18, to_x: 160, to_y: 90 } }]) {
+      let pixels = fakePng(), assessments = 0, gates = 0, checks = 0, inputs = 0;
+      const observed = page(true);
+      const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+        visualTargetModel: async (...args) => { assessments++; return visualTargetModel(...args); },
+        desktop: { ...fakeDesktop, state, semantic: (_hand, guard) => createSemanticComputer({ windows: async () => [],
+          observe: async () => observed,
+          assertVisualTargetCurrent: async snapshot => {
+            checks++; expect(snapshot).toBe(observed);
+            // URL, title, owner and dimensions are unchanged. A read-only
+            // backend check compares new bytes without publishing a new frame.
+            if (snapshot.image?.data !== pixels) throw new Error("The canvas pixels changed during review. Take a fresh canvas snapshot.");
+          },
+          act: async () => { inputs++; },
+        }, guard) },
+        gate: async () => { gates++; return { decision: "approval", risk: 0.9, reason: "Review the exact visual target" }; },
+        streamFn: scriptedModel([capture, input, ...(changedPixels ? [input] : [])]),
+      });
+      try {
+        const pending = runtime.prompt("Make the requested canvas edit."); await until(() => Boolean(runtime.status().approval));
+        expect(checks).toBe(0); expect(inputs).toBe(0);
+        if (changedPixels) pixels = Buffer.concat([Buffer.from(pixels, "base64"), Buffer.from([1])]).toString("base64");
+        expect(runtime.approve(runtime.status().approval!.id, true)).toBe(true);
+        await pending;
+        expect({ assessments, gates, checks, inputs }).toEqual({ assessments: 1, gates: 1, checks: 1, inputs: changedPixels ? 0 : 1 });
+        if (changedPixels) expect(JSON.stringify(runtime.agent.state.messages)).toContain("pixels changed during review");
+      } finally { await runtime.close(); }
+    }
+  });
+
+  test("a correction or stop during approved-image revalidation prevents canvas input", async () => {
+    for (const cancel of [false, true]) {
+      const checked = Promise.withResolvers<void>(); let rechecking = false, inputs = 0;
+      const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute, visualTargetModel,
+        desktop: { ...fakeDesktop, state, semantic: (_hand, guard) => createSemanticComputer({ windows: async () => [],
+          observe: async options => page(options.nativeCanvas),
+          assertVisualTargetCurrent: async () => { rechecking = true; await checked.promise; },
+          act: async () => { inputs++; },
+        }, guard) }, gate: async () => ({ decision: "approval", risk: 0.9, reason: "Review" }), streamFn: scriptedModel([capture, pointer]),
+      });
+      try {
+        const pending = runtime.prompt("Click the visible point."); await until(() => Boolean(runtime.status().approval));
+        runtime.approve(runtime.status().approval!.id, true); await until(() => rechecking);
+        if (cancel) runtime.stop(); else runtime.refine("Only inspect; do not click.");
+        checked.resolve(); await pending;
+        expect(inputs).toBe(0);
+      } finally { checked.resolve(); await runtime.close(); }
+    }
+  });
+
+  test("a canvas pointer gets explicit visual inference before the unchanged gate, without sending PNG data to Jev", async () => {
+    const order: string[] = [], checked: GateContext[] = [];
+    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+      visualTargetModel: async (prompt, options) => { order.push("assessment"); expect(options.model).toBe("gpt-6-astra"); return visualTargetModel(prompt, options); },
+      desktop: { ...fakeDesktop, state, semantic: (_hand, guard) => createSemanticComputer({ windows: async () => [],
+        observe: async options => page(options.nativeCanvas), act: async () => { order.push("input"); },
+      }, guard) },
+      gate: async context => { order.push("gate"); checked.push(context); return allow; }, streamFn: scriptedModel([capture, pointer]),
+    });
+    try {
+      await runtime.prompt("Click the visible drawing canvas once.");
+      expect(order).toEqual(["assessment", "gate", "input"]);
+      expect(checked[0]!.authorization).toBe("Click the visible drawing canvas once.");
+      expect(checked[0]!.action).toMatchObject({ observedTarget: { visualTarget: {
+        kind: "model-inference", model: "gpt-6-astra", inference: { start: { category: "canvas", uncertainty: "low" } },
+        evidencePolicy: expect.stringContaining("not ground truth or authorization"),
+      } } });
+      expect(JSON.stringify(checked)).not.toContain(fakePng());
+      expect(runtime.status().events.some(event => /Visual target described in \d+ ms/.test(event.text))).toBe(true);
+    } finally { await runtime.close(); }
+  });
+
+  test("clear visual inference cannot override Jev denial or trigger an automatic pointer retry", async () => {
+    let assessments = 0, gates = 0, inputs = 0;
+    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+      visualTargetModel: async (...args) => { assessments++; return visualTargetModel(...args); },
+      desktop: { ...fakeDesktop, state, semantic: (_hand, guard) => createSemanticComputer({ windows: async () => [],
+        observe: async options => page(options.nativeCanvas), act: async () => { inputs++; },
+      }, guard) },
+      gate: async () => { gates++; return { decision: "blocked", risk: 0.78, reason: "Fixture denied exact pointer scope" }; },
+      streamFn: scriptedModel([capture, pointer, pointer]),
+    });
+    try {
+      await runtime.prompt("Inspect the visible drawing canvas.");
+      expect({ assessments, gates, inputs }).toEqual({ assessments: 1, gates: 1, inputs: 0 });
+      expect(runtime.status().error).toBe("Fixture denied exact pointer scope");
+    } finally { await runtime.close(); }
+  });
+
+  test("unclear targets and unavailable images fail before Jev or input", async () => {
+    for (const unavailable of [false, true]) {
+      let assessments = 0, gates = 0, inputs = 0;
+      const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+        visualTargetModel: async () => { assessments++; return { stopReason: "stop", text: JSON.stringify({ start: { category: "unknown", label: "Unidentified region", uncertainty: "high" }, end: null }) }; },
+        desktop: { ...fakeDesktop, state, semantic: (_hand, guard) => createSemanticComputer({ windows: async () => [],
+          observe: async options => { const result = page(options.nativeCanvas); if (unavailable) delete result.image; return result; }, act: async () => { inputs++; },
+        }, guard) },
+        gate: async () => { gates++; return allow; }, streamFn: scriptedModel([capture, pointer]),
+      });
+      try {
+        await runtime.prompt("Click the visible point.");
+        expect(gates).toBe(0); expect(inputs).toBe(0); expect(assessments).toBe(unavailable ? 0 : 1);
+      } finally { await runtime.close(); }
+    }
+  });
+
+  test("new observations during assessment, state lookup or gate and reset after gate validation prevent stale visual dispatch", async () => {
+    for (const stage of ["assessment", "state", "gate", "execute"] as const) {
+      let semantic: ReturnType<typeof createSemanticComputer>, assessed = false, changed = false, inputs = 0, gates = 0;
+      const replace = async () => { changed = true; await semantic.browser({ action: "canvas_snapshot" }); };
+      const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+        visualTargetModel: async (...args) => { assessed = true; if (stage === "assessment") await replace(); return visualTargetModel(...args); },
+        desktop: { ...fakeDesktop, state: async () => { if (stage === "state" && assessed && !changed) await replace(); return state(); },
+          semantic: (_hand, guard) => {
+            const computer = createSemanticComputer({ windows: async () => [], observe: async options => page(options.nativeCanvas), act: async () => { inputs++; } }, guard);
+            semantic = { ...computer, visualTargetFrame: () => {
+              const frame = computer.visualTargetFrame();
+              // A state change queued after post-gate validation must still be
+              // rejected by the separate consumption guard at tool execution.
+              if (stage === "execute" && gates > 0 && !changed) { changed = true; queueMicrotask(() => computer.reset()); }
+              return frame;
+            } };
+            return semantic;
+          },
+        },
+        gate: async () => { gates++; if (stage === "gate") await replace(); return allow; }, streamFn: scriptedModel([capture, pointer]),
+      });
+      try {
+        await runtime.prompt("Click the current visible target.");
+        expect(changed).toBe(true); expect(inputs).toBe(0);
+        expect(gates).toBe(stage === "gate" || stage === "execute" ? 1 : 0);
+      } finally { await runtime.close(); }
+    }
+  });
+
+  test("a correction or stop revokes pending visual inference even when the model ignores abort", async () => {
+    for (const cancel of [false, true]) {
+      const answer = Promise.withResolvers<Awaited<ReturnType<VisualTargetModel>>>();
+      let called = false, assessorSignal: AbortSignal | undefined, gates = 0, inputs = 0;
+      const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+        visualTargetModel: async (_prompt, options) => { called = true; assessorSignal = options.signal; return answer.promise; },
+        desktop: { ...fakeDesktop, state, semantic: (_hand, guard) => createSemanticComputer({ windows: async () => [],
+          observe: async options => page(options.nativeCanvas), act: async () => { inputs++; },
+        }, guard) }, gate: async () => { gates++; return allow; }, streamFn: scriptedModel([capture, pointer]),
+      });
+      try {
+        const running = runtime.prompt("Click the visible point."); await until(() => called);
+        expect(runtime.status().currentTool).toContain("Assessing visual target");
+        if (cancel) runtime.stop(); else runtime.refine("Only inspect; do not click.");
+        await running;
+        expect(assessorSignal?.aborted).toBe(true); expect(gates).toBe(0); expect(inputs).toBe(0);
+      } finally { answer.resolve({ stopReason: "stop", text: "{}" }); await runtime.close(); }
+    }
+  });
+
+  test("an uncertain pointer input consumes its certificate and cannot be replayed without a new image", async () => {
+    let assessments = 0, gates = 0, inputs = 0;
+    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+      visualTargetModel: async (...args) => { assessments++; return visualTargetModel(...args); },
+      desktop: { ...fakeDesktop, state, semantic: (_hand, guard) => createSemanticComputer({ windows: async () => [],
+        observe: async options => page(options.nativeCanvas), act: async () => { inputs++; throw new Error("Fixture input outcome is uncertain; do not replay"); },
+      }, guard) }, gate: async () => { gates++; return allow; }, streamFn: scriptedModel([capture, pointer, pointer]),
+    });
+    try {
+      await runtime.prompt("Click the visible point once.");
+      expect({ assessments, gates, inputs }).toEqual({ assessments: 1, gates: 1, inputs: 1 });
+    } finally { await runtime.close(); }
   });
 });
 

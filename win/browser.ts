@@ -222,7 +222,7 @@ type ExistingRef = { ref: string; role: string; name: string; value?: string; st
 type ExistingTab = { tab_id: string; title: string; url: string; active: boolean | null };
 type ExistingPage = { target_id: string; tab_id: string; title: string; url: string; tabs: ExistingTab[]; refs: ExistingRef[]; outline: string; snapshot_id: string; window: ExistingBrowserWindow };
 type ExistingBinding = { target_id: string; tab: ExistingTab; tabs: ExistingTab[]; window: ExistingBrowserWindow };
-export type ExistingCanvas = { page:ExistingPage; window:ExistingBrowserWindow; width:number;height:number; image:{type:"image";mimeType:"image/png";data:string};digest:string };
+export type ExistingCanvas = { binding:ExistingBinding; generation:number; page?:ExistingPage; window:ExistingBrowserWindow; width:number;height:number; image:{type:"image";mimeType:"image/png";data:string};digest:string };
 export type ExistingDialog = { target_id: string; tab_id: string; title: string; url: string; window: ExistingBrowserWindow } &
   ({ present: false } | { present: true; dialog_id: string; kind: "alert" | "confirm" | "prompt" | "beforeunload" | "other" });
 type ExistingAction = { action: string; url?: string; text?: string; replace?: boolean; key?: string; direction?: string; amount?: number; delivery?: "background" | "foreground";x?:number;y?:number;to_x?:number;to_y?:number };
@@ -237,13 +237,15 @@ const sameBrowserUrl = (a: string | undefined, b: string | undefined) => a === b
 class BrowserObservationChanged extends Error {}
 
 export type ExistingBrowserTiming = {
-  phase: "native_check" | "bind_rpc" | "snapshot_rpc" | "action_rpc" | "prepare_rpc";
+  phase: "native_check" | "bind_rpc" | "snapshot_rpc" | "capture_rpc" | "action_rpc" | "prepare_rpc";
   sequence: number;
   event: "start" | "end";
   durationMs?: number;
   outcome?: "ok" | "failed" | "cancelled";
 };
-type ExistingBrowserDiagnostics = { timing?: (event: ExistingBrowserTiming) => void; now?: () => number };
+export type ExistingBrowserActivity = { active?: { phase: ExistingBrowserTiming["phase"]; sequence: number; startedAt: number };
+  last?: { phase: ExistingBrowserTiming["phase"]; sequence: number; durationMs: number; outcome: "ok" | "failed" | "cancelled" } };
+type ExistingBrowserDiagnostics = { timing?: (event: ExistingBrowserTiming) => void; now?: () => number; epochNow?: () => number };
 
 export function existingBrowserInput(call: CuaConnection["call"], current: () => Promise<ExistingBrowserWindow>, session = `puk-existing-${crypto.randomUUID()}`,
   beforePrepare?: (window: ExistingBrowserWindow) => Promise<void>, diagnostics: ExistingBrowserDiagnostics = {}) {
@@ -256,6 +258,9 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
   let generation = 0;
   let timingSequence = 0;
   const now = diagnostics.now ?? (() => performance.now());
+  const epochNow = diagnostics.epochNow ?? (() => Date.now());
+  const activePhases = new Map<number, NonNullable<ExistingBrowserActivity["active"]>>();
+  let lastPhase: ExistingBrowserActivity["last"];
   const emitTiming = (event: ExistingBrowserTiming) => {
     // The event is constructed only from fixed phase labels, counters and time.
     // Never include arguments, window identity, URL, title, refs or errors.
@@ -263,10 +268,16 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
   };
   const timed = async <T>(phase: ExistingBrowserTiming["phase"], signal: AbortSignal | undefined, work: () => Promise<T>): Promise<T> => {
     const sequence = ++timingSequence, started = now();
+    activePhases.set(sequence, { phase, sequence, startedAt: epochNow() });
     emitTiming({ phase, sequence, event: "start" });
     let outcome: ExistingBrowserTiming["outcome"] = "failed";
     try { const result = await work(); outcome = "ok"; return result; }
-    finally { emitTiming({ phase, sequence, event: "end", durationMs: Math.max(0, Math.round(now() - started)), outcome: signal?.aborted ? "cancelled" : outcome }); }
+    finally {
+      const completed = { phase, sequence, durationMs: Math.max(0, Math.round(now() - started)), outcome: signal?.aborted ? "cancelled" as const : outcome };
+      activePhases.delete(sequence); // End only this phase; overlapping work survives.
+      if (!lastPhase || sequence > lastPhase.sequence) lastPhase = completed;
+      emitTiming({ ...completed, event: "end" });
+    }
   };
   const check = async (signal?: AbortSignal, expected?: ExistingBrowserWindow, frame = false) => timed("native_check", signal, async () => {
     signal?.throwIfAborted();
@@ -279,7 +290,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     return { ...window, rect: [...window.rect] as Rect };
   });
   const invalidateExpiredBinding = (message: string) => {
-    if (/session (?:has ended|'[^']*' has ended)|persistent Cua connection is disconnected|Cua transport closed|browser_(?:consent_required|requires_setup)/i.test(message)) {
+    if (/session (?:has ended|'[^']*' has ended)|persistent Cua connection is disconnected|Cua transport closed|This Cua hand was disconnected|Cua broker lease expired or disconnected|browser_(?:consent_required|requires_setup)/i.test(message)) {
       healthy = false; currentPage = undefined; currentDialog = undefined; currentCanvas = undefined; lastBinding = undefined; generation++;
     }
   };
@@ -297,7 +308,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     return reply;
   };
   const invoke = async (name: string, args: Record<string, unknown>, signal?: AbortSignal) => timed(
-    name === "get_browser_state" ? args.target_id ? "snapshot_rpc" : "bind_rpc" : name === "browser_prepare" ? "prepare_rpc" : "action_rpc", signal, async () => {
+    name === "get_browser_state" ? args.target_id ? "snapshot_rpc" : "bind_rpc" : name === "browser_dialog" && args.action === "inspect" ? "bind_rpc" : name === "browser_prepare" ? "prepare_rpc" : "action_rpc", signal, async () => {
     signal?.throwIfAborted();
     if (closed) throw new Error("This existing-browser binding has been released. Attach and look again.");
     const reply = await callBound(name, { ...args, session }, signal);
@@ -351,10 +362,56 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
       throw new Error(`Cua could not ${args.action === "inspect" ? "inspect" : "resolve"} the page dialog. Exact-tab/URL attestation must succeed; no alternate input was sent. Inspect again before any resolution retry. Cause: ${String(error)}`);
     }
   };
+  const attestCanvasBinding = async (binding: ExistingBinding, signal?: AbortSignal) => {
+    // Each bind mints fresh opaque IDs. Re-attest the original capability instead
+    // of comparing those new IDs or accepting a replacement with the same URL.
+    // Public browser_dialog inspect revalidates its underlying CDP page/window
+    // and live origin without traversing the DOM or resolving any dialog.
+    const result = await dialogCall({ target_id: binding.target_id, tab_id: binding.tab.tab_id, action: "inspect" }, signal);
+    if (result.target_id !== binding.target_id || result.tab_id !== binding.tab.tab_id || typeof result.present !== "boolean") {
+      throw new Error("Cua could not re-attest the original canvas tab. Take a fresh observation; no canvas input was sent.");
+    }
+    if (result.present) throw new Error("A page-owned JavaScript dialog blocks canvas input. Use browser dialog inspect, then resolve that exact observed dialog through the normal dialog action before taking canvas_snapshot again.");
+  };
+  const captureBoundCanvas = async <P extends ExistingPage | undefined>(binding: ExistingBinding, revision: number, page: P, signal?: AbortSignal, publish = true): Promise<ExistingCanvas & { page: P }> => {
+    const window = await check(signal, binding.window, true);
+    if (window.rect.some((n, i) => n !== binding.window.rect[i])) throw new Error("The browser moved before its canvas capture. Observe again.");
+    const pixels = await timed("capture_rpc", signal, async () => {
+      const reply = await callBound("get_window_state", { pid: window.pid, window_id: window.containerId, session,
+        include_screenshot: true, include_accessibility_tree: false, max_dimension: 1280 }, signal);
+      signal?.throwIfAborted();
+      const state = reply.structuredContent as Record<string, unknown> | undefined;
+      if (reply.isError || state?.status !== undefined && state.status !== "ok"
+        || state?.effect !== undefined && !["confirmed", "unverifiable"].includes(String(state.effect))) throw new Error("Cua refused the exact-window canvas screenshot.");
+      const image = reply.content.find(x => x.type === "image" && x.mimeType === "image/png");
+      if (!image || image.type !== "image") throw new Error("Cua did not return a PNG canvas screenshot; no coordinate transform is available.");
+      const bytes = Buffer.from(image.data, "base64");
+      if (bytes.length < 24 || !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) throw new Error("Invalid native canvas PNG.");
+      const width = bytes.readUInt32BE(16), height = bytes.readUInt32BE(20);
+      if (width < 1 || height < 1 || width > 1280 || height > 1280
+        || typeof state?.screenshot_width === "number" && state.screenshot_width !== width
+        || typeof state?.screenshot_height === "number" && state.screenshot_height !== height) throw new Error("Unknown Cua canvas screenshot geometry; no input is allowed.");
+      return { width, height, image: { type: "image" as const, mimeType: "image/png" as const, data: image.data }, digest: Bun.hash(image.data).toString(16) };
+    });
+    const active = await bind(signal, window);
+    await attestCanvasBinding(binding, signal);
+    const after = await check(signal, window, true);
+    if (after.rect.some((n, i) => n !== window.rect[i]) || active.tab.title !== binding.tab.title || !sameBrowserUrl(active.tab.url, binding.tab.url)
+      || revision !== generation || currentPage !== page) throw new Error("The browser moved or changed while its canvas was captured. Observe again.");
+    // Native Cua pointer tools consume their own screenshot pixels. No helper
+    // inset, CSS conversion or guessed DPI scale, and no synthesized DOM refs.
+    const capture = { binding, generation: revision, page, window, ...pixels };
+    if (publish) currentCanvas = capture;
+    return capture;
+  };
   return {
     healthy: () => healthy && !closed,
+    activity(): ExistingBrowserActivity {
+      const active = [...activePhases.values()].at(-1);
+      return { ...(active ? { active: { ...active } } : {}), ...(lastPhase ? { last: { ...lastPhase } } : {}) };
+    },
     async attach(signal?: AbortSignal, options: { allowPrepare?: boolean } = {}) {
-      currentPage = undefined; currentDialog = undefined; generation++;
+      currentPage = undefined; currentDialog = undefined; currentCanvas = undefined; generation++;
       try {
         try { await bindForAttach(signal); }
         catch (error) {
@@ -389,12 +446,19 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
       }
       healthy = true;
     },
-    async snapshot(signal?: AbortSignal, retry = 0): Promise<ExistingPage> {
+    async snapshot(signal?: AbortSignal, options: { query?: string } = {}, retry = 0): Promise<ExistingPage> {
+      const query = options.query;
       try {
       const observedGeneration = ++generation;
-      currentPage = undefined; currentDialog = undefined;
+      currentPage = undefined; currentDialog = undefined; currentCanvas = undefined;
+      if (query !== undefined && (typeof query !== "string" || query.length > 200)) throw new Error("Browser observation query must be a string of at most 200 characters.");
       const bound = await bind(signal);
-      const result = await invoke("get_browser_state", { target_id: bound.target_id, tab_id: bound.tab.tab_id, snapshot_format: "semantic_v2", include_screenshot: false }, signal);
+      // Cua 0.28.2 supports query, but its public schema does not define how
+      // multiple words combine. Keep our local OR projection on a full snapshot
+      // for multiword queries until that contract is verified; only forward one token.
+      const token = query?.trim();
+      const result = await invoke("get_browser_state", { target_id: bound.target_id, tab_id: bound.tab.tab_id, snapshot_format: "semantic_v2", include_screenshot: false,
+        ...(token && !/\s/u.test(token) ? { query: token } : {}) }, signal);
       const page = result.page as { title?: string; url?: string } | undefined;
       const snapshot = result.snapshot as { id?: string; format?: string } | undefined;
       if (result.mode !== "snapshot" || result.target_id !== bound.target_id || result.tab_id !== bound.tab.tab_id
@@ -437,13 +501,13 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
         // refs and retry once on the same owned window, without reconnecting,
         // repeating input, or asking an expressive model to rediscover this.
         signal?.throwIfAborted();
-        if (retry === 0 && error instanceof BrowserObservationChanged) return this.snapshot(signal,1);
+        if (retry === 0 && error instanceof BrowserObservationChanged) return this.snapshot(signal, { query }, 1);
         throw error;
       }
     },
     async inspectDialog(signal?: AbortSignal): Promise<ExistingDialog> {
       const observedGeneration = ++generation;
-      currentPage = undefined; currentDialog = undefined;
+      currentPage = undefined; currentDialog = undefined; currentCanvas = undefined;
       // A dialog can block DOM/AX reads after an input timed out. Retain only
       // the last exact binding, never its element refs, and require the native
       // window identity/title/frame to remain the same. Cua re-attests the tab.
@@ -482,32 +546,43 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
         signal?.throwIfAborted(); beforeInput();
       } catch (error) { currentDialog = undefined; currentPage = undefined; generation++; throw error; }
     },
-    async captureCanvas(observed:ExistingPage,signal?:AbortSignal):Promise<ExistingCanvas>{
+    async captureCanvas(observed:ExistingPage,signal?:AbortSignal):Promise<ExistingCanvas & {page:ExistingPage}>{
       currentCanvas=undefined;
       if(currentPage!==observed)throw new Error("Take a fresh browser observation before canvas capture.");
-      const revision=generation,window=await check(signal,observed.window,true);
-      const reply=await callBound("get_window_state",{pid:window.pid,window_id:window.containerId,session,include_screenshot:true,include_accessibility_tree:false,max_dimension:1280},signal);
-      signal?.throwIfAborted();
-      const state=reply.structuredContent as Record<string,unknown>|undefined;
-      if(reply.isError||state?.status!==undefined&&state.status!=="ok"||state?.effect!==undefined&&!["confirmed","unverifiable"].includes(String(state.effect)))throw new Error("Cua refused the exact-window canvas screenshot.");
-      const image=reply.content.find(x=>x.type==="image"&&x.mimeType==="image/png");
-      if(!image||image.type!=="image")throw new Error("Cua did not return a PNG canvas screenshot; no coordinate transform is available.");
-      const bytes=Buffer.from(image.data,"base64");
-      if(bytes.length<24||!bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))throw new Error("Invalid native canvas PNG.");
-      const width=bytes.readUInt32BE(16),height=bytes.readUInt32BE(20);
-      if(width<1||height<1||width>1280||height>1280||typeof state?.screenshot_width==="number"&&state.screenshot_width!==width||typeof state?.screenshot_height==="number"&&state.screenshot_height!==height)throw new Error("Unknown Cua canvas screenshot geometry; no input is allowed.");
-      const active=await bind(signal,window),after=await check(signal,window,true);
-      if(after.rect.some((n,i)=>n!==window.rect[i])||active.tab.title!==observed.title||!sameBrowserUrl(active.tab.url,observed.url)||revision!==generation||currentPage!==observed)throw new Error("The browser moved or changed while its canvas was captured. Observe again.");
-      // Native Cua pointer tools use the pixels of their own window screenshot.
-      // No helper-frame inset, viewport CSS conversion or guessed DPI scale.
-      currentCanvas={page:observed,window,width,height,image:{type:"image",mimeType:"image/png",data:image.data},digest:Bun.hash(image.data).toString(16)};
-      return currentCanvas;
+      const binding:ExistingBinding={target_id:observed.target_id,tab:{tab_id:observed.tab_id,title:observed.title,url:observed.url,active:true},tabs:observed.tabs,window:observed.window};
+      return captureBoundCanvas(binding,generation,observed,signal);
+    },
+    async captureVisual(signal?:AbortSignal):Promise<ExistingCanvas>{
+      const revision=++generation;
+      currentCanvas=undefined;currentPage=undefined;currentDialog=undefined;
+      const binding=await bind(signal);
+      return captureBoundCanvas(binding,revision,undefined,signal);
+    },
+    async assertCanvasCurrent(capture: ExistingCanvas, signal?: AbortSignal) {
+      try {
+        signal?.throwIfAborted();
+        if (currentCanvas !== capture || generation !== capture.generation || currentPage !== capture.page) throw new Error("The native canvas capture is stale. Take canvas_snapshot again.");
+        // Read-only revalidation must never publish new pixels under an approval
+        // for the original image, nor replace its one-use opaque capability.
+        const fresh = await captureBoundCanvas(capture.binding, capture.generation, capture.page, signal, false);
+        signal?.throwIfAborted();
+        if (currentCanvas !== capture || generation !== capture.generation || currentPage !== capture.page) throw new Error("A newer observation replaced the canvas verification.");
+        if (fresh.width !== capture.width || fresh.height !== capture.height
+          || !Buffer.from(fresh.image.data, "base64").equals(Buffer.from(capture.image.data, "base64"))) {
+          throw new Error("The canvas pixels changed after observation or approval. Take canvas_snapshot and assess the new image; no input was sent.");
+        }
+      } catch (error) {
+        // Do not erase a newer observation if this read was superseded. The old
+        // capability is already stale in that case; all other failures revoke it.
+        if (currentCanvas === capture) { currentCanvas = undefined; currentPage = undefined; currentDialog = undefined; generation++; }
+        throw error;
+      }
     },
     async canvasAct(capture:ExistingCanvas,action:ExistingAction,reference?:string,signal?:AbortSignal,beforeInput=()=>{}){
-      if(currentCanvas!==capture||currentPage!==capture.page)throw new Error("The native canvas capture is stale. Take canvas_snapshot again.");
+      if(currentCanvas!==capture||generation!==capture.generation||currentPage!==capture.page)throw new Error("The native canvas capture is stale. Take canvas_snapshot again.");
       currentCanvas=undefined;currentPage=undefined;currentDialog=undefined;const revision=++generation;
-      const observed=capture.page;
-      if(action.delivery!=="foreground"||!["canvas_click","canvas_drag","focused_text"].includes(action.action))throw new Error("Canvas input requires an explicit foreground canvas action.");
+      const observed=capture.page,bound=capture.binding;
+      if(action.delivery!=="foreground"||!["canvas_click","canvas_drag","focused_text","key"].includes(action.action))throw new Error("Canvas input requires an explicit foreground canvas action or key.");
       const point=(x:number|undefined,y:number|undefined)=>{
         if(typeof x!=="number"||typeof y!=="number"||!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=capture.width||y>=capture.height)throw new Error("Canvas coordinates must be integer pixels inside the current Cua screenshot.");
         if(x===0&&y===0)throw new Error("Choose a nonzero canvas point; Cua treats (0,0) specially.");return {x,y};
@@ -515,7 +590,14 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
       let name:string,args:Record<string,unknown>,focused:ExistingRef|undefined;
       if(action.action==="canvas_click") {name="click";args={...point(action.x,action.y),button:"left"};}
       else if(action.action==="canvas_drag") {const a=point(action.x,action.y),b=point(action.to_x,action.to_y);if(a.x===b.x&&a.y===b.y)throw new Error("Canvas drag needs distinct endpoints.");name="drag";args={from_x:a.x,from_y:a.y,to_x:b.x,to_y:b.y,steps:16,duration_ms:320};}
+      else if(action.action==="key") {
+        if(reference)throw new Error("A foreground key from a canvas capture uses current keyboard focus, not a semantic ref.");
+        const keys=(action.key??"").toLowerCase().split("+").map(key=>key.trim()).filter(Boolean);
+        if(!keys.length)throw new Error("A key or chord is required.");
+        name=keys.length>1?"hotkey":"press_key";args=keys.length>1?{keys}:{key:keys[0]};
+      }
       else {
+        if(!observed)throw new Error("focused_text requires canvas_snapshot include_refs:true and a proven focused editable ref. Visual captures have no DOM refs.");
         focused=observed.refs.find(r=>r.ref===reference&&r.states?.focused===true&&r.actions?.includes("type")&&r.states?.protected!==true&&!/password/i.test(r.role));
         if(!focused||typeof action.text!=="string"||!action.text.length||action.text.length>8000)throw new Error("focused_text requires a currently focused, non-protected editable ref and bounded text; focus it and take canvas_snapshot first.");
         name="type_text";args={text:action.text};
@@ -525,9 +607,10 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
       if(!beforePrepare)throw new Error("Exact-window foreground canvas delivery is unavailable.");
       await beforePrepare(capture.window);await checkCanvas();
       const active=await bind(signal,capture.window);
-      if(active.tab.title!==observed.title||!sameBrowserUrl(active.tab.url,observed.url))throw new Error("The active tab changed before canvas input. Take canvas_snapshot again.");
+      if(active.tab.title!==bound.tab.title||!sameBrowserUrl(active.tab.url,bound.tab.url))throw new Error("The active tab changed before canvas input. Take canvas_snapshot again.");
+      await attestCanvasBinding(bound,signal);
       await checkCanvas();
-      if (focused) {
+      if (focused && observed) {
         // scope_ref resolves the opaque captured node, not a label search. The
         // public response hides backend IDs, so only a complete, sole-node scope
         // without a hidden/occluded root can prove this is still the same field.
@@ -625,7 +708,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     async close() {
       closed = true;
       generation++;
-      currentPage = undefined; currentDialog = undefined; lastBinding = undefined;
+      currentPage = undefined; currentDialog = undefined; currentCanvas = undefined; lastBinding = undefined;
       // Session cleanup releases only Cua's grant/connection; it does not own or
       // terminate the existing browser process.
       await call("end_session", { session }).catch(() => {});
