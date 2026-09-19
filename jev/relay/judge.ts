@@ -111,7 +111,9 @@ export async function judge(taskId: string, dir: string, llm: Llm = createOpenAI
 
   const byEyes = spec.rubric.filter((r) => r.by === "eyes");
   if (byEyes.length) {
-    const stills = [...new Bun.Glob("{video/stills,site/shots}/*.png").scanSync(dir)].sort().filter((_, i, all) => i % Math.max(1, Math.floor(all.length / 3)) === 0).slice(0, 3);
+    // Two scans: Bun's glob does not expand braces that hold a slash, and "{video/stills,site/shots}/*.png" found nothing,
+    // so every item judged by eye failed with "no stills to look at" whatever had been made.
+    const stills = ["video/stills/*.png", "site/shots/*.png"].flatMap((pattern) => [...new Bun.Glob(pattern).scanSync(dir)]).sort().filter((_, i, all) => i % Math.max(1, Math.floor(all.length / 3)) === 0).slice(0, 3);
     const looks = await Promise.all(stills.map(async (p) => asked(byEyes, "one still image of what it produced", new Uint8Array(await Bun.file(join(dir, p)).arrayBuffer())).catch(() => [])));
     for (const r of byEyes) { const votes = looks.map((l) => l.find((g) => g.id === r.id)).filter(Boolean) as { pass: boolean; why: string }[]; verdicts.push({ id: r.id, must: r.must, pass: votes.length > 0 && votes.filter((v) => v.pass).length * 2 >= votes.length, why: votes.length ? votes.map((v) => v.why).join(" / ").slice(0, 400) : "no stills to look at" }); }
   }
