@@ -236,6 +236,25 @@ describe("lines", () => {
     expect(cropped.map(([word]) => word)).toEqual(["hello"]); // the crop, not the capture
     cropped[0]![2].forEach((edge, i) => expect(Math.abs(edge - whole![2][i]!)).toBeLessThan(8)); // and where the whole capture has it
   });
+
+  // Core Image read such a crop past the end of the decoded capture, which is a bus error when the decoded bytes fill
+  // their last page exactly: a 3840x2160 display's do, and so do this capture's 1024x256x4. Nothing catches a bus
+  // error, so the read runs in a process of its own, and what is asserted is that the process lives to answer.
+  test.skipIf(process.platform !== "darwin")("a crop that begins off the 4-pixel grid and reaches the bottom right corner is read", async () => {
+    const path = join(dir, "corner.png");
+    const page = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="256"><rect width="1024" height="256" fill="white"/>`;
+    await sharp(Buffer.from(`${page}<text x="700" y="200" font-family="Helvetica" font-size="48">hello</text></svg>`))
+      .png()
+      .toFile(path);
+    const source = `import { recognizeText } from ${JSON.stringify(join(import.meta.dir, "../src/macos.ts"))};
+      console.log(JSON.stringify([recognizeText(${JSON.stringify(path)}), recognizeText(${JSON.stringify(path)}, [601, 100, 1024, 256])]));`;
+    const child = Bun.spawn([process.execPath, "-e", source], { stdout: "pipe", stderr: "ignore" });
+    const [out, code] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+    expect(code).toBe(0);
+    const [[whole], [cropped]] = JSON.parse(out) as [Line[], Line[]];
+    expect([whole?.[0], cropped?.[0]]).toEqual(["hello", "hello"]);
+    cropped![2].forEach((edge, i) => expect(Math.abs(edge - whole![2][i]!)).toBeLessThan(8)); // moving the crop's edge to the grid moved no box
+  });
 });
 
 describe("the reuse decision", () => {

@@ -941,7 +941,12 @@ export type OcrLine = [text: string, confidence: number, box: Box];
 export function recognizeText(path: string, rect?: Box): OcrLine[] {
   const n = native();
   const full = loadImage(path);
-  const [x1, y1, x2, y2] = (rect ?? [0, 0, full.width, full.height]).map(Math.round) as Box;
+  const [left, y1, x2, y2] = (rect ?? [0, 0, full.width, full.height]).map(Math.round) as Box;
+  // A crop is a view into the decoded capture, not a copy. ImageIO pads that buffer's rows to 16 bytes and ends it with
+  // a guard page, and Core Image reads a row 16 bytes at a time from wherever the crop begins. Begun off that grid, a
+  // crop that reaches the capture's bottom right corner is read up to 12 bytes past the buffer: a bus error whenever the
+  // decoded bytes fill their last page exactly, as a 3840x2160 display's do. Begun on it, no read leaves the row.
+  const x1 = Math.max(0, Math.floor(left / 4) * 4);
   const whole = x1 === 0 && y1 === 0 && x2 === full.width && y2 === full.height;
   const [width, height] = [x2 - x1, y2 - y1];
   if (width <= 0 || height <= 0) return [];
