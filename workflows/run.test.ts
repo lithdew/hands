@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BundleSchema, CreativeReviewSchema, creativeReviewPassed, looksLikeArtifactRequest } from "./contracts";
-import { runArtifactWorkflow, storyboardCheck } from "./run";
+import { runArtifactWorkflow, storyboardCheck, videoPlayerNote } from "./run";
 import type { Ask } from "../jev/jev";
 import { citationAliases } from "./checkpoint";
 
@@ -89,6 +89,18 @@ test("video storyboards are validated against the renderer schema before review 
   expect(storyboardCheck(storyboard({}))).toMatchObject({passed:true,detail:expect.stringContaining("2 scenes")});
   const overloaded=storyboardCheck(storyboard({scenes:[{...scenes[0],title:"A title that is far too long for a phone-sized player to show at readable size"},scenes[1]]}));
   expect(overloaded.passed).toBe(false);expect(overloaded.detail).toContain("scenes.0.title");
+});
+
+test("video page reviews judge controls from recorded probe facts, not auto-hidden browser chrome", () => {
+  const desktop={label:"desktop",controls:true,progressed:true,pageControls:["Fullscreen"],captured:"mid-playback" as const};
+  const note=videoPlayerNote([desktop]);
+  for(const fact of ["controls attribute present","playback advanced","page affordances Fullscreen","captured mid-playback"])expect(note).toContain(fact);
+  expect(note).toContain("not expected to be visible in a mid-playback capture");
+  expect(note).toContain("Judge usable controls from the recorded facts");
+  expect(note).toContain("controls absent both natively and on the page");
+  expect(note).not.toMatch(/visible (?:native|play\/pause) controls (?:are|is) required/i);
+  expect(videoPlayerNote([{...desktop,label:"mobile",controls:false,pageControls:[],captured:"paused"}])).toContain("controls attribute absent; playback advanced during the probe; page affordances none; captured paused");
+  expect(videoPlayerNote([])).toBe("");
 });
 
 test("only concrete artifact requests use the specialist workflow", () => {

@@ -5,7 +5,10 @@ import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { chromium, type Browser, type Page } from "playwright-core";
 import { ARTIFACT_CSP } from "../win/artifacts";
 
-export type PreviewResult = { checks: { name: string; passed: boolean; detail: string }[]; screenshots: string[] };
+/** Per-<video> facts recorded by the playback probe, so a reviewer of the
+ * mid-playback screenshot can judge usable controls without seeing chrome. */
+export type VideoFacts = { label: string; controls: boolean; progressed: boolean; pageControls: string[]; captured: "mid-playback" | "paused" };
+export type PreviewResult = { checks: { name: string; passed: boolean; detail: string }[]; screenshots: string[]; videos: VideoFacts[] };
 export type PreviewOptions = { directory: string; entrypoint: string; outputDir: string; videoTimeSeconds?: number; signal?: AbortSignal };
 const ROOT = resolve(import.meta.dir, "..");
 const MIME: Record<string, string> = {
@@ -74,7 +77,7 @@ async function snapshot(page: Page) {
 export async function previewArtifacts(options: PreviewOptions): Promise<PreviewResult> {
   const { signal } = options;
   signal?.throwIfAborted();
-  const result: PreviewResult = { checks: [], screenshots: [] };
+  const result: PreviewResult = { checks: [], screenshots: [], videos: [] };
   const check = (name: string, passed: boolean, detail: string) => result.checks.push({ name, passed, detail });
   const directory = resolve(options.directory), outputDir = resolve(options.outputDir);
   let entryParts: string[];
@@ -182,13 +185,21 @@ export async function previewArtifacts(options: PreviewOptions): Promise<Preview
               // seconds, and the frame then sits at the requested moment.
               const dwellMs=3400;
               video.currentTime=Math.max(0,target-dwellMs/1000-.2);await wait(video,"seeked",()=>!video.seeking&&video.readyState>=2);
-              const resumedAt=performance.now();await video.play();
+              const resumedAt=performance.now(),resumedFrom=video.currentTime;await video.play();
               await new Promise<void>(resolve=>{const tick=()=>{const elapsed=performance.now()-resumedAt;if(video.ended||elapsed>=dwellMs&&video.currentTime>=target-.05||elapsed>=dwellMs+4000)resolve();else setTimeout(tick,50);};tick();});
-              observed.push({...probe,presented:{time:video.currentTime,playing:!video.paused&&!video.ended}});
+              // Record what the hidden chrome would have shown: the controls
+              // attribute, real time advancement, and the nearest page-level
+              // play/pause/fullscreen affordance (closest ancestor that has one).
+              const affordance=(element:any)=>/\b(?:play|pause|full ?screen)\b/i.test(`${element.textContent} ${element.getAttribute("aria-label")??""} ${element.title??""}`);
+              let scope=video.parentElement,pageControls:string[]=[];
+              while(scope&&!(pageControls=[...scope.querySelectorAll("button,[role=button]")].filter(affordance).map((element:any)=>String(element.getAttribute("aria-label")||element.textContent).trim().slice(0,40))).length&&scope!==doc.body)scope=scope.parentElement;
+              const playing=!video.paused&&!video.ended;
+              observed.push({...probe,presented:{time:video.currentTime,playing},facts:{controls:video.hasAttribute("controls"),progressed:video.currentTime>resumedFrom+.1,pageControls,captured:playing?"mid-playback":"paused"}});
             }catch(error){video.pause();observed.push({passed:false,error:String(error)});}
           }return observed;
         }, options.videoTimeSeconds);
         if(videos.length)check(`${label}-video-playback`,videos.every(video=>video.passed),JSON.stringify(videos));
+        for(const video of videos)if("facts"in video)result.videos.push({label,...video.facts,captured:video.facts.captured as VideoFacts["captured"]});
         check(`${label}-loaded`, response?.status() === 200 && Boolean(state.text || state.images.length), `${path}: HTTP ${response?.status() ?? "none"}; title ${state.title || "(untitled)"}`);
         check(`${label}-overflow`, state.overflow <= 2 && state.overflowing.length === 0, state.overflow > 2 || state.overflowing.length ? `${state.overflow}px document overflow; ${state.overflowing.join("; ")}` : `No horizontal overflow at ${viewport.width}×${viewport.height}`);
         check(`${label}-images`, state.images.every(image => image.loaded), state.images.some(image => !image.loaded) ? `Unloaded visible images: ${state.images.filter(image => !image.loaded).map(image => image.src).join(", ")}` : `${state.images.length} visible image(s) loaded`);
