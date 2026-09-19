@@ -824,6 +824,8 @@ describe("existing Chrome binding", () => {
         { message: "Cua transport closed", structured: false },
         { message: "This Cua hand was disconnected", structured: false },
         { message: "Cua broker lease expired or disconnected", structured: false },
+        { message: "confirmation provider failed: CDP window no longer has an exact geometry or singleton-cardinality correlation with the native window — refusing to mutate it", structured: false },
+        { message: "browser_wrong_target_refused", structured: true },
         { message: "this session has ended; call start_session explicitly", structured: false },
         { message: "browser_requires_setup", structured: true },
         { message: "Cua transport closed", structured: true },
@@ -1000,6 +1002,71 @@ describe("existing Chrome binding", () => {
     await expect(f.input.snapshot()).rejects.toThrow("session has ended");
     expect(f.input.healthy()).toBe(false);
     expect(f.calls.map(call => call.name)).toEqual(["get_browser_state"]);
+  });
+
+  test("definitive exact-binding loss clears readiness and capabilities without retry or preparation", async () => {
+    const correlation = "confirmation provider failed: CDP window no longer has an exact geometry or singleton-cardinality correlation with the native window — refusing to mutate it";
+    for (const failure of [correlation, "browser_binding_stale", "browser_wrong_target_refused", "browser_tab_not_found"]) {
+      for (const envelope of ["throw", "structured"]) {
+        const f = fixture(), page = await f.input.snapshot(), canvas = await f.input.captureCanvas(page);
+        f.calls.length = 0;
+        if (envelope === "throw") f.onCall(name => { if (name === "get_browser_state") throw new Error(failure); });
+        else f.snapshotState({ status: "refused", code: failure });
+        await expect(f.input.snapshot()).rejects.toThrow("binding is no longer exact");
+        expect(f.input.healthy()).toBe(false);
+        expect(f.calls.filter(call => call.name === "get_browser_state")).toHaveLength(envelope === "throw" ? 1 : 2);
+        expect(mutations(f)).toEqual([]);
+        const count = f.calls.length;
+        await expect(f.input.act(page, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+        await expect(f.input.canvasAct(canvas, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 })).rejects.toThrow("stale");
+        expect(f.calls).toHaveLength(count);
+        f.onCall(() => {}); f.snapshotState({});
+        await f.input.attach(undefined, { allowPrepare: false });
+        expect(f.input.healthy()).toBe(true);
+        expect(mutations(f)).toEqual([]);
+      }
+    }
+  });
+
+  test("binding-loss diagnostics report minimized only from native iconic metadata, not tiny dimensions", async () => {
+    for (const iconic of [true, false, undefined]) {
+      const f = fixture();
+      f.mutateWindow({ iconic, rect: [0, 0, 219, 30] });
+      f.onCall(() => { throw new Error("confirmation provider failed: CDP window no longer has an exact geometry or singleton-cardinality correlation with the native window — refusing to mutate it"); });
+      let message = "";
+      try { await f.input.snapshot(); } catch (error) { message = String(error); }
+      expect(message.includes("this window is minimized")).toBe(iconic === true);
+      expect(f.input.healthy()).toBe(false);
+      expect(f.calls.map(call => call.name)).toEqual(["get_browser_state"]);
+      expect(mutations(f)).toEqual([]);
+    }
+  });
+
+  test("ordinary snapshot timeout and stale element refusal do not claim the connection or exact binding ended", async () => {
+    for (const failure of ["CDP response timed out after 20s", "browser_ref_stale: the node disappeared"]) {
+      const f = fixture(); await f.input.attach(); f.calls.length = 0;
+      f.onCall((name, args) => { if (name === "get_browser_state" && args.target_id) throw new Error(failure); });
+      await expect(f.input.snapshot()).rejects.toThrow(failure);
+      expect(f.input.healthy()).toBe(true);
+      expect(f.calls.map(call => call.name)).toEqual(["get_browser_state", "get_browser_state"]);
+      expect(mutations(f)).toEqual([]);
+    }
+  });
+
+  test("a later ambiguous bind or lost native owner invalidates a formerly ready connection", async () => {
+    for (const failure of ["heuristic", "active-tab", "native-owner"]) {
+      const f = fixture(); await f.input.attach();
+      const page = await f.input.snapshot(), canvas = await f.input.captureCanvas(page); f.calls.length = 0;
+      if (failure === "heuristic") f.heuristic();
+      if (failure === "active-tab") f.tabs([{ title: "Inbox", url: "https://mail.example/", active: null }]);
+      if (failure === "native-owner") f.mutateWindow({ ownerNonce: undefined });
+      await expect(f.input.snapshot()).rejects.toThrow();
+      expect(f.input.healthy()).toBe(false);
+      const count = f.calls.length;
+      await expect(f.input.act(page, { action: "click" }, "p17:1")).rejects.toThrow("stale");
+      await expect(f.input.canvasAct(canvas, { action: "canvas_click", delivery: "foreground", x: 30, y: 40 })).rejects.toThrow("stale");
+      expect(f.calls).toHaveLength(count); expect(mutations(f)).toEqual([]);
+    }
   });
 
   test("expired browser consent invalidates ready state and only explicit attach restores it", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { adoptable, bindWindowCapture, capturedImage, createDriverPool, createExistingBrowserTargets, createWindowTracker, frontWindow, handFor, helperReply, isPrivateBrowser, launchedBrowserWindow, signInLine, type BrowserActivity, type RawWindow, type WindowOwner } from "./desktop";
+import { adoptable, bindWindowCapture, capturedImage, createDriverPool, createExistingBrowserTargets, createWindowTracker, frontWindow, handFor, helperReply, isPrivateBrowser, launchedBrowserWindow, selectedExistingWindow, signInLine, type BrowserActivity, type RawWindow, type WindowOwner } from "./desktop";
 import { serverResources, virtualKey } from "./serve";
 import type { CuaConnection, Hand } from "../desktop";
 
@@ -230,20 +230,109 @@ describe("existing browser target ownership", () => {
     ownerNonce: id.toString(16).padStart(16, "0"), rect: [40, 40, 1360, 900] });
   function fixture(activity?: () => BrowserActivity) {
     let available = [chrome()], current: RawWindow | null = chrome(), failed = false, preparations = 0, healthy = true;
+    let restored: RawWindow | null = chrome(), focusing: Promise<void> | undefined, focusError: Error | undefined;
     const calls: string[] = [];
+    const prepared: RawWindow[] = [];
     let validate: (() => Promise<RawWindow>) | undefined;
     let reading: Promise<RawWindow | null> | undefined;
     const targets = createExistingBrowserTargets({
       candidates: async () => available,
       claim: async (hand, window) => { calls.push(`claim ${hand.id} ${window.containerId}`); },
       read: async () => reading ?? current,
+      focus: async (hand, window) => { calls.push(`focus ${hand.id} ${window.containerId}`); if (focusing) await focusing; if (focusError) throw focusError; current = restored; },
       release: async (hand) => { calls.push(`release ${hand.id}`); },
       endSession: async () => { calls.push("end disconnected session"); },
-      prepare: async (_hand, checked, signal, resume) => { preparations++; if (resume) calls.push("resume only"); validate = checked; signal?.throwIfAborted(); if (failed) throw new Error("Cua permission denied"); healthy = true; return { healthy: () => healthy, ...(activity ? { activity } : {}), close: async () => { calls.push("end session"); } }; },
+      prepare: async (_hand, checked, signal, resume) => { preparations++; if (resume) calls.push("resume only"); validate = checked; signal?.throwIfAborted(); prepared.push(await checked()); if (failed) throw new Error("Cua permission denied"); healthy = true; return { healthy: () => healthy, ...(activity ? { activity } : {}), close: async () => { calls.push("end session"); } }; },
     });
-    return { targets, calls, preparations: () => preparations, validate: () => validate!(), fail: () => { failed = true; }, expire: () => { healthy = false; }, found: (windows: RawWindow[]) => { available = windows; },
+    return { targets, calls, prepared, preparations: () => preparations, validate: () => validate!(), fail: () => { failed = true; }, expire: () => { healthy = false; }, found: (windows: RawWindow[]) => { available = windows; },
+      restored: (window: RawWindow | null) => { restored = window; }, focusError: (error: Error) => { focusError = error; }, focusing: (promise: Promise<void>) => { focusing = promise; },
       current: (window: RawWindow | null) => { current = window; }, reading: (promise: Promise<RawWindow | null>) => { reading = promise; } };
   }
+
+  test("native foreground focus stays truthful while a background Chrome remains the selected hand target", async () => {
+    const f = fixture(), background = { ...chrome(), focused: false };
+    f.found([background]); f.current(background);
+    await f.targets.attach(hand);
+    const observed = (await f.targets.read(hand))!;
+    expect(observed.focused).toBe(false);
+    expect(await f.validate()).toEqual(background);
+    expect(f.targets.target(hand)).toMatchObject({ ready: true });
+    const selected = selectedExistingWindow(observed);
+    expect(selected).toMatchObject({ focused: true, foregroundFocused: false, containerId: 901 });
+    expect(observed.focused).toBe(false);
+    expect(selected.rect).not.toBe(observed.rect);
+    expect(f.calls).toEqual(["claim 1 901"]);
+  });
+
+  test("explicit attach restores only the selected minimized window before preparing Cua with fresh geometry", async () => {
+    const f = fixture(), minimized: RawWindow = { ...chrome(), focused: false, iconic: true, rect: [-32000, -32000, 219, 30] };
+    const restored: RawWindow = { ...chrome(), iconic: false, rect: [0, 0, 2560, 1600] };
+    f.found([minimized, chrome(902, 99)]); f.current(minimized); f.restored(restored);
+    await f.targets.attach(hand, { window_id: 901, pid: 82 });
+    expect(f.calls).toEqual(["claim 1 901", "focus 1 901"]);
+    expect(f.prepared).toEqual([restored]);
+    expect(await f.validate()).toEqual(restored);
+    expect(f.targets.target(hand)).toMatchObject({ ready: true, iconic: false, window_id: 901, pid: 82 });
+  });
+
+  test("passive reads report minimized readiness without restoring; explicit repeated attach restores without reconnecting", async () => {
+    const f = fixture(); await f.targets.attach(hand);
+    const connection = f.targets.connection(hand);
+    const minimized: RawWindow = { ...chrome(), focused: false, iconic: true, rect: [-32000, -32000, 219, 30] };
+    f.current(minimized); f.restored({ ...chrome(), iconic: false });
+    expect(await f.targets.read(hand)).toEqual(minimized);
+    expect(f.targets.target(hand)).toMatchObject({ ready: false, iconic: true });
+    expect(() => f.targets.connection(hand)).toThrow("minimized");
+    await expect(f.validate()).rejects.toThrow("minimized");
+    expect(f.calls).toEqual(["claim 1 901"]);
+    await f.targets.attach(hand, { window_id: 901 });
+    expect(f.targets.connection(hand)).toBe(connection);
+    expect(f.preparations()).toBe(1);
+    expect(f.calls).toEqual(["claim 1 901", "focus 1 901"]);
+    expect(f.targets.target(hand)).toMatchObject({ ready: true, iconic: false });
+  });
+
+  test("startup restoration of a minimized selection is passive and stays disconnected until explicit attach", async () => {
+    const f = fixture(), minimized: RawWindow = { ...chrome(), focused: false, iconic: true, rect: [-32000, -32000, 219, 30] };
+    f.found([minimized]); f.current(minimized); f.restored({ ...chrome(), iconic: false });
+    await expect(f.targets.restore(hand, chrome())).rejects.toThrow("minimized");
+    expect(f.preparations()).toBe(0);
+    expect(f.calls).toEqual(["claim 1 901"]);
+    expect(f.targets.target(hand)).toMatchObject({ mode: "existing", ready: false, iconic: true });
+    await f.targets.attach(hand);
+    expect(f.preparations()).toBe(1);
+    expect(f.calls).toEqual(["claim 1 901", "release 1", "claim 1 901", "focus 1 901"]);
+    expect(f.targets.target(hand)).toMatchObject({ ready: true, iconic: false });
+  });
+
+  test("restoration cannot pass changed identities, missing windows, minimized state or invalid geometry into Cua", async () => {
+    const minimized: RawWindow = { ...chrome(), iconic: true, rect: [-32000, -32000, 219, 30] };
+    for (const result of [null, chrome(902), { ...chrome(), pid: 99 }, { ...chrome(), ownerNonce: "0000000000000099" }, minimized,
+      { ...chrome(), iconic: false, rect: [0, 0, 0, 900] as RawWindow["rect"] }]) {
+      const f = fixture(); f.found([minimized]); f.current(minimized); f.restored(result);
+      await expect(f.targets.attach(hand, { window_id: 901 })).rejects.toThrow();
+      expect(f.preparations()).toBe(0);
+      expect(f.calls).toEqual(["claim 1 901", "focus 1 901"]);
+      expect(f.targets.target(hand)).toMatchObject({ mode: "existing", window_id: 901, ready: false });
+    }
+  });
+
+  test("failed or cancelled restoration is not replayed and never prepares a browser connection", async () => {
+    const minimized: RawWindow = { ...chrome(), iconic: true, rect: [-32000, -32000, 219, 30] };
+    const failed = fixture(); failed.found([minimized]); failed.current(minimized); failed.focusError(new Error("native restore refused"));
+    await expect(failed.targets.attach(hand)).rejects.toThrow("restore refused");
+    expect(failed.calls).toEqual(["claim 1 901", "focus 1 901"]);
+    expect(failed.preparations()).toBe(0);
+    const f = fixture(), wait = Promise.withResolvers<void>(), controller = new AbortController();
+    f.found([minimized]); f.current(minimized); f.focusing(wait.promise);
+    const pending = f.targets.attach(hand, {}, controller.signal);
+    while (!f.calls.includes("focus 1 901")) await Bun.sleep(0);
+    controller.abort(); wait.resolve();
+    await expect(pending).rejects.toThrow();
+    expect(f.preparations()).toBe(0);
+    expect(f.calls).toEqual(["claim 1 901", "focus 1 901"]);
+    expect(f.targets.target(hand)).toMatchObject({ ready: false });
+  });
 
   test("a selected user's Chrome is the only observed target and detaching never owns or closes it", async () => {
     const f = fixture();

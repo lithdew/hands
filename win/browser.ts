@@ -217,7 +217,7 @@ export function browserInput(ask: Ask, port: (reread?: boolean) => Promise<numbe
 /** Existing-profile input deliberately goes through Cua's exact native binding.
  * Its opaque refs are not pixel coordinates and must never use the private
  * profile's DevTools connection as a fallback. */
-export type ExistingBrowserWindow = BrowserWindow & { pid: number; ownerNonce?: string; rect: Rect };
+export type ExistingBrowserWindow = BrowserWindow & { pid: number; ownerNonce?: string; iconic?: boolean; rect: Rect };
 type ExistingRef = { ref: string; role: string; name: string; value?: string; states?: Record<string, unknown>; actions?: string[]; visibility?: string };
 type ExistingTab = { tab_id: string; title: string; url: string; active: boolean | null };
 type ExistingContent = { role: string; name: string; value?: string; visibility?: string };
@@ -286,6 +286,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
   let lastBinding: ExistingBinding | undefined;
   let currentDialog: ExistingDialog | undefined;
   let currentCanvas:ExistingCanvas|undefined;
+  let latestNativeIconic: boolean | undefined;
   let generation = 0;
   let normalWork = 0, activityRevision = 0;
   const maintenanceNow = diagnostics.maintenance?.now ?? (() => performance.now());
@@ -334,25 +335,41 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     const window = await current();
     signal?.throwIfAborted();
     if (closed || disconnected?.aborted) throw new Error("This existing-browser binding has been released. Attach and look again.");
-    if (!window.ownerNonce || expected && !sameExistingWindow(window, expected)) throw new Error("The existing Chrome window changed. Attach or look again before acting.");
+    if (!window.ownerNonce || expected && !sameExistingWindow(window, expected)) {
+      invalidateConnection();
+      throw new Error("The existing Chrome window changed. Attach or look again before acting.");
+    }
+    latestNativeIconic = window.iconic;
     if (expected && frame && !sameExistingWindow(window,expected,true)) throw new BrowserObservationChanged("The existing Chrome window changed title or size. Take a fresh observation before acting.");
     return { ...window, rect: [...window.rect] as Rect };
   });
-  const invalidateExpiredBinding = (message: string) => {
-    if (/session (?:has ended|'[^']*' has ended|is not visible to this transport)|session_(?:ended|ending|not_started)|persistent Cua connection is disconnected|Cua transport closed|This Cua hand was disconnected|Cua broker lease expired or disconnected|browser_(?:consent_required|requires_setup)/i.test(message)) {
+  const invalidateFailedBinding = (message: string) => {
+    // Protected observations can lose the exact native/CDP correlation too.
+    // Cua's confirmation provider sometimes returns only the pinned driver's
+    // message, without its browser_wrong_target_refused structured code.
+    const bindingLost = /\bbrowser_(?:binding_stale|wrong_target_refused|tab_not_found)\b|CDP window no longer has an exact geometry or singleton-cardinality\s+correlation with the native window|the tab moved to a different browser window since binding|no longer has a live CDP page target/i.test(message);
+    if (bindingLost || /session (?:has ended|'[^']*' has ended|is not visible to this transport)|session_(?:ended|ending|not_started)|persistent Cua connection is disconnected|Cua transport closed|This Cua hand was disconnected|Cua broker lease expired or disconnected|browser_(?:consent_required|requires_setup)/i.test(message)) {
       invalidateConnection();
     }
+    return bindingLost;
   };
+  const bindingLostError = (message: string) => new Error(`The attached Chrome window/tab binding is no longer exact. Readiness and previous input references were cleared. ${latestNativeIconic === true
+    ? "The latest native observation reports this window is minimized; restore that exact window before explicitly attaching and observing again. "
+    : "Explicitly attach and observe the same window again. "}No automatic preparation or input retry was attempted. Cause: ${message}`);
   const callBound: CuaConnection["call"] = async (name, args, signal) => {
     // Native screenshot/input tools share the same public session lifecycle as
     // browser tools. Expiry invalidates every capability; it never retries input.
     let reply: Awaited<ReturnType<CuaConnection["call"]>>;
     try { reply = await call(name, args, signal); }
-    catch (error) { invalidateExpiredBinding(String(error)); throw error; }
+    catch (error) {
+      if (invalidateFailedBinding(String(error))) throw bindingLostError(String(error));
+      throw error;
+    }
     const state = reply.structuredContent as Record<string, unknown> | undefined;
     if (reply.isError || state?.status !== undefined && state.status !== "ok"
       || state?.effect !== undefined && !["confirmed", "unverifiable"].includes(String(state.effect))) {
-      invalidateExpiredBinding(JSON.stringify([state, reply.content]));
+      const message = JSON.stringify([state, reply.content]);
+      if (invalidateFailedBinding(message)) throw bindingLostError(message);
     }
     return reply;
   };
@@ -401,7 +418,7 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
         // Revoke stale observations, back off, and bound unverified attempts.
         // Superseded maintenance must never erase a newer task's capabilities.
         if (epoch !== maintenanceEpoch || closed) return;
-        invalidateExpiredBinding(String(error));
+        invalidateFailedBinding(String(error));
         if (refused(String(error))) invalidateConnection();
         if (epoch !== maintenanceEpoch) return;
         if (revision === activityRevision) clearCapabilities();
@@ -439,11 +456,13 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     const result = await invoke("get_browser_state", { pid: window.pid, window_id: window.containerId }, signal);
     await check(signal, window, true);
     if (result.mode !== "bind" || result.binding_quality !== "exact" || result.mutation_allowed !== true || typeof result.target_id !== "string") {
+      invalidateConnection();
       throw new Error("Cua could not bind this exact Chrome window for input. No other browser was selected.");
     }
     const tabs = (Array.isArray(result.tabs) ? result.tabs : []) as ExistingTab[];
     const active = tabs.filter((tab) => tab.active === true && typeof tab.tab_id === "string" && typeof tab.title === "string" && typeof tab.url === "string");
     if (active.length !== 1 || tabs.filter((tab) => tab.title === active[0]?.title).length !== 1) {
+      invalidateConnection();
       throw new Error("Cua could not identify one uniquely titled active tab in this Chrome window. Select a tab and observe again.");
     }
     lastBinding = { target_id: result.target_id, tab: active[0]!, tabs, window };

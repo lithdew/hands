@@ -14,6 +14,7 @@
 //                            raise <hwnd>, close <hwnd>, place <hwnd> <x> <y> <w> <h>
 //                            boost <pid>          opt a process tree out of Windows power throttling
 //                            viewport <hwnd>      [x,y,w,h] of a Chromium window's page area, in window pixels
+//                            external-cdp <hand|hwnd:pid:nonce> read-only exact Chrome owner, outer geometry, DPI and its loopback TCP listeners
 //                            http <url>           GET on Windows loopback (WSL cannot reach it), body on one line
 //                            cdp <ws> <id> <json> send one DevTools message, reply with the message answering <id>
 //                            fg                   the foreground window handle; focus <hwnd> gives it back
@@ -215,6 +216,7 @@ public static class PukWin
     [DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
     [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr context);
+    [DllImport("user32.dll")] static extern uint GetDpiForWindow(IntPtr hwnd);
     [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out int value, int size);
 
     static string Title(IntPtr hwnd)
@@ -318,7 +320,7 @@ public static class PukWin
         string title = Title(hwnd);
         RECT r = Frame(hwnd);
         if (title.Length == 0 || !SameOwner(hwnd, owner)) return "null";
-        return "{\"app\":" + Json(app) + ",\"title\":" + Json(title) + ",\"focused\":true,\"pid\":" + owner.pid
+        return "{\"app\":" + Json(app) + ",\"title\":" + Json(title) + ",\"focused\":" + (GetForegroundWindow() == hwnd ? "true" : "false") + ",\"pid\":" + owner.pid
             + ",\"containerId\":" + hwnd.ToInt64() + ",\"ownerNonce\":" + Json(owner.nonce.ToString("x16"))
             + ",\"iconic\":" + (IsIconic(hwnd) ? "true" : "false") + ",\"rect\":[" + r.left + "," + r.top + "," + (r.right - r.left) + "," + (r.bottom - r.top) + "]}";
     }
@@ -379,8 +381,79 @@ public static class PukWin
             if (!SameOwner(hwnd, owner)) throw new Exception("The attached Chrome window changed before focus.");
             if (IsIconic(hwnd)) ShowWindow(hwnd, 9); // Explicit reveal restores, never moves, the selected browser.
             Focus(hwnd);
+            // Activation/restoration can settle after ShowWindow returns. Never
+            // return the minimized geometry observed before this explicit action.
+            for (int attempt = 0; attempt < 20; attempt++)
+            {
+                if (!SameOwner(hwnd, owner)) throw new Exception("The attached Chrome window changed during focus.");
+                RECT frame = Frame(hwnd);
+                if (!IsIconic(hwnd) && frame.right > frame.left && frame.bottom > frame.top && GetForegroundWindow() == hwnd)
+                {
+                    observed = ExternalWindow(hwnd, owner);
+                    if (observed != "null") return observed;
+                    break;
+                }
+                Thread.Sleep(25);
+            }
+            throw new Exception("The exact attached Chrome window could not be restored and focused. Observe it before trying again.");
         }
         return observed;
+    }
+
+    static void RequireExternalOwner(string hand, IntPtr hwnd, WindowOwner owner)
+    {
+        BorrowedWindow bound;
+        if (!borrowed.TryGetValue(hand, out bound) || bound.hwnd != hwnd.ToInt64() || bound.owner.pid != owner.pid || bound.owner.nonce != owner.nonce
+            || !SameOwner(hwnd, owner)) throw new Exception("The exact existing Chrome reservation or native owner changed.");
+    }
+
+    // Endpoint ownership is not CDP authentication. This command never connects,
+    // reads profile files, grants Chrome consent, launches or restores a window.
+    static string ExternalCdp(string request)
+    {
+        // Reuse the ordinary strict request/reservation validation before parsing
+        // the already-validated fields. No claim or focus occurs on this path.
+        if (ExternalBinding(request, false) == "null") throw new Exception("The attached Chrome window is unavailable.");
+        int separator = request.IndexOf('|');
+        string hand = request.Substring(0, separator);
+        string[] parts = request.Substring(separator + 1).Split(':');
+        IntPtr hwnd = new IntPtr(long.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture));
+        WindowOwner owner = new WindowOwner { pid = uint.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture),
+            nonce = long.Parse(parts[2], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture) };
+        RequireExternalOwner(hand, hwnd, owner);
+        using (Process process = Process.GetProcessById((int)owner.pid))
+        {
+            if (!string.Equals(process.ProcessName, "chrome", StringComparison.OrdinalIgnoreCase)) throw new Exception("The selected native owner is not Chrome.");
+            DateTime started = process.StartTime.ToUniversalTime();
+            RECT before, after;
+            if (!GetWindowRect(hwnd, out before)) throw new Exception("The selected Chrome outer geometry is unavailable.");
+            uint dpi = GetDpiForWindow(hwnd);
+            if (dpi == 0) throw new Exception("The selected Chrome window DPI is unavailable.");
+            bool iconic = IsIconic(hwnd);
+            List<NativeChromeTcp.Listener> listeners = NativeChromeTcp.ForPid(owner.pid);
+            RequireExternalOwner(hand, hwnd, owner);
+            if (process.HasExited || !GetWindowRect(hwnd, out after) || before.left != after.left || before.top != after.top
+                || before.right != after.right || before.bottom != after.bottom || dpi != GetDpiForWindow(hwnd) || iconic != IsIconic(hwnd))
+                throw new Exception("The selected Chrome process or outer geometry changed during endpoint observation.");
+            string title = Title(hwnd);
+            if (title.Length == 0) throw new Exception("The selected Chrome title is unavailable.");
+            StringBuilder result = new StringBuilder("{\"window_id\":").Append(hwnd.ToInt64()).Append(",\"pid\":").Append(owner.pid)
+                .Append(",\"ownerNonce\":").Append(Json(owner.nonce.ToString("x16")))
+                .Append(",\"processStartedAt\":").Append(Json(started.ToString("o", System.Globalization.CultureInfo.InvariantCulture)))
+                .Append(",\"processStartTicks\":").Append(Json(started.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                .Append(",\"app\":\"chrome\",\"title\":").Append(Json(title)).Append(",\"focused\":").Append(GetForegroundWindow() == hwnd ? "true" : "false")
+                .Append(",\"iconic\":").Append(iconic ? "true" : "false")
+                .Append(",\"outerRect\":[").Append(after.left).Append(',').Append(after.top).Append(',').Append(after.right - after.left).Append(',').Append(after.bottom - after.top)
+                .Append("],\"dpi\":").Append(dpi).Append(",\"dpiScale\":").Append((dpi / 96.0).ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+                .Append(",\"listeners\":[");
+            for (int i = 0; i < listeners.Count; i++)
+            {
+                if (i != 0) result.Append(',');
+                result.Append("{\"address\":").Append(Json(listeners[i].address)).Append(",\"port\":").Append(listeners[i].port).Append('}');
+            }
+            RequireExternalOwner(hand, hwnd, owner);
+            return result.Append("]}").ToString();
+        }
     }
 
     /** With "<desktop>|<hwnd:pid:nonce,...>": that hand's windows, including a
@@ -799,6 +872,7 @@ public static class PukWin
                 else if (words[0] == "external-browsers") reply = ExternalBrowsers();
                 else if (words[0] == "external-bind") reply = ExternalBinding(rest, true);
                 else if (words[0] == "external-read") reply = ExternalBinding(rest, false);
+                else if (words[0] == "external-cdp") reply = ExternalCdp(rest);
                 else if (words[0] == "external-focus") reply = ExternalBinding(rest, false, true);
                 else if (words[0] == "external-release") { borrowed.Remove(rest); reply = "ok"; }
                 else if (words[0] == "ensure")
@@ -937,6 +1011,93 @@ public static class PukWin
  *  Because the thumbnail is composed *over* the form, nothing can be drawn on
  *  top of it. Every affordance therefore lives in the chrome (ring + caption).
  */
+// Native listener metadata only. No socket is opened, and this does not imply
+// that a listed endpoint speaks CDP. Kept separately testable with byte fixtures.
+internal static class NativeChromeTcp
+{
+    internal sealed class Listener { internal string address; internal int port; }
+    const int MaxBuffer = 4 * 1024 * 1024, MaxRows = 65536, MaxListeners = 32;
+    const uint OwnerPidListener = 3, InsufficientBuffer = 122;
+    [DllImport("iphlpapi.dll")] static extern uint GetExtendedTcpTable(IntPtr table, ref uint size,
+        [MarshalAs(UnmanagedType.Bool)] bool order, uint family, uint tableClass, uint reserved);
+
+    // DWORD members are native little-endian; address/port payload bytes are
+    // network-order. Layouts follow MIB_TCPROW_OWNER_PID (24) and
+    // MIB_TCP6ROW_OWNER_PID (56), both DWORD-aligned after the count header.
+    // https://learn.microsoft.com/windows/win32/api/tcpmib/ns-tcpmib-mib_tcprow_owner_pid
+    // https://learn.microsoft.com/windows/win32/api/tcpmib/ns-tcpmib-mib_tcp6row_owner_pid
+    internal static List<Listener> Parse(byte[] table, uint family, uint pid)
+    {
+        if (pid == 0 || (family != 2 && family != 23)) throw new ArgumentException("An exact PID and IPv4 or IPv6 table are required.");
+        if (!BitConverter.IsLittleEndian || table == null || table.Length < 4 || table.Length > MaxBuffer) throw new Exception("Invalid native TCP table size.");
+        uint count = BitConverter.ToUInt32(table, 0);
+        int stride = family == 2 ? 24 : 56;
+        if (count > MaxRows || (long)count * stride + 4 > table.Length) throw new Exception("Truncated or oversized native TCP table.");
+        List<Listener> result = new List<Listener>();
+        for (int i = 0; i < count; i++)
+        {
+            int row = 4 + i * stride;
+            int state = row + (family == 2 ? 0 : 48), owner = row + (family == 2 ? 20 : 52);
+            if (BitConverter.ToUInt32(table, state) != 2 || BitConverter.ToUInt32(table, owner) != pid) continue;
+            int address = row + (family == 2 ? 4 : 0), portAt = row + (family == 2 ? 8 : 20);
+            bool loopback = family == 2
+                ? table[address] == 127 && table[address + 1] == 0 && table[address + 2] == 0 && table[address + 3] == 1
+                : table[address + 15] == 1 && BitConverter.ToUInt32(table, row + 16) == 0;
+            if (family == 23) for (int j = 0; loopback && j < 15; j++) loopback = table[address + j] == 0;
+            if (!loopback) continue; // Reject wildcard, remote, mapped and scoped addresses.
+            int port = table[portAt] * 256 + table[portAt + 1];
+            if (port == 0) continue;
+            Add(result, new Listener { address = family == 2 ? "127.0.0.1" : "::1", port = port });
+        }
+        return result;
+    }
+
+    static void Add(List<Listener> result, Listener listener)
+    {
+        foreach (Listener seen in result) if (seen.address == listener.address && seen.port == listener.port) return;
+        if (result.Count >= MaxListeners) throw new Exception("The selected Chrome has too many loopback listeners for bounded discovery.");
+        result.Add(listener);
+    }
+
+    internal static List<Listener> Merge(List<Listener> ipv4, List<Listener> ipv6)
+    {
+        List<Listener> result = new List<Listener>();
+        foreach (Listener listener in ipv4) Add(result, listener);
+        foreach (Listener listener in ipv6) Add(result, listener);
+        result.Sort(delegate (Listener a, Listener b) { int address = string.CompareOrdinal(a.address, b.address); return address != 0 ? address : a.port.CompareTo(b.port); });
+        return result;
+    }
+
+    static byte[] Read(uint family)
+    {
+        uint size = 0;
+        uint code = GetExtendedTcpTable(IntPtr.Zero, ref size, false, family, OwnerPidListener, 0);
+        if (code != 0 && code != InsufficientBuffer) throw new Exception("Native TCP listener enumeration failed (" + code + ").");
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            if (size < 4 || size > MaxBuffer) throw new Exception("Native TCP listener enumeration exceeded its size bound.");
+            uint capacity = size;
+            IntPtr buffer = Marshal.AllocHGlobal((int)capacity);
+            try
+            {
+                code = GetExtendedTcpTable(buffer, ref size, false, family, OwnerPidListener, 0);
+                if (code == InsufficientBuffer) continue;
+                if (code != 0 || size < 4 || size > capacity) throw new Exception("Native TCP listener enumeration failed (" + code + ").");
+                byte[] table = new byte[(int)size];
+                Marshal.Copy(buffer, table, 0, table.Length);
+                return table;
+            }
+            finally { Marshal.FreeHGlobal(buffer); }
+        }
+        throw new Exception("Native TCP listener enumeration changed too quickly.");
+    }
+
+    internal static List<Listener> ForPid(uint pid)
+    {
+        return Merge(Parse(Read(2), 2, pid), Parse(Read(23), 23, pid));
+    }
+}
+
 class PipForm : Form
 {
     // ---- DWM thumbnails -------------------------------------------------------

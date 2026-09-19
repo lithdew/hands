@@ -31,7 +31,9 @@ import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { Ajv, AjvJsonSchemaValidator } from "@modelcontextprotocol/client/validators/ajv";
 import { debugLog, redact, subprocessEnv, type CuaConnection, type Hand, type InstalledApp } from "../desktop";
-import { browserInput, existingBrowserInput, type ExistingBrowserInput, type ExistingBrowserTiming } from "./browser";
+import { browserInput, type ExistingBrowserInput, type ExistingBrowserTiming } from "./browser";
+import { directChromeBrowser } from "./chrome-browser";
+import { probeChromeNative } from "./chrome-native";
 import { connectBrokerHand } from "./cua-broker";
 import { browserSelections, windowOwnerNamespace } from "./browser-selection";
 import { loginPage, loginTargets, parseDevToolsFile, seenByUser, signedInSites, signInWall, type Cookie, type Foreground, type SeenWindow, type Wall } from "./session";
@@ -166,7 +168,7 @@ export async function stopHands(): Promise<void> {
   for (const hand of await listHands()) await ask(`remove ${hand.display}`);
 }
 
-export type RawWindow = { app: string; title: string; focused: boolean; pid: number; containerId: number; ownerNonce?: string; iconic?: boolean; rect: [number, number, number, number] };
+export type RawWindow = { app: string; title: string; focused: boolean; foregroundFocused?: boolean; pid: number; containerId: number; ownerNonce?: string; iconic?: boolean; rect: [number, number, number, number] };
 const sameWindowFrame = (a: RawWindow, b: RawWindow) => a.pid === b.pid && a.containerId === b.containerId && a.ownerNonce === b.ownerNonce
   && a.app === b.app && a.title === b.title && a.rect[2] === b.rect[2] && a.rect[3] === b.rect[3];
 /** What Cua last captured for a hand. ai.ts compares `state().width/height` with the PNG it was given. */
@@ -232,11 +234,17 @@ export function createWindowTracker(enumerate: (hand: Hand, owners: ReadonlyMap<
 
 const windowTracker = createWindowTracker(async (hand, owners) => JSON.parse(await ask(`state ${hand.display}|${[...owners].map(([id, owner]) => `${id}:${owner.pid}:${owner.nonce}`).join(",")}`)));
 export type BrowserActivity = { active?: { phase: ExistingBrowserTiming["phase"]; sequence: number; startedAt: number }; last?: { phase: ExistingBrowserTiming["phase"]; sequence: number; durationMs: number; outcome: "ok" | "failed" | "cancelled" } };
-export type BrowserTarget = { mode: "private" } | { mode: "existing"; window_id: number; pid: number; ownerNonce: string; title: string; ready: boolean; error?: string; activity?: BrowserActivity };
+export type BrowserTarget = { mode: "private" } | { mode: "existing"; window_id: number; pid: number; ownerNonce: string; title: string; ready: boolean; backend?: "chrome-cdp"; iconic?: boolean; error?: string; activity?: BrowserActivity };
 type BrowserChoice = { window_id?: number; pid?: number };
 const sameIdentity = (a: RawWindow, b: RawWindow) => a.pid === b.pid && a.containerId === b.containerId && a.ownerNonce === b.ownerNonce;
 const verifiedIdentity = (window: RawWindow) => Number.isSafeInteger(window.pid) && window.pid > 0 && Number.isSafeInteger(window.containerId) && window.containerId > 0
   && typeof window.ownerNonce === "string" && /^[0-7][0-9a-f]{15}$/.test(window.ownerNonce) && !/^0+$/.test(window.ownerNonce);
+const browserFrameError = (window: RawWindow): string | undefined => window.iconic === true
+  ? "The selected Chrome window is minimized. Explicitly attach or reveal that exact window to restore it."
+  : window.rect.every(Number.isFinite) && window.rect[2] > 0 && window.rect[3] > 0 ? undefined : "The selected Chrome window has no usable native geometry. Observe it before attaching again.";
+const requireBrowserFrame = (window: RawWindow): RawWindow => { const error = browserFrameError(window); if (error) throw new Error(error); return window; };
+/** Hand selection and actual OS foreground focus are separate for borrowed windows. */
+export const selectedExistingWindow = (window: RawWindow): RawWindow => ({ ...window, focused: true, foregroundFocused: window.focused, rect: [...window.rect] });
 
 /** A borrowed window has a separate, non-owning reservation. Selection is
  * serialized across hands, and a failed attachment cannot revert to a sandbox. */
@@ -244,6 +252,7 @@ export function createExistingBrowserTargets<T extends { close(): Promise<void>;
   candidates(): Promise<RawWindow[]>;
   claim(hand: Hand, window: RawWindow): Promise<void>;
   read(hand: Hand, window: RawWindow): Promise<RawWindow | null>;
+  focus?(hand: Hand, window: RawWindow, signal?: AbortSignal): Promise<void>;
   release(hand: Hand): Promise<void>;
   endSession?(hand: Hand): Promise<void>;
   prepare(hand: Hand, current: () => Promise<RawWindow>, signal?: AbortSignal, resume?: boolean): Promise<T>;
@@ -260,23 +269,49 @@ export function createExistingBrowserTargets<T extends { close(): Promise<void>;
     if (bindings.get(hand.id) !== bound) throw new Error("The browser target changed while it was being observed. Look again.");
     if (!window) return null;
     if (!verifiedIdentity(window) || !sameIdentity(bound.window, window)) throw new Error("The existing browser's native identity changed. Attach again before acting.");
-    bound.window = { ...window, focused: true, rect: [...window.rect] };
+    bound.window = { ...window, rect: [...window.rect] };
     return { ...bound.window, rect: [...bound.window.rect] };
+  };
+  const focus = async (hand: Hand, signal?: AbortSignal): Promise<RawWindow> => {
+    signal?.throwIfAborted();
+    const bound = bindings.get(hand.id), window = await read(hand);
+    signal?.throwIfAborted();
+    if (bindings.get(hand.id) !== bound) throw new Error("The browser target changed before it could be restored. Look again.");
+    if (!window || !bound) throw new Error("The attached Chrome window is unavailable.");
+    if (!backend.focus) throw new Error("The exact attached Chrome window cannot be restored by this backend.");
+    await backend.focus(hand, { ...window, rect: [...window.rect] }, signal);
+    signal?.throwIfAborted();
+    if (bindings.get(hand.id) !== bound) throw new Error("The browser target changed while it was being restored. Look again.");
+    const restored = await read(hand);
+    signal?.throwIfAborted();
+    if (!restored) throw new Error("The attached Chrome window disappeared while being restored.");
+    return requireBrowserFrame(restored);
+  };
+  const forAttach = async (hand: Hand, signal?: AbortSignal): Promise<RawWindow> => {
+    const window = await read(hand);
+    signal?.throwIfAborted();
+    if (!window) throw new Error("The attached Chrome window is unavailable. Observe its current window before attaching again.");
+    // Only an explicit attach may restore a minimized window. Ordinary reads
+    // and startup restoration must never switch desktops or change focus.
+    return requireBrowserFrame(window.iconic === true ? await focus(hand, signal) : window);
   };
   return {
     target(hand: Hand): BrowserTarget {
       const bound = bindings.get(hand.id);
       let activity: BrowserActivity | undefined;
       try { activity = bound?.connection?.activity?.(); } catch { /* Observation diagnostics cannot affect ownership or action checks. */ }
-      return bound ? { mode: "existing", window_id: bound.window.containerId, pid: bound.window.pid, ownerNonce: bound.window.ownerNonce!, title: bound.window.title, ready: bound.ready && bound.connection?.healthy?.() !== false, ...(bound.error ? { error: bound.error } : {}), ...(activity?.active || activity?.last ? { activity } : {}) } : { mode: "private" };
+      const frameError = bound && browserFrameError(bound.window);
+      return bound ? { mode: "existing", window_id: bound.window.containerId, pid: bound.window.pid, ownerNonce: bound.window.ownerNonce!, title: bound.window.title, ready: bound.ready && !frameError && bound.connection?.healthy?.() !== false, ...(bound.window.iconic !== undefined ? { iconic: bound.window.iconic } : {}), ...(frameError || bound.error ? { error: frameError ?? bound.error } : {}), ...(activity?.active || activity?.last ? { activity } : {}) } : { mode: "private" };
     },
     connection(hand: Hand) {
       const bound = bindings.get(hand.id);
       if (!bound) return null;
+      requireBrowserFrame(bound.window);
       if (!bound.ready || !bound.connection) throw new Error(bound.error ?? "The existing Chrome connection is still being prepared.");
       return bound.connection;
     },
     read,
+    focus,
     restore(hand: Hand, saved: RawWindow) {
       return serial(async () => {
         if (bindings.has(hand.id)) throw new Error("This hand already has a browser selection.");
@@ -290,11 +325,12 @@ export function createExistingBrowserTargets<T extends { close(): Promise<void>;
           if (!current) throw new Error("The previously selected Chrome window is unavailable. Choose its current window to reconnect.");
           bound.window = { ...current, rect: [...current.rect] };
           await backend.claim(hand, current);
+          requireBrowserFrame(current);
           bound.connection = await backend.prepare(hand, async () => {
             if (bindings.get(hand.id) !== bound) throw new Error("This existing Chrome binding was replaced.");
             const window = await read(hand);
             if (!window) throw new Error("The selected Chrome window is unavailable.");
-            return window;
+            return requireBrowserFrame(window);
           }, undefined, true);
           bound.ready = true;
         } catch (error) {
@@ -312,7 +348,7 @@ export function createExistingBrowserTargets<T extends { close(): Promise<void>;
           // A new task often starts with attach even though this exact window
           // is still connected. Prove its lifetime again without revoking the
           // session and making Chrome repeat setup/consent.
-          if (!await read(hand)) throw new Error("The attached Chrome window is unavailable. Observe its current window before attaching again.");
+          await forAttach(hand, signal);
           signal?.throwIfAborted();
           return;
         }
@@ -332,11 +368,12 @@ export function createExistingBrowserTargets<T extends { close(): Promise<void>;
           await backend.save?.(hand, bound.window);
           await backend.claim(hand, window);
           signal?.throwIfAborted();
+          await forAttach(hand, signal);
           bound.connection = await backend.prepare(hand, async () => {
             if (bindings.get(hand.id) !== bound) throw new Error("This existing Chrome binding was replaced.");
             const current = await read(hand);
             if (!current) throw new Error("The attached Chrome window is unavailable. It was not replaced by a sandbox browser.");
-            return current;
+            return requireBrowserFrame(current);
           }, signal);
           signal?.throwIfAborted();
           bound.ready = true;
@@ -374,21 +411,20 @@ const existingTargets = createExistingBrowserTargets<ExistingBrowserInput>({
   candidates: existingBrowserCandidates,
   claim: async (hand, window) => { await ask(`external-bind ${borrowedRequest(hand, window)}`); },
   read: async (hand, window) => JSON.parse(await ask(`external-read ${borrowedRequest(hand, window)}`)),
+  focus: async (hand, window, signal) => { signal?.throwIfAborted(); await ask(`external-focus ${borrowedRequest(hand, window)}`); signal?.throwIfAborted(); },
   release: async (hand) => { await ask(`external-release ${hand.display}`); },
-  endSession: async (hand) => {
-    const raw = await driver(hand), session = await raw.browserSession?.();
-    if (session) await raw.call("end_session", { session });
-  },
   save: (hand, window) => savedBrowsers.save(hand.id, window),
   async prepare(hand, current, signal, resume) {
-    const raw = await driver(hand);
-    const session = raw.browserSession ? await raw.browserSession() : `puk-existing-${hand.id}-${crypto.randomUUID()}`;
-    const input = existingBrowserInput(raw.call, current, session, async () => focusExistingBrowser(hand), { maintenance: { disconnected: raw.disconnected } });
+    const input = directChromeBrowser({ current, probe: (window, token) => probeChromeNative(ask, hand,
+      { window_id: window.containerId, pid: window.pid, ownerNonce: window.ownerNonce! }, token) });
     try { await input.attach(signal, { allowPrepare: !resume }); return input; }
     catch (error) { if (!resume) await input.close(); throw error; }
   },
 });
-export const browserTarget = (hand: Hand): BrowserTarget => existingTargets.target(hand);
+export const browserTarget = (hand: Hand): BrowserTarget => {
+  const target = existingTargets.target(hand);
+  return target.mode === "existing" ? { ...target, backend: "chrome-cdp" } : target;
+};
 export const existingBrowser = (hand: Hand) => existingTargets.connection(hand);
 export async function restoreExistingBrowsers(hands: Hand[]): Promise<void> {
   for (const hand of hands) {
@@ -410,14 +446,12 @@ export async function detachExistingBrowser(hand: Hand): Promise<BrowserTarget> 
   await existingTargets.detach(hand); frames.delete(hand.id);
   return browserTarget(hand);
 }
-/** PiP's explicit user click visits the borrowed window's real desktop. */
+/** Explicit reveal visits the borrowed window's real desktop and re-observes it. */
 export async function focusExistingBrowser(hand: Hand): Promise<void> {
-  const window = await existingTargets.read(hand);
-  if (!window) throw new Error("The attached Chrome window is unavailable.");
-  await ask(`external-focus ${borrowedRequest(hand, window)}`);
+  await existingTargets.focus(hand);
 }
 const windows = async (hand: Hand) => {
-  if (browserTarget(hand).mode === "existing") { const window = await existingTargets.read(hand); return window ? [window] : []; }
+  if (browserTarget(hand).mode === "existing") { const window = await existingTargets.read(hand); return window ? [selectedExistingWindow(window)] : []; }
   return windowTracker.read(hand);
 };
 
@@ -428,7 +462,7 @@ export async function handState(hand: Hand) {
   const size = !front ? EMPTY
     : frame?.window === front.containerId && frame.pid === front.pid && frame.ownerNonce === front.ownerNonce && frame.rect === front.rect.slice(2).join("x") ? frame
     : { width: front.rect[2], height: front.rect[3] };
-  return { width: size.width, height: size.height, windows: all.map(({ rect: _, iconic: __, ...w }) => w), browser: browserTarget(hand),
+  return { width: size.width, height: size.height, windows: all.map(({ rect: _, ...w }) => w), browser: browserTarget(hand),
     platform: browserTarget(hand).mode === "existing" ? "This hand is attached to the user's existing Chrome window, on the user's desktop. Its preview and computer_browser references address that exact window. Use computer_browser snapshot and ref actions; use attach mode=private to return to the hand's sandbox. The user's browser is never moved to the hand's desktop." : NOTE };
 }
 
@@ -602,7 +636,7 @@ export async function captureBound(hand: Hand, preview = false): Promise<BoundCa
         const target = browserTarget(hand);
         // A disconnected preview must not keep occupying the broker while the
         // normal attachment is trying to restore the browser session.
-        if (preview && target.mode === "existing" && !target.ready) throw new Error("Reconnect Chrome before its fallback preview can be captured.");
+        if (target.mode === "existing") throw new Error("The selected Chrome window could not be captured. Restore that window; Hands will not stream a different browser.");
         const response = await (await driver(hand)).call("get_window_state", { pid: window.pid, window_id: window.containerId, include_screenshot: true, include_accessibility_tree: false });
         const shot = response.content.find((c) => c.type === "image");
         if (!shot || shot.type !== "image") throw new Error("Cua did not return a window screenshot.");
@@ -635,7 +669,7 @@ export function capturedImage(captured: BoundCapture): Awaited<ReturnType<CuaCon
  * them into Windows calls against the hand's front window.
  */
 export async function connectCua(hand: Hand): Promise<CuaConnection> {
-  await driver(hand);
+  // Native app support is lazy. Existing Chrome never initializes Cua.
   // Reacquire after transport closure. An input error is returned as-is and is
   // never replayed: the next tool call can establish a new connection.
   const raw = { call: (async (name, args, signal) => (await driver(hand)).call(name, args, signal)) as CuaConnection["call"] };
