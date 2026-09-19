@@ -666,6 +666,63 @@ describe("bounded semantic observation recovery", () => {
 });
 
 describe("Pi agent runtime", () => {
+  test("model-visible tools follow actual Chrome attachment and retain it when state reads fail", async () => {
+    let target: "existing" | "private" | "native" = "existing", unavailable = false, turn = 0;
+    const seen: { tools: string[]; prompt: string }[] = [];
+    const script = scriptedModel(Array.from({ length: 4 }, () => ({ name: "computer_look", arguments: { what: "windows" } })));
+    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,
+      desktop: { ...fakeDesktop,
+        state: async () => {
+          if (unavailable) throw new Error("Fixture target discovery temporarily unavailable");
+          return { width: 800, height: 600, windows: [{ app: "fixture", title: "Observed target", focused: true, pid: 101, containerId: 202, ownerNonce: "0123456789abcdef" }],
+            ...(target === "native" ? {} : { browser: target === "private" ? { mode: "private" } : { mode: "existing", ready: false, pid: 101, window_id: 202, ownerNonce: "0123456789abcdef" } }) };
+        },
+        semantic: (_hand, guard) => createSemanticComputer({ windows: async () => [],
+          observe: async () => ({ kind: "native", identity: "fixture", title: "Observed target", binding: {}, texts: [], elements: [] }), act: async () => {},
+        }, guard),
+      },
+      streamFn: (model, context, options) => {
+        seen.push({ tools: (context.tools ?? []).map(tool => tool.name), prompt: context.systemPrompt ?? "" });
+        if (++turn === 1) unavailable = true;
+        else if (turn === 2) { unavailable = false; target = "private"; }
+        else if (turn === 3) target = "existing";
+        else if (turn === 4) target = "native";
+        return script(model, context, options);
+      },
+    });
+    try {
+      await runtime.prompt("Inspect the actual current target");
+      expect(seen).toHaveLength(5);
+      expect(seen.map(view => view.tools.includes("computer"))).toEqual([false, false, true, false, true]);
+      for (const view of seen) for (const name of ["computer_browser", "computer_look", "computer_act"]) expect(view.tools).toContain(name);
+      for (const index of [0, 1, 3]) {
+        expect(seen[index]!.prompt).toContain("Current target: the user's attached existing Chrome");
+        expect(seen[index]!.prompt).toContain("legacy computer and its batch/draw actions are unavailable");
+        expect(seen[index]!.prompt).toContain("Prefer browser type with a fresh editable ref");
+      }
+      for (const index of [2, 4]) expect(seen[index]!.prompt).not.toContain("Current target: the user's attached existing Chrome");
+    } finally { await runtime.close(); }
+  });
+
+  test("requesting a private attachment cannot advertise generic input until the runtime target changes", async () => {
+    const advertised: string[][] = [], script = scriptedModel([{ name: "computer_browser", arguments: { action: "attach", mode: "private" } }]);
+    const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute, gate: async () => allow,
+      desktop: { ...fakeDesktop, state: async () => ({ width: 800, height: 600, windows: [], browser: { mode: "existing", pid: 101, window_id: 202, ownerNonce: "0123456789abcdef" } }),
+        semantic: (_hand, guard) => createSemanticComputer({ windows: async () => [],
+          observe: async () => { throw new Error("Unexpected observation"); }, act: async () => {},
+          attach: async () => { throw new Error("Fixture private switch refused"); },
+        }, guard),
+      },
+      streamFn: (model, context, options) => { advertised.push((context.tools ?? []).map(tool => tool.name)); return script(model, context, options); },
+    });
+    try {
+      await runtime.prompt("Inspect the current browser");
+      expect(advertised).toHaveLength(2);
+      expect(advertised.every(names => !names.includes("computer") && names.includes("computer_browser"))).toBe(true);
+      expect(JSON.stringify(runtime.agent.state.messages)).toContain("Fixture private switch refused");
+    } finally { await runtime.close(); }
+  });
+
   test("a rejected Cua connection is evicted so the next screenshot can reconnect", async () => {
     let connections = 0, closed = 0;
     const runtime = await createDesktopAgent({ hand, provider: "openai", apiKey: "test", router: fixedRoute,

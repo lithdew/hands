@@ -6,7 +6,7 @@
 import type { Hand, InstalledApp } from "../desktop";
 import { createSemanticComputer, type Element, type PixelCapture, type Snapshot } from "../semantic-computer";
 import { attachExistingBrowser, browserTarget, browserWindow, captureBound, capturedImage, detachExistingBrowser, driver, existingBrowser, existingBrowserCandidates, frontOf, handBrowser, handState, launchInstalledApp, type RawWindow } from "./desktop";
-import type { ExistingBrowserSnapshot, ExistingDialog } from "./browser";
+import type { ExistingBrowserSnapshot, ExistingCanvas, ExistingDialog } from "./browser";
 import { observeHand, pageSettled } from "./observe";
 
 type NativeElement = { element_index: number; element_token?: string; role: string; label?: string; value?: string; enabled?: boolean; actions?: string[]; parent_index?: number };
@@ -100,13 +100,15 @@ export function semanticComputer(hand: Hand, beforeInput: () => void = () => {})
         if (identity(current) !== identity(window) || identity(observed.window) !== identity(window) || current.title !== observed.window.title
           || current.rect.slice(2).join("x") !== observed.window.rect.slice(2).join("x")) throw new Error("The existing Chrome window changed while observing it. Look again.");
         const elements = existingBrowserElements(observed.refs);
+        const canvas=options.nativeCanvas?await existingBrowser(hand)!.captureCanvas(observed,options.signal):undefined;
         return { kind: "browser", identity: `${identity(current)}:${observed.url}`, title: current.title, url: observed.url, elements,
           texts: ["Connected to the user's existing Chrome. Only the active tab shown in the preview receives input.",
             ...observed.tabs.slice(0, 8).map((tab) => `${tab.active === true ? "Active" : "Inactive"} tab: ${tab.title} ${tab.url}`),
             ...observed.outline.split("\n").filter((line) => !/password/i.test(line)).slice(0, 31)],
-          ...(options.screenshot || !elements.length ? await pixels(current) : {}),
-          binding: { window: identity(current), size: current.rect.slice(2).join("x"), existing: observed } };
+          ...(canvas?{image:canvas.image,canvasCoordinates:{width:canvas.width,height:canvas.height}}:options.screenshot || !elements.length ? await pixels(current) : {}),
+          binding: { window: identity(current), size: current.rect.slice(2).join("x"), existing: observed,...(canvas?{canvas}: {}) } };
       }
+      if(options.nativeCanvas)throw new Error("canvas_snapshot requires the attached existing Chrome window.");
       const web = await browserWindow(hand);
       if (web && web.containerId === window.containerId) {
         const observation = await observeHand(hand);
@@ -146,6 +148,11 @@ export function semanticComputer(hand: Hand, beforeInput: () => void = () => {})
       const target = { pid: window.pid, window_id: window.containerId, session };
       if (snapshot.binding.existing) {
         if (browserTarget(hand).mode !== "existing") throw new Error("The existing Chrome connection changed after observation. Attach and look again.");
+        if(["canvas_click","canvas_drag","focused_text"].includes(action.action)){
+          const canvas=snapshot.binding.canvas as ExistingCanvas|undefined;
+          if(!canvas||!snapshot.image||!snapshot.canvasCoordinates)throw new Error("Take canvas_snapshot before canvas input.");
+          await existingBrowser(hand)!.canvasAct(canvas,action,element?String(element.address.browser_ref):undefined,signal,beforeInput);return;
+        }
         await existingBrowser(hand)!.act(snapshot.binding.existing as ExistingBrowserSnapshot, action,
           element ? String(element.address.browser_ref) : undefined, signal, beforeInput);
         return;
