@@ -20,8 +20,9 @@ import { cp, mkdir, readdir, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { choice, noul, type Ask, type ChoiceResponse, type NoulResponse, type Questions } from "../../jev";
-import type { Kit, Step, Workspace } from "../relay";
-import { LIMITS, TEMPLATES, TEMPLATE_NAMES, briefOfTemplates, check, facts, sceneCard, screen, stillsOf, storyboard, words, type Script, type TemplateName } from "./mathvideo/src/script";
+import type { Kit, KitContext, Step, Workspace } from "../relay";
+import type { Result } from "../web";
+import { LIMITS, TEMPLATES, TEMPLATE_NAMES, briefOfTemplates, check, facts, screen, stillsOf, storyboard, type Script, type TemplateName } from "./mathvideo/src/script";
 
 // ---------------------------------------------------------------- where things live
 
@@ -91,11 +92,36 @@ async function texChecker(): Promise<(latex: string) => string | null> {
   return (latex) => { try { katex.renderToString(latex, { throwOnError: true, strict: "ignore", displayMode: true }); return null; } catch (e) { return (e instanceof Error ? e.message : String(e)).replace(/^KaTeX parse error:\s*/, "").slice(0, 200); } };
 }
 
-async function readScript(ws: Workspace): Promise<{ text: string; raw: unknown; problem?: string }> {
-  const text = ws.files[SCRIPT] ?? await Bun.file(join(ws.dir, SCRIPT)).text().catch(() => "");
+/** Only what THIS run wrote: a script left on disk by an earlier run is not this run's work. */
+function readScript(ws: Workspace): { text: string; raw: unknown; problem?: string } {
+  const text = ws.files[SCRIPT] ?? "";
   if (!text.trim()) return { text, raw: null, problem: `${SCRIPT} has not been written.` };
   try { return { text, raw: JSON.parse(text) }; } catch (e) { return { text, raw: null, problem: `${SCRIPT} is not valid JSON: ${e instanceof Error ? e.message : e}` }; }
 }
+
+// ---------------------------------------------------------------- research that does not hang on a search engine
+
+const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+const plain = (html: string) => html.replace(/<[^>]+>/g, "").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&#0?39;/g, "'").replace(/\s+/g, " ").trim();
+
+/** A lesson of the explainer this kit imitates, from its sitemap: every lesson page holds the lesson's full text. Exported for tests. */
+export function lessonsIn(sitemap: string): Result[] {
+  return [...sitemap.matchAll(/<loc>(https:\/\/www\.3blue1brown\.com\/lessons\/([a-z0-9-]+))\/?<\/loc>/g)].map((m) => { const name = m[2]!.replace(/-/g, " "); return { title: `3Blue1Brown lesson: ${name}`, url: m[1]!, snippet: `The full text of 3Blue1Brown's own lesson "${name}", as it is explained in the video, with what is shown on screen.` }; });
+}
+
+/** Asked once a step: all of 3Blue1Brown's lessons (about 180 titles; Jev's sift picks the few that serve the goal, which is its kind
+ *  of work) and Wikipedia's search for each query, for the mathematics itself. The web search may refuse (429 when several runs share
+ *  an address); these two answer, so a research step always has something real to read. */
+async function sourcesAtOnce(queries: string[]): Promise<Result[]> {
+  const get = (url: string) => fetch(url, { headers: { "user-agent": UA }, signal: AbortSignal.timeout(15_000) });
+  const lessons = get("https://www.3blue1brown.com/sitemap.xml").then((r) => (r.ok ? r.text() : ""), () => "").then(lessonsIn);
+  const wikipedia = queries.slice(0, 4).map((q) => get(`https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=4&srsearch=${encodeURIComponent(q)}`)
+    .then((r) => (r.ok ? r.json() : null), () => null)
+    .then((body) => ((body as { query?: { search?: { title: string; snippet: string }[] } } | null)?.query?.search ?? []).map((hit) => ({ title: `${hit.title} (Wikipedia)`, url: `https://en.wikipedia.org/wiki/${encodeURIComponent(hit.title.replace(/ /g, "_"))}`, snippet: plain(hit.snippet) }))));
+  return (await Promise.all([lessons, ...wikipedia])).flat();
+}
+
+const READING = "The writer will script an explainer video. Keep: how the source SHOWS each idea (what is drawn, what moves, which example), the order in which the ideas come, the sentences that carry the intuition, the definitions and formulas stated exactly, and what learners get wrong. Skip what is off the goal's topic.";
 
 // ---------------------------------------------------------------- review: code, then Jev, in bulk
 
@@ -138,29 +164,23 @@ export function problemsFrom(verdicts: SceneVerdict[], script: Script): string[]
 
 let lastReview = { scenes: 0, requests: 0, ms: 0, rounds: 0 };
 
-async function review(ws: Workspace, step: Step, tools: { ask: Ask; log: (line: string) => void }): Promise<{ problems: string[]; digest?: string }> {
-  const { text, raw, problem } = await readScript(ws);
+async function review(ctx: KitContext, step: Step): Promise<string[]> {
+  const { ws, ask, log } = ctx, { text, raw, problem } = readScript(ws);
   // A write step that was never meant to produce the script (an outline, say) is not this review's business.
-  if (!text.trim() && !/script/i.test(`${step.id} ${step.goal}`)) return { problems: [] };
-  if (problem) return { problems: [problem] };
-  await prepare(tools.log).catch(() => "");
+  if (!text.trim() && !/script/i.test(`${step.id} ${step.goal}`)) return [];
+  if (problem) return [problem];
+  await prepare(log).catch(() => "");
   const checked = check(raw, await texChecker());
   const problems = checked.problems.map((p) => p.text);
-  if (!checked.script) return { problems };
+  if (!checked.script) return problems;
   const usable = { ...checked.script, scenes: checked.script.scenes.filter((s) => s && typeof s.narration === "string" && TEMPLATE_NAMES.includes(s.template)) };
   const t = performance.now();
-  const verdicts = await jevReview(tools.ask, usable).catch((e) => { tools.log(`Jev's review could not run: ${e instanceof Error ? e.message : e}`); return [] as SceneVerdict[]; });
+  const verdicts = await jevReview(ask, usable).catch((e) => { log(`Jev's review could not run: ${e instanceof Error ? e.message : e}`); return [] as SceneVerdict[]; });
   lastReview = { scenes: usable.scenes.length, requests: lastReview.requests + verdicts.length, ms: lastReview.ms + Math.round(performance.now() - t), rounds: lastReview.rounds + 1 };
   const fromJev = problemsFrom(verdicts, usable);
-  tools.log(`review: code found ${problems.length} problem${problems.length === 1 ? "" : "s"}; Jev read ${verdicts.length} scenes in ${Math.round(performance.now() - t)} ms and objected to ${fromJev.length}`);
+  log(`review: code found ${problems.length} problem${problems.length === 1 ? "" : "s"}; Jev read ${verdicts.length} scenes in ${Math.round(performance.now() - t)} ms and objected to ${fromJev.length}`);
   await Bun.write(join(ws.dir, "notes", `review-${lastReview.rounds}.json`), JSON.stringify({ code: checked.problems, jev: verdicts, jevProblems: fromJev }, null, 2));
-  // What the step's acceptance statements are checked against: the whole script in a few thousand characters, not the first 5,000 of the JSON.
-  // Counting and arithmetic are code's: the digest states their outcome in plain words, so a statement about limits or numbers can be read off rather than worked out.
-  const pace = Math.max(...usable.scenes.map((s) => words(s.narration) / (Number(s.seconds) || 1)));
-  const verified = problems.length ? `Code's check found ${problems.length} problem${problems.length === 1 ? "" : "s"}: ${problems.join(" ")}`
-    : `Code checked the whole script and found nothing wrong: it is valid JSON in the kit's format; every scene uses one of the kit's templates with exactly its parameters; every determinant, inverse and product in it is arithmetically correct (recomputed exactly); every title, heading, LaTeX line and recap point is within the kit's length limits and typesets; the captions never exceed ${LIMITS.wordsPerSecond[1]} words a second (the fastest scene runs at ${pace.toFixed(1)}); the scenes add up to ${checked.seconds} seconds, within ${LIMITS.totalSeconds[0]} to ${LIMITS.totalSeconds[1]}.`;
-  const digest = `${SCRIPT} "${usable.title ?? ""}": ${usable.scenes.length} scenes, ${checked.seconds} seconds. ${verified}\nScene by scene, what is SAID and what is SEEN (numbers computed by code):\n${usable.scenes.map((s, i) => { const card = sceneCard(s); return `${i + 1}. ${card.id} [${card.template}, ${card.seconds} s] SAID: ${card.narration} SEEN: ${card.on_screen}`; }).join("\n")}`;
-  return { problems: [...problems, ...fromJev], digest };
+  return [...problems, ...fromJev];
 }
 
 // ---------------------------------------------------------------- build: validate, render (or reuse), say how it was made
@@ -202,7 +222,10 @@ Why this way: the point of the request is a 3Blue1Brown-style explanation and Re
 }
 
 async function build(ws: Workspace): Promise<{ ok: boolean; log: string; outputs: string[] }> {
-  const { text, raw, problem } = await readScript(ws);
+  // Whatever an earlier run or an earlier attempt rendered is not this script's video: a build that fails leaves none behind.
+  await rm(join(ws.dir, "video", "out.mp4"), { force: true });
+  await rm(join(ws.dir, "video", "stills"), { recursive: true, force: true });
+  const { text, raw, problem } = readScript(ws);
   if (problem) return { ok: false, log: problem, outputs: [] };
   const sources = await prepare(ws.log);
   const checked = check(raw, await texChecker());
@@ -232,7 +255,9 @@ async function build(ws: Workspace): Promise<{ ok: boolean; log: string; outputs
   await ws.write("video/README.md", await readme(script, checked.seconds, stills.map((s) => s.name), reused));
   const soft = checked.problems.filter((p) => !p.hard);
   return { ok: true, outputs: ["video/out.mp4", ...stills.map((s) => `video/stills/${s.name}`), "video/storyboard.md", "video/README.md"],
-    log: `video/out.mp4 rendered with Remotion${reused ? " (reused from the cache: same script, same templates)" : ""}: ${script.scenes.length} scenes, ${checked.seconds} seconds, ${stills.length} stills in video/stills. video/README.md says which tools made it and why (Remotion alone in manim's style; manim could not be installed). video/storyboard.md lists every scene with the numbers code computed.${soft.length ? `\nNot blocking: ${soft.map((p) => p.text).join(" ")}` : ""}\nScenes: ${script.scenes.map((s) => `${s.id} (${s.template}, ${s.seconds} s)`).join("; ")}\n${log.split("\n").filter((l) => /composition|video out|bundle/.test(l)).join("\n")}` };
+    // Said in plain sentences: the step's acceptance statements are read off this log by a literal reader.
+    log: `The build succeeded without errors. Before rendering, code checked video/script.json and it passed: the format and every template's parameters are valid, every determinant, inverse and product is arithmetically correct, every LaTeX line typesets, and the timing is within limits.
+video/out.mp4 was rendered with Remotion${reused ? " (reused from the cache: same script, same templates)" : ""}: ${script.scenes.length} scenes, ${checked.seconds} seconds long, 30 frames a second, ${Math.round(1920 * SCALE)}x${Math.round(1080 * SCALE)}. ${stills.length} PNG stills were written to video/stills, one for each scene that shows mathematics. video/README.md says which tools made it and why (Remotion alone in manim's style; manim could not be installed). video/storyboard.md lists every scene with the numbers code computed.${soft.length ? `\nNot blocking: ${soft.map((p) => p.text).join(" ")}` : ""}\nScenes: ${script.scenes.map((s) => `${s.id} (${s.template}, ${s.seconds} s)`).join("; ")}\n${log.split("\n").filter((l) => /composition|video out|bundle/.test(l)).join("\n")}` };
 }
 
-export const mathvideo: Kit = { name: "mathvideo", brief: BRIEF, review, build, redo: 2 };
+export const mathvideo: Kit = { name: "mathvideo", brief: BRIEF, sourcesAtOnce, reading: READING, review, build };

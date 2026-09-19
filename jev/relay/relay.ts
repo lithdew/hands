@@ -180,7 +180,7 @@ export async function relay(task: string, ws: Workspace, deps: RelayDeps): Promi
   log(`plan: ${batches(plan.steps).map((b) => b.map((s) => `${s.id}(${s.worker})`).join(" + ")).join(" -> ")}`);
   const ctx: KitContext = { task, plan, ws, ask, llm, model, deepModel, log };
   // By step: what the kit prepared for its writer, what its note-taker found missing; by path: which step wrote the file.
-  const prepared = new Map<string, Record<string, unknown>>(), missing = new Map<string, string[]>(), written = new Map<string, string>();
+  const prepared = new Map<string, Record<string, unknown>>(), missing = new Map<string, string[]>(), written = new Map<string, string>(), built = new Map<string, boolean>();
 
   const failed: string[] = [];
   for (const batch of batches(plan.steps)) await Promise.all(batch.map(async (step) => {
@@ -188,7 +188,7 @@ export async function relay(task: string, ws: Workspace, deps: RelayDeps): Promi
     for (let attempt = 0; attempt <= REDO; attempt++) {
       const t = performance.now();
       const made = step.worker === "research" ? await research(step, feedback, attempt) : step.worker === "write" ? await write(step, feedback, attempt) : await build(step, feedback, attempt);
-      if (made === null) { log(`${step.id}: not redone, nothing a new search or reading could mend`); break; } // what failed stays failed, and no time is spent pretending
+      if (made === null) { log(`${step.id}: not redone, nothing that doing it again could mend`); break; } // what failed stays failed, and no time is spent pretending
       if (attempt) trace.redone.push(step.id);
       const wrong = [...made.wrong, ...await check(step, made.text)];
       log(`${step.id}${attempt ? " (again)" : ""}: ${Math.round(performance.now() - t)} ms${wrong.length ? `; not yet: ${wrong.join(" | ")}` : "; accepted"}`);
@@ -264,11 +264,16 @@ Use only facts that are in the notes and sources you are given, with their addre
 
   // -- build: the kit's commands. A build that failed is not run again as it is: what is wrong is in the files, so they go
   // back to their writer with the build's log, and then it is built again.
-  async function build(step: Step, feedback: string[], attempt: number): Promise<{ text: string; wrong: string[] }> {
+  // A build that SUCCEEDED is not done again because a statement about its log was doubted: that would have the files rewritten
+  // and everything built again (a render is minutes) to mend a sentence. What was doubted stays reported. And a build that
+  // throws is a failed build with a log, not the end of the run.
+  async function build(step: Step, feedback: string[], attempt: number): Promise<{ text: string; wrong: string[] } | null> {
     if (!kit.build) return { text: "This kit has nothing to build.", wrong: [] };
+    if (attempt > 0 && built.get(step.id)) return null;
     const writer = attempt > 0 ? [...plan.steps].reverse().find((s) => s.worker === "write" && (!step.needs.length || step.needs.includes(s.id))) : undefined;
     if (writer) await write(writer, feedback, attempt);
-    const made = await kit.build(ws);
+    const made = await kit.build(ws).catch((e) => ({ ok: false, log: `The build threw: ${e instanceof Error ? e.message : e}`, outputs: [] as string[] }));
+    built.set(step.id, made.ok);
     return { text: `build ${made.ok ? "succeeded" : "FAILED"}; outputs: ${made.outputs.join(", ") || "none"}\n${made.log.slice(-4000)}`, wrong: made.ok ? [] : [`The build failed. The end of its log: ${made.log.slice(-1500)}`] };
   }
 

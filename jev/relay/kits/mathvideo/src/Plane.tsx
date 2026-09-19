@@ -70,7 +70,9 @@ export const Plane: React.FC<{
           {square > 0 && <polygon points={corners.map((c) => c.join(",")).join(" ")} fill={COLOR.area} fillOpacity={0.34 * square} stroke={COLOR.area} strokeWidth={4} strokeOpacity={square} strokeLinejoin="round" />}
           {basis && <><Arrow to={iTip} color={COLOR.iHat} /><Arrow to={jTip} color={COLOR.jHat} /></>}
           {vector && <Arrow to={applyM(matrix, vector.v[0], vector.v[1])} color={COLOR.vector} width={8} opacity={vector.opacity ?? 1} />}
-          {dots.map((dot, i) => { const [x, y] = px(...applyM(matrix, dot.at[0], dot.at[1])); return <circle key={i} cx={x} cy={y} r={13} fill={dot.color} stroke={COLOR.background} strokeWidth={3} />; })}
+          {/* each point leaves a ring where it started and a dashed trail to where it is now: points that end up together are seen to have been apart */}
+          {dots.map((dot, i) => { const [x0, y0] = px(dot.at[0], dot.at[1]), [x, y] = px(...applyM(matrix, dot.at[0], dot.at[1])); return Math.hypot(x - x0, y - y0) < 4 ? null : <g key={`trail${i}`} opacity={0.75}><line x1={x0} y1={y0} x2={x} y2={y} stroke={dot.color} strokeWidth={2.5} strokeDasharray="10 9" /><circle cx={x0} cy={y0} r={12} fill="none" stroke={dot.color} strokeWidth={3} /></g>; })}
+          {dots.map((dot, i) => { const [x, y] = px(...applyM(matrix, dot.at[0], dot.at[1])); return <circle key={i} cx={x} cy={y} r={13 - i * 3} fill={dot.color} stroke={COLOR.background} strokeWidth={2} />; })}
         </g>
       </svg>
       {basis && tipLabel(iTip, iLabel, COLOR.iHat, [0, -0.22])}

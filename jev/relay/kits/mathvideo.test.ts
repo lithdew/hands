@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { det, identity, inverse, parseMatrix, parseQ, product, q, sameMatrix, show, showMatrix, steps2x2, tex, texMatrix } from "./mathvideo/src/matrix";
 import { FPS, TEMPLATE_NAMES, briefOfTemplates, check, facts, screen, stillsOf, storyboard, type Scene, type Script } from "./mathvideo/src/script";
-import { problemsFrom, type SceneVerdict } from "./mathvideo";
+import { lessonsIn, problemsFrom, type SceneVerdict } from "./mathvideo";
 
 const M = (rows: unknown) => parseMatrix(rows, 2)!;
 
@@ -164,4 +164,24 @@ test("Jev's review: a firm mismatch is reported; near-templates and weak doubts 
   expect(problemsFrom([v("size", "area", { matches: 0.1 })], script)[0]).toContain("does not talk about what is on screen");
   expect(problemsFrom([v("size", "area", { numbers: 0.05 })], script)[0]).toContain("Its determinant is 3·2 − 1·0 = 6 − 0 = 6.");
   expect(problemsFrom([v("size", "area", { oneIdea: 0.1 })], script)[0]).toContain("more than one point");
+  // An opening or a closing speaks about the whole topic: its words sounding like another scene is not a fault, a plain miss is.
+  expect(problemsFrom([v("open", "title", { picked: "undo", confidence: 0.97, matches: 0.45 })], script)).toEqual([]);
+  expect(problemsFrom([v("close", "recap", { picked: "undo", confidence: 0.97, matches: 0.05 })], script)[0]).toContain("does not go with what is on screen");
+});
+
+test("correct but showing nothing: a determinant of 1 where scaling or dividing is the point", () => {
+  const s = good();
+  s.scenes[3] = scene({ id: "size", template: "area", matrix: [[2, 1], [1, 1]], det: 1 });
+  s.scenes[6] = scene({ id: "work", template: "worked_inverse", matrix: [[2, 1], [1, 1]], det: 1, inverse: [[1, -1], [-1, 2]] });
+  const found = texts(s);
+  expect(found.filter((t) => t.startsWith("HARD"))).toEqual([]);
+  expect(found.join("\n")).toContain("the viewer sees nothing being scaled");
+  expect(found.join("\n")).toContain(`the step "divide by the determinant" changes nothing on screen`);
+});
+
+test("research sources: every lesson in the explainer's sitemap becomes a result Jev can sift, and nothing else does", () => {
+  const found = lessonsIn(`<urlset><url><loc>https://www.3blue1brown.com/</loc></url><url><loc>https://www.3blue1brown.com/lessons/inverse-matrices</loc></url><url><loc>https://www.3blue1brown.com/lessons/determinant/</loc></url><url><loc>https://evil.example/lessons/x</loc></url></urlset>`);
+  expect(found.map((r) => r.url)).toEqual(["https://www.3blue1brown.com/lessons/inverse-matrices", "https://www.3blue1brown.com/lessons/determinant"]);
+  expect(found[0]!.title).toBe("3Blue1Brown lesson: inverse matrices");
+  expect(lessonsIn("")).toEqual([]);
 });

@@ -27,7 +27,8 @@ try {
   let serveUrl = bundleDir;
   if (!existsSync(join(bundleDir, "index.html"))) { serveUrl = await bundle({ entryPoint: join(here, "src", "index.ts"), outDir: bundleDir, enableCaching: true }); say(`bundled the templates`); } else say(`reused the bundle`);
 
-  const inputProps = { script }, chromiumOptions = { gl: "swangle" };
+  // No GL backend asked for: measured on 300 frames of these templates, 21 s against 51 s ("angle") and 88 s ("swangle"). Nothing here needs WebGL.
+  const gl = arg("gl", "none"), inputProps = { script }, chromiumOptions = gl === "none" ? {} : { gl };
   browser = await openBrowser("chrome", { chromiumOptions });
   const composition = await selectComposition({ serveUrl, id: "Main", inputProps, puppeteerInstance: browser, chromiumOptions });
   say(`composition: ${composition.durationInFrames} frames at ${composition.fps} fps, ${composition.width}x${composition.height}`);
