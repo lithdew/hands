@@ -59,7 +59,7 @@ export type Decision =
 export type StepRecord = { n: number; did: string; risk: number | null; outcome: string };
 
 export type RunResult = {
-  status: "done" | "gave_up" | "denied" | "out_of_steps" | "dry_run";
+  status: "done" | "gave_up" | "denied" | "out_of_steps" | "dry_run" | "cancelled";
   reason: string;
   steps: StepRecord[];
 };
@@ -74,7 +74,23 @@ export type Deps = {
   log?: (line: string) => void;
 };
 
-export type RunOptions = { maxSteps?: number; maxPlans?: number; dryRun?: boolean };
+export type RunOptions = {
+  maxSteps?: number;
+  maxPlans?: number;
+  dryRun?: boolean;
+  /** Stops the run before its next action. listen.ts uses it when the speaker takes a task back. */
+  signal?: AbortSignal;
+  /**
+   * For runs that start before the speaker has finished. While it returns a
+   * promise, the intent may still change. The hand may open, click and scroll,
+   * but it does not type (the words are the part still arriving) and does not
+   * perform or offer for approval anything the gate flags. The loop waits for
+   * the promise, then decides again against what was finally said.
+   */
+  settles?: () => Promise<void> | null;
+  /** Risk level that counts as risky. Lower it while the intent is still partial. */
+  riskThreshold?: () => number;
+};
 
 type Memory = { history: string[]; plan: Plan | null };
 
@@ -90,7 +106,8 @@ const DONE_THRESHOLD = 0.8;
 const DONE_AGREED = 0.5;
 const SETTLE_MS = 700;
 const WAIT_MS = 1500;
-const APP_START_MS = 2500;
+/** How long a freshly launched app gets before the first look at the screen. */
+export const APP_START_MS = 2500;
 const SCROLL_NOTCHES = 5;
 const HISTORY_SHOWN = 10;
 
@@ -400,8 +417,18 @@ export async function openFor(hand: Hand, intent: Intent): Promise<void> {
 
 // ---------------------------------------------------------------- loop
 
-/** Drive one hand until the intent is met. Holds no shared state, so hands run concurrently. */
-export async function runIntent(hand: Hand, intent: Intent, deps: Deps, opts: RunOptions = {}): Promise<RunResult> {
+/**
+ * Drive one hand until the intent is met. Holds no shared state, so hands run
+ * concurrently. `goal` may be a function: it is read again at every step, so an
+ * intent that is refined while the hand works takes effect on the next step.
+ */
+export async function runIntent(
+  hand: Hand,
+  goal: Intent | (() => Intent),
+  deps: Deps,
+  opts: RunOptions = {},
+): Promise<RunResult> {
+  const current = typeof goal === "function" ? goal : () => goal;
   const look = deps.observe ?? ((h: Hand) => observe(h, deps.exec));
   const sleep = deps.sleep ?? Bun.sleep;
   const log = deps.log ?? (() => {});
@@ -414,6 +441,8 @@ export async function runIntent(hand: Hand, intent: Intent, deps: Deps, opts: Ru
   const end = (status: RunResult["status"], reason: string): RunResult => ({ status, reason, steps });
 
   for (let n = 1; n <= maxSteps; n++) {
+    if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
+    const intent = current();
     let obs = await look(hand);
     // What the planner saw stays usable only while the screen it saw is still there.
     if (seen && seen.fingerprint === obs.fingerprint) obs = withVisionElements(obs, seen.elements, hand);
@@ -450,10 +479,23 @@ export async function runIntent(hand: Hand, intent: Intent, deps: Deps, opts: Ru
     const did = describeAction(decision.action);
     if (opts.dryRun) return end("dry_run", did);
 
+    const typesEarly = decision.action.kind === "type" ? opts.settles?.() : null;
+    if (typesEarly) {
+      log(`step ${n}: holding until the speaker finishes: ${did}`);
+      await typesEarly;
+      continue;
+    }
+
     let risk: Risk | null = null;
     if (decision.action.kind !== "wait") {
       risk = await assessRisk(deps.ask, { goal: intent.goal, avoid: intent.avoid, action: did });
-      if (needsApproval(risk)) {
+      if (needsApproval(risk, opts.riskThreshold?.())) {
+        const speechEnds = opts.settles?.();
+        if (speechEnds) {
+          log(`step ${n}: holding until the speaker finishes: ${did} (${risk.worst} ${risk.level.toFixed(2)})`);
+          await speechEnds;
+          continue; // decide again, against what was finally said
+        }
         log(`step ${n}: paused for approval: ${did} (${risk.worst} ${risk.level.toFixed(2)})`);
         if (!(await deps.approve({ hand: hand.id, action: did, risk }))) {
           steps.push({ n, did, risk: risk.level, outcome: "denied by the user" });
@@ -462,6 +504,7 @@ export async function runIntent(hand: Hand, intent: Intent, deps: Deps, opts: Ru
       }
     }
 
+    if (opts.signal?.aborted) return end("cancelled", "the task was taken back"); // it may have come during the gate
     await perform(hand, decision.action, deps);
     await sleep(SETTLE_MS);
     const after = await look(hand);

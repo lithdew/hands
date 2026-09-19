@@ -305,6 +305,84 @@ describe("runIntent", () => {
   });
 });
 
+describe("runIntent while the speaker is still talking", () => {
+  test("it does not type until the sentence is over, then types what was finally said", async () => {
+    const speech = Promise.withResolvers<void>();
+    let speaking = true;
+    let said: Intent = { ...intent, inputs: { search_query: "wikipedia" } }; // a guess made on half a sentence
+    const jev = fakeJev((name, { state }) => {
+      if (name === "goal_met") return state.history.length ? 0.9 : 0;
+      return { move: "type", input: "search_query", field: "e1" }[name];
+    });
+    const sh = fakeExec();
+    const run = runIntent(hand, () => said, deps({ ask: jev.ask, observe: screens(home) }, sh.exec), {
+      settles: () => (speaking ? speech.promise : null),
+    });
+
+    await Bun.sleep(5);
+    expect(sh.input()).toEqual([]); // decided to type, and is waiting
+
+    said = { ...intent, inputs: { search_query: "capybaras" } };
+    speaking = false;
+    speech.resolve();
+    const result = await run;
+    expect(result.status).toBe("done");
+    expect(sh.input().at(-1)).toEqual(["wtype", "-s", "40", "-d", "8", "capybaras"]);
+    expect(sh.input().flat()).not.toContain("wikipedia");
+  });
+
+  test("it opens and clicks freely, but what the gate flags is held and decided again, never offered on a fragment", async () => {
+    const speech = Promise.withResolvers<void>();
+    let speaking = true;
+    const jev = fakeJev((name, { state }) => {
+      if (name === "goal_met") return state.history.length ? 0.9 : 0;
+      return { move: "click", target: "e2", irreversible: 0.4 }[name]; // under 0.5, over the stricter bar
+    });
+    const sh = fakeExec();
+    const approvals: string[] = [];
+    const run = runIntent(
+      hand,
+      intent,
+      deps({ ask: jev.ask, observe: screens(home), approve: async (r) => (approvals.push(r.action), true) }, sh.exec),
+      { settles: () => (speaking ? speech.promise : null), riskThreshold: () => (speaking ? 0.25 : 0.5) },
+    );
+
+    await Bun.sleep(5);
+    expect(sh.input()).toEqual([]);
+    expect(approvals).toEqual([]);
+
+    speaking = false;
+    speech.resolve();
+    expect((await run).status).toBe("done");
+    expect(approvals).toEqual([]); // 0.4 is fine once the sentence is whole
+    expect(jev.asked("move")).toHaveLength(3); // decided, held, decided again, then saw the goal met
+    expect(sh.input().at(-1)).toEqual(["wlrctl", "pointer", "click", "left"]);
+  });
+
+  test("a task that is taken back stops before its next action", async () => {
+    const abort = new AbortController();
+    const jev = fakeJev((name) => {
+      if (name === "irreversible") abort.abort(); // "never mind" arrives while the gate is thinking
+      return { move: "click", target: "e2" }[name];
+    });
+    const sh = fakeExec();
+    const result = await runIntent(hand, intent, deps({ ask: jev.ask, observe: screens(home) }, sh.exec), { signal: abort.signal });
+    expect(result.status).toBe("cancelled");
+    expect(sh.input()).toEqual([]);
+  });
+
+  test("an already cancelled task does not even look at the screen", async () => {
+    const jev = fakeJev(() => "click");
+    let looked = 0;
+    const result = await runIntent(hand, intent, deps({ ask: jev.ask, observe: async () => (looked++, home) }, fakeExec().exec), {
+      signal: AbortSignal.abort(),
+    });
+    expect(result.status).toBe("cancelled");
+    expect(looked).toBe(0);
+    expect(jev.calls).toHaveLength(0);
+  });
+});
+
 describe("jevState", () => {
   test("shows inputs as previews and the screen as words", () => {
     const long = { ...intent, inputs: { body: "x".repeat(500) } };

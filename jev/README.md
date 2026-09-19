@@ -11,8 +11,12 @@ System One model) then operates a hand until the intent is met: click, type,
 key, scroll. A vision model is consulted only when Jev is stuck.
 
 ```
-what the user said
-  -> intent.ts    small LLM, once: goal, launcher, inputs to type, done_when
+words, as they are spoken
+  -> listen.ts    Jev, on every new word: is there a request yet? enough to start?
+                  can Jev build the intent itself (quick.ts) or does it need the LLM?
+                  does this refine, repeat or take back a task we already have?
+  -> quick.ts     Jev alone, ~300 ms: launcher, site, and the words to type
+     intent.ts    small LLM, once per task: goal, launcher, inputs to type, done_when
   -> cua.ts       per step:
        observe.ts   the screen as labelled text (AT-SPI tree, no model call)
        Jev          which move? then: which element / input / key?   ~100 ms each
@@ -55,6 +59,47 @@ changes one decision there: the vision model no longer proposes each action
 with Jev only gating it. Jev decides every action; vision is the escalation.
 Reason: that was the explicit direction for this branch (2026-09-19).
 
+## Listening while the user speaks
+
+`listen.ts` is fed the whole transcript every time it grows by a word. Each
+time, one Jev request answers three independent questions:
+
+| Question | Answers | What code does with it |
+| --- | --- | --- |
+| `relation` | `no_request`, `covered`, `refines`, `new_task`, `retracts` | start, amend, ignore or cancel a task |
+| `startable` | 0..1 | at 0.6 a hand starts, before the sentence is over |
+| `route` | `jev`, `llm` | who builds the full intent |
+
+- **The opening move is always Jev's.** `quick.ts` picks a launcher, a site
+  from a closed list and the words to type as a literal run of what was said.
+  No LLM, about 300 ms, so the site is loading while the user still talks.
+- **A task routed to the LLM gets its real intent once**, when the sentence
+  has stopped moving. It replaces the intent in place; `runIntent` reads the
+  intent again at every step. If what to open changed, the task restarts on
+  the same hand.
+- **A hand never acts on a fragment.** While the speaker is talking a hand
+  may open, click and scroll. It does not type, the gate's bar drops from 0.5
+  to 0.25, and anything the gate flags is held, not offered for approval. When
+  the speaker finishes the loop decides again against the final intent. If
+  the final intent cannot be built (the LLM is down), the task is cancelled.
+- **Finished tasks stay in Jev's view as `done`**, so their words read as
+  `covered` and are not started twice. Only tasks that are not done can be
+  refined or taken back.
+- **One request at a time, newest transcript wins.** Words that arrive during
+  a request are taken together in the next one. Nothing queues up.
+- Tasks go to the first free hand. With none free they wait.
+
+```ts
+const listener = createListener({ ask, llm, hands: listHands, work: handWork(deps) });
+listener.warm();                   // hotkey down: open the connection (first call is ~1 s cold)
+listener.hear("search wiki");      // every partial transcript, whole sentence so far
+await listener.finish();           // hotkey up
+await listener.idle();             // all hands done
+```
+
+For `transcribe.ts` there is also a pipe: `bun jev/listen.ts stdin` takes the
+transcript so far on each line, and an empty line as the end of the utterance.
+
 ## Files
 
 | File | Purpose | Status |
@@ -65,9 +110,11 @@ Reason: that was the explicit direction for this branch (2026-09-19).
 | `observe.ts` + `atspi_dump.py` | AT-SPI tree of one hand's apps as labelled elements | TS unit tested. **The Python helper has never run against a live tree.** |
 | `planner.ts` | `choosePlanner` (Jev's choice), `makePlan` (vision), plan validation | `makePlan` **run live** on both default models. `choosePlanner` unit tested only. |
 | `gate.ts` | Five risk Nouls in one request, approval callback | **Run live.** |
+| `listen.ts` | Per-word triage, task list, dispatch to free hands, refine / restart / cancel | **Run live** in `--dry` mode (real Jev and OpenAI, no hand). Unit tested. |
+| `quick.ts` | Jev builds a simple intent with no LLM | **Run live.** Unit tested. |
 | `cua.ts` | `decide`, `perform`, `runIntent`, CLI | `decide` **run live** on synthetic screens. `perform` and the loop tested with a scripted Jev, asserting the exact `wlrctl`/`wtype` argv. |
 
-72 tests here (94 with the existing 22), all seams faked, same idiom as
+103 tests here (125 with the existing 22), all seams faked, same idiom as
 `desktop.test.ts`.
 
 **No action has ever reached a real hand.** The machine this was written on
@@ -98,6 +145,21 @@ step. TypeSafe quotes about 100 ms; the rest is likely network from here.
 One threshold was wrong and is fixed: Jev answered `stuck` 0.57 on a run with
 an empty history. `stuck` now counts only after three actions.
 
+`listen.ts say --dry` against real Jev and OpenAI, three words a second:
+
+| Spoken | What happened |
+| --- | --- |
+| "search wikipedia for capybaras" | hand dispatched after "search wikipedia **for**", before "capybaras" was said. Intent then refined in place to `search_query: "capybaras"`. No LLM call at all. |
+| "um can you email sam@example.com that I'm running ten minutes late" | "um can you": `no_request` 0.99. Gmail dispatched at "sam@example.com" (startable 0.83), 1.8 s before the speaker finished. LLM built recipient and body once, at the end, 2.2 s. |
+| "search wikipedia for capybaras actually never mind cancel that" | task started, refined, then `retracts` 0.96 at "actually never": cancelled. |
+| "open youtube and also look up the weather in tokyo on google" | two tasks on two hands. The second one's query grew with the sentence: "weather", then "weather in tokyo". |
+
+These runs found four bugs, all fixed and now covered by tests: a relation
+confidence of 0.49 blocking a start that `startable` 0.75 had earned; the LLM
+returning the text "null" as a url, which failed the final build and left a
+task running on the fragment "I'm running"; one error logged four times; and
+Jev picking "youtube" as the words to type into YouTube.
+
 `makePlan` against both planners, on a generated 1280x800 PNG with a blue
 rectangle at a known place: `gpt-5.4-mini` 2.3 s, centre off by 4 px;
 `gpt-6-astra` 2.9 s, exact. Both took image plus strict schema, and both
@@ -127,8 +189,11 @@ bun test                                   # 94 pass (22 existing + 72 here)
 bun jev/jev.ts ping                        # one Noul round trip; proves the key
 bun jev/intent.ts "search wikipedia for capybaras"    # prints the Intent
 
-bun desktop.ts up 1 --empty
-bun jev/cua.ts run 1 "search wikipedia for capybaras"
+bun jev/listen.ts say --dry search wikipedia for capybaras   # watch Jev decide word by word; touches no hand
+
+bun desktop.ts up 2 --empty
+bun jev/listen.ts say search wikipedia for capybaras         # the same, on real hands
+bun jev/cua.ts run 1 "search wikipedia for capybaras"        # or skip the listening: one intent, one hand
 bun jev/observe.ts 1                       # what Jev is being offered right now
 bun jev/cua.ts next 1 "open the first result"    # decide one step, do nothing
 ```
@@ -165,7 +230,20 @@ has something to stand on.
    accuracy on your own runs.
 7. **`jev-preview` exists** and is described as better in most ways. Try it
    with `TYPESAFE_DEFAULT_MODEL=jev-preview`.
-8. **Typed text with newlines.** `wtype` sends a newline as Enter, which
+8. **A request that leans on the one before it.** "Open wikipedia", and once
+   that is done, "now search for capybaras": the second task is built from its
+   own words only and does not know Wikipedia is meant. Refining works only
+   while the earlier task is not done.
+9. **`startable` is tuned on four sentences.** It reached 0.6 at "search
+   wikipedia" and at "email sam@example.com", but only 0.29 at "can you
+   email". Jev reads literally: "email" names no site. More examples in the
+   question's criteria are the way to move it.
+10. **Transcripts that rewrite themselves.** Words are tracked by position. A
+   transcriber that revises earlier words ("wiki pedia" to "wikipedia") shifts
+   those positions. It self-corrects on the final pass, since llm tasks are
+   rebuilt from the full sentence, but a Jev-built task could keep a stale
+   word.
+11. **Typed text with newlines.** `wtype` sends a newline as Enter, which
    submits in most chat boxes. The gate sees the text but not that.
 
 ## Safety

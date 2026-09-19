@@ -78,7 +78,7 @@ You do not plan clicks. You describe the job.
 
 - goal: one imperative sentence that keeps every specific the user gave.
 - launcher: what to open first. "browser" for websites and web apps, "terminal", "files" for the file manager, "none" if what is already open should be used.
-- url: the page to start on when launcher is "browser" (https), otherwise null.
+- url: the page to start on when launcher is "browser". Always give a full https url then: the site the user named, or the usual one for the job (https://mail.google.com/ for email, https://www.google.com/ for a web search). JSON null for any other launcher.
 - inputs: the hand cannot write text by itself. List every string it will need to type, each under a short snake_case name: recipient, subject, body, search_query, file_name. Write message bodies out in full, in the user's voice. Never invent passwords, card numbers or other secrets.
 - done_when: what is visible on screen once the job is finished.
 - avoid: anything the user said not to do. Empty if nothing.`;
@@ -110,11 +110,13 @@ export function toIntent(raw: unknown): Intent {
 
   let url: string | null = null;
   if (launcher === "browser" && typeof r.url === "string" && r.url.trim()) {
+    // Models sometimes write "null" as text. No url is harmless: the hand starts on a blank page.
+    // A real url with another scheme (file:, javascript:) is not, and is refused.
     const parsed = URL.parse(r.url.trim());
-    if (!parsed || (parsed.protocol !== "https:" && parsed.protocol !== "http:")) {
+    if (parsed && parsed.protocol !== "https:" && parsed.protocol !== "http:") {
       throw new Error(`start url must be http(s), got "${r.url}"`);
     }
-    url = parsed.href;
+    url = parsed?.href ?? null;
   }
 
   if (!Array.isArray(r.inputs)) throw new Error("inputs is not a list");
