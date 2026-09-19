@@ -26,6 +26,7 @@ NAMES = {name: getattr(sp, name) for name in (
     "sin cos tan sec csc cot asin acos atan sinh cosh tanh asinh acosh atanh exp log sqrt cbrt Abs factorial binomial "
     "pi E oo Rational Integer sign floor ceiling gamma erf").split()}
 NAMES["ln"] = sp.log
+NAMES["abs"] = sp.Abs
 NAMES["e"] = sp.E
 NAMES["arcsin"], NAMES["arccos"], NAMES["arctan"] = sp.asin, sp.acos, sp.atan
 VARIABLES = {name: sp.Symbol(name, real=True) for name in "x y t u s r a b c h".split()}
