@@ -1,5 +1,20 @@
 import {expect, test} from "bun:test";
-import {assertCaptionHeight, bodyRepeatsMatrixPanel, CAPTION_TOP, evidencePhase, evidenceTextScale, fitScale, inlineMatrices, MATRIX_TEXT_HEIGHT, matrixLetter, matrixPhaseLabel, matrixTextScale, PANEL_TOP, taskBox, taskLabelSize, workflowLabelSize} from "./layout";
+import {assertCaptionHeight, bodyRepeatsMatrixPanel, CAPTION_TOP, evidencePhase, evidenceTextScale, fitScale, headlineSize, inlineMatrices, MATRIX_TEXT_HEIGHT, matrixLetter, matrixPhaseLabel, matrixTextScale, PANEL_TOP, taskBox, taskLabelSize, workflowLabelSize} from "./layout";
+
+test("headlines take the largest rung that fits their lane, so a 13-character closing title is not set at 180px across two lines", () => {
+  const closing = [180, 120, 80, 64];
+  expect(headlineSize("Undo it.", 1164, 230, closing)).toBe(180);
+  // "Ax=b → x=A⁻¹b" (13 characters) wrapped at 180px and was refused by the live run.
+  const size = headlineSize("Ax=b → x=A⁻¹b", 1164, 230, closing);
+  expect(size).toBeLessThan(180);
+  expect(Math.ceil(13 * .6 * size / 1164) * size * 1.02 + 8).toBeLessThanOrEqual(230);
+  // Every ladder's smallest rung holds the schema's 60-character title cap.
+  const sixty = "x".repeat(60);
+  for (const [w, h, sizes] of [[1164, 238, [174, 91, 72, 60]], [1164, 230, closing], [470, 355, [72, 58, 48, 42]], [1164, 83, [64, 54, 44, 36]], [435, 275, [66, 53, 46, 40]], [1164, 47, [40, 34, 30]]] as const) {
+    const s = headlineSize(sixty, w, h, sizes);
+    expect(Math.ceil(60 * .6 * s / w) * s * 1.02 + 8).toBeLessThanOrEqual(h);
+  }
+});
 
 test("task-field items step down the type ladder to fit their box instead of being refused at render", () => {
   expect(taskLabelSize("Explore Hands", 3, 0)).toBe(52);

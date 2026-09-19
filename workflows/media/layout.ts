@@ -103,6 +103,18 @@ export function taskLabelSize(task: string, count: number, index: number, emPerC
   return null;
 }
 
+/** Display headlines (motion.tsx Words) pick the largest rung whose wrapped
+ * lines fit the lane. The 60-character title cap is legible at every ladder's
+ * smallest rung, so a headline is never refused at render for wrapping; the
+ * smallest rung is returned when nothing fits and Fit still guards the lane. */
+export function headlineSize(title: string, width: number, height: number, sizes: readonly number[], lineHeight = 1.02, emPerChar = .6) {
+  for (const size of sizes) {
+    const lines = Math.ceil(title.length * emPerChar * size / width);
+    if (lines * size * lineHeight + 8 <= height) return size;
+  }
+  return sizes[sizes.length - 1]!;
+}
+
 /** The letter the lesson copy uses for the animated matrix, so the trusted
  * matrix panel does not call a singular example S "A". */
 export function matrixLetter(copy: (string | undefined)[], explicit?: string) {

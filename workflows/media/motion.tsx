@@ -1,7 +1,7 @@
 import React, {useLayoutEffect, useRef, useState} from "react";
 import {AbsoluteFill, Audio, Img, staticFile, useCurrentFrame} from "remotion";
 import type {PreparedScene} from "./storyboard";
-import {assertCaptionHeight, CAPTION_TOP, evidencePhase, taskLabelSize, workflowLabelSize} from "./layout";
+import {assertCaptionHeight, CAPTION_TOP, evidencePhase, headlineSize, taskLabelSize, workflowLabelSize} from "./layout";
 import {MathLayout} from "./math-layout";
 
 const INK="#111216", IVORY="#f5f0e6", BLUE="#2545ff";
@@ -38,7 +38,7 @@ function Workflow({scene,frame,color,muted,accent,light}:{scene:PreparedScene;fr
   const nodes=scene.workflow??[{label:"Jev",detail:"Select the next action"},{label:"Specialist",detail:"Create the expressive work"},{label:"Result",detail:"Return an inspected artifact"}];
   const width=nodes.length===3?300:244, gap=(1164-width*nodes.length)/(nodes.length-1), cycle=Math.max(0,(frame-30)/108),progress=cycle%1;
   return <>
-    <div style={{position:"absolute",left:58,top:90}}><Fit width={1164} height={83} id={`${scene.id}-workflow-heading`}><Words text={scene.title} frame={frame} size={scene.title.length>44?54:64} emphasis={scene.emphasis} color={color} accent={accent}/></Fit></div>
+    <div style={{position:"absolute",left:58,top:90}}><Fit width={1164} height={83} id={`${scene.id}-workflow-heading`}><Words text={scene.title} frame={frame} size={headlineSize(scene.title,1164,83,[64,54,44,36])} emphasis={scene.emphasis} color={color} accent={accent}/></Fit></div>
     {scene.body&&<div style={{position:"absolute",left:60,top:182,fontSize:25,color:muted,opacity:rise(frame,12)}}><Fit width={1164} height={32} id={`${scene.id}-workflow-subtitle`}>{scene.body}</Fit></div>}
     <svg width="1164" height="100" style={{position:"absolute",left:58,top:215,overflow:"visible"}}>
       <defs><marker id={`${scene.id}-arrow`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill={accent}/></marker></defs>
@@ -63,7 +63,7 @@ function Tasks({scene,frame,color,muted,accent,light,restrained}:{scene:Prepared
   const points=tasks.map((_,i)=>({x:555+(i%3)*48,y:start+i*spacing}));
   const selected=Math.floor(frame/42)%tasks.length;
   return <>
-    <div style={{position:"absolute",left:58,top:112}}><Fit width={435} height={275} id={`${scene.id}-tasks-heading`}><Words text={scene.title} frame={frame} width={435} size={scene.title.length>45?53:66} emphasis={scene.emphasis} color={color} accent={accent}/></Fit></div>
+    <div style={{position:"absolute",left:58,top:112}}><Fit width={435} height={275} id={`${scene.id}-tasks-heading`}><Words text={scene.title} frame={frame} width={435} size={headlineSize(scene.title,435,275,[66,53,46,40])} emphasis={scene.emphasis} color={color} accent={accent}/></Fit></div>
     {scene.body&&<div style={{position:"absolute",left:60,top:387,fontSize:36,lineHeight:1.18,color:muted,opacity:rise(frame,14)}}><Fit width={405} height={150} id={`${scene.id}-tasks-subtitle`}>{scene.body}</Fit></div>}
     <svg width="1280" height="555" style={{position:"absolute",inset:0}}><path d={points.map((p,i)=>`${i?"L":"M"}${p.x},${p.y+25}`).join(" ")} fill="none" stroke={light?"#cecec8":"#43454d"} strokeWidth="2"/>{points.map((p,i)=><circle key={i} cx={p.x} cy={p.y+25} r={selected===i?9:5} fill={selected===i?accent:muted} opacity={rise(frame,i*8)}/>)}</svg>
     {tasks.map((task,i)=>{const p=rise(frame,12+i*8),point=points[i]!,w=1195-point.x-30;
@@ -77,7 +77,7 @@ function Artifact({scene,frame,color,muted,accent}:{scene:PreparedScene;frame:nu
   const evidence=scene.evidence??[],details=evidencePhase(frame,scene.frames,Boolean(evidence.length||scene.body||scene.bullets?.length))==="details";
   const camera=.9+.1*Math.min(1,frame/(scene.frames*.61));
   return <>
-    <div style={{position:"absolute",left:58,top:64}}><Fit width={1164} height={47} id={`${scene.id}-artifact-heading`}><Words text={scene.title} frame={frame} size={40} emphasis={scene.emphasis} color={color} accent={accent}/></Fit></div>
+    <div style={{position:"absolute",left:58,top:64}}><Fit width={1164} height={47} id={`${scene.id}-artifact-heading`}><Words text={scene.title} frame={frame} size={headlineSize(scene.title,1164,47,[40,34,30])} emphasis={scene.emphasis} color={color} accent={accent}/></Fit></div>
     {!details?<>
       <div style={{position:"absolute",left:60,top:113,fontSize:18,color:muted}}>{scene.artifactLabel}</div>
       <div style={{position:"absolute",left:58,top:145,width:1164,height:375,clipPath:`inset(0 ${100*(1-rise(frame,8,30))}% 0 0)`,transform:`translateX(${(1-camera)*-110}px) scale(${camera})`,transformOrigin:"center center",background:"#e7e4dc",boxShadow:"0 20px 45px #00000015"}}><Img src={staticFile(scene.imageAsset!)} style={{width:"100%",height:"100%",objectFit:"contain"}}/></div>
@@ -93,18 +93,20 @@ function Artifact({scene,frame,color,muted,accent}:{scene:PreparedScene;frame:nu
 export function MotionScene({scene,index,total,restrained=false}:{scene:PreparedScene;index:number;total:number;restrained?:boolean}) {
   const frame=useCurrentFrame(),layout=inferredLayout(scene),tone=scene.tone??(layout==="workflow"||layout==="artifact-stage"?"ivory":layout==="closing-mark"?"cobalt":"ink");
   const light=tone==="ivory",bg=light?IVORY:tone==="cobalt"?BLUE:INK,color=light?INK:IVORY,muted=light?"#60615e":"#c1c1c7",accent=tone==="cobalt"?IVORY:tone==="ink"?"#91a3ff":BLUE;
-  const huge=scene.title.length<15, titleSize=huge?174:scene.title.length<34?91:scene.title.length<56?72:60;
+  // One line of display type when it fits, else the next rung: the storyboard's 60-character title cap is
+  // legible at every rung, so headlines are never refused at render for wrapping past their lane.
+  const titleSize=headlineSize(scene.title,1164,238,[174,91,72,60]), huge=titleSize>=174;
   const textY=layout==="editorial"?104:huge?130:122;
   return <AbsoluteFill style={{background:bg,color,fontFamily:FONT,overflow:"hidden"}}>
     <div style={{position:"absolute",left:58,top:26,fontSize:18,fontWeight:750,letterSpacing:-.5}}>hands<span style={{color:accent}}>.</span></div>
     <div style={{position:"absolute",right:58,top:30,fontSize:12,letterSpacing:2,color:muted}}>{String(index+1).padStart(2,"0")} / {String(total).padStart(2,"0")}</div>
     {scene.kicker&&<div style={{position:"absolute",left:185,top:31,fontSize:12,letterSpacing:2,textTransform:"uppercase",color:muted,opacity:rise(frame)}}>{scene.kicker}</div>}
     {scene.math?<MathLayout {...{scene,color,muted}} accent={tone==="ink"?"#91a3ff":accent}/>:layout==="workflow"?<Workflow {...{scene,frame,color,muted,accent,light}}/>:layout==="task-field"?<Tasks {...{scene,frame,color,muted,accent,light,restrained}}/>:layout==="artifact-stage"&&scene.imageAsset?<Artifact {...{scene,frame,color,muted,accent}}/>:layout==="editorial"?<>
-      <div style={{position:"absolute",left:58,top:118}}><Fit width={470} height={355} id={`${scene.id}-editorial-heading`}><Words text={scene.title} frame={frame} width={470} size={scene.title.length>40?58:72} emphasis={scene.emphasis} color={color} accent={accent}/></Fit></div>
+      <div style={{position:"absolute",left:58,top:118}}><Fit width={470} height={355} id={`${scene.id}-editorial-heading`}><Words text={scene.title} frame={frame} width={470} size={headlineSize(scene.title,470,355,[72,58,48,42])} emphasis={scene.emphasis} color={color} accent={accent}/></Fit></div>
       <div style={{position:"absolute",left:570,top:125,width:4,height:350*rise(frame,12,40),background:accent}}/>
       <div style={{position:"absolute",left:626,top:190,opacity:rise(frame,25)}}><Fit width={570} height={310} id={`${scene.id}-editorial-body`}><div style={{fontSize:39,lineHeight:1.2,letterSpacing:-1,color}}>{scene.body}</div>{scene.bullets?.map(b=><div key={b} style={{fontSize:25,marginTop:20,color:muted}}>{b}</div>)}</Fit></div>
     </>:layout==="closing-mark"?<>
-      <div style={{position:"absolute",left:58,top:112}}><Fit width={1164} height={230} id={`${scene.id}-closing-title`}><Words text={scene.title} frame={frame} size={huge?180:80} emphasis={scene.emphasis} color={color} accent={accent}/></Fit></div>
+      <div style={{position:"absolute",left:58,top:112}}><Fit width={1164} height={230} id={`${scene.id}-closing-title`}><Words text={scene.title} frame={frame} size={headlineSize(scene.title,1164,230,[180,120,80,64])} emphasis={scene.emphasis} color={color} accent={accent}/></Fit></div>
       <div style={{position:"absolute",left:60,top:365,width:100*rise(frame,8,40),height:6,background:accent}}/>
       <div style={{position:"absolute",left:210,top:350,opacity:rise(frame,20)}}><Fit width={985} height={170} id={`${scene.id}-closing-body`}><div style={{fontSize:38,lineHeight:1.2,letterSpacing:-1}}>{scene.body}</div></Fit></div>
     </>:<>
