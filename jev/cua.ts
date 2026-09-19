@@ -4,7 +4,7 @@
 //     -> intent.ts   small LLM, once: goal, inputs to type, done_when
 //     -> this loop, per step:
 //          observe.ts   the screen as labelled text (accessibility tree, no model)
-//          Jev          which move? then: which element, which input, which key?
+//          Jev          move and speculative arguments in one request
 //          gate.ts      Jev again: is this one risky? if so, wait for the user
 //          desktop.ts   click / type / key / scroll inside the hand
 //     -> planner.ts  only when stuck: a vision model Jev picks looks at the
@@ -54,7 +54,7 @@ export type Action =
 export type Decision =
   | { kind: "act"; action: Action }
   | { kind: "done" }
-  | { kind: "escalate"; reason: string; mustPlan: boolean };
+  | { kind: "escalate"; reason: string; mustPlan: boolean; retryObservation?: boolean };
 
 export type StepRecord = { n: number; did: string; risk: number | null; outcome: string };
 
@@ -68,6 +68,8 @@ export type Deps = {
   ask: Ask;
   llm: Llm;
   approve: Approve;
+  /** Decision-contract seam for controlled evals; production uses decide. */
+  decide?: typeof decide;
   observe?: (hand: Hand) => Promise<Observation>;
   /** Other desktops (win/) bring their own input and capture. Default: desktop.ts, through `exec`. */
   perform?: (hand: Hand, action: Action) => Promise<void>;
@@ -95,6 +97,8 @@ export type RunOptions = {
   settles?: () => Promise<void> | null;
   /** Risk level that counts as risky. Lower it while the intent is still partial. */
   riskThreshold?: () => number;
+  /** At most this many passive reobservations before planning an uncertain wait. */
+  maxObservationRetries?: number;
 };
 
 type Memory = { history: string[]; plan: Plan | null };
@@ -213,7 +217,7 @@ export function jevState(intent: Intent, obs: Observation, memory: Memory, hand:
 /** One line for the history, the gate and the approval prompt. */
 export function describeAction(action: Action): string {
   const on = (el: UiElement) =>
-    `${el.role} ${JSON.stringify(el.name || "(no name)")}${el.frame ? ` in window ${JSON.stringify(el.frame)}` : ""}`;
+    `${el.role} ${JSON.stringify(el.name || "(no name)")}${el.within && el.within !== el.name ? ` in ${JSON.stringify(el.within)}` : ""}${el.frame ? ` in window ${JSON.stringify(el.frame)}` : ""}`;
   switch (action.kind) {
     case "click": {
       const how = action.count === 2 ? "double click" : action.button === "right" ? "right click" : "click";
@@ -235,9 +239,8 @@ export function describeAction(action: Action): string {
 // ---------------------------------------------------------------- decide
 
 /**
- * One look at the screen, one decision. Two fast Jev requests: the move, then
- * the move's arguments. Each argument is its own closed question, and the
- * questions inside a request are answered independently and in parallel.
+ * One look at the screen, one Jev request for the move and its speculative
+ * arguments. Each question is evaluated independently against the same state.
  */
 export async function decide(
   deps: Pick<Deps, "ask" | "llm">,
@@ -246,7 +249,9 @@ export async function decide(
   obs: Observation,
   memory: Memory,
 ): Promise<Decision> {
-  if (obs.elements.length === 0) {
+  // Read-only pages and loading states can be understood from visible text.
+  // Missing controls alone is not evidence that a vision planner is needed.
+  if (obs.elements.length === 0 && obs.texts.length === 0) {
     return { kind: "escalate", reason: "nothing on screen is readable as text", mustPlan: true };
   }
   const state = jevState(intent, obs, memory, hand);
@@ -298,7 +303,7 @@ export async function decide(
   }
   if (move === "ask_planner") return { kind: "escalate", reason: "the screen and history do not show what to do next", mustPlan: true };
   if (first.move.confidence < MIN_CONFIDENCE) {
-    return { kind: "escalate", reason: `unsure what to do next (leaning "${move}")`, mustPlan: false };
+    return { kind: "escalate", reason: `unsure what to do next (leaning "${move}")`, mustPlan: false, retryObservation: move === "wait" };
   }
   const saysStuck = memory.history.length >= STUCK_NEEDS_HISTORY && first.stuck.noul >= STUCK_THRESHOLD;
   if (saysStuck || isLooping(memory.history)) {
@@ -439,6 +444,7 @@ export async function runIntent(
   const log = deps.log ?? (() => {});
   const maxSteps = opts.maxSteps ?? 30;
   let plansLeft = opts.maxPlans ?? 5;
+  let observationRetries = opts.maxObservationRetries ?? 1;
 
   const memory: Memory = { history: [], plan: null };
   const steps: StepRecord[] = [];
@@ -455,10 +461,19 @@ export async function runIntent(
     // What the planner saw stays usable only while the screen it saw is still there.
     if (seen && seen.fingerprint === obs.fingerprint) obs = withVisionElements(obs, seen.elements, hand);
 
-    const decision = await decide(deps, hand, intent, obs, memory);
+    const decision = await (deps.decide ?? decide)(deps, hand, intent, obs, memory);
     if (decision.kind === "done") return end("done", intent.doneWhen);
 
     if (decision.kind === "escalate") {
+      // A transient screen can resolve without a screenshot or a model plan.
+      // The budget is per run, so changing animations cannot reset it forever.
+      if (decision.retryObservation && !decision.mustPlan && observationRetries > 0) {
+        if (opts.signal?.aborted) return end("cancelled", "the task was taken back");
+        observationRetries--;
+        log(`step ${n}: observing again before planning (${decision.reason})`);
+        await sleep(SETTLE_MS);
+        continue;
+      }
       const alreadyPlannedHere = seen?.fingerprint === obs.fingerprint;
       if (plansLeft <= 0 || alreadyPlannedHere) {
         if (decision.mustPlan) return end("gave_up", decision.reason);

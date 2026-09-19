@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { assertContract, type Ask } from "./jev";
-import { quickIntent, SITES, spansOf } from "./quick";
+import { literalSpansOf, quickIntent, SITES, spansOf, suppliedUrls } from "./quick";
 
 type Reply = string | { choice: string; confidence: number };
 
@@ -42,6 +42,33 @@ describe("spansOf", () => {
 });
 
 describe("quickIntent", () => {
+  test("offers full long queries, quoted phrases and programming punctuation without inventing text", async () => {
+    const phrase = "why do leaves change color in the autumn";
+    expect(literalSpansOf(`search google for ${phrase}`)).toContain(phrase);
+    expect(literalSpansOf('search google for "red pandas in the eastern Himalayas during winter"')).toContain("red pandas in the eastern Himalayas during winter");
+    expect(literalSpansOf("search google for C++ std::vector")).toContain("C++ std::vector");
+    expect(literalSpansOf(Array.from({ length: 80 }, (_, i) => `word${i}`).join(" ")).length).toBeLessThanOrEqual(254);
+    const jev = fakeJev({ launcher: "browser", site: "google", text: phrase });
+    expect((await quickIntent(jev.ask, `search google for ${phrase}`))?.inputs.search_query).toBe(phrase);
+  });
+
+  test("offers an explicitly supplied URL without requiring an intent writer", async () => {
+    const url = "https://developer.mozilla.org/en-US/docs/Web/JavaScript";
+    const jev = fakeJev({ launcher: "browser", site: "supplied_url_0", text: "nothing_to_type" });
+    expect((await quickIntent(jev.ask, `open ${url}`))?.url).toBe(url);
+    const address = fakeJev({ launcher: "browser", site: "supplied_url_0", text: url });
+    expect((await quickIntent(address.ask, `open ${url}`))?.inputs).toEqual({});
+    const search = fakeJev({ launcher: "browser", site: "google", text: url });
+    expect((await quickIntent(search.ask, `search google for ${url}`))?.inputs.search_query).toBe(url);
+    expect(suppliedUrls("open javascript:alert(1) or file:///tmp/a")).toEqual({});
+    expect(suppliedUrls("open https://name:password@example.test/")).toEqual({});
+  });
+
+  test("a short query that is a substring of the site name is not discarded", async () => {
+    const jev = fakeJev({ launcher: "browser", site: "google", text: "go" });
+    expect((await quickIntent(jev.ask, "search google for go"))?.inputs.search_query).toBe("go");
+  });
+
   test("assembles an intent from Jev's picks alone", async () => {
     const jev = fakeJev({ launcher: "browser", site: "wikipedia", text: "capybaras" });
     expect(await quickIntent(jev.ask, " search wikipedia for capybaras ")).toEqual({

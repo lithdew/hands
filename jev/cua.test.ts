@@ -260,6 +260,39 @@ describe("runIntent", () => {
     expect(result.status).toBe("out_of_steps");
   });
 
+  test("an uncertain wait observes again and can finish without a planner", async () => {
+    let looks = 0;
+    const jev = fakeJev((name) => ({ move: { choice: "wait", confidence: 0.2 }, goal_met: looks > 1 ? .95 : 0 })[name]);
+    const model = fakeLlm({});
+    const sh = fakeExec();
+    const result = await runIntent(hand, intent, deps({ ask: jev.ask, llm: model.llm, observe: async () => { looks++; return home; } }, sh.exec));
+    expect(result.status).toBe("done");
+    expect(looks).toBe(2);
+    expect(model.calls).toHaveLength(0);
+    expect(sh.input()).toEqual([]);
+  });
+
+  test("changing screens cannot indefinitely retry an uncertain wait", async () => {
+    let looks = 0;
+    const jev = fakeJev((name) => ({ move: { choice: "wait", confidence: 0.2 }, planner: "quick" })[name]);
+    const model = fakeLlm({ situation: "No readable progress", steps: [], elements: [], blocked: "Need help" });
+    const result = await runIntent(hand, intent, deps({ ask: jev.ask, llm: model.llm, observe: async () => ({ ...home, fingerprint: String(++looks) }) }, fakeExec().exec));
+    expect(result.status).toBe("gave_up");
+    expect(looks).toBe(2);
+    expect(model.calls).toHaveLength(1);
+  });
+
+  test("cancelling during a passive retry prevents another observation or action", async () => {
+    const abort = new AbortController();
+    let looks = 0;
+    const jev = fakeJev((name) => ({ move: { choice: "wait", confidence: 0.2 } })[name]);
+    const sh = fakeExec();
+    const result = await runIntent(hand, intent, deps({ ask: jev.ask, observe: async () => { looks++; return home; }, sleep: async () => { abort.abort(); } }, sh.exec), { signal: abort.signal });
+    expect(result.status).toBe("cancelled");
+    expect(looks).toBe(1);
+    expect(sh.input()).toEqual([]);
+  });
+
   test("when no element fits, that is a reason to ask the planner", async () => {
     const jev = fakeJev((name) => ({ move: "click", target: "none_of_these", planner: "deep" })[name]);
     const model = fakeLlm({ situation: "s", steps: [], elements: [], blocked: "Nothing to click." });
