@@ -125,7 +125,12 @@ export async function runArtifactWorkflow(input: ArtifactInput, dependencies: Ar
     plan.requiredFiles = [...new Set([...plan.requiredFiles, ...(input.requiredFiles ?? [])])]; PlanSchema.parse(plan);
     await writeFile(join(directory, "plan.json"), JSON.stringify(plan, null, 2));
     const seeds = [...(input.sources ?? []), ...plan.sources].filter((s, i, all) => all.findIndex(t => t.url === s.url) === i).slice(0, 16);
-    const researchAction = await decide({ phase: "plan_returned", plan: { ...plan, sources: seeds } }, { research: seeds.length ? "Fetch the planned public source candidates concurrently, record failures and provenance before writing" : "Use the supplied brief for this self-contained artifact; record that no external sources were needed and continue creating", stop: "The request cannot be fulfilled with available bounded public-source and artifact tools" });
+    // Jev decides from deterministic facts about the validated plan, not from
+    // the planner's prose: the contract already passed, every source is a
+    // public URL, every required file is a model-authored text file, and the
+    // trusted runtime renders media itself. A stop here is only for a plan
+    // that demands something outside that bounded runtime.
+    const researchAction = await decide({ phase: "plan_returned", planContractValidated: true, publicSourceCandidates: seeds.length, requiredFileTypes: [...new Set(plan.requiredFiles.map(file => file.split(".").pop()?.toLowerCase() ?? ""))], runtimeSuppliesRendering: kind === "video" ? "The trusted ManimGL + Remotion renderer, previews and provenance manifests are supplied by the runtime; the specialist authors only the listed text files" : "Local preview and checks are supplied by the runtime", plan: { ...plan, sources: seeds } }, { research: seeds.length ? "The plan contract is valid and its sources are public URLs: fetch the planned source candidates concurrently, record failures and provenance before writing" : "The plan contract is valid and self-contained: use the supplied brief, record that no external sources were needed and continue creating", stop: "Only when the plan itself demands something the bounded runtime lacks, such as accounts, deployment, private data or unsupported media; a validated plan with public sources and authorable text files is ready" });
     if (researchAction === "stop") throw new Error("Jev stopped the artifact plan before source retrieval.");
     phaseTo("research");
     const retained = checkpoint?.sources.filter(source => !needsSourceRefresh(source)) ?? [];
