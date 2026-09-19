@@ -117,6 +117,20 @@ describe("existing Chrome binding", () => {
     expect(f.calls.map(call => call.name)).toEqual(["get_browser_state"]);
   });
 
+  test("only explicit attachment restarts a known-ended label and rebinds", async () => {
+    const f = fixture(); let ended = true;
+    f.onCall(name => {
+      if (name === "start_session") ended = false;
+      else if (ended) throw new Error("this session has ended; call start_session explicitly to reuse its label");
+    });
+    await expect(f.input.attach(undefined, { allowPrepare: false })).rejects.toThrow("session has ended");
+    expect(f.calls.map(call => call.name)).toEqual(["get_browser_state"]);
+    await f.input.attach();
+    expect(f.calls.map(call => call.name)).toEqual(["get_browser_state", "get_browser_state", "start_session", "get_browser_state"]);
+    expect(f.input.healthy()).toBe(true);
+    expect(f.calls.some(call => call.name === "browser_prepare")).toBe(false);
+  });
+
   test("prepares only an explicitly requested exact existing profile, without launching a browser", async () => {
     const f = fixture(); f.setup();
     await f.input.attach();

@@ -294,7 +294,21 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
   return {
     healthy: () => healthy && !closed,
     async attach(signal?: AbortSignal, options: { allowPrepare?: boolean } = {}) {
-      try { await bind(signal); }
+      try {
+        try { await bind(signal); }
+        catch (error) {
+          if (options.allowPrepare === false || !/session (?:has ended|'[^']*' has ended)/i.test(String(error))) throw error;
+          // Explicit attachment is the public Cua lifecycle boundary. Reviving
+          // a label grants no browser access: bind/prepare below still enforce
+          // the driver's exact-window consent checks. Never do this for input.
+          await check(signal);
+          const revived = await call("start_session", { session }, signal);
+          signal?.throwIfAborted();
+          if (revived.isError) throw new Error("Cua could not restart the ended browser session.");
+          healthy = true;
+          await bind(signal);
+        }
+      }
       catch (error) {
         signal?.throwIfAborted();
         if (options.allowPrepare === false) throw error;
