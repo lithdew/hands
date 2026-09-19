@@ -27,6 +27,9 @@ const PATHS: Record<IconName, string> = {
   spark: "M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z",
 };
 
+/** A product's name is shown as a name: "hands" is written Hands wherever the brand is drawn. */
+export const brand = (title: string) => (/^[a-z]/.test(title) ? title[0]!.toUpperCase() + title.slice(1) : title);
+
 export const Icon: React.FC<{ name?: string; size?: number; color?: string }> = ({ name, size = 40, color = C.text }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
     <path d={PATHS[(name ?? "spark") as IconName] ?? PATHS.spark} />
@@ -75,10 +78,10 @@ export const Frame: React.FC<{ title: string; scene: Scene; index: number; count
       <AbsoluteFill style={{ opacity: Math.min(enter(frame, 0, 10), 1 - enter(frame, frames - 8, 8)) }}>
         <div style={{ position: "absolute", top: 52, left: 80, display: "flex", alignItems: "center", gap: 18 }}>
           <Mark size={52} />
-          <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: 0.4 }}>{title}</div>
+          <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: 0.4 }}>{brand(title)}</div>
         </div>
         {scene.kicker ? <div style={{ position: "absolute", top: 60, right: 80, fontFamily: MONO, fontSize: 24, letterSpacing: 4, textTransform: "uppercase", color: C.green, border: `1.5px solid ${C.green}55`, borderRadius: 999, padding: "8px 22px", ...rise(frame, 4, 12) }}>{scene.kicker}</div> : null}
-        <div style={{ position: "absolute", top: 150, left: 80, right: 80, bottom: 220, display: "flex", flexDirection: "column" }}>{children}</div>
+        <div style={{ position: "absolute", top: 150, left: 80, right: 80, bottom: 220, display: "flex", flexDirection: "column", justifyContent: "center" }}>{children}</div>
         {/* Where the scene's claims come from: under the caption, out of its way however many lines it takes. */}
         {sources.length ? <div style={{ position: "absolute", left: 80, bottom: 20, display: "flex", gap: 10, alignItems: "center", fontFamily: MONO, fontSize: 19, color: C.faint, opacity: enter(frame, 30, 10) }}>
           <span style={{ letterSpacing: 2 }}>SOURCE</span>

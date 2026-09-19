@@ -2,7 +2,7 @@
 import React from "react";
 import { interpolate, useCurrentFrame } from "remotion";
 import type { Scene, Template } from "../../script";
-import { Headline, Icon, Mark, Panel, Tile } from "./parts";
+import { Headline, Icon, Mark, Panel, Tile, brand } from "./parts";
 import { C, GRADIENT, MONO, enter, fit, rise } from "./theme";
 
 type Props = { scene: Scene; title: string; frames: number };
@@ -32,8 +32,8 @@ const Title: React.FC<Props> = ({ scene, title }) => {
         </div>
       ))}
       <div style={{ scale: String(interpolate(enter(frame, 2, 26), [0, 1], [0.7, 1])), opacity: enter(frame, 2, 18) }}><Mark size={132} /></div>
-      <div style={{ fontSize: fit(title, 190, 8), fontWeight: 800, letterSpacing: -5, lineHeight: 1, marginTop: 30, ...gradientText, ...rise(frame, 10, 50) }}>{title}</div>
-      <div style={{ fontSize: fit(scene.headline, 58, 46), fontWeight: 700, marginTop: 26, textAlign: "center", maxWidth: 1120, lineHeight: 1.12, ...rise(frame, 22) }}>{scene.headline}</div>
+      <div style={{ fontSize: fit(title, 190, 8), fontWeight: 800, letterSpacing: -5, lineHeight: 1, marginTop: 30, ...gradientText, ...rise(frame, 10, 50) }}>{brand(title)}</div>
+      {scene.headline.trim().toLowerCase() !== title.trim().toLowerCase() ? <div style={{ fontSize: fit(scene.headline, 58, 46), fontWeight: 700, marginTop: 26, textAlign: "center", maxWidth: 1120, lineHeight: 1.12, ...rise(frame, 22) }}>{scene.headline}</div> : null}
       <div style={{ fontSize: fit(scene.sub ?? "", 36, 80), color: C.muted, marginTop: 18, textAlign: "center", maxWidth: 1400, lineHeight: 1.35, ...rise(frame, 32) }}>{scene.sub}</div>
     </div>
   );
@@ -44,7 +44,7 @@ const Problem: React.FC<Props> = ({ scene }) => {
   return (
     <>
       <Headline text={scene.headline} />
-      <div style={{ flex: 1, display: "flex", gap: 36, marginTop: 40, alignItems: "stretch", maxHeight: 470, marginBottom: "auto" }}>
+      <div style={{ flex: 1, display: "flex", gap: 36, marginTop: 40, alignItems: "stretch", maxHeight: 470 }}>
         {pains.map((p, i) => (
           <Panel key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 22, borderColor: `${C.red}44`, ...rise(frame, 16 + i * 12, 60) }}>
             <Tile icon={p.icon ?? "clock"} tone={i % 2 ? C.amber : C.red} />
@@ -186,7 +186,7 @@ const Demo: React.FC<Props> = ({ scene, frames, title }) => {
         <div style={{ position: "absolute", right: -14, bottom: 30, width: 560, borderRadius: 22, padding: 5, background: done ? C.green : GRADIENT, boxShadow: `0 16px 36px ${tone}55`, scale: String(interpolate(enter(frame, 22, 22), [0, 1], [0.8, 1])), opacity: enter(frame, 22, 12), transformOrigin: "100% 100%" }}>
           <div style={{ borderRadius: 18, background: "#0A1026", overflow: "hidden", position: "relative", height: 330 }}>
             <div style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", background: "rgba(255,255,255,0.05)", fontFamily: MONO, fontSize: 19, color: C.muted }}>
-              <span>{title.toLowerCase()} · preview</span>
+              <span>{brand(title)} · preview</span>
               <span style={{ color: tone, display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 10, height: 10, borderRadius: 10, background: tone, opacity: done ? 1 : 0.4 + 0.6 * Math.abs(Math.sin(frame / 7)) }} />{done ? "done" : "working"}</span>
             </div>
             {[[60, 78, 330], [60, 132, 400], [60, 196, 240], [330, 252, 130]].map(([x, y, w], i) => <div key={i} style={{ position: "absolute", left: x, top: y, width: w, height: i === 3 ? 40 : 34, borderRadius: 10, border: `1.5px solid ${i < doing ? `${C.green}88` : C.panelEdge}`, background: i === 3 ? (done ? C.green : `${C.blue}55`) : "rgba(255,255,255,0.04)" }}><div style={{ margin: "12px 12px", height: 9, borderRadius: 9, width: `${i < doing ? 70 : 0}%`, background: "rgba(255,255,255,0.35)" }} /></div>)}
@@ -202,7 +202,7 @@ const Close: React.FC<Props> = ({ scene, title }) => {
   const frame = useCurrentFrame(), points = (scene.points ?? []).slice(0, 3);
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 28 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 24, ...rise(frame, 2) }}><Mark size={92} /><div style={{ fontSize: 96, fontWeight: 800, letterSpacing: -3, ...gradientText }}>{title}</div></div>
+      <div style={{ display: "flex", alignItems: "center", gap: 24, ...rise(frame, 2) }}><Mark size={92} /><div style={{ fontSize: 96, fontWeight: 800, letterSpacing: -3, ...gradientText }}>{brand(title)}</div></div>
       <div style={{ fontSize: fit(scene.headline, 70, 40), fontWeight: 800, textAlign: "center", maxWidth: 1500, lineHeight: 1.1, ...rise(frame, 12) }}>{scene.headline}</div>
       {points.length ? <div style={{ display: "flex", gap: 20, marginTop: 6 }}>{points.map((p, i) => <div key={i} style={{ display: "flex", gap: 12, alignItems: "center", fontSize: fit(p, 28, 44), color: C.text, background: C.panel, border: `1.5px solid ${C.panelEdge}`, borderRadius: 999, padding: "14px 26px", maxWidth: 560, ...rise(frame, 24 + i * 8) }}><Icon name="check" size={28} color={C.green} />{p}</div>)}</div> : null}
       <div style={{ fontSize: fit(scene.ask ?? "", 40, 70), fontWeight: 700, color: "#06122B", background: GRADIENT, borderRadius: 22, padding: "20px 44px", marginTop: 14, textAlign: "center", maxWidth: 1400, boxShadow: "0 12px 30px rgba(61,220,151,0.30)", ...rise(frame, 44) }}>{scene.ask}</div>
