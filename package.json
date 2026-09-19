@@ -8,5 +8,8 @@
   },
   "peerDependencies": {
     "typescript": "^7"
+  },
+  "dependencies": {
+    "@typesafe-ai/sdk": "^0.6.0"
   }
 }
