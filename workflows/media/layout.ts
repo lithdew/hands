@@ -45,6 +45,14 @@ export function inlineMatrices(text: string): (string | InlineMatrix)[] {
   return parts;
 }
 
+/** A matrix-scene body that only restates `A = [[…]]  A⁻¹ = [[…]]` duplicates
+ * the trusted matrix panel, which already shows the computed values. */
+export function bodyRepeatsMatrixPanel(body: string | undefined) {
+  if (!body) return false;
+  const parts = inlineMatrices(body);
+  return parts.some(part => typeof part !== "string") && parts.filter((part): part is string => typeof part === "string").join("").replace(/[A-Z]⁻¹|[A-Z]|[=;,.·\s]/g, "") === "";
+}
+
 /** The letter the lesson copy uses for the animated matrix, so the trusted
  * matrix panel does not call a singular example S "A". */
 export function matrixLetter(copy: (string | undefined)[], explicit?: string) {

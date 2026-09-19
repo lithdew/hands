@@ -2,7 +2,7 @@ import React, {useLayoutEffect, useRef, useState} from "react";
 import {AbsoluteFill, Audio, Composition, Img, OffthreadVideo, Sequence, interpolate, registerRoot, staticFile, useCurrentFrame} from "remotion";
 import type {PreparedStoryboard, PreparedScene} from "./storyboard";
 import {inverse} from "./storyboard";
-import {fitScale, inlineMatrices, matrixLetter, matrixPhaseLabel} from "./layout";
+import {bodyRepeatsMatrixPanel, fitScale, inlineMatrices, matrixLetter, matrixPhaseLabel} from "./layout";
 
 // Every frame is also watched inside a ~360px-wide phone player, so copy is
 // set large, kept to one lane and refused (not shrunk) when it would not fit.
@@ -43,7 +43,7 @@ function Scene({scene, index, total}: {scene: PreparedScene;index:number;total:n
   const headingSize=big?72:matrixMode?48:54, bodySize=matrixMode?30:big?38:34, bulletSize=matrixMode?28:36;
   const heading=<h1 style={{fontSize:headingSize,lineHeight:1.1,fontWeight:700,margin:"0 0 18px",letterSpacing:-1.5,color:colors.text}}><Rich text={scene.title}/></h1>;
   const copy=<div style={{display:"flex",flexDirection:"column",gap:matrixMode?16:24,width:"100%"}}>
-    {scene.body && <p style={{color:colors.body,fontSize:bodySize,lineHeight:1.34,margin:0}}><Rich text={scene.body}/></p>}
+    {scene.body && !(matrixMode && bodyRepeatsMatrixPanel(scene.body)) && <p style={{color:colors.body,fontSize:bodySize,lineHeight:1.34,margin:0}}><Rich text={scene.body}/></p>}
     {bullets.length>0 && <div style={{display:"flex",flexDirection:"column",gap:matrixMode?12:18}}>{bullets.map((b,i)=><div key={i} style={{display:"flex",gap:16,alignItems:"flex-start",fontSize:bulletSize,lineHeight:1.3,opacity:interpolate(f,[8+i*6,18+i*6],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"})}}><span style={{color:colors.cyan,fontSize:bulletSize*.55,paddingTop:bulletSize*.42,flexShrink:0}}>●</span><span><Rich text={b}/></span></div>)}</div>}
     {matrix && <div style={{display:"flex",flexWrap:"wrap",gap:"14px 34px",alignItems:"center",marginTop:6}}><Matrix value={matrix} label={`${letter} =`}/>{inverseMatrix ? <Matrix value={inverseMatrix} label={`${letter}⁻¹ =`}/> : <span style={{fontSize:30,color:colors.gold,fontWeight:600}}>det({letter}) = 0 · no inverse</span>}</div>}
     {(scene.evidence?.length ?? 0)>0 && <div style={{display:"grid",gridTemplateColumns:`repeat(${scene.evidence!.length}, minmax(0, 1fr))`,gap:34,marginTop:8}}>{scene.evidence!.map((item,i)=><div key={i} style={{borderTop:`3px solid ${colors.cyan}`,padding:"18px 0 0"}}><div style={{fontSize:22,color:colors.cyan,marginBottom:12,letterSpacing:1}}>{item.label}</div><div style={{fontSize:36,lineHeight:1.2,marginBottom:14,fontWeight:600}}>{item.value}</div><div style={{fontSize:20,lineHeight:1.3,color:colors.muted,overflowWrap:"anywhere"}}>{item.source}</div></div>)}</div>}
@@ -54,13 +54,13 @@ function Scene({scene, index, total}: {scene: PreparedScene;index:number;total:n
     <div style={{position:"absolute",left:PAD,top:26,fontSize:17,letterSpacing:4,color:colors.cyan,fontWeight:700}}>HANDS / {matrixMode ? "LINEAR ALGEBRA" : "STUDIO"}</div>
     <div style={{position:"absolute",right:PAD,top:26,color:colors.muted,fontSize:17}}>{String(index+1).padStart(2,"0")} / {String(total).padStart(2,"0")}</div>
     <div style={{position:"absolute",left:PAD,top:PANEL_TOP,width:CONTENT_W,height:PANEL_H,opacity:reveal,transform:`translateY(${(1-reveal)*14}px)`}}>
-      <Fit width={CONTENT_W} height={PANEL_H} identity={scene.id} what={`Scene "${scene.id}" text`} center={big&&!scene.imageAsset}>
+      <Fit width={CONTENT_W} height={PANEL_H} identity={scene.id} what={`Scene "${scene.id}" text`} center>
         {heading}
         {matrixMode ? <div style={{display:"flex",gap:28,alignItems:"flex-start"}}>
           <div style={{width:COPY_W,flexShrink:0}}>{copy}</div>
           {scene.videoAsset && <div style={{position:"relative",width:VIDEO_W,height:VIDEO_H,borderRadius:16,overflow:"hidden",border:"1px solid #24405a",background:colors.bg}}>
             <OffthreadVideo src={staticFile(scene.videoAsset)} muted style={{width:"100%",height:"100%",objectFit:"contain"}}/>
-            <div style={{position:"absolute",top:12,right:14,fontSize:24,lineHeight:1.2,color:colors.cyan,background:"rgba(11,20,34,.82)",padding:"6px 14px",borderRadius:9,fontWeight:600}}>{phaseLabel}</div>
+            <div style={{position:"absolute",bottom:12,right:14,fontSize:24,lineHeight:1.2,color:colors.cyan,background:"rgba(11,20,34,.82)",padding:"6px 14px",borderRadius:9,fontWeight:600}}>{phaseLabel}</div>
           </div>}
         </div>
         : scene.imageAsset ? <div style={{display:"flex",gap:32,alignItems:"flex-start"}}>
