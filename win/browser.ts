@@ -233,6 +233,7 @@ const sameExistingWindow = (a: ExistingBrowserWindow, b: ExistingBrowserWindow, 
 // ordinary URLs, including their query and fragment, remain exact comparisons.
 const chromeNewTabUrls = new Set(["chrome://newtab/", "chrome://new-tab-page/"]);
 const sameBrowserUrl = (a: string | undefined, b: string | undefined) => a === b || typeof a === "string" && typeof b === "string" && chromeNewTabUrls.has(a) && chromeNewTabUrls.has(b);
+class BrowserObservationChanged extends Error {}
 
 export type ExistingBrowserTiming = {
   phase: "native_check" | "bind_rpc" | "snapshot_rpc" | "action_rpc" | "prepare_rpc";
@@ -271,7 +272,8 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
     const window = await current();
     signal?.throwIfAborted();
     if (closed) throw new Error("This existing-browser binding has been released. Attach and look again.");
-    if (!window.ownerNonce || expected && !sameExistingWindow(window, expected, frame)) throw new Error("The existing Chrome window changed. Attach or look again before acting.");
+    if (!window.ownerNonce || expected && !sameExistingWindow(window, expected)) throw new Error("The existing Chrome window changed. Attach or look again before acting.");
+    if (expected && frame && !sameExistingWindow(window,expected,true)) throw new BrowserObservationChanged("The existing Chrome window changed title or size. Take a fresh observation before acting.");
     return { ...window, rect: [...window.rect] as Rect };
   });
   const invoke = async (name: string, args: Record<string, unknown>, signal?: AbortSignal) => timed(
@@ -367,7 +369,8 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
         await bind(signal);
       }
     },
-    async snapshot(signal?: AbortSignal): Promise<ExistingPage> {
+    async snapshot(signal?: AbortSignal, retry = 0): Promise<ExistingPage> {
+      try {
       const observedGeneration = ++generation;
       currentPage = undefined; currentDialog = undefined;
       const bound = await bind(signal);
@@ -393,7 +396,9 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
           format: label(snapshot?.format), has_snapshot_id: Boolean(snapshot?.id), has_refs_array: Array.isArray(result.refs),
           bound_title: label(bound.tab.title), bound_url: safeUrl(bound.tab.url), page_title: label(page?.title), page_url: safeUrl(page?.url),
           titles_match: page?.title === bound.tab.title, urls_match: page?.url === bound.tab.url };
-        throw new Error(`The visible Chrome tab changed while observing it. Take a fresh snapshot. Browser snapshot metadata: ${JSON.stringify(metadata)}`);
+        const stableContract = result.mode === "snapshot" && result.target_id === bound.target_id && result.tab_id === bound.tab.tab_id && snapshot?.format === "semantic_v2" && snapshot.id && page && Array.isArray(result.refs);
+        const ErrorType = stableContract ? BrowserObservationChanged : Error;
+        throw new ErrorType(`The visible Chrome tab changed while observing it. Take a fresh snapshot. Browser snapshot metadata: ${JSON.stringify(metadata)}`);
       }
       await check(signal, bound.window, true);
       const seen = new Set<string>();
@@ -407,6 +412,14 @@ export function existingBrowserInput(call: CuaConnection["call"], current: () =>
       if (observedGeneration !== generation) throw new Error("A newer browser observation replaced this one. Use the newest snapshot.");
       currentPage = observation;
       return observation;
+      } catch(error) {
+        // A navigation can settle between the two read-only RPCs. Discard all
+        // refs and retry once on the same owned window, without reconnecting,
+        // repeating input, or asking an expressive model to rediscover this.
+        signal?.throwIfAborted();
+        if (retry === 0 && error instanceof BrowserObservationChanged) return this.snapshot(signal,1);
+        throw error;
+      }
     },
     async inspectDialog(signal?: AbortSignal): Promise<ExistingDialog> {
       const observedGeneration = ++generation;

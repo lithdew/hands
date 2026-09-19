@@ -12,6 +12,7 @@ export const ActSchema = z.object({
   ref: z.string().max(100).optional(), text: z.string().max(8000).optional(), key: z.string().max(80).optional(),
   replace: z.boolean().optional(), direction: z.enum(["up", "down"]).optional(), amount: z.int().min(1).max(30).optional(),
   description: z.string().max(1000).optional(), ...projection,
+  challenge_submit: z.boolean().describe("Set true only when this input submits the final answer/Verify for the currently observed CAPTCHA, not for each selected image tile. It consumes one of two attempts; normal action checks still apply.").optional(),
 });
 export const BrowserSchema = ActSchema.extend({ action: z.enum(["attach", "tabs", "snapshot", "navigate", "click", "type", "key", "scroll", "dialog"]), url: z.url().optional(),
   mode: z.enum(["existing", "private"]).optional(), window_id: z.int().positive().optional(), pid: z.int().positive().optional(),
@@ -25,7 +26,7 @@ export const BrowserSchema = ActSchema.extend({ action: z.enum(["attach", "tabs"
   } else if (value.operation || value.dialog_id) ctx.addIssue({ code: "custom", message: "operation and dialog_id are only valid for action=dialog." });
 });
 export type SemanticAction = z.infer<typeof ActSchema> | z.infer<typeof BrowserSchema>;
-export type Element = { key: string; role: string; name: string; value?: string; within?: string; editable?: boolean; address: Record<string, unknown> };
+export type Element = { key: string; role: string; name: string; value?: string; within?: string; editable?: boolean; visible?: boolean; type?: string; address: Record<string, unknown> };
 export type PixelCapture = { window: { pid: number; containerId: number; title: string; ownerNonce?: string } | null; width: number; height: number; digest: string };
 export type Snapshot = { identity: string; kind: "native" | "browser"; title: string; url?: string; elements: Element[]; texts: string[]; image?: ImageContent; capture?: PixelCapture; binding: Record<string, unknown> };
 export type SemanticResult = { content: ({ type: "text"; text: string } | ImageContent)[]; details: Record<string, unknown> };
@@ -70,6 +71,7 @@ export function diffLines(before: string[], after: string[]) {
 }
 
 export function createSemanticComputer(backend: SemanticBackend, beforeInput: () => void = () => {}) {
+  const observationSession = crypto.randomUUID();
   let generation = 0, current: Snapshot | undefined;
   let observationRevision = 0, currentDialog: DialogObservation | undefined;
   let references = new Map<string, Element>();
@@ -174,6 +176,21 @@ export function createSemanticComputer(backend: SemanticBackend, beforeInput: ()
 
   return {
     reset() { invalidate(); },
+    interruptionObservation() {
+      if (currentDialog) {
+        const targetKey = typeof currentDialog.binding.window === "string" ? currentDialog.binding.window : undefined;
+        if (!targetKey) return undefined;
+        return { targetKey, observationId: `${observationSession}:${observationRevision}`, pageTitle: currentDialog.window, controls: [], visibleText: [],
+          dialog: { present: currentDialog.present, ...(currentDialog.present ? { dialog_id: currentDialog.dialog_id, kind: currentDialog.kind } : {}) } };
+      }
+      if (current?.kind !== "browser") return undefined;
+      return { targetKey: typeof current.binding.window === "string" ? current.binding.window : current.identity,
+        observationId: `${observationSession}:${observationRevision}`, pageTitle: current.title,
+        visibleText: current.texts.slice(0, 40), controls: current.elements.slice(0, 160).map(element => ({
+          ref: [...references].find(([, value]) => value === element)?.[0], role: element.role, name: element.name,
+          visible: element.visible === true, within: element.within, type: element.type,
+        })) };
+    },
     describe(tool: string, args: unknown) {
       if (tool !== "computer_act" && tool !== "computer_browser") return undefined;
       const action = (tool === "computer_act" ? ActSchema : BrowserSchema).parse(args);

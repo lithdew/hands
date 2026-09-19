@@ -52,6 +52,8 @@ test("focused and visible fields precede rows, while duplicate controls keep the
   const elements = existingBrowserElements(refs);
   expect(elements.slice(0, 3).map((element) => element.key)).toEqual(["focused", "field", "visible"]);
   expect(elements.findIndex((element) => element.key === "row")).toBeLessThan(elements.findIndex((element) => element.key === "offscreen"));
+  expect(elements.find(element => element.key === "offscreen")?.visible).toBe(false);
+  expect(elements.find(element => element.key === "visible")?.visible).toBe(true);
   expect(elements.filter((element) => element.name === "Star").map((element) => element.address.browser_ref)).toEqual(["duplicate-a", "duplicate-b"]);
   expect(existingBrowserElements(refs)).toEqual(elements);
 });

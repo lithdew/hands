@@ -8,6 +8,24 @@ const page = (): Snapshot => ({ kind: "browser", identity: "1:2:https://example.
 
 const alertDialog = (): DialogObservation => ({ present: true, dialog_id: "dialog-7", kind: "alert", window: "Search", url: "https://example.test/", binding: {} });
 
+test("interruption observations expose only bounded control metadata with explicit visibility and exact identity", async () => {
+  const seen = { ...page(), binding: { window: "pid1:hwnd2:nonce3" }, elements: [
+    { ...page().elements[0]!, visible: true }, { ...page().elements[1]!, visible: false },
+    { key: "password", role: "password", name: "Secret", value: "must stay private", type: "password", visible: true, address: {} },
+  ] };
+  const computer = createSemanticComputer({ windows: async () => [], observe: async () => seen, act: async () => {} });
+  expect(computer.interruptionObservation()).toBeUndefined();
+  await computer.browser({ action: "snapshot" });
+  const first = computer.interruptionObservation()!;
+  expect(first.targetKey).toBe("pid1:hwnd2:nonce3");
+  expect(first.controls[0]).toMatchObject({ ref: "p1:0", visible: true });
+  expect(first.controls[1]).toMatchObject({ visible: false });
+  expect(JSON.stringify(first)).not.toContain("must stay private");
+  await computer.browser({ action: "snapshot" });
+  expect(computer.interruptionObservation()!.observationId).not.toBe(first.observationId);
+  computer.reset(); expect(computer.interruptionObservation()).toBeUndefined();
+});
+
 test("browser dialog schema requires an explicit operation and current id only for resolution", () => {
   for (const invalid of [{ action: "dialog" }, { action: "dialog", operation: "accept" }, { action: "dialog", operation: "dismiss" },
     { action: "dialog", operation: "inspect", dialog_id: "old" }, { action: "snapshot", operation: "accept", dialog_id: "old" }]) {

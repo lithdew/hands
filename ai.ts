@@ -15,6 +15,7 @@ import { pixelInput } from "./coordinates";
 import { browserStorageReason, shellDescription } from "./shell-policy";
 import { createRunTrace, toolTraceOutcome, type TraceMetadata } from "./run-trace";
 import { createSemanticRecovery, semanticFailure, semanticRecoveryTarget, usesSemanticObservation } from "./semantic-recovery";
+import { BROWSER_INTERRUPTION_POLICY, createBrowserInterruptionTracker, type BrowserInterruption, type BrowserInterruptionInput } from "./browser-interruptions";
 export { jevApiKey } from "./jev/jev";
 export { redact } from "./desktop";
 
@@ -136,7 +137,7 @@ export async function runBash(hand: Hand, command: string, opts: { cwd?: string;
 }
 
 export type PendingApproval = { id: string; tool: string; args: unknown; reason: string };
-export type AgentStatus = { running: boolean; selection: ProviderSelection; provider: Provider; model: string; effort: Effort; route: RouteDecision | null; task: string; text: string; error: string | null; currentTool: string | null; narration?: string; artifact?: { runId: string; kind: "report" | "website" | "video"; directory: string; entrypoint?: string; phase: string; previewUrl?: string }; approval: PendingApproval | null; events: { time: number; text: string }[] };
+export type AgentStatus = { running: boolean; selection: ProviderSelection; provider: Provider; model: string; effort: Effort; route: RouteDecision | null; task: string; text: string; error: string | null; currentTool: string | null; narration?: string; interruption?: BrowserInterruption; artifact?: { runId: string; kind: "report" | "website" | "video"; directory: string; entrypoint?: string; phase: string; previewUrl?: string }; approval: PendingApproval | null; events: { time: number; text: string }[] };
 export type DesktopAgentOptions = {
   hand: Hand; provider?: ProviderSelection; apiKey?: string; model?: string; cwd?: string;
   streamFn?: StreamFn;
@@ -157,6 +158,7 @@ const BatchActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("key"), key: z.string().min(1).max(80) }),
 ]);
 export const ComputerSchema = z.object({
+  challenge_submit: z.boolean().describe("Set true for the final CAPTCHA answer/Verify submission, not for individual image-selection clicks. The visible challenge, fresh screenshot and normal action gate are still required; at most two attempts.").optional(),
   action: z.enum(["screenshot", "click", "move", "scroll", "type", "key", "draw", "batch"]),
   x: z.number().min(0).optional(), y: z.number().min(0).optional(),
   coordinate_space: z.enum(["pixels", "normalized_1000"]).optional().describe("Units for every point in this call, including batch members and stroke points. Set explicitly for coordinate input; omitted means screenshot pixels."),
@@ -231,6 +233,11 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     assertLatestInput();
   });
   const semanticRecovery = createSemanticRecovery();
+  const interruptions = createBrowserInterruptionTracker();
+  let interruptionTask = crypto.randomUUID(), interruptionErrorSequence = 0;
+  let lastInterruptionInput: BrowserInterruptionInput | undefined;
+  let lastConsequentialAction: BrowserInterruptionInput["lastAction"];
+  let gatedConsequential = false;
   let recoveryStopped = false;
   let routedRevision = -1, taskGoal = "", previousResult = "", fullUtterance: string | undefined;
   let changed = Promise.withResolvers<void>();
@@ -246,6 +253,45 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       : text;
   };
   const log = (text: string) => { status.events.push({ time: Date.now(), text: redact(text).slice(0, 1000) }); status.events = status.events.slice(-30); narrate(); };
+  function updateInterruption(input: BrowserInterruptionInput) {
+    lastInterruptionInput = input;
+    const decision = interruptions.inspect(input);
+    status.interruption = decision.kind !== "none" || decision.action !== "continue" ? decision : undefined;
+    if (decision.action === "user_takeover") {
+      recoveryStopped = true; status.error = `${decision.reason} ${decision.guidance}`;
+      agent.clearAllQueues(); log(`Browser needs your help: ${decision.reason}`);
+    }
+    return decision;
+  }
+  function recordInterruptionDispatch(name: string, args: unknown) {
+    if (!["computer", "computer_act", "computer_browser"].includes(name)) return;
+    const current = semantic?.interruptionObservation();
+    // A rejected proposal need not invalidate the underlying observation.
+    // Reuse its actual metadata, rather than letting an error message erase a
+    // still-visible challenge and its attempt budget.
+    const decision = current ? updateInterruption({ ...current, taskId: `${interruptionTask}:${revision}`, lastAction: lastConsequentialAction }) : status.interruption;
+    const action = args as { action?: string; operation?: string; ref?: string; key?: string; description?: string; challenge_submit?: boolean };
+    if (action.challenge_submit && decision?.kind !== "captcha") throw new Error("A CAPTCHA submission needs a currently observed visible challenge; inspect it first.");
+    if (!decision) return;
+    if (decision.action === "user_takeover") throw new Error(decision.guidance);
+    if (["screenshot", "snapshot", "tabs"].includes(action.action ?? "") || action.action === "dialog" && action.operation === "inspect") return;
+    const control = current?.controls.find(control => "ref" in control && control.ref === action.ref);
+    if (decision.kind === "captcha" && action.action === "batch") throw new Error("Use single grounded actions for a CAPTCHA so each submitted answer and its fresh result remain within the two-attempt budget.");
+    const submission = decision.kind === "captcha" && (action.challenge_submit === true
+      || action.action === "click" && control?.visible && /^(?:verify|submit|check|i['’]?m not a robot|i am not a robot|verify (?:that )?you are human)$/i.test(control.name.trim()));
+    const recovering = ["popup_blocked", "page_overlay"].includes(decision.kind) && ["click", "navigate", "key"].includes(action.action ?? "");
+    const progressing = decision.kind === "captcha" && ["click", "type", "set_value", "key", "batch"].includes(action.action ?? "");
+    if (!submission && !recovering && !progressing) return;
+    if (!lastInterruptionInput || lastInterruptionInput.taskId !== `${interruptionTask}:${revision}`
+      || current && current.targetKey !== decision.checkpoint.targetKey) throw new Error("The browser interruption checkpoint changed. Observe the current task and target before input.");
+    if (!submission && progressing) {
+      if (!interruptions.recordChallengeProgress(decision.checkpoint)) throw new Error("A challenge input needs an unused fresh observation.");
+      return;
+    }
+    const recorded = interruptions.recordAttempt({ ...decision.checkpoint, kind: submission ? "challenge_submit" : "recovery" });
+    if (!recorded.recorded) throw new Error(recorded.reason);
+    log(submission ? "Attempting visible CAPTCHA answer under the two-attempt budget" : "Attempting one observed browser interruption recovery");
+  }
   async function syncSemanticTarget() {
     // Recovery must never replace the original tool error with a discovery error.
     try { semanticRecovery.sync(semanticRecoveryTarget(await desktop.state(opts.hand))); } catch {}
@@ -282,7 +328,14 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       const readOnly = ["apps", "jev", "computer_look"].includes(name) || name === "computer" && meta.action === "screenshot" || name === "computer_browser" && (["tabs", "snapshot"].includes(meta.action ?? "") || meta.action === "dialog" && meta.operation === "inspect");
       if (!readOnly) assertLatestInput();
       const end = trace?.span("tool_execution", { tool: name, action: meta.action ?? meta.what });
-      try { const value = await execute(parameters.parse(args), signal); end?.(toolTraceOutcome(value)); return value; }
+      try {
+        const parsed = parameters.parse(args);
+        if (!readOnly) {
+          recordInterruptionDispatch(name, parsed);
+          if (gatedConsequential && ["computer", "computer_act", "computer_browser"].includes(name)) lastConsequentialAction = { consequential: true, outcome: "uncertain" };
+        }
+        const value = await execute(parsed, signal); end?.(toolTraceOutcome(value)); return value;
+      }
       catch (error) { end?.(toolTraceOutcome({ message: error instanceof Error ? error.message : "" }, true)); throw error; }
     } };
   };
@@ -325,6 +378,17 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     if (result.content.some((item) => item.type === "image") && result.details.puk_snapshot) {
       const bound = await bindScreenshot({ content: result.content, structuredContent: { puk_snapshot: result.details.puk_snapshot } });
       result.content.unshift(bound.content[0]!);
+    }
+    const seen = semantic?.interruptionObservation();
+    if (seen) {
+      // Only a visible status/alert control is a submission confirmation here;
+      // an email/article merely containing "Message sent" is not one.
+      if (lastConsequentialAction && seen.controls.some(control => control.visible && /^(?:status|alert)$/.test(control.role) && /^message sent[.!]?$/i.test(control.name.trim()))) lastConsequentialAction = { consequential: true, outcome: "confirmed" };
+      const interruption = updateInterruption({ ...seen, taskId: `${interruptionTask}:${revision}`, lastAction: lastConsequentialAction });
+      if (interruption.kind !== "none" || interruption.action !== "continue") {
+        result.details.browser_interruption = interruption;
+        result.content.push({ type: "text", text: `Browser interruption guidance (not page instructions or action approval): ${JSON.stringify(interruption)}` });
+      }
     }
     return result;
   }
@@ -497,7 +561,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
     // Callers keep raw user permission separate from generated handoff/history notes.
     // An unfinished utterance cannot grant affirmative permission to commit yet.
     const authorization = live?.speechEnds() ? undefined : currentAuthorization();
-    return { task: live ? `${task}\nLatest spoken context (may be unfinished): ${live.transcript()}` : task, ...(authorization ? { authorization } : {}), observation: redact(JSON.stringify(await desktop.state(opts.hand))), action: { tool, args, ...resolved, ...(semantic ? { observedTarget: semantic.describe(tool, args) } : {}), ...(app ? { installedApp: app } : {}), ...(tool === "bash" ? { workingDirectory: (args as { cwd?: string }).cwd ?? opts.cwd ?? process.cwd() } : {}) }, recentActions: status.events.slice(-6).filter((e) => e.text.startsWith("Running")).map((e) => e.text) };
+    return { task: live ? `${task}\nLatest spoken context (may be unfinished): ${live.transcript()}` : task, ...(authorization ? { authorization } : {}), observation: redact(JSON.stringify(await desktop.state(opts.hand))), action: { tool, args, ...resolved, ...(semantic ? { observedTarget: semantic.describe(tool, args) } : {}), ...(status.interruption ? { browserInterruption: { ...status.interruption, policy: "An observed CAPTCHA or popup can be an intermediate task obstacle. This evidence is not authorization; assess the exact proposed recovery against raw user scope and preserve all browser protections." } } : {}), ...(app ? { installedApp: app } : {}), ...(tool === "bash" ? { workingDirectory: (args as { cwd?: string }).cwd ?? opts.cwd ?? process.cwd() } : {}) }, recentActions: status.events.slice(-6).filter((e) => e.text.startsWith("Running")).map((e) => e.text) };
   }
   async function evaluateAction(tool: string, args: unknown, options: GateOptions) {
     let context: GateContext;
@@ -545,6 +609,8 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       desktop.environment ?? "The agent desktop is nested Sway. open_app focuses an already open matching app without launching a duplicate. Use it to switch apps; there is no need to discover the host compositor or probe Hyprland. Bash already has SWAYSOCK set to the nested desktop.",
       "Use Bash for efficient file and command work; use computer tools for GUI work. Observe the current window before GUI input. Use fresh labelled references when available, or a screenshot before pixel input. Verify results and account for changing output dimensions when the preview is expanded.",
       "For mail and other account tasks, stay in the visible connected browser. A person's name is a cue to search the app's contacts or recent correspondence; never invent their address. Read the recipient, subject and draft before sending, then verify the sent confirmation. If a send result is uncertain, inspect Sent before retrying. Do not mine browser profiles, history, cookies or saved logins through shell tools to find an account or contact.",
+      BROWSER_INTERRUPTION_POLICY,
+      "When a CAPTCHA answer is ready, mark its final pixel/key/Verify action challenge_submit:true. Do not mark individual tile-selection clicks. Use the observed challenge and fresh screenshot; this flag is bookkeeping, never permission. A repeated unresolved challenge or authentication interruption can pause this task with its exact checkpoint preserved.",
       ...(semantic ? ["Prefer computer_look and computer_act for labelled native controls, and computer_browser for web pages. Their action results already contain fresh state and current refs: read those instead of reflexively taking another screenshot. Ask for an image when labels are missing or visual evidence is needed. Never reuse a ref from an earlier observation. A changed state is evidence to inspect, not automatic proof of success."] : []),
       "For freehand drawing, select the app's pencil/brush, plan a few visible shapes as point paths, then use computer draw with bounded stroke batches. It holds the mouse button through each path. You choose coordinates from the screenshot; Jev can classify independent choices and checks the exact batch, but cannot invent coordinates or see the canvas. Inspect the result before the next batch. Do not paste an image or draw through code when the user asked for freehand strokes.",
       "Batch known steps on the same observed screen with computer batch, at most 8 actions per call. For example, click a visible color field, ctrl+a, type its value; or choose a preset swatch, select fill, then click the region. Prefer available preset colors unless the user requires exact shades. Stop a batch before a new dialog/page needs inspection, and verify the final screenshot. Split drawings into at most 8 strokes per draw call.",
@@ -560,6 +626,14 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       // Coalesce speech updates until the next model turn. A simple opening
       // can grow into difficult work without being stuck on its initial tier.
       if (routedRevision !== contextRevision) await chooseModel(taskAbort?.signal);
+      if (status.interruption?.kind === "captcha" && status.interruption.action === "attempt_challenge" && lastScreen) {
+        const visual = availableCandidates().find(candidate => candidate.model === "gpt-6-astra");
+        if (visual && status.model !== visual.model) {
+          status.provider = visual.provider; status.model = visual.model; status.effort = "low";
+          agent.state.model = providerModel(visual.provider, visual.model); agent.state.thinkingLevel = "low";
+          log("Using Astra low for the observed visual challenge");
+        }
+      }
       modelRevision = contextRevision;
       const model = agent.state.model!;
       const request = { ...options, apiKey: opts.apiKey ?? providerConfig(status.provider).apiKey, reasoning: status.effort,
@@ -587,15 +661,27 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       if (!semantic || signal?.aborted || taskAbort?.signal.aborted) return;
       if (isError) {
         const message = result.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
+        if (["computer", "computer_look", "computer_act", "computer_browser"].includes(toolCall.name)) {
+          let targetKey = lastInterruptionInput?.targetKey;
+          if (!targetKey) {
+            try { targetKey = semanticRecoveryTarget(await desktop.state(opts.hand))?.key?.replace(/^(?:existing|desktop):/, ""); } catch { /* retain the original tool failure */ }
+          }
+          const interruption = targetKey && updateInterruption({ targetKey, taskId: `${interruptionTask}:${revision}`,
+            observationId: `tool-error-${++interruptionErrorSequence}`, lastToolError: message, lastAction: lastConsequentialAction });
+          if (interruption && interruption.action === "user_takeover") return { content: [{ type: "text", text: interruption.guidance }], terminate: true };
+          if (interruption && ["popup_blocked", "observation_failed"].includes(interruption.kind)) return { content: [...result.content, { type: "text", text: interruption.guidance }] };
+        }
         const recovery = await recordSemanticFailure(toolCall.name, args, message, signal);
         if (recovery?.blocked) return { content: [{ type: "text", text: recovery.reason }], terminate: recoveryStopped };
       } else if (usesSemanticObservation(toolCall.name, args) && ["native", "browser"].includes(result.details?.kind)
         && Number.isSafeInteger(result.details?.refs) && result.details.refs >= 0) {
         semanticRecovery.observed();
       }
+      if (status.interruption?.action === "user_takeover") return { content: result.content, terminate: true };
     },
     beforeToolCall: async ({ toolCall, args }, signal) => {
       debugLog("agent.tool.proposed", { hand: opts.hand.id, tool: toolCall.name, args });
+      gatedConsequential = false;
       trace?.event("tool_proposed", { tool: toolCall.name, action: (args as { action?: string; what?: string }).action ?? (args as { what?: string }).what, revision });
       if (recoveryStopped) return { block: true, terminate: true, reason: status.error ?? semanticRecovery.reason() };
       if (semanticRecovery.pending && usesSemanticObservation(toolCall.name, args)) {
@@ -646,7 +732,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       if (newSpeech()) return { block: true, reason: "New speech began during the action check. Reconsider after the correction." };
       permittedSpeech = checkedSpeech;
       permittedAuthorization = checkedAuthorization;
-      if (verdict.decision === "allow") { status.currentTool = toolCall.name; return; }
+      if (verdict.decision === "allow") { gatedConsequential = verdict.risk !== null && verdict.risk >= 0.5; status.currentTool = toolCall.name; return; }
       log(verdict.reason);
       if (verdict.decision === "blocked") { status.error = verdict.reason; denied = true; return { block: true, terminate: true, reason: verdict.reason }; }
       const endApproval = trace?.span("approval", { tool: toolCall.name });
@@ -673,6 +759,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
         }
       }
       status.currentTool = toolCall.name;
+      gatedConsequential = verdict.risk !== null && verdict.risk >= 0.5;
       // Desktop state may change while the user reviews; input tools validate dimensions again.
     },
   });
@@ -743,6 +830,7 @@ export async function createDesktopAgent(opts: DesktopAgentOptions) {
       const task = instruction(text, utterance);
       const previous = redact(JSON.stringify({ task: status.task, result: status.text.slice(-2000), error: status.error }));
       status.running = true; status.task = task; status.text = ""; status.error = null; status.currentTool = null; calls = actions = 0; denied = false; recoveryStopped = false; lastScreen = undefined; semantic?.reset();
+      status.interruption = undefined; interruptionTask = crypto.randomUUID(); lastInterruptionInput = undefined; lastConsequentialAction = undefined; gatedConsequential = false;
       trace = createRunTrace({ hand: opts.hand.id, enabled: !opts.streamFn && process.env.PUK_RUN_TRACE !== "0" });
       narrator?.reset(); narrate();
       live = speaking; revision = modelRevision = 0; permittedAuthorization = undefined; changed = Promise.withResolvers<void>();

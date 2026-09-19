@@ -113,6 +113,19 @@ describe("existing Chrome binding", () => {
   const mutations = (f: ReturnType<typeof fixture>) => f.calls.filter((call) => !["get_browser_state", "end_session", "focus_existing"].includes(call.name)
     && !(call.name === "browser_dialog" && call.args.action === "inspect"));
 
+  test("a read racing navigation retries once without reconnecting or retaining old refs",async()=>{
+    const f=fixture(),old=await f.input.snapshot();let reads=0;
+    f.onCall((name,args)=>{if(name==="get_browser_state"&&args.target_id&&++reads===1){f.tabs([{title:"Sent Mail",url:"https://mail.google.com/#sent",active:true}]);f.mutateWindow({title:"Sent Mail - Google Chrome"});}});
+    const fresh=await f.input.snapshot();expect(fresh.title).toBe("Sent Mail");expect(reads).toBe(2);expect(mutations(f)).toEqual([]);
+    await expect(f.input.act(old,{action:"click"},"p17:1")).rejects.toThrow("stale");
+  });
+
+  test("a continuously changing page stops after two reads and never replays input",async()=>{
+    const f=fixture();let reads=0;
+    f.onCall((name,args)=>{if(name==="get_browser_state"&&args.target_id){reads++;f.tabs([{title:`Page ${reads}`,url:`https://example.com/${reads}`,active:true}]);}});
+    await expect(f.input.snapshot()).rejects.toThrow("changed while observing");expect(reads).toBe(2);expect(mutations(f)).toEqual([]);
+  });
+
   test("a dialog can be inspected after a timed-out input without repeating input or blocked DOM reads", async () => {
     const f = fixture(), snapshot = await f.input.snapshot();
     f.onCall(name => { if (name === "browser_click") throw new Error("Runtime.callFunctionOn timed out after 20s"); });
