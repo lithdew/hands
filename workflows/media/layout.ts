@@ -12,11 +12,17 @@ export function matrixPhaseLabel(frame: number, frames: number, invertible: bool
 
 /** Preserve a fixed caption lane. Refuse overloaded copy instead of clipping
  * it or shrinking the smallest matrix text below readable size. */
-export function matrixTextScale(requiredHeight: number, availableHeight = 555) {
+export const CAPTION_TOP = 560;
+export const MATRIX_TEXT_HEIGHT = CAPTION_TOP - 69 - 18;
+export function matrixTextScale(requiredHeight: number, availableHeight = MATRIX_TEXT_HEIGHT) {
   if (!Number.isFinite(requiredHeight) || requiredHeight <= 0) throw new Error("Matrix text could not be measured");
   const scale = Math.min(1, availableHeight / requiredHeight);
   if (scale < .76) throw new Error("Matrix scene text exceeds its safe caption margin. Shorten the title, body or bullets before rendering.");
   return scale;
+}
+
+export function assertCaptionHeight(requiredHeight: number) {
+  if (!Number.isFinite(requiredHeight) || requiredHeight <= 0 || requiredHeight > 54) throw new Error("Caption exceeds two readable lines. Shorten the caption before rendering.");
 }
 
 /** Keep the scene midpoint on the actual artifact, then give its supplied
