@@ -11,9 +11,13 @@ import { createCodingTools } from "@earendil-works/pi-coding-agent";
 import { timestamp } from "./cli.ts";
 import * as config from "./config.ts";
 import { nowContext } from "./dates.ts";
+import { drive, warm } from "./drive.ts";
+import { openFeed, TILE_LINGER_MS } from "./feed.ts";
+import { type Hand, openHand } from "./hand.ts";
 import { onPayload, resolveModel, runtime } from "./llm.ts";
-import * as macos from "./macos.ts";
+import { platform as macos } from "./platform.ts";
 import { computerTools, type Details } from "./tools.ts";
+import { listen, startRecording } from "./voice.ts";
 import { makeWriter } from "./writer.ts";
 
 // A screen listing is a few thousand tokens and a screenshot far more, and only the latest few say
@@ -102,6 +106,8 @@ Finish with a short plain answer: what you found or did, and where any file you 
 }
 
 const MAX_RETRIES = 4;
+/** One hand for now; the feed and the card are already keyed by it. */
+const HAND = 1;
 
 /**
  * One prompt, seen through. A dropped socket or an overloaded provider ends a run as a failed assistant
@@ -175,14 +181,18 @@ function report(agent: Agent, runDir: string): void {
   });
 }
 
-const USAGE = `usage: hands [prompt] [--background] [--cwd DIR] [--out DIR] [--model provider/model] [--thinking LEVEL]
+const USAGE = `usage: hands [prompt] [--background] [--listen] [--cwd DIR] [--out DIR] [--model provider/model] [--thinking LEVEL]
 
 An agent that drives this Mac: ${config.DEFAULT_MODEL} at ${config.DEFAULT_THINKING} effort, with read, bash, edit, write and computer use.
 With no prompt it reads one per line until EOF. Abort: Ctrl-C, or slam the mouse into a screen's top-left corner.
+Off the Mac, Jev's loop works a task first, in the background, and this agent takes over what Jev gives up on once
+\`pi\` is signed in (HANDS_DRIVER=jev: never, HANDS_DRIVER=pi: this agent alone).
 
   --background   keep working while it works: apps are started without coming forward, the browser gets a window
                  of its own behind yours, and clicks, drags and keys are addressed to its windows rather than
-                 sent through your mouse and keyboard.`;
+                 sent through your mouse and keyboard.
+  --listen       take tasks by voice: hold ${config.hotkey()} (HANDS_HOTKEY), speak, release. It works in the background, what
+                 you say next follows on in the same conversation, and Ctrl+Alt+Esc drops a hold or stops the task.`;
 
 async function main(argv: string[]): Promise<void> {
   const { values, positionals } = parseArgs({
@@ -194,39 +204,134 @@ async function main(argv: string[]): Promise<void> {
       model: { type: "string" },
       thinking: { type: "string" },
       background: { type: "boolean", default: false },
+      listen: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
   });
   if (values.help) return void console.log(USAGE);
+  // Jev's loop drives (drive.ts), and the pi agent is only made when a task is handed to it: it needs a `pi` sign-in that Jev does not.
+  const jev = config.driver() === "jev";
+  if (jev && !process.env.TYPESAFE_API_KEY) {
+    console.error("TYPESAFE_API_KEY is not set: Jev drives every task with it (put it in .env, or set HANDS_DRIVER=pi)");
+    process.exit(1);
+  }
   if (!process.env.TYPESAFE_API_KEY) console.log("TYPESAFE_API_KEY is not set: the clicker tool will fail until it is (put it in .env)");
   if (!macos.accessibilityTrusted()) {
     console.error("this terminal lacks Accessibility permission; grant it in System Settings > Privacy & Security");
     process.exit(1);
   }
+  // Someone speaking to it is at the machine, so a spoken task never takes the seat. Nor does a hand of Jev's, ever.
+  const background = values.background || values.listen || jev;
+  let keys: macos.NativeStream | undefined;
+  if (values.listen) {
+    try {
+      if (!config.openaiKey()) throw new Error("OPENAI_API_KEY is not set: --listen transcribes with it (put it in .env)");
+      keys = macos.heldKey(config.hotkey());
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  }
   const runDir = resolve(values.out);
-  const agent = await createAgent({ cwd: resolve(values.cwd), runDir, model: values.model, thinking: values.thinking, background: values.background });
-  report(agent, runDir);
-  console.log(`run folder: ${runDir}\nabort: Ctrl-C, or slam the mouse into a screen's top-left corner.`);
-  if (values.background) console.log("background: working behind your windows. Your mouse, keyboard and focus stay yours.");
+  let agent: Agent | undefined;
+  const pi = async (): Promise<Agent> => {
+    if (agent) return agent;
+    agent = await createAgent({ cwd: resolve(values.cwd), runDir, model: values.model, thinking: values.thinking, background });
+    report(agent, runDir);
+    return agent;
+  };
+  if (!jev) await pi();
+  // Jev's loop never reads the pointer (on Windows that is a process start), so the corner only stops the pi agent.
+  console.log(`run folder: ${runDir}\nabort: Ctrl-C${jev ? "" : ", or slam the mouse into a screen's top-left corner"}.`);
+  if (background) console.log("background: working behind your windows. Your mouse, keyboard and focus stay yours.");
 
-  let interrupts = 0;
-  process.on("SIGINT", () => {
-    if (++interrupts > 1) process.exit(130);
+  const feed = jev ? openFeed() : undefined;
+  if (jev) warm();
+  const learning: Promise<void>[] = [];
+  const queued: string[] = [];
+  let hand: Hand | undefined;
+  let task: AbortController | undefined;
+  const stop = () => {
+    queued.length = 0;
+    task?.abort();
+    agent?.clearAllQueues();
     macos.interrupt();
-    agent.abort();
-  });
-  const run = async (prompt: string) => {
-    interrupts = 0;
-    macos.interrupt(false);
-    await ask(agent, prompt);
+    agent?.abort();
   };
 
-  if (positionals.length) return run(positionals.join(" "));
+  let [interrupts, busy] = [0, false];
+  let leaving: Promise<void> | undefined;
+  process.on("SIGINT", () => {
+    // With no task to stop, Ctrl-C is goodbye: what the hand opened is closed on the way out. Twice is at once.
+    if (feed && !busy) return leaving ? process.exit(130) : void leave().finally(() => process.exit(130));
+    if (++interrupts > 1) process.exit(130);
+    macos.interrupt();
+    task?.abort();
+    agent?.abort();
+  });
+  /** One prompt through the pi agent. False when its turn ended in an error or was stopped. */
+  const prompt = async (text: string): Promise<boolean> => {
+    const it = await pi();
+    await ask(it, text);
+    const last = it.state.messages.at(-1);
+    return last?.role === "assistant" && last.stopReason !== "error" && last.stopReason !== "aborted";
+  };
+  const run = async (text: string) => {
+    interrupts = 0;
+    macos.interrupt(false);
+    if (!feed) return void (await prompt(text));
+    mkdirSync(runDir, { recursive: true });
+    [task, busy] = [new AbortController(), true];
+    try {
+      hand ??= await openHand({ id: HAND });
+      const log = (line: string) => appendFileSync(join(runDir, "jev.log"), `${line}\n`);
+      learning.push((await drive(text, { hand, feed, signal: task.signal, model: values.model, fallback: prompt, log })).learning);
+    } finally {
+      busy = false;
+    }
+  };
+  /** What a hand has open is closed the way its own close button closes it, and a recipe being learned is written first. The browser stays, for the next run. */
+  const leave = (): Promise<void> =>
+    (leaving ??= (async () => {
+      await Promise.all(learning);
+      await hand?.close().catch(() => {});
+      await feed?.close();
+    })());
+  /** A one-shot run ends with its task, and the tile with it: the result stays up for the look it gets between tasks, and the app it is in stays open under it. */
+  const linger = async () => {
+    if (!config.feedWanted() || !hand?.window() || task?.signal.aborted) return;
+    console.log(`the result stays on the feed for ${TILE_LINGER_MS / 1000} s. Ctrl-C leaves now.`);
+    await Bun.sleep(TILE_LINGER_MS);
+  };
+
+  if (keys) {
+    console.log(`listening: hold ${config.hotkey()} to speak, release to send. Ctrl+Alt+Esc drops a hold or stops the task.`);
+    await listen({
+      keys,
+      feed,
+      record: (onDelta) => startRecording({ onDelta, capture: macos.microphone }),
+      // Something queued in the moment the agent was stopping would wait for the next task; it is run now.
+      run: async (text) => {
+        await run(text);
+        while (agent?.hasQueuedMessages()) await agent.continue();
+        // Jev has no conversation to follow up in: what was said meanwhile is the next task, in the order it was said.
+        for (let next = queued.shift(); next !== undefined; next = queued.shift()) await run(next);
+      },
+      // The card's rows are keyed by hand, so a queued task is not put on it: it would replace the row of the one running.
+      queue: (text) => (feed ? void queued.push(text) : (agent as Agent).followUp({ role: "user", content: [{ type: "text", text }], timestamp: Date.now() })),
+      stop,
+      // With a feed the words are on its card (or on its own terminal line when HANDS_FEED=off).
+      live: feed ? undefined : (line) => void process.stdout.write(`\r\x1b[2K${line}`),
+    });
+    return leave();
+  }
+  if (positionals.length) return run(positionals.join(" ")).then(linger).finally(leave);
   process.stdout.write("> ");
   for await (const line of console) {
-    if (line.trim()) await run(line);
+    if (line.trim()) await run(line).catch((error) => console.error(`task failed: ${error instanceof Error ? error.message : String(error)}`));
     process.stdout.write("> ");
   }
+  await leave();
 }
 
 if (import.meta.main) {
