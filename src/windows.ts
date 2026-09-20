@@ -451,6 +451,8 @@ export async function runInBackground(app: string, timeout = 8.0): Promise<numbe
   const opened = await launch(file, args, timeout);
   if (!opened) throw new Error(`${app} opened no window`);
   userPids.set(app, opened.pid);
+  const window = mainWindowId(opened.pid);
+  if (window !== null) native.call("sink", { hwnd: window }); // shown without activation, but that can still be on top of the user's windows
   return opened.pid;
 }
 
@@ -583,14 +585,16 @@ export async function openUrl(
  * window from behind. Chrome activates a beat after the window exists, and once more when it shows a bubble over it,
  * so this watches for a while after the first handback.
  */
-async function returnSeat(seat: number, taker: number): Promise<void> {
+async function returnSeat(seat: number, taker: number, window?: number): Promise<void> {
   let returned = 0;
   for (const end = performance.now() + 2500; performance.now() < end && (returned === 0 || performance.now() < returned + 800); await sleep(50)) {
     const front = native.call("foreground") as { hwnd: number; pid: number };
     if (front.pid !== taker) continue;
     native.call("activate", { hwnd: seat });
+    if (window !== undefined) native.call("sink", { hwnd: window }); // and the window itself goes behind the user's, not only behind the one in front
     returned = performance.now();
   }
+  if (window !== undefined) native.call("sink", { hwnd: window });
 }
 
 /** Whether the front window's active tab is still loading: the toolbar shows Stop instead of Reload. A browser that is not running is not. */
@@ -663,7 +667,7 @@ async function openWindowAlone(browser: string, url: string): Promise<PinnedWind
     if (pid !== null && windowId !== undefined) opened = { pid, windowId, scripted: String(windowId) };
   }
   if (!opened) throw new Error(`${browser} opened no new window`);
-  await returnSeat(seat, opened.pid);
+  await returnSeat(seat, opened.pid, opened.windowId);
   return opened;
 }
 
@@ -988,7 +992,10 @@ export function actionableElements(pid: number, display: Frame, options: WalkOpt
   try {
     reply = native.call("tree", { hwnd, cap: walk.nodeCap, ms: walk.timeCap === undefined ? undefined : Math.round(walk.timeCap * 1000) }) as { nodes: TreeNode[]; capped: boolean };
   } finally {
-    if (lift) native.call("topmost", { hwnd, on: false });
+    if (lift) {
+      native.call("topmost", { hwnd, on: false });
+      native.call("sink", { hwnd }); // NOTOPMOST would leave it over the user's windows: back behind them
+    }
   }
   if (reply.nodes.some((n) => n.role !== "AXGroup" || n.label)) primed.add(hwnd);
   const byId = new Map<number, TreeNode>();

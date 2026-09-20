@@ -23,7 +23,7 @@ let calls: [string, Args][];
 function helper(replies: Record<string, Reply>): void {
   spyOn(windows.native, "call").mockImplementation((command: string, args: Args = {}) => {
     calls.push([command, args]);
-    const reply = replies[command];
+    const reply = replies[command] ?? (command === "sink" ? { ok: true } : undefined); // a window put behind the user's: asked after many things, never the point of a test
     if (reply === undefined) throw new Error(`the test did not expect the helper to be asked for ${JSON.stringify(command)}`);
     return typeof reply === "function" ? (reply as (args: Args) => unknown)(args) : reply;
   });
