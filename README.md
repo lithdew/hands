@@ -1,5 +1,7 @@
 # hands
 
+Hands lets you offload your day (flights, food orders, catching up on X) to a fleet of voice-driven computer use AI agents.
+
 Hold a key, say what you want done, and let go. Up to eight AI hands do it in your real Mac apps and your own Chrome, behind your windows, while you keep working.
 
 Built by team PUK for the General Learning Hackathon. It covers all three tracks: automate your studies, your last job, and your life.
