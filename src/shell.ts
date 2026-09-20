@@ -247,6 +247,11 @@ function panel(url: string) {
   const address = call(cls("NSURL"), "URLWithString:", "ptr,ptr", call(cls("NSString"), "stringWithUTF8String:", "ptr,cstring", Buffer.from(`${url}\0`)));
   call(web, "loadRequest:", "ptr,ptr", call(cls("NSURLRequest"), "requestWithURL:", "ptr,ptr", address));
 
+  /** The screen the panel lives on: the main one, or `HANDS_SCREEN=1` for the second, and so on. */
+  const screen = () => {
+    const screens = call(cls("NSScreen"), "screens", "ptr");
+    return call(screens, "objectAtIndex:", "ptr,u64", Math.min(Number(process.env.HANDS_SCREEN) || 0, Number(call(screens, "count", "u64")) - 1));
+  };
   let shown = false;
   return {
     /** Size the panel to the page's content and keep it in the corner, clear of the Dock. Nothing to show: no panel. */
@@ -256,8 +261,7 @@ function panel(url: string) {
           if (shown) call(window, "orderOut:", "void,ptr", null);
           return void (shown = false);
         }
-        const screen = call(call(cls("NSScreen"), "screens", "ptr"), "objectAtIndex:", "ptr,u64", 0);
-        const [left, bottom, wide] = structOf(screen, "visibleFrame", 4) as [number, number, number, number]; // Cocoa's own coordinates, y up
+        const [left, bottom, wide] = structOf(screen(), "visibleFrame", 4) as [number, number, number, number]; // Cocoa's own coordinates, y up
         call(window, "setFrame:display:", "void,f64,f64,f64,f64,bool", left + wide - width - MARGIN_PT, bottom + MARGIN_PT, width, height, true);
         if (!shown) call(window, "orderFrontRegardless");
         shown = true;
@@ -265,7 +269,7 @@ function panel(url: string) {
     },
     /** How tall the panel may grow: the main screen, less the menu bar, the Dock and the margins. */
     room(): number {
-      return pooled(() => (structOf(call(call(cls("NSScreen"), "screens", "ptr"), "objectAtIndex:", "ptr,u64", 0), "visibleFrame", 4)[3] ?? 800) - 2 * MARGIN_PT);
+      return pooled(() => (structOf(screen(), "visibleFrame", 4)[3] ?? 800) - 2 * MARGIN_PT);
     },
     /** Give the page the keyboard, or hand it back to whatever the user was in. */
     focus(on: boolean): void {

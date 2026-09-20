@@ -1268,6 +1268,35 @@ function showing(windowId: number): Point | null {
 }
 
 /**
+ * `HANDS_SCREEN=1`: a stage. The window is put on that display, one of a cascade (`HANDS_SLOT` says which), clear of
+ * the panel's corner, so that a recording of the display shows every hand at work. Without it, nothing moves.
+ */
+export async function stageWindow(pid: number, windowId: number): Promise<void> {
+  const display = displays()[Number(process.env.HANDS_SCREEN)];
+  if (!process.env.HANDS_SCREEN || !display) return;
+  const n = native();
+  const [[x, y, w, h], slot] = [display.frame, (Number(process.env.HANDS_SLOT) || 0) % 4];
+  const app = n.AXCreateApplication(pid) as Ref;
+  const owned: Ref[] = [app];
+  try {
+    const all = axArray(app, () => n.AXCopyAttribute(app, cfstr("AXWindows"), pointerOut), (ref) => n.CFRetain(ref) as Ref);
+    owned.push(...all);
+    const window = all.find((candidate) => windowIdOf(candidate) === windowId);
+    if (!window) return;
+    const [at, size] = [[x + 16 + slot * 130, y + 36 + slot * 64], [Math.min(1100, w - 440 - 3 * 130), h - 60 - 3 * 64]];
+    // Twice: a window that is still opening takes the move and then puts its own size back (seen on Chrome).
+    for (const [attribute, kind, pair] of [["AXPosition", AX_POINT, at], ["AXSize", AX_SIZE, size], ["AXPosition", AX_POINT, at], ["AXSize", AX_SIZE, size]] as const) {
+      const value = n.AXValueCreate(kind, new Float64Array(pair));
+      n.AXSetAttribute(window, cfstr(attribute), value);
+      n.CFRelease(value);
+      await sleep(250);
+    }
+  } finally {
+    for (const ref of owned) n.CFRelease(ref);
+  }
+}
+
+/**
  * Make sure some of a window shows, moving it if it has to. A browser stops delivering input to a page
  * it considers hidden, and it considers a page hidden when its window is covered on every side, by
  * anything. A strip at a screen's edge is enough, so the window is slid until a corner of it lies over

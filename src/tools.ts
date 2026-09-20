@@ -571,7 +571,7 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
         "the page to load and returns the new `screen` listing.",
       Type.Object({
         action: StringEnum(["open", "tabs", "switch_tab", "close_tab", "back", "forward", "reload"] as const),
-        url: Type.Optional(Type.String({ description: "https URL, for open" })),
+        url: Type.Optional(Type.String({ description: "https URL, for open. A page you wrote yourself opens by its file:// URL." })),
         new_tab: Type.Optional(Type.Boolean({ description: "For open. Default false." })),
         tab: Type.Optional(Type.Integer({ description: "Tab number from `tabs`. Default the active tab." })),
       }),
@@ -579,9 +579,12 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
         void hand.cue("go", `${action.replace("_", " ")} ${(url ?? "").replace(/^https?:\/\//, "")}`.trim());
         let pinned = target?.pinned ?? webWindow;
         if (action === "open") {
-          if (!url || !/^https?:\/\//.test(url)) throw new Error("open needs a url starting with https://");
+          if (!url || !/^(https?|file):\/\//.test(url)) throw new Error("open needs a url starting with https:// (or file:// for a local page)");
           if (pinned) await macos.openUrl(browser, url, { window: pinned.scripted, newTab: new_tab, background: true });
-          else pinned = webWindow = await macos.openBackgroundWindow(browser, url);
+          else {
+            pinned = webWindow = await macos.openBackgroundWindow(browser, url);
+            await macos.stageWindow(pinned.pid, pinned.windowId);
+          }
           target = { app: browser, pid: pinned.pid, pinned };
           return moved(`opened ${url}${new_tab ? " in a new tab" : ""} in your background window`);
         }

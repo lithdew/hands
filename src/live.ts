@@ -10,7 +10,7 @@
  * the microphone, the speaker, the panel). This file is the wiring; none of the three knows about the others.
  */
 
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import OpenAI from "openai";
@@ -20,7 +20,7 @@ import { timestamp } from "./cli.ts";
 import * as config from "./config.ts";
 import { type Cue, POSES } from "./hand.ts";
 import * as macos from "./macos.ts";
-import { type Shell, start as startShell, type Talk } from "./shell.ts";
+import { cushion, type Shell, start as startShell, type Talk } from "./shell.ts";
 import page from "./ui/index.html";
 import type { ClientMessage, HandView, LogEntry, ServerMessage, Status, VoiceView } from "./ui/state.ts";
 
@@ -91,6 +91,7 @@ function startHand(task: string, runs: string): Hand | null {
   mkdirSync(runDir, { recursive: true });
   const proc = Bun.spawn([process.execPath, join(import.meta.dir, "agent.ts"), "--background", "--json", "--name", name, "--color", color, "--out", runDir], {
     cwd: resolve(import.meta.dir, ".."),
+    env: { ...process.env, HANDS_SLOT: String(CAST.findIndex(([one]) => one === name)) }, // where on a HANDS_SCREEN stage its window goes
     stdin: "pipe",
     stdout: "pipe",
     stderr: "ignore", // the hand keeps its own log in its run folder
@@ -343,7 +344,12 @@ function connect(): Promise<void> {
 
   // Its speech: "decode delta from each session.output_audio.delta event and queue the audio for playback in order".
   // Except while the key is held: the microphone is open, and the voice is stopping anyway now that it hears the user.
-  session.on("session.output_audio.delta", ({ delta }) => void (!quietly && !feed && shell?.speaker.play(Buffer.from(delta, "base64"))));
+  session.on("session.output_audio.delta", ({ delta }) => {
+    if (feed) return;
+    const pcm = Buffer.from(delta, "base64");
+    if (!quietly) shell?.speaker.play(pcm);
+    keep("voice", pcm); // the tape has the voice even when the room does not
+  });
 
   // The backend's tool calls, as nested Responses events. A call is whole at output_item.done and the response at
   // completed: then every call is carried out, answered with a function_call_output, and the response continued.
@@ -407,6 +413,7 @@ function talk(phase: Talk): void {
     if (!fromFile) console.log("[key] listening…");
     let chunks = 0;
     feed = (pcm) => {
+      keep("you", pcm);
       const audio = Buffer.from(pcm).toString("base64");
       if (open) hear(audio);
       else waiting.push(audio);
@@ -429,6 +436,40 @@ function talk(phase: Talk): void {
 }
 
 let feed: ((pcm: Uint8Array) => void) | null = null;
+
+// ------------------------------------------------------------------ the tape
+
+/**
+ * `HANDS_TAPE=take.wav`: both sides of the conversation on one track, as they were heard, to lay under a screen
+ * recording (which can only hear the room, and hears nothing of the voice through headphones).
+ * ponytail: held in memory until Ctrl-C, 3 MB a minute of talk. Stream it to disk if a take ever runs for hours.
+ */
+const tape = { from: performance.now(), startedAt: Date.now(), until: { you: 0, voice: 0 }, tracks: { you: [] as [number, Int16Array][], voice: [] as [number, Int16Array][] } };
+function keep(who: "you" | "voice", pcm: Uint8Array): void {
+  if (!process.env.HANDS_TAPE) return;
+  const [now, samples] = [performance.now() - tape.from, new Int16Array(new Uint8Array(pcm).buffer, 0, pcm.length >> 1)]; // a copy: the microphone's buffer is used again
+  // The voice is laid down by the speaker's own rule, so the tape has what was heard. The microphone's chunks follow one another unless a pause parts them.
+  const pad = who === "voice" ? cushion(Math.max(0, tape.until.voice - now), samples.every((sample) => Math.abs(sample) < 100)) : now - tape.until.you > 100 ? now - tape.until.you : 0;
+  if (pad === null) return;
+  const at = Math.max(tape.until[who], who === "voice" ? now : 0) + pad;
+  tape.tracks[who].push([at, samples]);
+  tape.until[who] = at + samples.length / 24;
+}
+function writeTape(path: string): void {
+  const mix = new Float32Array(Math.ceil(Math.max(tape.until.you, tape.until.voice) * 24) + 1);
+  for (const chunks of Object.values(tape.tracks)) {
+    let peak = 1;
+    for (const [, samples] of chunks) for (const sample of samples) peak = Math.max(peak, Math.abs(sample));
+    const gain = Math.min(12, 23000 / peak); // each side as loud as the other
+    for (const [at, samples] of chunks) for (let i = 0, to = Math.round(at * 24); i < samples.length; i++) mix[to + i]! += samples[i]! * gain;
+  }
+  const wav = Buffer.alloc(44 + mix.length * 2);
+  wav.write("RIFF", 0), wav.writeUInt32LE(36 + mix.length * 2, 4), wav.write("WAVEfmt ", 8), wav.writeUInt32LE(16, 16), wav.writeUInt16LE(1, 20), wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(24000, 24), wav.writeUInt32LE(48000, 28), wav.writeUInt16LE(2, 32), wav.writeUInt16LE(16, 34), wav.write("data", 36), wav.writeUInt32LE(mix.length * 2, 40);
+  mix.forEach((sample, i) => wav.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(sample))), 44 + i * 2));
+  writeFileSync(path, wav);
+  writeFileSync(`${path}.json`, JSON.stringify({ startedAt: tape.startedAt }));
+}
 let quietly = false; // `--quiet`: the voice is read off the panel, not heard
 let warm = true; // the microphone stays open between presses, remembering its last third of a second (`--cold-mic` turns that off)
 let speaking = false; // `--say`: the words come from a file, not the microphone
@@ -594,9 +635,11 @@ async function main(argv: string[]): Promise<void> {
   // And a session nobody has said anything in for a while is closed the way the guide closes one: asked to, and let finish.
   setInterval(() => live && ready && !feed && voice.state === "idle" && Date.now() - spokenAt > IDLE_MS && sendLive({ type: "session.close" }), 5000);
   if (process.env.HANDS_DEBUG) process.on("SIGUSR2", () => live?.close()); // hang up on the voice, to see it call back
+  if (process.env.HANDS_SAY) process.on("SIGUSR1", () => void say(readFileSync(process.env.HANDS_SAY!, "utf8").trim(), runs)); // a line said on cue: a take directed from outside
   process.on("SIGINT", () => {
     for (const one of [...hands.values()]) close(one);
     live?.close();
+    if (process.env.HANDS_TAPE) writeTape(process.env.HANDS_TAPE);
     process.exit(130);
   });
   console.log(`run folder: ${runs}\nhold the right Option key and say what you want done. Ctrl-C to quit.`);

@@ -1,9 +1,70 @@
-# hands2
+# hands
 
-A TypeScript/Bun port of [typesafe-computer-use](https://github.com/awlevin/typesafe-computer-use), plus an agent built on top of it.
+Hold a key, say what you want done, and let go. Up to eight AI hands do it in your real Mac apps and your own Chrome, behind your windows, while you keep working.
 
-- **`clicker`** is the port: it drives a Mac toward a goal you type in plain English. It reads the screen deterministically (Vision OCR plus the accessibility tree), asks a [TypeSafe](https://docs.typesafe.ai) classifier which action comes next, and only calls a writing model when a field genuinely needs free text.
-- **`hands`** is a [pi](https://github.com/earendil-works/pi) agent (`pi-agent-core`) that has pi's coding tools (`read`, `bash`, `edit`, `write`) and computer use side by side: the clicker's own perception and actions as individual tools, and the whole clicker loop as one more tool for the sub-goals a classifier can carry.
+Built by team PUK for the General Learning Hackathon. It covers all three tracks: automate your studies, your last job, and your life.
+
+<!-- Demo video: put the link here -->
+
+![Three hands at work: two read about the circuit breaker pattern while the third builds a study site with flashcards and a focus timer. The panel on the right shows each hand's window live.](docs/studies.jpg)
+
+## The problem
+
+The small jobs around learning and work eat the day: looking things up, comparing prices, booking, compiling a list, copying numbers into a spreadsheet. Agents that use a computer could take these over, but today they borrow the whole machine. They move your mouse, type on your keyboard and take your screen, or they run in a cloud sandbox that has none of your apps and none of your logins. Either way you end up watching an agent work.
+
+## What hands does
+
+- **You talk, it delegates.** Hold the right Option key and speak. A full-duplex voice model (OpenAI's gpt-live-1) answers in a few words and sends out hands: one, or several at once when the parts are independent. When a hand finishes, the voice tells you what it found. "Tell Lefty to also check Friday", "stop Righty" and "how are they getting on?" work too.
+- **Each hand is an agent with a window of its own.** It reads, clicks, types and scrolls in that one window, through macOS accessibility and events addressed to that window alone. Your cursor never moves and your keyboard stays yours. It works in the apps and the logins you already have, so no site needs an integration.
+- **You can see every hand.** Each is a named, coloured hand on the screen, riding the window it works in: it glides to what it clicks, scribbles when it types, swipes when it scrolls. A panel in the corner shows a live picture of every hand's window, what it is doing this moment, its transcript, and a box to steer it.
+
+## Three demos, one for each track
+
+Each is one spoken request, recorded in one take on the machine this was built on. The times are the hands' own.
+
+**Automate your studies.** "I have an exam tomorrow on the circuit breaker pattern. Use three hands…" Two hands read Martin Fowler's article and the Wikipedia page while the third wrote a study site with 14 flashcards and a Pomodoro timer, and opened it: two minutes. Then, by voice: "Thumbs, start the focus timer and flip to the next flashcard", which the hand that built the page did on the page. That is the picture above.
+
+**Automate your last job.** The Monday chore of checking what competitors charge. Three hands read the pricing pages of Notion, Linear and GitHub at the same time (32 to 52 seconds each). "Now save those three as a CSV and open it in Numbers" took a fourth hand 13 seconds.
+
+![Four hands: three pricing pages read side by side, and the spreadsheet a fourth hand made of them, open in Numbers](docs/job.jpg)
+
+**Automate your life.** One sentence, two hands: the cheapest premium-economy flights from Hong Kong to San Francisco for 4 to 11 October (found on KAYAK in 1 min 40 s), and the latest table for three today at Dim Sum Library (8:30 pm, found in 41 s). Nothing was booked: hands are told not to book, buy or send anything unless asked, and never to type a password.
+
+![Two hands: flight results on KAYAK, and a restaurant's booking page behind it, with the voice reading out the fares](docs/life.jpg)
+
+## How it works
+
+```
+ you ── hold right ⌥ and speak ──►  the voice: gpt-live-1, full duplex, one session
+                                      │  a Responses backend turns what was said into five tool calls:
+                                      │  start_hands · steer_hand · stop_hands · close_hands · get_hands
+                                      ▼
+                            hands, 1 to 8: each a process of its own (a pi agent)
+                                      │  sees   Vision OCR + the accessibility tree ─► one numbered list, on device
+                                      │  acts   AXPress · keys posted to one process · pointer events for one window
+                                      ▼
+                     your Mac apps and your own Chrome profile, behind your windows
+                                      │
+                                      └──►  the panel: each window live · transcript · steer box · the voice's captions
+```
+
+- **Models where they fit.** A realtime voice model for the conversation, a reasoning model behind it for delegation, and for each hand any provider [pi](https://github.com/earendil-works/pi) supports (a ChatGPT subscription signed in with `pi` works with no key of its own). Seeing is not a model call at all: a hand reads a window as text, from on-device OCR and the accessibility tree, and acts by index. A screenshot goes to the model only when text falls short.
+- **The cheapest step.** `clicker` is a port of [typesafe-computer-use](https://github.com/awlevin/typesafe-computer-use): a small [TypeSafe](https://docs.typesafe.ai) classifier picks the next action from that numbered list, and stops when it is unsure. Its author measured $0.0002 a decision, 155x cheaper than a frontier model reading the screenshot, with 14x to 40x lower model latency (3.7x faster for a whole step). Those are the original's figures, and they are for this loop: a foreground hand has it as a tool for the sub-goals a classifier can carry. Background hands do not use it yet.
+- **All native, all TypeScript.** Quartz, accessibility, Vision, AppKit, Core Animation, WebKit, AVFAudio and the window server's private SkyLight are called through `bun:ffi`: no compiler, no helper binary, no Electron. The on-screen hand costs about 1% of a core, and a picture of a hand's window takes about 7 ms.
+- **Measured, not assumed.** With the user working in another app throughout, a three-minute task (search arXiv, keep four papers as tabs, build a PDF, attach it to a new Apple Note) had Notes in front in 0 of 655 samples. 165 tests cover the pure logic. A dropped connection or a crashed renderer does not end a run.
+
+```
+bun live                              # hold right Option, and say it
+bun hands --background "prompt"       # one hand, no voice
+```
+
+The rest of this page is the reference: how to install it, every command, and how each part works and what it cost to get there.
+
+## What is in the box
+
+- **`live`** is the voice, the panel, and the hands it sends out.
+- **`hands`** is a [pi](https://github.com/earendil-works/pi) agent (`pi-agent-core`) that has pi's coding tools (`read`, `bash`, `edit`, `write`) and computer use side by side: perception and actions as individual tools, and the whole clicker loop as one more tool.
+- **`clicker`** is the port: it drives a Mac toward a goal you type in plain English. It reads the screen deterministically (Vision OCR plus the accessibility tree), asks a TypeSafe classifier which action comes next, and only calls a writing model when a field genuinely needs free text.
 
 ```
 bun hands "Open up the calculator and check for me what 1337*1337 with it"
@@ -35,6 +96,9 @@ The language model goes through [pi-ai](https://github.com/earendil-works/pi/tre
 | `CLICKER_EMAIL` | none | enables the clicker's `type_email` action |
 | `OPENAI_API_KEY` | required by `bun live` | the voice |
 | `HANDS_LIVE_MODEL`, `HANDS_LIVE_VOICE`, `HANDS_LIVE_BACKEND` | `gpt-live-1`, `marin`, `gpt-5.6-luna` | the voice, how it sounds, and the Responses model behind it that turns what was said into tool calls |
+| `HANDS_SCREEN` | `0` | which display `bun live` sets itself up on: `1` puts the panel on the second display and lays each hand's browser window out there in a cascade, which is how the demos were filmed |
+| `HANDS_TAPE` | none | a WAV file to write on Ctrl-C with both sides of the conversation as they were heard, for laying under a screen recording (which hears nothing of a voice in headphones) |
+| `HANDS_SAY` | none | a text file: on `SIGUSR1`, `bun live` says its words to the voice as if the key were held, so a take can be directed from a script |
 
 Grant your terminal **Screen Recording** and **Accessibility** in System Settings > Privacy & Security (and **Microphone**, for `bun live`), and let it control your browser the first time macOS asks. Without the first, captures are wallpaper. Without the second, synthetic clicks are silently dropped, and both commands refuse to drive the machine.
 
