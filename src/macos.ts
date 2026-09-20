@@ -12,7 +12,7 @@
  */
 
 import { CFunction, dlopen, type FFITypeOrString, read } from "bun:ffi";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { ABORT_CORNER_PX } from "./config.ts";
 import { Abort, type AxNode, type Box, type Capture, type Field, type Frame, type Point } from "./models.ts";
 
@@ -799,6 +799,26 @@ export interface PinnedWindow {
  * worked from behind.
  */
 export async function openBackgroundWindow(browser: string, url: string): Promise<PinnedWindow> {
+  // One hand at a time, across processes: a new window is told from the rest by not having been there before, and two
+  // hands opening at once would both claim the first to appear (seen: one hand reading another's page).
+  // ponytail: a lock directory in /tmp, given up on after 20 s and taken from a hand that died after 15. Fine for 8 hands.
+  const lock = "/tmp/hands-open-window.lock";
+  for (const end = Date.now() + 20_000; Date.now() < end; await sleep(100)) {
+    try {
+      mkdirSync(lock);
+      break;
+    } catch {
+      if (Date.now() - (statSync(lock, { throwIfNoEntry: false })?.mtimeMs ?? 0) > 15_000) rmSync(lock, { recursive: true, force: true });
+    }
+  }
+  try {
+    return await openWindowAlone(browser, url);
+  } finally {
+    rmSync(lock, { recursive: true, force: true });
+  }
+}
+
+async function openWindowAlone(browser: string, url: string): Promise<PinnedWindow> {
   const app = await scripted(browser, "background");
   const pid = await userInstance(browser);
   if (!app || pid === null) throw new Error(`${browser} did not answer over its scripting interface; try again`);

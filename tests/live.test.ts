@@ -14,6 +14,7 @@ test("a spoken name finds its hand whatever its case, and `all` finds every one"
 test("the next hand gets the first name and colour nobody is using", () => {
   expect(cast([])).toEqual(["Lefty", "4f8cff"]);
   expect(cast(["lefty"])?.[0]).toBe("Righty");
+  expect(cast(new Map([["lefty", 1], ["righty", 1]]).keys())?.[0]).toBe("Thumbs"); // the keys of the map of hands, which can be read once: the third hand was a second Righty
   expect(cast(["lefty", "righty", "thumbs", "pinky", "index", "palm", "knuckles", "digit"])).toBeNull();
 });
 

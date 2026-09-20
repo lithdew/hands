@@ -57,7 +57,7 @@ export const named = <T extends { id: string }>(all: Iterable<T>, wanted: string
 };
 
 /** The first of the cast not yet on stage. */
-export const cast = (taken: Iterable<string>): [string, string] | null => CAST.find(([name]) => ![...taken].includes(name.toLowerCase())) ?? null;
+export const cast = (taken: Iterable<string>, names = new Set(taken)): [string, string] | null => CAST.find(([name]) => !names.has(name.toLowerCase())) ?? null; // read once: a map's keys can only be gone through once
 
 /** What the voice is told about the hands: one line each, the newest actions last. */
 export function snapshot(all: Iterable<Pick<Hand, "name" | "status" | "task" | "action" | "recent" | "answer" | "since">>, now = Date.now()): string {
