@@ -133,6 +133,7 @@ static class Program
             case "topmost": Win.SetWindowPos(Hwnd(), new IntPtr(Bool("on") ? -1 : -2), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); return Ok();
             case "sink": Win.SetWindowPos(Hwnd(), new IntPtr(1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); return Ok(); // HWND_BOTTOM: behind every window of the user's, without activation
             case "capture": return Capture.Take();
+            case "colours": return Capture.Colours(Hwnd(), Has("cap") ? Int("cap") : 64);
             case "image": return Capture.Size(Str("path"));
             case "ocr": return Ocr.Read(Str("path"), Arr("rect"));
             case "tree": return Uia.Tree(Hwnd(), Has("cap") ? Int("cap") : 4000, Has("ms") ? Int("ms") : 600);
@@ -154,6 +155,8 @@ static class Program
             case "desktop": return Desktops.Ensure(Str("name"));
             case "desktops": return Desktops.Names();
             case "send": Desktops.Need(Str("name")).MoveWindow(Hwnd(), true); return Ok();
+            case "recall": VirtualDesktop.Desktop.Current.MoveWindow(Hwnd(), true); return Ok(); // back to the desktop on screen, wherever it was
+            case "onDesktop": return Desktops.Has(Str("name"), Hwnd());
             case "removeDesktop": return Desktops.Remove(Str("name"));
             case "switch": Desktops.Need(Str("name")).MakeVisible(); return Ok();
             default: throw new ArgumentException("unknown command " + cmd);
@@ -374,6 +377,17 @@ static class Desktops
         return names;
     }
 
+    /**
+     * Whether a window lies on the desktop by that name, by the shell's own account: {on}. A window on the desktop
+     * the user has switched to is on it and not cloaked, so the cloak cannot tell. On no desktop when the name is gone,
+     * and an error for a window that is gone (the shell has no view for it).
+     */
+    public static object Has(string name, IntPtr hwnd)
+    {
+        VirtualDesktop.Desktop d = Find(name);
+        return new Dictionary<string, object> { { "on", d != null && d.HasWindow(hwnd) } };
+    }
+
     /** Remove the desktop by that name; its windows land on the current desktop (or on the first other one, if the user is looking at it). */
     public static object Remove(string name)
     {
@@ -414,42 +428,66 @@ static class Capture
 
     /**
      * One window by PrintWindow(PW_RENDERFULLCONTENT), which DWM renders whole whether or not other windows cover it,
-     * cropped to the frame the user sees; or one display by BitBlt. A minimized window has nothing to render, so it is
-     * restored (without activation) first.
+     * cropped to the frame the user sees. A minimized window has nothing to render, so it is restored (without
+     * activation) first.
      */
+    static System.Drawing.Bitmap Window(IntPtr hwnd)
+    {
+        if (Win.IsIconic(hwnd)) { Win.ShowWindow(hwnd, 4); Thread.Sleep(400); }
+        Win.RECT wr; Win.GetWindowRect(hwnd, out wr);
+        Win.RECT fr = Desk.Frame(hwnd);
+        int w = Math.Max(1, wr.R - wr.L), h = Math.Max(1, wr.B - wr.T);
+        Win.BITMAPINFOHEADER bi = new Win.BITMAPINFOHEADER();
+        bi.biSize = 40; bi.biWidth = w; bi.biHeight = -h; bi.biPlanes = 1; bi.biBitCount = 32;
+        IntPtr screen = Win.GetDC(IntPtr.Zero);
+        IntPtr dc = Win.CreateCompatibleDC(screen);
+        IntPtr bits;
+        IntPtr dib = Win.CreateDIBSection(screen, ref bi, 0, out bits, IntPtr.Zero, 0);
+        Win.ReleaseDC(IntPtr.Zero, screen);
+        IntPtr old = Win.SelectObject(dc, dib);
+        try
+        {
+            if (!Win.PrintWindow(hwnd, dc, 2)) throw new Exception("PrintWindow failed for window " + hwnd.ToInt64());
+            using (System.Drawing.Bitmap whole = new System.Drawing.Bitmap(w, h, w * 4, PixelFormat.Format32bppArgb, bits))
+            {
+                System.Drawing.Rectangle crop = System.Drawing.Rectangle.Intersect(new System.Drawing.Rectangle(0, 0, w, h), new System.Drawing.Rectangle(fr.L - wr.L, fr.T - wr.T, fr.R - fr.L, fr.B - fr.T));
+                if (crop.Width < 1 || crop.Height < 1) crop = new System.Drawing.Rectangle(0, 0, w, h);
+                return whole.Clone(crop, PixelFormat.Format32bppRgb);
+            }
+        }
+        finally { Win.SelectObject(dc, old); Win.DeleteObject(dib); Win.DeleteDC(dc); }
+    }
+
+    /**
+     * How many distinct colours a window paints, sampled every fourth pixel and counted up to `cap`: a frame that
+     * has stopped drawing (a UWP app on a desktop that is not shown) is one colour, black, and no file is worth
+     * writing to learn that.
+     */
+    public static object Colours(IntPtr hwnd, int cap)
+    {
+        HashSet<int> seen = new HashSet<int>();
+        using (System.Drawing.Bitmap shot = Window(hwnd))
+        {
+            BitmapData data = shot.LockBits(new System.Drawing.Rectangle(0, 0, shot.Width, shot.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppRgb);
+            try
+            {
+                for (int y = 0; y < shot.Height && seen.Count < cap; y += 4)
+                    for (int x = 0; x < shot.Width && seen.Count < cap; x += 4)
+                        seen.Add(Marshal.ReadInt32(data.Scan0, y * data.Stride + x * 4) & 0xffffff);
+            }
+            finally { shot.UnlockBits(data); }
+        }
+        return new Dictionary<string, object> { { "colours", seen.Count } };
+    }
+
+    /** A window, or one display by BitBlt, as a PNG or JPEG at `path`. */
     public static object Take()
     {
         string path = Program.Str("path");
         string format = Program.Str("format");
         int max = Program.Int("max");
         System.Drawing.Bitmap shot;
-        if (Program.Has("hwnd"))
-        {
-            IntPtr hwnd = new IntPtr(Program.Long("hwnd"));
-            if (Win.IsIconic(hwnd)) { Win.ShowWindow(hwnd, 4); Thread.Sleep(400); }
-            Win.RECT wr; Win.GetWindowRect(hwnd, out wr);
-            Win.RECT fr = Desk.Frame(hwnd);
-            int w = Math.Max(1, wr.R - wr.L), h = Math.Max(1, wr.B - wr.T);
-            Win.BITMAPINFOHEADER bi = new Win.BITMAPINFOHEADER();
-            bi.biSize = 40; bi.biWidth = w; bi.biHeight = -h; bi.biPlanes = 1; bi.biBitCount = 32;
-            IntPtr screen = Win.GetDC(IntPtr.Zero);
-            IntPtr dc = Win.CreateCompatibleDC(screen);
-            IntPtr bits;
-            IntPtr dib = Win.CreateDIBSection(screen, ref bi, 0, out bits, IntPtr.Zero, 0);
-            Win.ReleaseDC(IntPtr.Zero, screen);
-            IntPtr old = Win.SelectObject(dc, dib);
-            try
-            {
-                if (!Win.PrintWindow(hwnd, dc, 2)) throw new Exception("PrintWindow failed for window " + hwnd.ToInt64());
-                using (System.Drawing.Bitmap whole = new System.Drawing.Bitmap(w, h, w * 4, PixelFormat.Format32bppArgb, bits))
-                {
-                    System.Drawing.Rectangle crop = System.Drawing.Rectangle.Intersect(new System.Drawing.Rectangle(0, 0, w, h), new System.Drawing.Rectangle(fr.L - wr.L, fr.T - wr.T, fr.R - fr.L, fr.B - fr.T));
-                    if (crop.Width < 1 || crop.Height < 1) crop = new System.Drawing.Rectangle(0, 0, w, h);
-                    shot = whole.Clone(crop, PixelFormat.Format32bppRgb);
-                }
-            }
-            finally { Win.SelectObject(dc, old); Win.DeleteObject(dib); Win.DeleteDC(dc); }
-        }
+        if (Program.Has("hwnd")) shot = Window(new IntPtr(Program.Long("hwnd")));
         else
         {
             System.Windows.Forms.Screen[] screens = System.Windows.Forms.Screen.AllScreens;

@@ -18,8 +18,10 @@ const node = (id: number, parent: number, role: string, label: string, extra: Pa
 type Args = Record<string, unknown>;
 type Reply = ((args: Args) => unknown) | object | null;
 let calls: [string, Args][];
-/** A window put behind the user's, or on the hand's own desktop: asked after many things, never the point of most tests. */
-const HOUSEKEEPING: Record<string, Reply> = { sink: { ok: true }, desktop: { index: 1, created: true }, send: { ok: true }, removeDesktop: { removed: true }, reg: { value: null } };
+/** A window put behind the user's, or on the hand's own desktop (where a send leaves it) and probed there (a picture with colours in it): asked after many things, never the point of most tests. */
+const HOUSEKEEPING: Record<string, Reply> = { sink: { ok: true }, desktop: { index: 1, created: true }, send: { ok: true }, onDesktop: { on: true }, recall: { ok: true }, colours: { colours: 32 }, removeDesktop: { removed: true }, reg: { value: null } };
+/** A tree with labels enough for the probe to count the window as working. */
+const LABELLED = { nodes: [node(1, -1, "AXGroup", "Untitled - Notepad"), node(2, 1, "AXMenuItem", "File"), node(3, 1, "AXMenuItem", "Edit"), node(4, 1, "AXTextArea", "Text editor")], capped: false };
 
 /** windows.cs replaced by a script of replies, the way tests/helpers.ts replaces the Mac: nothing here may start a process. */
 function helper(replies: Record<string, Reply>): void {
@@ -247,20 +249,33 @@ test("an app is started without activation and known by the window that appears,
   let asks = 0;
   const calculator = { hwnd: 55, pid: 500, cls: "ApplicationFrameWindow", title: "Calculator", frame: [0, 0, 400, 500], core: 56 };
   const frameOnly = { ...calculator, pid: 2716, core: 0 }; // the frame host's, until the app's own window is inside it
-  helper({ processes: [], windows: () => (asks++ < 2 ? desk() : asks < 4 ? [...desk(), frameOnly] : [...desk(), calculator]), launch: { pid: 0 } });
+  const bare = { hwnd: 56, pid: 500, cls: "Windows.UI.Core.CoreWindow", title: "Calculator", frame: [0, 0, 400, 500], core: 0 }; // the app's own window, top level until the frame adopts it
+  helper({ processes: [], windows: () => (asks++ < 2 ? desk() : asks < 4 ? [...desk(), bare, frameOnly] : [...desk(), calculator]), launch: { pid: 0 } });
+  spyOn(console, "error").mockImplementation(() => {}); // the grounding of a UWP app, the next test's point
+  windows.releaseDesktop();
   expect(await windows.runInBackground("Calculator")).toBe(500);
+  expect(asked("send")).toEqual([]); // neither the bare window nor the frame without it was taken for the app's window
+  expect(asked("sink")).toEqual([{ hwnd: 55 }]);
+  windows.releaseDesktop();
   expect(asked("launch")).toEqual([{ file: "calc.exe", args: "", show: 4 }]);
   expect(asked("processes")).toEqual([{ exe: "CalculatorApp.exe" }]);
   expect(asked("activate")).toEqual([]);
 });
 
-test("a UWP app stays on the desktop on screen, sunk: its tree and its frame's picture go blank on any other (measured on Calculator)", async () => {
+test("a UWP app stays on the desktop on screen, sunk, without a probe: its tree and its frame's picture go blank on any other (measured on Calculator)", async () => {
   let asks = 0;
   const calculator = { hwnd: 55, pid: 500, cls: "ApplicationFrameWindow", title: "Calculator", frame: [0, 0, 400, 500], core: 56 };
+  const quiet = spyOn(console, "error").mockImplementation(() => {});
   helper({ processes: [], windows: () => (asks++ < 2 ? desk() : [...desk(), calculator]), launch: { pid: 0 } });
+  windows.releaseDesktop();
   expect(await windows.runInBackground("Calculator")).toBe(500);
   expect(asked("send")).toEqual([]);
+  expect(asked("tree")).toEqual([]);
   expect(asked("sink")).toEqual([{ hwnd: 55 }]);
+  expect(windows.desktopNote()).toBe("Calculator cannot work on a desktop of its own, so it stays behind your windows.");
+  expect(windows.desktopNote()).toBeNull(); // said once
+  expect(quiet).toHaveBeenCalledTimes(1);
+  windows.releaseDesktop();
 });
 
 test("an app's window is moved to the hand's own desktop as it appears; a window there is the app's, but not on screen", async () => {
@@ -269,7 +284,7 @@ test("an app's window is moved to the hand's own desktop as it appears; a window
   const notepad = { hwnd: 55, pid: 500, cls: "Notepad", title: "Untitled - Notepad", frame: [0, 0, 400, 500], core: 0, cloaked: false };
   let launched = false;
   let sent = false;
-  helper({ processes: [], windows: () => (launched ? [...desk(), { ...notepad, cloaked: sent }] : desk()), launch: () => ((launched = true), { pid: 0 }), send: () => ((sent = true), { ok: true }) });
+  helper({ processes: [], windows: () => (launched ? [...desk(), { ...notepad, cloaked: sent }] : desk()), launch: () => ((launched = true), { pid: 0 }), send: () => ((sent = true), { ok: true }), tree: LABELLED });
   try {
     windows.releaseDesktop(); // an earlier test may have made one
     calls = [];
@@ -277,7 +292,11 @@ test("an app's window is moved to the hand's own desktop as it appears; a window
     expect(await windows.runInBackground("Notepad")).toBe(500);
     expect(asked("desktop")).toEqual([{ name: "Hands: Lefty" }]);
     expect(asked("send")).toEqual([{ hwnd: 55, name: "Hands: Lefty" }]);
+    expect(asked("tree").map((a) => a.hwnd)).toEqual([55, 55]); // the probe: its tree before the move and after, and its picture
+    expect(asked("colours")).toEqual([{ hwnd: 55, cap: 5 }]);
+    expect(asked("recall")).toEqual([]);
     expect(asked("sink")).toEqual([]); // on its own desktop there is nothing of the user's to go behind
+    expect(windows.desktopNote()).toBeNull();
     expect(windows.appWindows(500)).toEqual([{ id: 55, frame: [0, 0, 400, 500] }]); // the hand still finds and captures it
     expect(windows.mainWindowId(500)).toBe(55);
     expect(windows.allWindows().map((w) => w.id)).toEqual([11, 22, 33]); // covers, the reveal and the overlay see only the desktop on screen
@@ -289,6 +308,200 @@ test("an app's window is moved to the hand's own desktop as it appears; a window
   } finally {
     if (saved === undefined) delete process.env.HANDS_NAME;
     else process.env.HANDS_NAME = saved;
+  }
+});
+
+test("a window the probe finds blank or treeless on the hand's desktop is recalled, sunk and grounded, and its app is never sent again", async () => {
+  const quiet = spyOn(console, "error").mockImplementation(() => {});
+  const fresh = [
+    { hwnd: 55, pid: 500, cls: "MSPaintApp", title: "Untitled - Paint", frame: [0, 0, 400, 500], core: 0 },
+    { hwnd: 66, pid: 600, cls: "MSPaintApp", title: "Untitled - Paint", frame: [0, 0, 400, 500], core: 0 },
+    { hwnd: 77, pid: 700, cls: "CASCADIA_HOSTING_WINDOW_CLASS", title: "Terminal", frame: [0, 0, 400, 500], core: 0 },
+  ];
+  let opened = 0; // how many of `fresh` have appeared
+  const cloaked = new Set<number>();
+  spyOn(process, "kill").mockImplementation(() => { throw new Error("no such process"); }); // an app is looked for afresh each time // prettier-ignore
+  helper({
+    processes: [],
+    windows: () => [...desk(), ...fresh.slice(0, opened).map((w) => ({ ...w, cloaked: cloaked.has(w.hwnd) }))],
+    launch: () => (opened++, { pid: 0 }),
+    send: ({ hwnd }) => (cloaked.add(hwnd as number), { ok: true }),
+    recall: ({ hwnd }) => (cloaked.delete(hwnd as number), { ok: true }),
+    colours: ({ hwnd }) => ({ colours: hwnd === 55 ? 1 : 32 }), // Paint's first window paints black there
+    // The terminal's tree keeps its picture but loses more than half its labels there: eight before, three after.
+    tree: ({ hwnd }) => (hwnd === 77 ? { nodes: Array.from({ length: cloaked.has(77) ? 3 : 8 }, (_, i) => node(i + 1, i ? 1 : -1, "AXButton", `Tab ${i}`)), capped: false } : LABELLED),
+  });
+  try {
+    windows.releaseDesktop();
+    expect(await windows.runInBackground("Paint")).toBe(500);
+    expect(asked("send")).toEqual([{ hwnd: 55, name: windows.desktopName() }]);
+    expect(asked("recall")).toEqual([{ hwnd: 55 }]);
+    expect(asked("sink")).toEqual([{ hwnd: 55 }]);
+    expect(cloaked.size).toBe(0);
+    expect(windows.desktopNote()).toBe("Paint cannot work on a desktop of its own, so it stays behind your windows.");
+    expect(quiet).toHaveBeenCalledTimes(1);
+    // Paint again (another instance, as the fake sees it): straight behind the user's windows, no probe, no second note.
+    expect(await windows.runInBackground("Paint")).toBe(600);
+    expect(asked("send")).toHaveLength(1);
+    expect(asked("tree").map((a) => a.hwnd)).toEqual([55]); // the baseline only: a blank picture settles it before the tree is read again
+    expect(asked("sink")).toEqual([{ hwnd: 55 }, { hwnd: 66 }]);
+    expect(windows.desktopNote()).toBeNull();
+    // A window whose picture is fine but whose tree lost its labels is grounded by the tree.
+    expect(await windows.runInBackground("Windows Terminal")).toBe(700);
+    expect(asked("send").at(-1)).toEqual({ hwnd: 77, name: windows.desktopName() });
+    expect(asked("recall").at(-1)).toEqual({ hwnd: 77 });
+    expect(asked("sink").at(-1)).toEqual({ hwnd: 77 });
+    expect(windows.desktopNote()).toBe("Windows Terminal cannot work on a desktop of its own, so it stays behind your windows.");
+    expect(quiet).toHaveBeenCalledTimes(2);
+  } finally {
+    windows.releaseDesktop();
+  }
+});
+
+test("a window that vanishes as it is moved grounds its app without an error; the app opening no window at all is still the error it was", async () => {
+  const quiet = spyOn(console, "error").mockImplementation(() => {});
+  const notepad = { hwnd: 55, pid: 500, cls: "Notepad", title: "Untitled - Notepad", frame: [0, 0, 400, 500], core: 0 };
+  let launches = 0;
+  let gone = false;
+  spyOn(process, "kill").mockImplementation(() => { throw new Error("no such process"); }); // prettier-ignore
+  helper({
+    processes: [],
+    windows: () => (launches === 1 && !gone ? [...desk(), notepad] : desk()),
+    launch: () => (launches++, { pid: 0 }),
+    send: () => {
+      if (gone) throw new Error("send: COMException: Element not found."); // as the shell answers for a window that is gone
+      gone = true; // the app crashed as it was moved
+      return { ok: true };
+    },
+    onDesktop: () => {
+      if (gone) throw new Error("onDesktop: COMException: Element not found.");
+      return { on: true };
+    },
+    tree: LABELLED,
+  });
+  try {
+    windows.releaseDesktop();
+    expect(await windows.runInBackground("Notepad")).toBe(500);
+    expect(asked("send")).toHaveLength(2); // the second try was the one refused, and settled it without a probe
+    expect(asked("colours")).toEqual([]);
+    expect(asked("recall")).toEqual([]);
+    expect(asked("sink")).toEqual([]); // nothing left to put anywhere
+    expect(windows.desktopNote()).toBe("Notepad cannot work on a desktop of its own, so it stays behind your windows.");
+    expect(quiet).toHaveBeenCalledTimes(1);
+    await expect(windows.runInBackground("Notepad", 0.3)).rejects.toThrow("Notepad opened no window");
+    expect(asked("send")).toHaveLength(2);
+  } finally {
+    windows.releaseDesktop();
+  }
+});
+
+test("a window the shell keeps bringing back is sent again three times, then grounded without a note; one the user is watching on the hand's desktop is left alone", async () => {
+  const quiet = spyOn(console, "error").mockImplementation(() => {});
+  const notepad = { hwnd: 55, pid: 500, cls: "Notepad", title: "Untitled - Notepad", frame: [0, 0, 400, 500], core: 0 };
+  let launched = false;
+  let on = false; // on the hand's desktop, by the shell's account
+  let cloaked = false; // and not on screen
+  helper({
+    processes: [],
+    windows: () => (launched ? [...desk(), { ...notepad, cloaked }] : desk()),
+    launch: () => ((launched = true), { pid: 0 }),
+    send: () => ((on = cloaked = true), { ok: true }),
+    onDesktop: () => ({ on }),
+    tree: LABELLED,
+    capture: { width: 400, height: 500 },
+  });
+  try {
+    windows.releaseDesktop();
+    expect(await windows.runInBackground("Notepad")).toBe(500);
+    expect(asked("send")).toHaveLength(1);
+    cloaked = false; // the user switched to the hand's desktop to watch: the window is on screen there, and stays put
+    await windows.screenshotWindow(55, "w.png");
+    expect(asked("send")).toHaveLength(1);
+    for (let back = 1; back <= 3; back++) {
+      on = false; // an action activated the app, and Windows moved its window to the desktop on screen
+      await windows.screenshotWindow(55, "w.png");
+      expect(asked("send")).toHaveLength(1 + back);
+      await windows.screenshotWindow(55, "w.png"); // the capture that follows the action sees it back there
+      expect(asked("send")).toHaveLength(1 + back);
+    }
+    on = cloaked = false;
+    await windows.screenshotWindow(55, "w.png"); // a fourth time: the desktop is fighting us
+    expect(asked("send")).toHaveLength(4);
+    expect(asked("sink")).toEqual([{ hwnd: 55 }]);
+    expect(asked("recall")).toEqual([]); // it is already on the desktop on screen
+    expect(windows.desktopNote()).toBeNull(); // mid-run, the log alone hears of it: the model's next open would be of some other app
+    expect(quiet).toHaveBeenCalledTimes(1);
+    await windows.screenshotWindow(55, "w.png");
+    expect(asked("send")).toHaveLength(4); // no longer kept there
+  } finally {
+    windows.releaseDesktop();
+  }
+});
+
+test("a window the shell refuses is grounded at once, whether at the move or when it is being kept, and nothing escapes an action", async () => {
+  const quiet = spyOn(console, "error").mockImplementation(() => {});
+  const notepad = { hwnd: 55, pid: 500, cls: "Notepad", title: "Untitled - Notepad", frame: [0, 0, 400, 500], core: 0, cloaked: false };
+  const paint = { hwnd: 66, pid: 600, cls: "MSPaintApp", title: "Untitled - Paint", frame: [0, 0, 400, 500], core: 0, cloaked: false };
+  let launched = 0;
+  let refuse = false; // the user closed the hand's desktop in Task View
+  spyOn(process, "kill").mockImplementation(() => { throw new Error("no such process"); }); // prettier-ignore
+  helper({
+    processes: [],
+    windows: () => [...desk(), ...[notepad, paint].slice(0, launched)],
+    launch: () => (launched++, { pid: 0 }),
+    send: () => {
+      if (refuse) throw new Error("send: no virtual desktop named Hands: Lefty");
+      return { ok: true };
+    },
+    onDesktop: () => ({ on: !refuse }),
+    tree: LABELLED,
+    capture: { width: 400, height: 500 },
+  });
+  try {
+    windows.releaseDesktop();
+    expect(await windows.runInBackground("Notepad")).toBe(500);
+    expect(asked("send")).toHaveLength(1);
+    refuse = true;
+    await windows.screenshotWindow(55, "w.png"); // kept: the send fails, and the window is grounded rather than the capture failing
+    expect(asked("send")).toHaveLength(2);
+    expect(asked("sink")).toEqual([{ hwnd: 55 }]);
+    expect(asked("capture")).toHaveLength(1);
+    expect(windows.desktopNote()).toBeNull();
+    expect(quiet).toHaveBeenCalledTimes(1);
+    expect(await windows.runInBackground("Paint")).toBe(600); // opened now: the first send fails, so no probe, and the model hears
+    expect(asked("send")).toHaveLength(3);
+    expect(asked("colours").map((a) => a.hwnd)).toEqual([55]);
+    expect(asked("sink")).toEqual([{ hwnd: 55 }, { hwnd: 66 }]);
+    expect(windows.desktopNote()).toBe("Paint cannot work on a desktop of its own, so it stays behind your windows.");
+    expect(quiet).toHaveBeenCalledTimes(2);
+  } finally {
+    windows.releaseDesktop();
+  }
+});
+
+test("a handle the shell has given to another window is forgotten, never sent, sunk or recalled as the hand's", async () => {
+  const notepad = { hwnd: 55, pid: 500, cls: "Notepad", title: "Untitled - Notepad", frame: [0, 0, 400, 500], core: 0 };
+  let launched = false;
+  let stranger = false; // Notepad closed, and the user's own new window got its handle
+  helper({
+    processes: [],
+    windows: () => (launched ? [...desk(), stranger ? { ...notepad, pid: 900, cls: "Chrome_WidgetWin_1", title: "Mail", cloaked: false } : { ...notepad, cloaked: true }] : desk()),
+    launch: () => ((launched = true), { pid: 0 }),
+    onDesktop: () => ({ on: !stranger }),
+    tree: LABELLED,
+    capture: { width: 400, height: 500 },
+  });
+  try {
+    windows.releaseDesktop();
+    expect(await windows.runInBackground("Notepad")).toBe(500);
+    stranger = true;
+    for (let i = 0; i < 5; i++) await windows.screenshotWindow(55, "w.png");
+    expect(asked("send")).toEqual([{ hwnd: 55, name: windows.desktopName() }]); // the one at the open
+    expect(asked("sink")).toEqual([]);
+    expect(asked("recall")).toEqual([]);
+    expect(windows.desktopNote()).toBeNull();
+  } finally {
+    windows.releaseDesktop();
   }
 });
 

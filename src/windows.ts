@@ -370,47 +370,158 @@ const cloaked = (windowId: number): boolean => windowList().some((w) => w.hwnd =
 // ------------------------------------------------------------------ the hand's own desktop
 
 // Each hand works on a virtual desktop of its own, so nothing it opens lands among the user's windows: the app it
-// starts always, its browser window when the browser can work unseen (see browserUnoccluded). The desktop is made
-// on first use and removed as this process ends; HANDS_DESKTOP=0 keeps everything on the current desktop.
+// starts, its browser window when the browser can work unseen (see browserUnoccluded). The desktop is made on
+// first use and removed as this process ends; HANDS_DESKTOP=0 keeps everything on the current desktop.
+//
+// Not every window works there. A UWP app (Calculator, hosted by ApplicationFrameHost) is frozen by Windows on a
+// desktop that is not shown: its tree keeps 13 of its 58 labelled nodes, the frame's, and its picture stops changing
+// (measured); Chrome without --disable-features=CalculateNativeWinOcclusion stops drawing. So a window is tried on the
+// desktop and probed once, and one the desktop does not work for is grounded: brought back, sunk behind the user's
+// windows, and neither it nor any other window of that app (by exe) is sent again for the rest of the run. The user
+// hears of it once.
 
 /** The name the desktop goes by: "Hands: Lefty". */
 export const desktopName = (): string => `Hands: ${process.env.HANDS_NAME || "Hands"}`;
 
 export const desktopsEnabled = (): boolean => process.env.HANDS_DESKTOP !== "0";
 
+const RESEND_LIMIT = 3; // re-sends of one window by keepOnDesktop before the desktop is taken to be fighting us
+const FEW_LABELS = 3; // labelled nodes a tree needs before it can tell the probe anything
+const FEW_COLOURS = 4; // distinct colours a black or blank frame stays under
+const PROBE_MS = 400; // how long the shell takes to freeze a window it will freeze, after the move
+
 let desktopMade = false;
 let ownBrowserWindow: number | null = null; // the browser window this hand opened and moved to its desktop
-const sent = new Set<number>(); // the windows this hand moved to its desktop
+const sent = new Map<number, { app: string; pid: number; resent: number }>(); // the windows this hand moved to its desktop (the pid tells a reused handle from the window), and how often each was put back
+const grounded = new Set<string>(); // apps, by exe, whose windows stay on the desktop on screen from here on
+let groundedNote: string | null = null; // for the model, once, the first time an app it opens is grounded
 
-/** Move a window this hand opened to its desktop, making the desktop first, and see that it got there. False when desktops are off, or the shell kept the window here. */
-async function sendToDesktop(windowId: number): Promise<boolean> {
-  if (!desktopsEnabled()) return false;
+/**
+ * Whether a window lies on the hand's desktop, by the shell's account, which a send changes at once (measured). Not
+ * the cloak: a window on the hand's desktop is uncloaked while the user has switched there to watch. A window that is
+ * gone is on no desktop (the shell has no view for it and says so), and neither is any window when the desktop is gone.
+ */
+function onDesktop(windowId: number): boolean {
+  try {
+    return (native.call("onDesktop", { hwnd: windowId, name: desktopName() }) as { on: boolean }).on;
+  } catch {
+    return false;
+  }
+}
+
+/** What the model is told the first time an app it opens is grounded in this run, or null. Reading it clears it. */
+export function desktopNote(): string | null {
+  const note = groundedNote;
+  groundedNote = null;
+  return note;
+}
+
+/** Labelled nodes in a window's tree, from a short walk: what a window that works has more than a few of, and a frozen one loses most of. */
+function labelled(windowId: number): number {
+  const reply = native.call("tree", { hwnd: windowId, cap: 200, ms: 300 }) as { nodes: { label: string }[] };
+  return reply.nodes.filter((n) => n.label).length;
+}
+
+/**
+ * Whether a window works on the hand's desktop: it is there, its picture shows something, and its tree kept at
+ * least half the labels it had before the move (a frozen Calculator keeps its frame's 13 of 58, and its last
+ * picture: measured). An error from the helper (the window went away under it) is a no.
+ */
+function working(windowId: number, labelsBefore: number): boolean {
+  try {
+    if (!onDesktop(windowId)) return false;
+    if ((native.call("colours", { hwnd: windowId, cap: FEW_COLOURS + 1 }) as { colours: number }).colours <= FEW_COLOURS) return false;
+    return labelsBefore < FEW_LABELS || labelled(windowId) >= Math.max(FEW_LABELS, labelsBefore / 2);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Keep an app on the desktop on screen for the rest of the run: its window, when it is still there (the same window:
+ * the shell reuses handles), comes back from the hand's desktop and goes behind the user's windows, and no window of
+ * the app is sent or kept there again. True the first time, with a line for the log; after that, quietly. Nothing
+ * here throws: the callers sit in finally blocks.
+ */
+function ground(app: string, windowId: number, pid: number, why: string): boolean {
+  sent.delete(windowId);
+  const entry = windowList().find((w) => w.hwnd === windowId && w.pid === pid);
+  try {
+    if (entry?.cloaked) native.call("recall", { hwnd: windowId }); // uncloaked, it is already on the desktop on screen
+    if (entry) native.call("sink", { hwnd: windowId });
+  } catch {
+    // the window closed as it was being put back: nothing left to place
+  }
+  const exe = exeOf(app).toLowerCase();
+  if (grounded.has(exe)) return false;
+  grounded.add(exe);
+  console.error(`${app} stays on the desktop on screen: ${why}`);
+  return true;
+}
+
+/** Move a window to the hand's desktop, making the desktop first, and see that it works there: null, or why it does not. */
+async function probe(windowId: number): Promise<string | null> {
+  const before = labelled(windowId);
   const name = desktopName();
   if (!desktopMade) {
     native.call("desktop", { name });
     desktopMade = true;
   }
   for (let attempt = 0; attempt < 3; attempt++) {
-    native.call("send", { hwnd: windowId, name });
-    await sleep(attempt === 0 ? 50 : 300); // the shell cloaks the window a beat after the move; a window still opening can take a second try
-    if (cloaked(windowId)) break;
+    try {
+      native.call("send", { hwnd: windowId, name });
+    } catch (error) {
+      return `the shell would not take it: ${(error as Error).message}`; // the window closed, or the desktop is gone
+    }
+    await sleep(attempt === 0 ? 50 : 300); // a window still opening can take a second try
+    if (onDesktop(windowId)) break;
   }
-  sent.add(windowId); // moved by the shell's account, whether or not the cloak has landed yet: from here on it is kept there
-  return true;
+  await sleep(PROBE_MS);
+  return working(windowId, before) ? null : "its window went blank or lost its tree on the hand's desktop, or closed as it was moved";
+}
+
+/**
+ * Move a window this hand opened to its desktop and see that it works there. False when desktops are off, the app is
+ * grounded, or the probe grounds it now: the window then lies behind the user's windows, and the model hears of it.
+ */
+async function sendToDesktop(windowId: number, pid: number, app: string): Promise<boolean> {
+  if (!desktopsEnabled() || grounded.has(exeOf(app).toLowerCase())) {
+    native.call("sink", { hwnd: windowId }); // shown without activation, but that can still be on top of the user's windows
+    return false;
+  }
+  // The fast path for what is known not to work; the probe catches the rest.
+  const uwp = windowList().some((w) => w.hwnd === windowId && w.cls === "ApplicationFrameWindow");
+  const why = uwp ? "a UWP app freezes on a desktop that is not shown" : await probe(windowId);
+  if (why === null) {
+    sent.set(windowId, { app, pid, resent: 0 }); // from here on it is kept there
+    return true;
+  }
+  // Only here does the model hear of it, on the result of the open that grounded the app: a grounding later in the run (keepOnDesktop) goes to the log alone.
+  if (ground(app, windowId, pid, why)) groundedNote = `${app} cannot work on a desktop of its own, so it stays behind your windows.`;
+  return false;
 }
 
 /**
  * Put back any window of the hand's that the shell has brought onto the desktop on screen: an app that activates
  * itself on an accessibility action (Notepad on "Add New Tab", measured) is moved there by Windows. Asked after each
- * such action and before each capture; one window list when nothing has moved.
+ * such action and before each capture; one window list when nothing has moved. A window that keeps coming back is
+ * grounded instead of sent a fourth time: the desktop is fighting us. So is one the shell will not take back.
  */
 function keepOnDesktop(): void {
   if (sent.size === 0) return;
   const list = windowList();
-  for (const windowId of sent) {
-    const entry = list.find((w) => w.hwnd === windowId);
-    if (!entry) sent.delete(windowId);
-    else if (!entry.cloaked) native.call("send", { hwnd: windowId, name: desktopName() });
+  for (const [windowId, entry] of sent) {
+    const window = list.find((w) => w.hwnd === windowId);
+    if (!window || window.pid !== entry.pid) sent.delete(windowId); // gone, or its handle is another window's now
+    else if (onDesktop(windowId)) continue;
+    else if (++entry.resent > RESEND_LIMIT) ground(entry.app, windowId, entry.pid, `the shell brought its window back ${entry.resent} times`);
+    else {
+      try {
+        native.call("send", { hwnd: windowId, name: desktopName() });
+      } catch (error) {
+        ground(entry.app, windowId, entry.pid, `the shell would not take it back: ${(error as Error).message}`);
+      }
+    }
   }
 }
 
@@ -431,11 +542,13 @@ export function removeDesktop(name: string = desktopName()): void {
   }
 }
 
-/** Leave the hand's desktop: its browser window, if it still has one there, is closed, and the desktop removed. Windows moves whatever else is left on it to the desktop on screen. */
+/** Leave the hand's desktop, and forget what the run learnt: its browser window, if it still has one there, is closed, and the desktop removed. Windows moves whatever else is left on it to the desktop on screen. */
 export function releaseDesktop(): void {
+  sent.clear();
+  grounded.clear();
+  groundedNote = null;
   if (!desktopMade) return;
   desktopMade = false;
-  sent.clear();
   if (ownBrowserWindow !== null) {
     try {
       if (windowList().some((w) => w.hwnd === ownBrowserWindow)) native.call("close", { hwnd: ownBrowserWindow });
@@ -558,8 +671,10 @@ async function launch(file: string, args: string, timeout: number): Promise<{ pi
   const before = new Set(windowList().map((w) => w.hwnd));
   native.call("launch", { file, args, show: 4 }); // SW_SHOWNOACTIVATE
   for (const end = performance.now() + timeout * 1000; performance.now() < end; await sleep(150)) {
-    // A UWP frame appears before the app's own window inside it, and until then carries the frame host's pid.
-    const fresh = windowList().find((w) => !before.has(w.hwnd) && w.pid !== process.pid && (w.cls !== "ApplicationFrameWindow" || w.core !== 0));
+    // A UWP frame appears before the app's own window inside it, and until then carries the frame host's pid; the app's
+    // window can also show up on its own, top level, before the frame adopts it (seen on Calculator). Both are waited
+    // out: a CoreWindow moved to a desktop before its frame takes it in is never taken in, and the app freezes.
+    const fresh = windowList().find((w) => !before.has(w.hwnd) && w.pid !== process.pid && w.cls !== "Windows.UI.Core.CoreWindow" && (w.cls !== "ApplicationFrameWindow" || w.core !== 0));
     if (fresh) return { pid: fresh.pid, windowId: fresh.hwnd };
   }
   return null;
@@ -581,10 +696,7 @@ export async function runInBackground(app: string, timeout = 8.0): Promise<numbe
   if (!opened) throw new Error(`${app} opened no window`);
   userPids.set(app, opened.pid);
   const window = appWindows(opened.pid).some((w) => w.id === opened.windowId) ? opened.windowId : mainWindowId(opened.pid);
-  // A UWP app (Calculator: an ApplicationFrameWindow) stays here: on a desktop that is not shown its accessibility tree
-  // empties and its frame paints black (measured). Any other app's window goes to the hand's desktop.
-  const uwp = windowList().some((w) => w.hwnd === window && w.cls === "ApplicationFrameWindow");
-  if (window !== null && (uwp || !(await sendToDesktop(window)))) native.call("sink", { hwnd: window }); // shown without activation, but that can still be on top of the user's windows
+  if (window !== null) await sendToDesktop(window, opened.pid, app); // to the hand's desktop, or behind the user's windows when the desktop is no good for it
   return opened.pid;
 }
 
@@ -801,7 +913,7 @@ async function openWindowAlone(browser: string, url: string): Promise<PinnedWind
   if (!opened) throw new Error(`${browser} opened no new window`);
   await returnSeat(seat, opened.pid, opened.windowId);
   // Once the seat is back: a browser that works unseen takes its window to the hand's desktop; any other keeps it here, sunk behind the user's.
-  if ((await browserUnoccluded(browser)) && (await sendToDesktop(opened.windowId))) ownBrowserWindow = opened.windowId;
+  if ((await browserUnoccluded(browser)) && (await sendToDesktop(opened.windowId, opened.pid, browser))) ownBrowserWindow = opened.windowId;
   return opened;
 }
 

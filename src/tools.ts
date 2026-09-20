@@ -35,6 +35,11 @@ const appNames = (mac: string) => (onWindows() ? "e.g. Calculator, Notepad, Pain
 const MOD = onWindows() ? "ctrl" : "cmd";
 const KEY_EXAMPLES = `e.g. \`${MOD}+n\` or \`${MOD}+a delete\``;
 const MENU_IN_PLACE = onWindows() ? "The menu opens on screen while the item is pressed, and closes again." : "The item is pressed in place, so no menu opens on screen.";
+/** On Windows, once: that an app just opened cannot work on the hand's own desktop (src/windows.ts). Nothing on the Mac. */
+const desktopNote = (): string => {
+  const note = onWindows() ? windows.desktopNote() : null;
+  return note ? ` (${note})` : "";
+};
 
 export interface ToolOptions {
   runDir: string;
@@ -441,7 +446,7 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
         const pid = await macos.runInBackground(name);
         if (pid === null) throw new Error(`${name} did not start`);
         target = { app: name, pid };
-        return moved(`${name} is running in the background`);
+        return moved(`${name} is running in the background${desktopNote()}`);
       },
     ),
     tool(
@@ -594,6 +599,7 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
             await macos.stageWindow(pinned.pid, pinned.windowId);
             // On Windows the window joins the hand's own desktop only when Chrome keeps working there (src/windows.ts, browserUnoccluded).
             if (onWindows() && windows.desktopsEnabled() && !(await windows.browserUnoccluded(browser))) note = ". Add --disable-features=CalculateNativeWinOcclusion to your Chrome shortcut and hands can work in a desktop of their own.";
+            else note = desktopNote(); // a browser that should have worked there, but did not
           }
           target = { app: browser, pid: pinned.pid, pinned };
           return moved(`opened ${url}${new_tab ? " in a new tab" : ""} in your background window${note}`);
