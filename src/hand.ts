@@ -13,6 +13,7 @@
 
 import { toArrayBuffer } from "bun:ffi";
 import * as macos from "./macos.ts";
+import { onWindows, platform, rendererCommand } from "./platform.ts";
 import type { Frame, Point } from "./models.ts";
 
 export type Pose = "wave" | "point" | "press" | "write" | "draw" | "key" | "scroll" | "look" | "go" | "wait" | "think" | "done" | "stop";
@@ -97,11 +98,11 @@ export const hand = {
 
   /** Come on screen: top right of the main display, where the system says hello too. Without a colour the hand is the emoji's own yellow. */
   start(name: string, color?: Tint): void {
-    const spawned = (renderer = Bun.spawn([process.execPath, import.meta.path], { stdin: "pipe", stdout: "pipe", stderr: "inherit" }));
+    const spawned = (renderer = Bun.spawn(rendererCommand(), { stdin: "pipe", stdout: "pipe", stderr: "inherit" }));
     spawned.unref();
     void listen(spawned.stdout).catch(() => {});
     void spawned.exited.then(() => renderer === spawned && (renderer = null));
-    const [x, y, width] = macos.displays()[0]?.frame ?? [0, 0, 1440, 900];
+    const [x, y, width] = platform.displays()[0]?.frame ?? [0, 0, 1440, 900];
     riding = "";
     last = [width - 260, 150];
     send({ name, color, subject: { origin: [x, y] }, at: last, pose: "wave", label: "" });
@@ -465,7 +466,8 @@ async function render(): Promise<void> {
   await Bun.sleep(350);
 }
 
-if (import.meta.main) {
+if (import.meta.main && !onWindows()) {
+  // The Mac renderer; on Windows rendererCommand() names the native overlay, and this half never runs.
   process.on("SIGINT", () => {}); // Ctrl-C reaches the whole process group; the agent decides when this ends, by closing the pipe
   await render();
   process.exit(0);

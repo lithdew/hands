@@ -19,8 +19,8 @@ import type { Command } from "./agent.ts";
 import { timestamp } from "./cli.ts";
 import * as config from "./config.ts";
 import { type Cue, POSES } from "./hand.ts";
-import * as macos from "./macos.ts";
-import { cushion, type Shell, start as startShell, type Talk } from "./shell.ts";
+import { onWindows, PERMISSION, platform as macos, startShell } from "./platform.ts";
+import { cushion, type Shell, type Talk } from "./shell.ts";
 import page from "./ui/index.html";
 import type { ClientMessage, HandView, LogEntry, ServerMessage, Status, VoiceView } from "./ui/state.ts";
 
@@ -489,8 +489,14 @@ export function samplesOf(wav: Uint8Array): Uint8Array {
 /** Say something to the voice without a microphone: the words are synthesized, and the key is held for as long as they last. */
 async function say(text: string, runs: string): Promise<void> {
   const [aiff, wav] = [join(runs, "say.aiff"), join(runs, "say.wav")];
-  await Bun.spawn(["say", "-o", aiff, text]).exited;
-  await Bun.spawn(["afconvert", "-f", "WAVE", "-d", "LEI16@24000", "-c", "1", aiff, wav]).exited;
+  if (onWindows()) {
+    // System.Speech writes the 24 kHz mono 16-bit WAV directly; the text goes in as a base64 argument so no quoting can break it.
+    const script = `Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.SetOutputToWaveFile('${wav.replaceAll("'", "''")}', (New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(24000, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono))); $s.Speak([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(text, "utf8").toString("base64")}'))); $s.Dispose()`;
+    await Bun.spawn(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script]).exited;
+  } else {
+    await Bun.spawn(["say", "-o", aiff, text]).exited;
+    await Bun.spawn(["afconvert", "-f", "WAVE", "-d", "LEI16@24000", "-c", "1", aiff, wav]).exited;
+  }
   const pcm = samplesOf(new Uint8Array(await Bun.file(wav).arrayBuffer()));
   console.log(`[you] ${text}`);
   speaking = true;
@@ -594,9 +600,11 @@ function film(): void {
 
 // ------------------------------------------------------------------ main
 
+const TALK_KEY = onWindows() ? "right Ctrl key" : "right Option key";
+
 const USAGE = `usage: bun live [--quiet] [--say "words"]... [--every SECONDS] [--out DIR]
 
-Hold the right Option key, say what you want done, and let go. ${config.liveModel()} hears it and sends out hands:
+Hold the ${TALK_KEY}, say what you want done, and let go. ${config.liveModel()} hears it and sends out hands:
 one, or several at once. The corner of the screen shows each hand's window; click a card for its transcript and
 to steer it, or click the hand itself to stop it where it is. Tell the voice to steer, stop or close hands too.
 
@@ -615,7 +623,7 @@ async function main(argv: string[]): Promise<void> {
   });
   if (values.help) return void console.log(USAGE);
   if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set (put it in .env): the voice is OpenAI's");
-  if (!macos.accessibilityTrusted()) throw new Error("this terminal lacks Accessibility permission; grant it in System Settings > Privacy & Security");
+  if (!macos.accessibilityTrusted()) throw new Error(PERMISSION);
   const runs = resolve(values.out);
   mkdirSync(runs, { recursive: true });
   quietly = values.quiet;
@@ -634,15 +642,15 @@ async function main(argv: string[]): Promise<void> {
   setInterval(progress, PROGRESS_MS);
   // And a session nobody has said anything in for a while is closed the way the guide closes one: asked to, and let finish.
   setInterval(() => live && ready && !feed && voice.state === "idle" && Date.now() - spokenAt > IDLE_MS && sendLive({ type: "session.close" }), 5000);
-  if (process.env.HANDS_DEBUG) process.on("SIGUSR2", () => live?.close()); // hang up on the voice, to see it call back
-  if (process.env.HANDS_SAY) process.on("SIGUSR1", () => void say(readFileSync(process.env.HANDS_SAY!, "utf8").trim(), runs)); // a line said on cue: a take directed from outside
+  if (process.env.HANDS_DEBUG && process.platform !== "win32") process.on("SIGUSR2", () => live?.close()); // hang up on the voice, to see it call back
+  if (process.env.HANDS_SAY && process.platform !== "win32") process.on("SIGUSR1", () => void say(readFileSync(process.env.HANDS_SAY!, "utf8").trim(), runs)); // a line said on cue: a take directed from outside
   process.on("SIGINT", () => {
     for (const one of [...hands.values()]) close(one);
     live?.close();
     if (process.env.HANDS_TAPE) writeTape(process.env.HANDS_TAPE);
     process.exit(130);
   });
-  console.log(`run folder: ${runs}\nhold the right Option key and say what you want done. Ctrl-C to quit.`);
+  console.log(`run folder: ${runs}\nhold the ${TALK_KEY} and say what you want done. Ctrl-C to quit.`);
 
   for (const words of values.say ?? []) {
     await say(words, runs);

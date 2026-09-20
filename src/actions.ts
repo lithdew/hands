@@ -4,7 +4,7 @@ import type { TypeSafeClient } from "@typesafe-ai/sdk";
 import { SITES } from "./config.ts";
 import { type Decision, OFFSCREEN_PREFIX, verifyTyped } from "./decide.ts";
 import { hand, quote } from "./hand.ts";
-import * as macos from "./macos.ts";
+import { platform as macos } from "./platform.ts";
 import { center, type Field, isText, type Item, type Point, repr, type Screen, toPoints } from "./models.ts";
 import { composeText, composeUrl, type Writer } from "./writer.ts";
 

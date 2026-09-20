@@ -13,7 +13,7 @@ import * as config from "./config.ts";
 import { nowContext } from "./dates.ts";
 import { hand, quote, tintOf } from "./hand.ts";
 import { onPayload, resolveModel, runtime } from "./llm.ts";
-import * as macos from "./macos.ts";
+import { onWindows, PERMISSION, platform as macos } from "./platform.ts";
 import { computerTools, type Details } from "./tools.ts";
 import { makeWriter } from "./writer.ts";
 
@@ -44,14 +44,20 @@ export function pruneScreens(messages: AgentMessage[]): AgentMessage[] {
   });
 }
 
+/** The Mac prompt is unchanged by the port; these are the two lines where the platforms differ. */
+const MACHINE = onWindows() ? "Windows PC" : "Mac";
+const OPEN_VISIBILITY = onWindows()
+  ? "`browser` open in your own window is invisible to the user too, except that making the window the first time takes their keyboard for a fraction of a second before it is handed back. So move through a site"
+  : "`browser` open is too when the user has allowed JavaScript from Apple Events in their browser; when they have not, it takes the keyboard from whatever they are doing for about a fifth of a second before it is handed back. You cannot tell which, so move through a site";
+
 /** What changes when the user keeps the seat: the agent works apps and a browser window of its own, from behind theirs. */
 const backgroundPrompt = (browser: string) => `# Working in the background
-The user is using this Mac right now and has asked you not to take their mouse, keyboard, or focus. So everything you do names its target, and nothing goes through the seat:
+The user is using this ${MACHINE} right now and has asked you not to take their mouse, keyboard, or focus. So everything you do names its target, and nothing goes through the seat:
 - \`open_app\` starts an app, or takes up a running one, without bringing it forward, and \`browser\` open gives you a ${browser} window of your own in their profile, behind their windows. Whichever you used last is the window you are working in. \`screen\` reads that window where it lies.
 - \`click\` presses an item with a role (button, link, field, popup, tab, cell...) through accessibility, which is the sure way: prefer it, and when the thing you want shows up only as text, look for the control that carries it, often listed right beside it or in the off-screen list. Anything else, a canvas, a toolbox with no labels, a bare x,y, gets a pointer of your own: \`click\` with x,y and \`drag\` send pointer events addressed to your window alone, so the user's cursor never moves. A browser only hands those to a page it thinks can be seen, so the first time you use them your browser window is slid until a strip of it shows at a screen edge. Use the screenshot to aim, and again to check what you drew.
 - \`menu\` chooses a command from the app's menu bar by its path, without the menu ever opening. It is the way to make a new document or note, save, select all, change a view. Give a partial path to see what a menu holds before guessing a name.
 - In an app, \`key\` and \`type\` without an item send keys to that app's process, to wherever its own cursor is, so make sure its cursor is where you mean (press the field, or make the new document) first. \`type\` with an item sets a field's value outright. The browser takes neither: its keys would land in whichever of its windows the user is in, so submit a web form with \`type\` submit=true or by pressing its button.
-- In the browser, pressing a link or a button is invisible to the user. \`browser\` open is too when the user has allowed JavaScript from Apple Events in their browser; when they have not, it takes the keyboard from whatever they are doing for about a fifth of a second before it is handed back. You cannot tell which, so move through a site by pressing its links and controls, and keep \`browser\` open for getting to a site in the first place, or for a URL that saves many steps (search results, filters and dates usually live in the query string). Keep pages the user should see open as tabs (\`browser\` open with new_tab=true), and say so at the end.
+- In the browser, pressing a link or a button is invisible to the user. ${OPEN_VISIBILITY} by pressing its links and controls, and keep \`browser\` open for getting to a site in the first place, or for a URL that saves many steps (search results, filters and dates usually live in the query string). Keep pages the user should see open as tabs (\`browser\` open with new_tab=true), and say so at the end.
 - The clipboard is the user's too: do not copy or paste through it. Put text in with \`type\`, and move files with the shell.
 - If something truly cannot be done from here, do what you can and tell the user to run it again without --background.
 `;
@@ -60,7 +66,7 @@ export function systemPrompt(cwd: string, background = false): string {
   const now = nowContext();
   const browser = config.browser();
   if (background) {
-    return `You are Hands, an agent working on the user's Mac for them, in the background. You operate its apps and websites from behind the user's windows, and you also have a shell and file tools in ${cwd}.
+    return `You are Hands, an agent working on the user's ${MACHINE} for them, in the background. You operate its apps and websites from behind the user's windows, and you also have a shell and file tools in ${cwd}.
 
 Now: ${now.local_time} (${now.timezone}). Home: ${homedir()}. Browser: ${browser}.
 
@@ -79,7 +85,7 @@ ${backgroundPrompt(browser)}
 
 Finish with a short plain answer: what you found or did, and where any file you made lives.`;
   }
-  return `You are Hands, an agent operating the user's Mac for them. You see the screen and use the mouse and keyboard through tools, and you also have a shell and file tools in ${cwd}.
+  return `You are Hands, an agent operating the user's ${MACHINE} for them. You see the screen and use the mouse and keyboard through tools, and you also have a shell and file tools in ${cwd}.
 
 Now: ${now.local_time} (${now.timezone}). Home: ${homedir()}. Browser: ${browser}.
 
@@ -91,7 +97,7 @@ Now: ${now.local_time} (${now.timezone}). Home: ${homedir()}. Browser: ${browser
 - Websites open only through the \`browser\` tool, in the user's running ${browser} and existing profile: reuse or open tabs and windows there. Never launch another browser, a second ${browser} instance, a different profile, or a headless one.
 - \`clicker\` is a fast, cheap delegate for simple click-through sub-goals. Give it one concrete goal, then check the screen yourself.
 - Keep going until the task is actually done. A step that fails or a page that surprises you is a reason to look again (with the screenshot) and take another route: mouse=true, a keyboard shortcut, a menu, a different page or search. Do not hand the task back half done. Stop early only for what the user alone can resolve, such as a login, a payment, or a CAPTCHA, and then say exactly what is on screen.
-- The user may be using this Mac at the same time. If another app has come to the front, bring yours back (\`open_app\`, or \`browser\` switch_tab) and carry on.
+- The user may be using this ${MACHINE} at the same time. If another app has come to the front, bring yours back (\`open_app\`, or \`browser\` switch_tab) and carry on.
 
 # Boundaries
 - Never type, guess, or reveal passwords or payment details. If a login is required, stop and say so.
@@ -258,7 +264,7 @@ async function manage(agent: Agent): Promise<void> {
 
 const USAGE = `usage: hands [prompt] [--background] [--name NAME] [--color HEX] [--no-hand] [--cwd DIR] [--out DIR] [--model provider/model] [--thinking LEVEL]
 
-An agent that drives this Mac: ${config.DEFAULT_MODEL} at ${config.DEFAULT_THINKING} effort, with read, bash, edit, write and computer use.
+An agent that drives this ${MACHINE}: ${config.DEFAULT_MODEL} at ${config.DEFAULT_THINKING} effort, with read, bash, edit, write and computer use.
 With no prompt it reads one per line until EOF. Abort: Ctrl-C, or slam the mouse into a screen's top-left corner.
 
   --background   keep working while it works: apps are started without coming forward, the browser gets a window
@@ -294,7 +300,7 @@ async function main(argv: string[]): Promise<void> {
   }
   if (!process.env.TYPESAFE_API_KEY) console.log("TYPESAFE_API_KEY is not set: the clicker tool will fail until it is (put it in .env)");
   if (!macos.accessibilityTrusted()) {
-    console.error("this terminal lacks Accessibility permission; grant it in System Settings > Privacy & Security");
+    console.error(PERMISSION);
     process.exit(1);
   }
   const runDir = resolve(values.out);

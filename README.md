@@ -74,7 +74,7 @@ bun clicker "open the Playground" --act
 
 ## Install
 
-macOS 14 or newer on Apple Silicon or Intel, [Bun](https://bun.com) 1.4 or newer.
+macOS 14 or newer on Apple Silicon or Intel, or Windows 11 (see [Windows](#windows)), and [Bun](https://bun.com) 1.4 or newer.
 
 ```
 bun install
@@ -100,7 +100,7 @@ The language model goes through [pi-ai](https://github.com/earendil-works/pi/tre
 | `HANDS_TAPE` | none | a WAV file to write on Ctrl-C with both sides of the conversation as they were heard, for laying under a screen recording (which hears nothing of a voice in headphones) |
 | `HANDS_SAY` | none | a text file: on `SIGUSR1`, `bun live` says its words to the voice as if the key were held, so a take can be directed from a script |
 
-Grant your terminal **Screen Recording** and **Accessibility** in System Settings > Privacy & Security (and **Microphone**, for `bun live`), and let it control your browser the first time macOS asks. Without the first, captures are wallpaper. Without the second, synthetic clicks are silently dropped, and both commands refuse to drive the machine.
+Grant your terminal **Screen Recording** and **Accessibility** in System Settings > Privacy & Security (and **Microphone**, for `bun live`), and let it control your browser the first time macOS asks. Without the first, captures are wallpaper. Without the second, synthetic clicks are silently dropped, and both commands refuse to drive the machine. Windows asks for nothing.
 
 ## Use
 
@@ -264,8 +264,13 @@ Everything else is a faithful port, tests included. These are deliberate:
 
 ```
 src/
+  platform.ts     the one place that knows there are two platforms: macos.ts or windows.ts, shell.ts or shell-windows.ts
   macos.ts        the only module that touches Quartz, AX, Vision, ScriptingBridge, AppleScript
                   (hand.ts draws with the Objective-C runtime bound here)
+  windows.ts      the same exports over one native helper, called synchronously over a named pipe
+  windows.cs      that helper: window capture, UI Automation, Windows OCR, posted input, the browser
+  overlay.cs      the hand on screen, Windows edition (a mode of the same helper)
+  shell-windows.ts  the live orchestrator's key, microphone, speaker and panel on Windows (winmm and user32 over bun:ffi)
   perception.ts   capture, OCR, the read region and the changed-tile cache, block merging,
                   goal-echo filter, the accessibility item source, and the merge of the two
   dates.ts        date parsing and "in N days" hints
@@ -284,8 +289,37 @@ src/
   hand.ts         the hand on screen: the cues the tools send, and the process that draws them
   agent.ts        `hands`: the pi agent, its system prompt, transcript pruning
 tests/            pure logic: dates, merging, reading order, echo filter, the OCR cache,
-                  decisions, actions, the tree walk against a fake tree
+                  decisions, actions, the tree walk against a fake tree, and windows.ts against a fake helper
 ```
+
+## Windows
+
+The same three commands run on Windows 11, natively, with nothing to install: `src/windows.cs` and `src/overlay.cs` are built on first use with the C# compiler that ships in every Windows (`%LOCALAPPDATA%\hands\hands-<hash>.exe`, rebuilt when the source changes), and `src/platform.ts` hands every other module `windows.ts` in place of `macos.ts`, export for export. Under `bun test` the Mac stays the platform under test on every machine; `HANDS_PLATFORM=windows` says otherwise. Coordinates are physical pixels (the helper and this process are per-monitor DPI aware), so a screenshot is one pixel per point.
+
+The helper answers JSON over a named pipe, which Bun calls synchronously through `bun:ffi` (26 µs a round trip, measured), so nothing that is synchronous on the Mac had to change shape. Each piece, and what it measured here (Windows 11, Chrome 153, a 2560x1600 display at 150%):
+
+| it | through | you notice |
+|---|---|---|
+| reads a window | `PrintWindow` with `PW_RENDERFULLCONTENT`, which paints a covered window whole (15 to 55 ms), plus that window's UI Automation tree read with one cached walk (25 to 55 ms; child windows read as roots, since a covered WinUI window's tree can stop at its title bar) | nothing |
+| reads text | `Windows.Media.Ocr`, on device, in the helper (about 45 ms for a window, 175 ms for a whole display), boxes in capture pixels | nothing |
+| clicks a control | `Invoke`, `Toggle`, `Select` or `Expand` through UI Automation in an ordinary app; in a Chromium window a click is *posted* to the window at the control's rectangle instead, because every UI Automation action on Chrome activates it | nothing |
+| types in an app | `WM_CHAR` posted to the app's window (a UWP app's `CoreWindow`), `EM_REPLACESEL` to a classic edit control | nothing; Chrome takes the same, after a posted click on the field |
+| clicks a bare point, draws | mouse messages posted to the deepest child window under the point: they never enter the input stream, so your cursor stays put, and Chrome takes them whether or not the window is covered | nothing |
+| starts an app | `ShellExecuteEx` with `SW_SHOWNOACTIVATE`; the window is found as it appears, since the pid that comes back can be a stub (Notepad, Calculator) | nothing |
+| browses | a new window in **your own Chrome and profile** (`chrome.exe --new-window`); Chrome brings itself forward, and the seat is handed straight back (`AttachThreadInput` + `SetForegroundWindow`); from then on the omnibox, tabs, back, forward and reload are worked by posted clicks and keys, and the URL is read off the page's `Document` element | a flicker when the window is made, once per run |
+| shows the hand | a layered, click-through, never-activating tool window owned by the window it rides, excluded from screen captures (`WDA_EXCLUDEFROMCAPTURE`) | the hand, as on the Mac, in a tinted outline: GDI+ has no colour emoji |
+| `bun live` | the right Ctrl key (`HANDS_KEY=right-alt`, `f8`, or a virtual-key number), `waveIn`/`waveOut` at 24 kHz, and the panel as an Edge (or Chrome) `--app` window with its own profile, kept topmost in the corner and clipped of the frame Chromium paints | the panel takes the foreground once as it opens |
+
+What Windows taught, each of which cost a wrong turn to find:
+
+- **Chrome publishes its page's accessibility tree only after the first query, and not while its window is fully covered.** Its occlusion tracker keeps a covered tab hidden, and `--force-renderer-accessibility` does not change that. So before a Chromium window is read, a strip of it is made to show (the same `revealWindow` slide the Mac uses for its pointer), and once the tree exists it stays live behind your windows. It freezes while minimized.
+- **Every UI Automation action on Chrome takes the seat**: `Invoke`, `SetValue`, `SetFocus`, `ScrollPattern`. Posted window messages do not, and Chrome handles them fully (`pointerdown` to `click`, `WM_CHAR` into a focused field, `VK_RETURN`), so that is how the browser is worked. `WM_KEYDOWN` and `WM_CHAR` together type twice: text is `WM_CHAR` alone, keys are `WM_KEYDOWN`/`WM_KEYUP`.
+- **A minimized window cannot be captured** (`PrintWindow` returns its caption); it is restored without activation first.
+- **`SetForegroundWindow` is refused** to a process that has not had input; attaching to the foreground thread's input first is what lets the seat be handed back after Chrome takes it.
+- **Windows OCR from the in-box compiler** needs the per-namespace `.winmd` files in `System32\WinMetadata` plus `System.Runtime.dll` and `System.Runtime.WindowsRuntime.dll`; without the SDK's facade, `await` on WinRT operations and `AsBuffer()` do not compile, hence the small awaiter and `DataWriter` in `windows.cs`.
+- **Smart App Control** once blocked a freshly built unsigned exe. If the helper will not start, the error says so; allowing the file, or signing it, is the fix.
+
+Known limits of the port: chords posted to a background app carry no modifiers (a shortcut goes through `menu` or the foreground); a Win32 menu is not in the tree until it opens, so `menu` opens it on screen while it presses; `menu`, `close_tab` and `switch_tab` in the browser depend on the control being visible in the window; OCR confidence is always 1 (WinRT reports none); `focusedField` is system-wide, as on the Mac; `bun live` was exercised part by part on this machine (key, microphone, speaker, panel, thumbnails), not yet as one take.
 
 ## Development
 

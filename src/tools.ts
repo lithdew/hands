@@ -14,7 +14,7 @@ import { type TSchema, Type } from "typebox";
 import { clickItem, pressOffscreen } from "./actions.ts";
 import * as config from "./config.ts";
 import { hand, quote } from "./hand.ts";
-import * as macos from "./macos.ts";
+import { onWindows, platform as macos } from "./platform.ts";
 import { Abort, center, type Item, type Point, repr, roleWord, type Screen, sizePt, toPoints } from "./models.ts";
 import { capture, OcrCache, perceive } from "./perception.ts";
 import { run } from "./runner.ts";
@@ -28,6 +28,12 @@ const ITEM_TEXT_CHARS = 600;
 const SCREEN_ITEMS = 600;
 const CLICKER_STEPS = 25;
 const PAGE_LOAD_MS = 10_000; // how long a navigation may keep a capture waiting
+// The words the model reads: the Mac strings stay as they were, and Windows gets its own apps, modifier and menus.
+const APP_KIND = onWindows() ? "a Windows application" : "a macOS application";
+const appNames = (mac: string) => (onWindows() ? "e.g. Calculator, Notepad, Paint" : `As in /Applications, e.g. ${mac}`);
+const MOD = onWindows() ? "ctrl" : "cmd";
+const KEY_EXAMPLES = `e.g. \`${MOD}+n\` or \`${MOD}+a delete\``;
+const MENU_IN_PLACE = onWindows() ? "The menu opens on screen while the item is pressed, and closes again." : "The item is pressed in place, so no menu opens on screen.";
 
 export interface ToolOptions {
   runDir: string;
@@ -202,8 +208,8 @@ function foregroundTools({ runDir, writer, onAbort }: ToolOptions): AgentTool<an
     ),
     tool(
       "key",
-      "Press keys: one chord such as `return`, `escape`, `tab`, `cmd+a`, `cmd+shift+t`, `pagedown`, or several separated by spaces, pressed in order.",
-      Type.Object({ keys: Type.String({ description: "e.g. `cmd+n` or `cmd+a delete`" }) }),
+      `Press keys: one chord such as \`return\`, \`escape\`, \`tab\`, \`${MOD}+a\`, \`${MOD}+shift+t\`, \`pagedown\`, or several separated by spaces, pressed in order.`,
+      Type.Object({ keys: Type.String({ description: KEY_EXAMPLES }) }),
       async ({ keys }) => {
         await focused();
         void hand.cue("key", `press ${keys}`, undefined, { count: keys.trim().split(/\s+/).length });
@@ -259,12 +265,12 @@ function foregroundTools({ runDir, writer, onAbort }: ToolOptions): AgentTool<an
     ),
     tool(
       "open_app",
-      "Open a macOS application, or bring it to the front if it is already running. Returns the new `screen` listing.",
-      Type.Object({ name: Type.String({ description: "As in /Applications, e.g. Calculator, Notes, Finder" }) }),
+      `Open ${APP_KIND}, or bring it to the front if it is already running. Returns the new \`screen\` listing.`,
+      Type.Object({ name: Type.String({ description: appNames("Calculator, Notes, Finder") }) }),
       async ({ name }) => {
         void hand.cue("go", `opening ${name}`);
         const front = await macos.activate(name).catch(() => false);
-        if (!front) await Bun.spawn(["open", "-a", name]).exited;
+        if (!front && !onWindows()) await Bun.spawn(["open", "-a", name]).exited; // on Windows activate starts the app itself
         const reached = front || (await macos.activate(name).catch(() => false));
         return moved(reached ? `${name} is frontmost` : `opened ${name}, but the frontmost app is ${repr(await macos.frontmostApp())}`);
       },
@@ -426,9 +432,9 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
     ),
     tool(
       "open_app",
-      "Start a macOS application without bringing it forward, or take up one that is already running, and work in its current " +
+      `Start ${APP_KIND} without bringing it forward, or take up one that is already running, and work in its current ` +
         "window from here on. Returns the `screen` listing.",
-      Type.Object({ name: Type.String({ description: "As in /Applications, e.g. Calculator, Notes, TextEdit" }) }),
+      Type.Object({ name: Type.String({ description: appNames("Calculator, Notes, TextEdit") }) }),
       async ({ name }) => {
         void hand.cue("go", `opening ${name}`);
         const pid = await macos.runInBackground(name);
@@ -439,8 +445,8 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
     ),
     tool(
       "menu",
-      "A command from the app's menu bar, by its path: [\"File\", \"New Note\"]. The item is pressed in place, so no menu opens on " +
-        "screen. A path that stops at a menu lists what is in it, and an empty path lists the menu bar: look before you guess a name.",
+      `A command from the app's menu bar, by its path: ["File", "New Note"]. ${MENU_IN_PLACE} ` +
+        "A path that stops at a menu lists what is in it, and an empty path lists the menu bar: look before you guess a name.",
       Type.Object({ path: Type.Array(Type.String(), { description: "e.g. [\"Edit\", \"Select All\"], or [\"View\"] to see what View holds" }) }),
       async ({ path }: { path: string[] }) => {
         if (path.length) void hand.cue("press", `menu ${path.join(" › ")}`);
@@ -522,9 +528,9 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
     tool(
       "key",
       "Press keys in the app, sent to its process rather than to whatever has the focus: `return`, `escape`, `tab`, arrows, or several " +
-        "separated by spaces. A menu's shortcut (`cmd+n`, `cmd+s`) often does not fire in an app that is not in front: choose the command " +
+        `separated by spaces. A menu's shortcut (\`${MOD}+n\`, \`${MOD}+s\`) often does not fire in an app that is not in front: choose the command ` +
         "with `menu` instead. Not available in the browser.",
-      Type.Object({ keys: Type.String({ description: "e.g. `cmd+n` or `cmd+a delete`" }) }),
+      Type.Object({ keys: Type.String({ description: KEY_EXAMPLES }) }),
       async ({ keys }) => {
         const pid = keyboard();
         void hand.cue("key", `press ${keys}`, undefined, { count: keys.trim().split(/\s+/).length });
