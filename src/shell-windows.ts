@@ -47,12 +47,19 @@ const user32 = dlopen("user32.dll", {
   GetWindowLongPtrW: { args: ["ptr", "i32"], returns: "i64" },
   SetWindowLongPtrW: { args: ["ptr", "i32", "i64"], returns: "i64" },
   SetWindowRgn: { args: ["ptr", "ptr", "bool"], returns: "i32" },
+  GetWindowRgn: { args: ["ptr", "ptr"], returns: "i32" },
+  GetWindowRect: { args: ["ptr", "ptr"], returns: "bool" },
+  FindWindowW: { args: ["ptr", "ptr"], returns: "ptr" },
   GetDpiForWindow: { args: ["ptr"], returns: "u32" },
   GetDpiForSystem: { args: [], returns: "u32" },
   EnumDisplayMonitors: { args: ["ptr", "ptr", "ptr", "i64"], returns: "bool" },
   GetMonitorInfoW: { args: ["ptr", "ptr"], returns: "bool" },
 }).symbols;
-const gdi32 = dlopen("gdi32.dll", { CreateRectRgn: { args: ["i32", "i32", "i32", "i32"], returns: "ptr" } }).symbols;
+const gdi32 = dlopen("gdi32.dll", {
+  CreateRectRgn: { args: ["i32", "i32", "i32", "i32"], returns: "ptr" },
+  GetRgnBox: { args: ["ptr", "ptr"], returns: "i32" },
+  DeleteObject: { args: ["ptr"], returns: "bool" },
+}).symbols;
 const kernel32 = dlopen("kernel32.dll", { GetCurrentThreadId: { args: [], returns: "u32" } }).symbols;
 const winmm = dlopen("winmm.dll", {
   waveInOpen: { args: ["ptr", "u32", "ptr", "ptr", "ptr", "u32"], returns: "i32" },
@@ -77,11 +84,11 @@ const WS_EX_TOOLWINDOW = 0x80, WS_EX_NOACTIVATE = 0x08000000; // prettier-ignore
 
 // ------------------------------------------------------------------ the key
 
-const TALK_KEYS: Record<string, number> = { "right-alt": 0xa5, f8: 0x77 };
+const TALK_KEYS: Record<string, number> = { "left-ctrl": 0xa2, "right-ctrl": 0xa3, "right-alt": 0xa5, f8: 0x77 };
 const MODIFIERS = new Set([0x10, 0x11, 0x12, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5]); // Shift, Ctrl, Alt and their sides: held with the talk key without meaning to type
 
-/** The push-to-talk key: right Ctrl, or what HANDS_KEY names (`right-alt`, `f8`, or a virtual key code). */
-export const talkKey = (setting = process.env.HANDS_KEY): number => (setting ? (TALK_KEYS[setting.toLowerCase()] ?? Number(setting)) || 0xa3 : 0xa3);
+/** The push-to-talk key: left Ctrl (a laptop keyboard may have no right one), or what HANDS_KEY names (`right-ctrl`, `right-alt`, `f8`, or a virtual key code). */
+export const talkKey = (setting = process.env.HANDS_KEY): number => (setting ? (TALK_KEYS[setting.toLowerCase()] ?? Number(setting)) || 0xa2 : 0xa2);
 
 /**
  * The push-to-talk key, polled from the async key table, which sees every key whoever has the keyboard: no hook, so
@@ -331,10 +338,16 @@ function panel(url: string) {
   ].find(existsSync);
   const profile = `${process.env.LOCALAPPDATA}\\hands\\panel`;
   const previous = user32.GetForegroundWindow();
+  /** The work area of the chosen display, less the taskbar when it is showing there: an auto-hiding one is not counted out of the work area, and it slides up over the corner. */
   const area = (): [number, number, number, number] => {
     const areas = workAreas();
-    return areas[Math.min(Number(process.env.HANDS_SCREEN) || 0, areas.length - 1)] ?? [0, 0, 1920, 1080];
+    const [left, top, right, bottom] = areas[Math.min(Number(process.env.HANDS_SCREEN) || 0, areas.length - 1)] ?? [0, 0, 1920, 1080];
+    const tray = user32.FindWindowW(ptr(Buffer.from("Shell_TrayWnd\0", "utf16le")), null);
+    const rect = new Int32Array(4);
+    if (tray && user32.IsWindowVisible(tray) && user32.GetWindowRect(tray, ptr(rect)) && rect[0]! < right && rect[2]! > left && rect[1]! < bottom && rect[1]! > top + (bottom - top) / 2) return [left, top, right, rect[1]!];
+    return [left, top, right, bottom];
   };
+  let region: [number, number, number, number] | null = null; // the clip the window should have: Chromium puts its own back after a resize, so it is checked every pump
   const [left, top, right, bottom] = area();
   const dip = user32.GetDpiForSystem() / 96;
   const proc = browser
@@ -355,9 +368,21 @@ function panel(url: string) {
     const [w, h] = [Math.round(width * px) + 2 * side, Math.round(height * px) + strip];
     const [, , right, bottom] = area();
     user32.SetWindowPos(hwnd, HWND_TOPMOST, right - MARGIN_PX - w + side, bottom - MARGIN_PX - h, w, h, SWP_NOACTIVATE);
-    user32.SetWindowRgn(hwnd, gdi32.CreateRectRgn(side, strip, w - side, h), true); // the system owns the region from here
+    region = [side, strip, w - side, h];
+    clip();
     if (!shown) user32.ShowWindow(hwnd, SW_SHOWNA);
     shown = true;
+  };
+  const box = new Int32Array(4);
+  /** Cut Chromium's frame off, unless the window already has that cut. The system owns a region once it is set, so a fresh one is made each time. */
+  const clip = (): void => {
+    if (!hwnd || !region) return;
+    const current = gdi32.CreateRectRgn(0, 0, 0, 0);
+    const kind = user32.GetWindowRgn(hwnd, current);
+    gdi32.GetRgnBox(current, ptr(box));
+    gdi32.DeleteObject(current);
+    if (kind !== 0 && region.every((v, i) => v === box[i])) return;
+    user32.SetWindowRgn(hwnd, gdi32.CreateRectRgn(...region), true);
   };
   return {
     fit(width: number, height: number): void {
@@ -385,7 +410,8 @@ function panel(url: string) {
     },
     /** Once the browser has its window up: take it over, and give the foreground back. */
     pump(): void {
-      if (hwnd || !proc || performance.now() - launched > FIND_MS) return;
+      if (hwnd) return void (shown && clip());
+      if (!proc || performance.now() - launched > FIND_MS) return;
       const found = windowOf(proc.pid);
       if (!found) return;
       hwnd = found;

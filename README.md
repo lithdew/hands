@@ -308,7 +308,7 @@ The helper answers JSON over a named pipe, which Bun calls synchronously through
 | starts an app | `ShellExecuteEx` with `SW_SHOWNOACTIVATE`; the window is found as it appears, since the pid that comes back can be a stub (Notepad, Calculator) | nothing |
 | browses | a new window in **your own Chrome and profile** (`chrome.exe --new-window`); Chrome brings itself forward, and the seat is handed straight back (`AttachThreadInput` + `SetForegroundWindow`); from then on the omnibox, tabs, back, forward and reload are worked by posted clicks and keys, and the URL is read off the page's `Document` element | a flicker when the window is made, once per run |
 | shows the hand | a layered, click-through, never-activating tool window owned by the window it rides, excluded from screen captures (`WDA_EXCLUDEFROMCAPTURE`) | the hand, as on the Mac, in a tinted outline: GDI+ has no colour emoji |
-| `bun live` | the right Ctrl key (`HANDS_KEY=right-alt`, `f8`, or a virtual-key number), `waveIn`/`waveOut` at 24 kHz, and the panel as an Edge (or Chrome) `--app` window with its own profile, kept topmost in the corner and clipped of the frame Chromium paints | the panel takes the foreground once as it opens |
+| `bun live` | the left Ctrl key (`HANDS_KEY=right-ctrl`, `right-alt`, `f8`, or a virtual-key number), `waveIn`/`waveOut` at 24 kHz, and the panel as an Edge (or Chrome) `--app` window with its own profile, kept topmost in the corner and clipped of the frame Chromium paints | the panel takes the foreground once as it opens |
 
 What Windows taught, each of which cost a wrong turn to find:
 

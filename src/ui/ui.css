@@ -470,3 +470,8 @@ kbd {
     transition: none !important;
   }
 }
+
+/* Windows: the panel is a browser window, and its page paints white unless told otherwise */
+html.windows {
+  background: var(--ink);
+}

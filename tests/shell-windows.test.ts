@@ -57,12 +57,12 @@ test("a faked hold is a hold, and typing under it is not a cancel", () => {
   expect(k.heard).toEqual(["down", "up"]);
 });
 
-test("the talk key is right Ctrl unless HANDS_KEY names another", () => {
-  expect(talkKey(undefined)).toBe(0xa3);
+test("the talk key is left Ctrl unless HANDS_KEY names another", () => {
+  expect(talkKey(undefined)).toBe(0xa2);
   expect(talkKey("right-alt")).toBe(0xa5);
   expect(talkKey("F8")).toBe(0x77);
   expect(talkKey("119")).toBe(119);
-  expect(talkKey("nonsense")).toBe(0xa3);
+  expect(talkKey("nonsense")).toBe(0xa2);
 });
 
 test("headers the device is done with go back to the free list, in place", () => {

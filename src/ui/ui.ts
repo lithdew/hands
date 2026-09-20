@@ -16,6 +16,10 @@ const words = dock.querySelector(".words") as HTMLElement;
 const socket = new WebSocket(`ws://${location.host}/ws${location.search}`);
 socket.binaryType = "arraybuffer";
 const send = (message: ClientMessage) => socket.readyState === WebSocket.OPEN && socket.send(JSON.stringify(message));
+// On Windows the panel is a browser window with a page background of its own, and the key to hold is another.
+const windows = /Windows/.test(navigator.userAgent);
+document.documentElement.classList.toggle("windows", windows);
+const KEY = windows ? "left Ctrl" : "right ⌥";
 
 // How tall the pieces are, for deciding how many cards can stay unfolded. Measured off the stylesheet, give or take.
 const [STRIP, GAP, ANSWER, FULL_EXTRA, SHEET_FIXED] = [46, 10, 44, 262, 154]; // a folded card, the space between, a folded card's answer, what unfolding adds, a sheet without its log
@@ -204,7 +208,7 @@ function write(hand: string, entries: LogEntry[], reset = false): void {
 
 /** The dock. Yellow with your words while you talk and it thinks; the same two colours the other way round while it answers. */
 function speak({ state, heard, said }: VoiceView): void {
-  const hint = last.hands.length ? "Hold right ⌥ to steer, stop or ask" : "Hold right ⌥ and ask for a hand";
+  const hint = last.hands.length ? `Hold ${KEY} to steer, stop or ask` : `Hold ${KEY} and ask for a hand`;
   const text = { idle: hint, connecting: heard, listening: heard, thinking: heard, speaking: said }[state].trim();
   dock.className = state === "connecting" ? "listening" : state;
   words.textContent = text || (state === "listening" || state === "connecting" ? "Listening…" : "…"); // only while the key is held: the transcript trails the speech, and a dock still saying "Listening…" after the key is up looks like one that has not let go
