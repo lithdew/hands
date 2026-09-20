@@ -23,6 +23,7 @@ import { onWindows, PERMISSION, platform as macos, startShell } from "./platform
 import { cushion, type Shell, type Talk } from "./shell.ts";
 import page from "./ui/index.html";
 import type { ClientMessage, HandView, LogEntry, ServerMessage, Status, VoiceView } from "./ui/state.ts";
+import * as windows from "./windows.ts";
 
 const MAX_HANDS = 8; // the whole cast. Each is a model, a browser window and a renderer of its own
 const FRAME_MS = 160; // one hand's picture is refreshed each tick, turn and turn about
@@ -166,6 +167,7 @@ function settle(hand: Hand, status: Status, answer: string): void {
 function close(hand: Hand): void {
   hand.closed = true;
   hand.proc.kill();
+  if (onWindows()) windows.removeDesktop(`Hands: ${hand.name}`); // killed, the hand cannot take its own desktop down
   hands.delete(hand.id);
   if (focus === hand.id) focus = null;
   console.log(`[${hand.name}] closed`);

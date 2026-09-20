@@ -18,12 +18,14 @@ const node = (id: number, parent: number, role: string, label: string, extra: Pa
 type Args = Record<string, unknown>;
 type Reply = ((args: Args) => unknown) | object | null;
 let calls: [string, Args][];
+/** A window put behind the user's, or on the hand's own desktop: asked after many things, never the point of most tests. */
+const HOUSEKEEPING: Record<string, Reply> = { sink: { ok: true }, desktop: { index: 1, created: true }, send: { ok: true }, removeDesktop: { removed: true }, reg: { value: null } };
 
 /** windows.cs replaced by a script of replies, the way tests/helpers.ts replaces the Mac: nothing here may start a process. */
 function helper(replies: Record<string, Reply>): void {
   spyOn(windows.native, "call").mockImplementation((command: string, args: Args = {}) => {
     calls.push([command, args]);
-    const reply = replies[command] ?? (command === "sink" ? { ok: true } : undefined); // a window put behind the user's: asked after many things, never the point of a test
+    const reply = replies[command] ?? HOUSEKEEPING[command];
     if (reply === undefined) throw new Error(`the test did not expect the helper to be asked for ${JSON.stringify(command)}`);
     return typeof reply === "function" ? (reply as (args: Args) => unknown)(args) : reply;
   });
@@ -250,6 +252,61 @@ test("an app is started without activation and known by the window that appears,
   expect(asked("launch")).toEqual([{ file: "calc.exe", args: "", show: 4 }]);
   expect(asked("processes")).toEqual([{ exe: "CalculatorApp.exe" }]);
   expect(asked("activate")).toEqual([]);
+});
+
+test("a UWP app stays on the desktop on screen, sunk: its tree and its frame's picture go blank on any other (measured on Calculator)", async () => {
+  let asks = 0;
+  const calculator = { hwnd: 55, pid: 500, cls: "ApplicationFrameWindow", title: "Calculator", frame: [0, 0, 400, 500], core: 56 };
+  helper({ processes: [], windows: () => (asks++ < 2 ? desk() : [...desk(), calculator]), launch: { pid: 0 } });
+  expect(await windows.runInBackground("Calculator")).toBe(500);
+  expect(asked("send")).toEqual([]);
+  expect(asked("sink")).toEqual([{ hwnd: 55 }]);
+});
+
+test("an app's window is moved to the hand's own desktop as it appears; a window there is the app's, but not on screen", async () => {
+  const saved = process.env.HANDS_NAME;
+  process.env.HANDS_NAME = "Lefty";
+  const notepad = { hwnd: 55, pid: 500, cls: "Notepad", title: "Untitled - Notepad", frame: [0, 0, 400, 500], core: 0, cloaked: false };
+  let launched = false;
+  let sent = false;
+  helper({ processes: [], windows: () => (launched ? [...desk(), { ...notepad, cloaked: sent }] : desk()), launch: () => ((launched = true), { pid: 0 }), send: () => ((sent = true), { ok: true }) });
+  try {
+    windows.releaseDesktop(); // an earlier test may have made one
+    calls = [];
+    expect(windows.desktopName()).toBe("Hands: Lefty");
+    expect(await windows.runInBackground("Notepad")).toBe(500);
+    expect(asked("desktop")).toEqual([{ name: "Hands: Lefty" }]);
+    expect(asked("send")).toEqual([{ hwnd: 55, name: "Hands: Lefty" }]);
+    expect(asked("sink")).toEqual([]); // on its own desktop there is nothing of the user's to go behind
+    expect(windows.appWindows(500)).toEqual([{ id: 55, frame: [0, 0, 400, 500] }]); // the hand still finds and captures it
+    expect(windows.mainWindowId(500)).toBe(55);
+    expect(windows.allWindows().map((w) => w.id)).toEqual([11, 22, 33]); // covers, the reveal and the overlay see only the desktop on screen
+    expect(await windows.revealWindow(500, 55)).toBe(true); // nothing to slide from under: no window of the user's lies over it
+    expect(asked("move")).toEqual([]);
+    windows.releaseDesktop();
+    expect(asked("removeDesktop")).toEqual([{ name: "Hands: Lefty" }]);
+    expect(asked("close")).toEqual([]); // no browser window of its own to close
+  } finally {
+    if (saved === undefined) delete process.env.HANDS_NAME;
+    else process.env.HANDS_NAME = saved;
+  }
+});
+
+test("the browser works unseen when its own command line, or the Chrome policy, turns native occlusion tracking off", async () => {
+  expect(windows.unoccludedBy('"C:\\chrome.exe" --disable-features=CalculateNativeWinOcclusion', null)).toBe(true);
+  expect(windows.unoccludedBy('"C:\\chrome.exe" --disable-features=Foo,CalculateNativeWinOcclusion,Bar --new-window', null)).toBe(true);
+  expect(windows.unoccludedBy('"C:\\chrome.exe" --disable-features="Foo,CalculateNativeWinOcclusion"', null)).toBe(true);
+  expect(windows.unoccludedBy('"C:\\chrome.exe" --disable-features=CalculateNativeWinOcclusionExtra', null)).toBe(false);
+  expect(windows.unoccludedBy('"C:\\chrome.exe" --enable-features=CalculateNativeWinOcclusion', null)).toBe(false);
+  expect(windows.unoccludedBy('"C:\\chrome.exe"', "0")).toBe(true);
+  expect(windows.unoccludedBy('"C:\\chrome.exe"', "1")).toBe(false);
+  expect(windows.unoccludedBy('"C:\\chrome.exe"', null)).toBe(false);
+  spyOn(process, "kill").mockImplementation(() => true);
+  helper({ processes: [{ pid: 800, cmd: '"C:\\msedge.exe" --disable-features=CalculateNativeWinOcclusion' }], reg: { value: null } });
+  expect(await windows.browserUnoccluded("Microsoft Edge")).toBe(true);
+  expect(asked("reg")).toEqual([{ key: "Software\\Policies\\Microsoft\\Edge", name: "NativeWindowOcclusionEnabled" }]);
+  expect(await windows.browserUnoccluded("Microsoft Edge")).toBe(true); // remembered by pid
+  expect(asked("reg")).toHaveLength(1);
 });
 
 test("an app already running as the user's is not started again, and automation's instances do not count", async () => {

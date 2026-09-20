@@ -149,6 +149,12 @@ static class Program
             case "browser": return Uia.Browser(Hwnd());
             case "menu": return Uia.Menu(Hwnd(), Arr("path"));
             case "scrollPage": return Uia.ScrollPage(Hwnd(), Str("direction"));
+            case "reg": return Reg(Str("key"), Str("name"));
+            case "desktop": return Desktops.Ensure(Str("name"));
+            case "desktops": return Desktops.Names();
+            case "send": Desktops.Need(Str("name")).MoveWindow(Hwnd(), true); return Ok();
+            case "removeDesktop": return Desktops.Remove(Str("name"));
+            case "switch": Desktops.Need(Str("name")).MakeVisible(); return Ok();
             default: throw new ArgumentException("unknown command " + cmd);
         }
     }
@@ -249,6 +255,15 @@ static class Program
         return new Dictionary<string, object> { { "ok", ok } };
     }
 
+    /** One registry value under HKCU then HKLM (`key` is the path below either hive), as a string, or null when neither has it. */
+    static object Reg(string key, string name)
+    {
+        object value = null;
+        try { value = Microsoft.Win32.Registry.GetValue("HKEY_CURRENT_USER\\" + key, name, null); } catch (Exception) { }
+        if (value == null) { try { value = Microsoft.Win32.Registry.GetValue("HKEY_LOCAL_MACHINE\\" + key, name, null); } catch (Exception) { } }
+        return new Dictionary<string, object> { { "value", value == null ? null : Convert.ToString(value, CultureInfo.InvariantCulture) } };
+    }
+
     static object Clipboard(string text)
     {
         Exception failure = null;
@@ -293,14 +308,19 @@ static class Desk
         return e;
     }
 
-    /** Ordinary windows front to back: visible, not minimized, not a tool window, not cloaked, bigger than a palette, not the shell's. */
+    /**
+     * Ordinary windows front to back: visible, not minimized, not a tool window, bigger than a palette, not the shell's.
+     * A window the shell cloaks because it lies on another virtual desktop (DWM_CLOAKED_SHELL) is listed with `cloaked`
+     * true: a hand's own window on the hand's desktop. Any other cloaked window (a suspended UWP app's) is left out.
+     */
     public static object List()
     {
         List<object> outp = new List<object>();
         for (IntPtr h = Win.GetTopWindow(IntPtr.Zero); h != IntPtr.Zero; h = Win.GetWindow(h, 2))
         {
             if (!Win.IsWindowVisible(h) || Win.IsIconic(h)) continue;
-            if ((Win.GetWindowLongPtr(h, -20).ToInt64() & 0x80) != 0 || Cloaked(h) != 0) continue;
+            int cloaked = Cloaked(h);
+            if ((Win.GetWindowLongPtr(h, -20).ToInt64() & 0x80) != 0 || (cloaked != 0 && cloaked != 2)) continue;
             Win.RECT r = Frame(h);
             if (r.R - r.L <= 50 || r.B - r.T <= 50) continue;
             string cls = ClassOf(h);
@@ -308,10 +328,61 @@ static class Desk
             Entry e = Describe(h);
             outp.Add(new Dictionary<string, object> {
                 { "hwnd", h.ToInt64() }, { "pid", e.pid }, { "cls", cls }, { "title", e.title },
-                { "frame", new object[] { r.L, r.T, r.R - r.L, r.B - r.T } }, { "core", e.core.ToInt64() },
+                { "frame", new object[] { r.L, r.T, r.R - r.L, r.B - r.T } }, { "core", e.core.ToInt64() }, { "cloaked", cloaked != 0 },
             });
         }
         return outp;
+    }
+}
+
+// ------------------------------------------------------------ virtual desktops
+
+/** A desktop per hand, through the shell's internal interfaces (src/vendor/VirtualDesktop11-24H2.cs): the public IVirtualDesktopManager moves only its own process's windows. */
+static class Desktops
+{
+    static VirtualDesktop.Desktop Find(string name)
+    {
+        for (int i = 0; i < VirtualDesktop.Desktop.Count; i++) if (VirtualDesktop.Desktop.DesktopNameFromIndex(i) == name) return VirtualDesktop.Desktop.FromIndex(i);
+        return null;
+    }
+
+    public static VirtualDesktop.Desktop Need(string name)
+    {
+        VirtualDesktop.Desktop d = Find(name);
+        if (d == null) throw new Exception("no virtual desktop named " + name);
+        return d;
+    }
+
+    /** The desktop by that name, made if there is none: {index, created}. Making one does not switch to it. */
+    public static object Ensure(string name)
+    {
+        VirtualDesktop.Desktop d = Find(name);
+        bool created = d == null;
+        if (created)
+        {
+            d = VirtualDesktop.Desktop.Create();
+            d.SetName(name);
+        }
+        return new Dictionary<string, object> { { "index", VirtualDesktop.Desktop.FromDesktop(d) }, { "created", created } };
+    }
+
+    public static object Names()
+    {
+        List<object> names = new List<object>();
+        for (int i = 0; i < VirtualDesktop.Desktop.Count; i++) names.Add(VirtualDesktop.Desktop.DesktopNameFromIndex(i));
+        return names;
+    }
+
+    /** Remove the desktop by that name; its windows land on the current desktop (or on the first other one, if the user is looking at it). */
+    public static object Remove(string name)
+    {
+        VirtualDesktop.Desktop d = Find(name);
+        if (d == null) return new Dictionary<string, object> { { "removed", false } };
+        int index = VirtualDesktop.Desktop.FromDesktop(d);
+        VirtualDesktop.Desktop fallback = VirtualDesktop.Desktop.Current;
+        if (VirtualDesktop.Desktop.FromDesktop(fallback) == index) fallback = VirtualDesktop.Desktop.FromIndex(index == 0 ? 1 : 0);
+        d.Remove(fallback);
+        return new Dictionary<string, object> { { "removed", true } };
     }
 }
 

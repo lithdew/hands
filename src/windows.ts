@@ -51,9 +51,9 @@ export const MODIFIERS: Record<string, number> = {
 
 const CSC = "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe";
 const FRAMEWORK = "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319";
-const SOURCES = [join(import.meta.dir, "windows.cs"), join(import.meta.dir, "overlay.cs")];
+const SOURCES = [join(import.meta.dir, "windows.cs"), join(import.meta.dir, "overlay.cs"), join(import.meta.dir, "vendor", "VirtualDesktop11-24H2.cs")];
 
-/** The helper's exe, built from windows.cs and overlay.cs into %LOCALAPPDATA%\hands when that build is not there yet. */
+/** The helper's exe, built from windows.cs, overlay.cs and the vendored virtual-desktop library into %LOCALAPPDATA%\hands when that build is not there yet. */
 export function helperPath(): string {
   const dir = join(process.env.LOCALAPPDATA ?? tmpdir(), "hands");
   const sources = SOURCES.map((path) => readFileSync(path, "utf8"));
@@ -63,9 +63,17 @@ export function helperPath(): string {
   mkdirSync(dir, { recursive: true });
   const refs = ["UIAutomationClient.dll", "UIAutomationTypes.dll", "WindowsBase.dll", "System.Drawing.dll", "System.Windows.Forms.dll", `${FRAMEWORK}\\System.Runtime.dll`, `${FRAMEWORK}\\System.Runtime.WindowsRuntime.dll`];
   const winmds = ["Foundation", "Globalization", "Graphics", "Media", "Storage"].map((name) => `C:\\Windows\\System32\\WinMetadata\\Windows.${name}.winmd`);
-  const built = Bun.spawnSync([CSC, "/nologo", "/optimize+", "/target:winexe", "/platform:x64", `/out:${exe}`, `/lib:${FRAMEWORK}\\WPF`, ...[...refs, ...winmds].map((r) => `/r:${r}`), ...SOURCES], { stdout: "pipe", stderr: "pipe" });
+  // /main: the vendored library carries a command-line tool's entry point of its own.
+  const built = Bun.spawnSync([CSC, "/nologo", "/optimize+", "/target:winexe", "/platform:x64", "/main:Program", `/out:${exe}`, `/lib:${FRAMEWORK}\\WPF`, ...[...refs, ...winmds].map((r) => `/r:${r}`), ...SOURCES], { stdout: "pipe", stderr: "pipe" });
   if (built.exitCode !== 0 || !existsSync(exe)) throw new Error(`cannot build the Windows helper: ${built.stdout.toString().trim() || built.stderr.toString().trim()}`);
-  for (const old of readdirSync(dir)) if (/^hands-[0-9a-f]+\.exe$/.test(old) && join(dir, old) !== exe) rmSync(join(dir, old), { force: true }); // best effort: a running hand keeps its own
+  for (const old of readdirSync(dir)) {
+    if (!/^hands-[0-9a-f]+\.exe$/.test(old) || join(dir, old) === exe) continue;
+    try {
+      rmSync(join(dir, old), { force: true });
+    } catch {
+      // best effort: a running hand keeps its own
+    }
+  }
   return exe;
 }
 
@@ -350,10 +358,97 @@ interface WindowEntry {
   title: string;
   frame: Frame;
   core: number; // a UWP app's own window inside its frame, where its keys go; 0 otherwise
+  cloaked?: boolean; // on another virtual desktop (a hand's own), so not on screen
 }
 
-/** The helper's window list, front to back. */
+/** The helper's window list, front to back, the ones on other virtual desktops included. */
 const windowList = (): WindowEntry[] => native.call("windows") as WindowEntry[];
+
+/** Whether a window lies on a virtual desktop other than the one on screen. */
+const cloaked = (windowId: number): boolean => windowList().some((w) => w.hwnd === windowId && w.cloaked === true);
+
+// ------------------------------------------------------------------ the hand's own desktop
+
+// Each hand works on a virtual desktop of its own, so nothing it opens lands among the user's windows: the app it
+// starts always, its browser window when the browser can work unseen (see browserUnoccluded). The desktop is made
+// on first use and removed as this process ends; HANDS_DESKTOP=0 keeps everything on the current desktop.
+
+/** The name the desktop goes by: "Hands: Lefty". */
+export const desktopName = (): string => `Hands: ${process.env.HANDS_NAME || "Hands"}`;
+
+export const desktopsEnabled = (): boolean => process.env.HANDS_DESKTOP !== "0";
+
+let desktopMade = false;
+let ownBrowserWindow: number | null = null; // the browser window this hand opened and moved to its desktop
+const sent = new Set<number>(); // the windows this hand moved to its desktop
+
+/** Move a window this hand opened to its desktop, making the desktop first, and see that it got there. False when desktops are off, or the shell kept the window here. */
+async function sendToDesktop(windowId: number): Promise<boolean> {
+  if (!desktopsEnabled()) return false;
+  const name = desktopName();
+  if (!desktopMade) {
+    native.call("desktop", { name });
+    desktopMade = true;
+  }
+  for (let attempt = 0; attempt < 3; attempt++) {
+    native.call("send", { hwnd: windowId, name });
+    await sleep(attempt === 0 ? 50 : 300); // the shell cloaks the window a beat after the move; a window still opening can take a second try
+    if (cloaked(windowId)) break;
+  }
+  sent.add(windowId); // moved by the shell's account, whether or not the cloak has landed yet: from here on it is kept there
+  return true;
+}
+
+/**
+ * Put back any window of the hand's that the shell has brought onto the desktop on screen: an app that activates
+ * itself on an accessibility action (Notepad on "Add New Tab", measured) is moved there by Windows. Asked after each
+ * such action and before each capture; one window list when nothing has moved.
+ */
+function keepOnDesktop(): void {
+  if (sent.size === 0) return;
+  const list = windowList();
+  for (const windowId of sent) {
+    const entry = list.find((w) => w.hwnd === windowId);
+    if (!entry) sent.delete(windowId);
+    else if (!entry.cloaked) native.call("send", { hwnd: windowId, name: desktopName() });
+  }
+}
+
+/** The names of every virtual desktop, in order. */
+export const desktops = (): string[] => native.call("desktops") as string[];
+
+/** Switch the screen to a desktop by name. */
+export function switchDesktop(name: string): void {
+  native.call("switch", { name });
+}
+
+/** Remove a desktop by name; Windows moves what is left on it to the current desktop. A desktop that is not there is nothing to do. */
+export function removeDesktop(name: string = desktopName()): void {
+  try {
+    native.call("removeDesktop", { name });
+  } catch {
+    // the desktop is already gone, or the shell would not part with it: nothing more to do at exit
+  }
+}
+
+/** Leave the hand's desktop: its browser window, if it still has one there, is closed, and the desktop removed. Windows moves whatever else is left on it to the desktop on screen. */
+export function releaseDesktop(): void {
+  if (!desktopMade) return;
+  desktopMade = false;
+  sent.clear();
+  if (ownBrowserWindow !== null) {
+    try {
+      if (windowList().some((w) => w.hwnd === ownBrowserWindow)) native.call("close", { hwnd: ownBrowserWindow });
+    } catch {
+      // the window is already gone
+    }
+    ownBrowserWindow = null;
+  }
+  removeDesktop();
+}
+process.on("exit", () => {
+  if (helper) releaseDesktop(); // with no helper up there is nothing to take down, and this is no time to start one
+});
 
 /** The names an app goes by and the executable behind each. */
 const EXES: Record<string, string> = {
@@ -416,12 +511,46 @@ export async function userInstance(app: string): Promise<number | null> {
   return mine?.pid ?? null;
 }
 
-/** Main processes of an app, by executable name. A browser's renderers carry --type=, and are not instances. */
-export async function appInstances(app: string): Promise<{ pid: number; automated: boolean }[]> {
+/** Main processes of an app, by executable name, with their command lines. A browser's renderers carry --type=, and are not instances. */
+async function instances(app: string): Promise<{ pid: number; cmd: string; automated: boolean }[]> {
   const own = process.env.HANDS_BROWSER_PROFILE;
   return (native.call("processes", { exe: exeOf(app) }) as { pid: number; cmd: string }[])
     .filter(({ cmd }) => !/\s--type=/.test(cmd))
-    .map(({ pid, cmd }) => ({ pid, automated: own === undefined ? AUTOMATION_FLAGS.test(cmd) : !cmd.includes(own) }));
+    .map(({ pid, cmd }) => ({ pid, cmd, automated: own === undefined ? AUTOMATION_FLAGS.test(cmd) : !cmd.includes(own) }));
+}
+
+/** Main processes of an app, by executable name. */
+export async function appInstances(app: string): Promise<{ pid: number; automated: boolean }[]> {
+  return (await instances(app)).map(({ pid, automated }) => ({ pid, automated }));
+}
+
+/** Whether a browser's command line, or the Chrome policy, has its native window occlusion tracking off. */
+export function unoccludedBy(cmd: string, policy: string | null): boolean {
+  const features = cmd.match(/--disable-features=("[^"]*"|\S+)/g) ?? [];
+  if (features.some((flag) => /\bCalculateNativeWinOcclusion\b/.test(flag))) return true;
+  return policy !== null && Number(policy) === 0;
+}
+
+const occlusion = new Map<number, boolean>(); // by the user's instance's pid: a command line does not change while it runs
+
+/**
+ * Whether the user's browser keeps working out of sight. Chrome treats a window on another virtual desktop as
+ * occluded: it stops painting it and never builds its page's accessibility tree until the window has shown once.
+ * Started with --disable-features=CalculateNativeWinOcclusion (or the NativeWindowOcclusionEnabled policy set to 0)
+ * it does neither, and a hand's window can live on the hand's desktop. False when the browser is not running.
+ */
+export async function browserUnoccluded(browser: string): Promise<boolean> {
+  const pid = await userInstance(browser);
+  if (pid === null) return false;
+  const known = occlusion.get(pid);
+  if (known !== undefined) return known;
+  const mine = (await instances(browser)).find((instance) => instance.pid === pid);
+  if (!mine) return false;
+  const vendor = exeOf(browser) === "msedge.exe" ? "Microsoft\\Edge" : "Google\\Chrome";
+  const policy = (native.call("reg", { key: `Software\\Policies\\${vendor}`, name: "NativeWindowOcclusionEnabled" }) as { value: string | null }).value;
+  const answer = unoccludedBy(mine.cmd, policy);
+  occlusion.set(pid, answer);
+  return answer;
 }
 
 /** Start an executable without the foreground moving, and wait for the window it opens. The pid is the window's owner, since the launcher's can be a stub. */
@@ -451,8 +580,11 @@ export async function runInBackground(app: string, timeout = 8.0): Promise<numbe
   const opened = await launch(file, args, timeout);
   if (!opened) throw new Error(`${app} opened no window`);
   userPids.set(app, opened.pid);
-  const window = mainWindowId(opened.pid);
-  if (window !== null) native.call("sink", { hwnd: window }); // shown without activation, but that can still be on top of the user's windows
+  const window = appWindows(opened.pid).some((w) => w.id === opened.windowId) ? opened.windowId : mainWindowId(opened.pid);
+  // A UWP app (Calculator: an ApplicationFrameWindow) stays here: on a desktop that is not shown its accessibility tree
+  // empties and its frame paints black (measured). Any other app's window goes to the hand's desktop.
+  const uwp = windowList().some((w) => w.hwnd === window && w.cls === "ApplicationFrameWindow");
+  if (window !== null && (uwp || !(await sendToDesktop(window)))) native.call("sink", { hwnd: window }); // shown without activation, but that can still be on top of the user's windows
   return opened.pid;
 }
 
@@ -668,6 +800,8 @@ async function openWindowAlone(browser: string, url: string): Promise<PinnedWind
   }
   if (!opened) throw new Error(`${browser} opened no new window`);
   await returnSeat(seat, opened.pid, opened.windowId);
+  // Once the seat is back: a browser that works unseen takes its window to the hand's desktop; any other keeps it here, sunk behind the user's.
+  if ((await browserUnoccluded(browser)) && (await sendToDesktop(opened.windowId))) ownBrowserWindow = opened.windowId;
   return opened;
 }
 
@@ -681,16 +815,18 @@ export interface AppWindow {
   frame: Frame;
 }
 
-/** An app's ordinary on-screen windows, front to back. One that is covered by another still counts; a minimized one does not. */
+/** An app's ordinary windows, front to back, those on the hand's own desktop included. One that is covered by another still counts; a minimized one does not. */
 export function appWindows(pid: number): AppWindow[] {
   return windowList()
     .filter((w) => w.pid === pid && w.frame[2] > MIN_WINDOW_SIDE_PT && w.frame[3] > MIN_WINDOW_SIDE_PT)
     .map(({ hwnd, frame }) => ({ id: hwnd, frame }));
 }
 
-/** Every ordinary on-screen window of every app, front to back. All are solid: the hand's overlay is a tool window, which the list leaves out. */
+/** Every ordinary window on the desktop on screen, front to back. All are solid: the hand's overlay is a tool window, which the list leaves out. */
 export function allWindows(): (AppWindow & { pid: number; alpha: number })[] {
-  return windowList().map(({ hwnd, pid, frame }) => ({ id: hwnd, pid, frame, alpha: 1 }));
+  return windowList()
+    .filter((w) => !w.cloaked)
+    .map(({ hwnd, pid, frame }) => ({ id: hwnd, pid, frame, alpha: 1 }));
 }
 
 /** Center of the frontmost app's topmost on-screen window. */
@@ -709,6 +845,7 @@ export async function screenshot(display: Display, path: string): Promise<Captur
 
 /** One window as a PNG, cropped to its visible frame. DWM renders it whole even when other windows cover it; a minimized one is restored first, without activation. */
 export async function screenshotWindow(windowId: number, path: string): Promise<Capture> {
+  keepOnDesktop();
   const { width, height } = native.call("capture", { hwnd: windowId, path, format: "png" }) as { width: number; height: number };
   return { path, width, height };
 }
@@ -772,6 +909,8 @@ const act = (ref: unknown, action: string): boolean => {
     return Boolean((native.call("act", { id: ref, action }) as { ok: boolean }).ok);
   } catch {
     return false;
+  } finally {
+    keepOnDesktop();
   }
 };
 
@@ -791,6 +930,8 @@ export function axSetValue(ref: unknown, value: string): boolean {
     return Boolean((native.call("setValue", { id: ref, text: value }) as { ok: boolean }).ok);
   } catch {
     return false;
+  } finally {
+    keepOnDesktop();
   }
 }
 
@@ -906,10 +1047,11 @@ export async function stageWindow(_pid: number, windowId: number): Promise<void>
  * hidden, and it considers a page hidden when its window is covered on every side, by anything. A strip at a screen's
  * edge is enough, so the window is slid until a corner of it lies over a spot that no window in front of it covers,
  * the rest of it staying behind them or off the screen. Nothing is raised, and nothing of the user's is moved. False
- * when every screen is covered edge to edge.
+ * when every screen is covered edge to edge. A window on the hand's own desktop is left where it is: only a browser
+ * that works unseen is taken there, and nothing of the user's lies over it.
  */
 export async function revealWindow(_pid: number, windowId: number): Promise<boolean> {
-  if (showing(windowId)) return true;
+  if (showing(windowId) || cloaked(windowId)) return true;
   const windows = allWindows();
   const at = windows.findIndex((w) => w.id === windowId);
   if (at < 0) return false;
@@ -949,7 +1091,11 @@ export const mainWindowId = (pid: number): number | null => appWindows(pid)[0]?.
 export function menu(pid: number, path: string[]): { pressed: string } | { items: string[] } {
   const hwnd = mainWindowId(pid);
   if (hwnd === null) throw new Error("this app has no window with a menu bar");
-  return native.call("menu", { hwnd, path }) as { pressed: string } | { items: string[] };
+  try {
+    return native.call("menu", { hwnd, path }) as { pressed: string } | { items: string[] };
+  } finally {
+    keepOnDesktop();
+  }
 }
 
 /** Page a window's largest scroll area, or, when nothing in it takes that, a wheel posted at its center. */
@@ -958,6 +1104,8 @@ export function scrollPage(_pid: number, windowId: number, direction: "up" | "do
     return Boolean((native.call("scrollPage", { hwnd: windowId, direction }) as { ok: boolean }).ok);
   } catch {
     return false;
+  } finally {
+    keepOnDesktop();
   }
 }
 
@@ -980,13 +1128,14 @@ const primed = new Set<number>(); // Chromium windows whose page tree has been s
  * Labelled controls of one process: the on-screen ones in pixels, the pressable off-screen ones, and whether a cap
  * cut the walk short. `display` is the captured display's frame. The window named by id is walked alone, wherever it
  * sits in the stack; without one, the app's front-most window. Chrome builds its page tree on the first query it gets
- * while some of the window shows, so a covered Chromium window is lifted (without activation) for that first look.
+ * while some of the window shows, so a covered Chromium window is lifted (without activation) for that first look;
+ * one on the hand's own desktop is not (a lift shows nothing there, and a browser is only taken there when it needs none).
  */
 export function actionableElements(pid: number, display: Frame, options: WalkOptions<number> & { windowId?: number } = {}): [AxNode[], AxNode[], boolean] {
   const { windowId, ...walk } = options;
   const hwnd = windowId ?? mainWindowId(pid);
   if (hwnd === null) return [[], [], false];
-  const lift = isWebContentApp(pid) && !primed.has(hwnd) && !showing(hwnd);
+  const lift = isWebContentApp(pid) && !primed.has(hwnd) && !showing(hwnd) && !cloaked(hwnd);
   if (lift) native.call("topmost", { hwnd, on: true });
   let reply: { nodes: TreeNode[]; capped: boolean };
   try {

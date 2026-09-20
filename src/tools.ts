@@ -18,6 +18,7 @@ import { onWindows, platform as macos } from "./platform.ts";
 import { Abort, center, type Item, type Point, repr, roleWord, type Screen, sizePt, toPoints } from "./models.ts";
 import { capture, OcrCache, perceive } from "./perception.ts";
 import { run } from "./runner.ts";
+import * as windows from "./windows.ts";
 import type { Writer } from "./writer.ts";
 
 const SETTLE_MS = 800; // what a capture waits after the last action, so it reads the result and not the transition
@@ -586,13 +587,16 @@ function backgroundTools({ runDir, onAbort }: ToolOptions): AgentTool<any>[] {
         let pinned = target?.pinned ?? webWindow;
         if (action === "open") {
           if (!url || !/^(https?|file):\/\//.test(url)) throw new Error("open needs a url starting with https:// (or file:// for a local page)");
+          let note = "";
           if (pinned) await macos.openUrl(browser, url, { window: pinned.scripted, newTab: new_tab, background: true });
           else {
             pinned = webWindow = await macos.openBackgroundWindow(browser, url);
             await macos.stageWindow(pinned.pid, pinned.windowId);
+            // On Windows the window joins the hand's own desktop only when Chrome keeps working there (src/windows.ts, browserUnoccluded).
+            if (onWindows() && windows.desktopsEnabled() && !(await windows.browserUnoccluded(browser))) note = ". Add --disable-features=CalculateNativeWinOcclusion to your Chrome shortcut and hands can work in a desktop of their own.";
           }
           target = { app: browser, pid: pinned.pid, pinned };
-          return moved(`opened ${url}${new_tab ? " in a new tab" : ""} in your background window`);
+          return moved(`opened ${url}${new_tab ? " in a new tab" : ""} in your background window${note}`);
         }
         if (!pinned) throw new Error("no page is open yet: `browser` open a url first");
         target = { app: browser, pid: pinned.pid, pinned };

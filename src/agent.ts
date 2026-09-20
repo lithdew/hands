@@ -299,6 +299,7 @@ async function main(argv: string[]): Promise<void> {
     process.exit(2);
   }
   if (!process.env.TYPESAFE_API_KEY) console.log("TYPESAFE_API_KEY is not set: the clicker tool will fail until it is (put it in .env)");
+  if (onWindows()) process.env.HANDS_NAME = values.name; // the hand's own virtual desktop is named after it (src/windows.ts)
   if (!macos.accessibilityTrusted()) {
     console.error(PERMISSION);
     process.exit(1);
