@@ -90,7 +90,7 @@ function startHand(task: string, runs: string): Hand | null {
   const [name, color] = role;
   const runDir = join(runs, name.toLowerCase());
   mkdirSync(runDir, { recursive: true });
-  const proc = Bun.spawn([process.execPath, join(import.meta.dir, "agent.ts"), "--background", "--json", "--name", name, "--color", color, "--out", runDir], {
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, "agent.ts"), ...(process.env.HANDS_FOREGROUND ? [] : ["--background"]), "--json", "--name", name, "--color", color, "--out", runDir], { // HANDS_FOREGROUND=1: the hands take the seat, for an app that will not work behind your windows
     cwd: resolve(import.meta.dir, ".."),
     env: { ...process.env, HANDS_SLOT: String(CAST.findIndex(([one]) => one === name)) }, // where on a HANDS_SCREEN stage its window goes
     stdin: "pipe",

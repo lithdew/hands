@@ -51,9 +51,9 @@ export const MODIFIERS: Record<string, number> = {
 
 const CSC = "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe";
 const FRAMEWORK = "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319";
-const SOURCES = [join(import.meta.dir, "windows.cs"), join(import.meta.dir, "overlay.cs"), join(import.meta.dir, "vendor", "VirtualDesktop11-24H2.cs")];
+const SOURCES = [join(import.meta.dir, "windows.cs"), join(import.meta.dir, "overlay.cs"), join(import.meta.dir, "panel.cs"), join(import.meta.dir, "vendor", "VirtualDesktop11-24H2.cs")];
 
-/** The helper's exe, built from windows.cs, overlay.cs and the vendored virtual-desktop library into %LOCALAPPDATA%\hands when that build is not there yet. */
+/** The helper's exe, built from windows.cs, overlay.cs, panel.cs and the vendored virtual-desktop library into %LOCALAPPDATA%\hands when that build is not there yet. */
 export function helperPath(): string {
   const dir = join(process.env.LOCALAPPDATA ?? tmpdir(), "hands");
   const sources = SOURCES.map((path) => readFileSync(path, "utf8"));

@@ -38,7 +38,8 @@ static class Program
     {
         string mode = args.Length > 0 ? args[0] : "";
         if (mode == "hand") return Hand.Run(args);
-        if (mode != "serve") { Console.Error.WriteLine("usage: hands-win serve | hand ..."); return 2; }
+        if (mode == "panel") return Panel.Run(args);
+        if (mode != "serve") { Console.Error.WriteLine("usage: hands-win serve | hand | panel ..."); return 2; }
         try { Win.SetProcessDpiAwarenessContext(new IntPtr(-4)); } catch (Exception) { }
         string name = "hands-" + Process.GetCurrentProcess().Id;
         Thread watch = new Thread(delegate ()

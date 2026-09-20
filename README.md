@@ -96,6 +96,7 @@ The language model goes through [pi-ai](https://github.com/earendil-works/pi/tre
 | `CLICKER_EMAIL` | none | enables the clicker's `type_email` action |
 | `OPENAI_API_KEY` | required by `bun live` | the voice |
 | `HANDS_LIVE_MODEL`, `HANDS_LIVE_VOICE`, `HANDS_LIVE_BACKEND` | `gpt-live-1`, `marin`, `gpt-5.6-luna` | the voice, how it sounds, and the Responses model behind it that turns what was said into tool calls |
+| `HANDS_FOREGROUND` | unset | `1` makes `bun live` send its hands out without `--background`: they take your mouse, keyboard and focus, one at a time, for an app that will not work behind your windows |
 | `HANDS_SCREEN` | `0` | which display `bun live` sets itself up on: `1` puts the panel on the second display and lays each hand's browser window out there in a cascade, which is how the demos were filmed |
 | `HANDS_TAPE` | none | a WAV file to write on Ctrl-C with both sides of the conversation as they were heard, for laying under a screen recording (which hears nothing of a voice in headphones) |
 | `HANDS_SAY` | none | a text file: on `SIGUSR1`, `bun live` says its words to the voice as if the key were held, so a take can be directed from a script |
@@ -270,6 +271,7 @@ src/
   windows.ts      the same exports over one native helper, called synchronously over a named pipe
   windows.cs      that helper: window capture, UI Automation, Windows OCR, posted input, the browser
   overlay.cs      the hand on screen, Windows edition (a mode of the same helper)
+  panel.cs        the live panel on Windows: a WebView2 in a see-through tool window (a mode of the same helper)
   shell-windows.ts  the live orchestrator's key, microphone, speaker and panel on Windows (winmm and user32 over bun:ffi)
   perception.ts   capture, OCR, the read region and the changed-tile cache, block merging,
                   goal-echo filter, the accessibility item source, and the merge of the two
@@ -294,7 +296,7 @@ tests/            pure logic: dates, merging, reading order, echo filter, the OC
 
 ## Windows
 
-The same three commands run on Windows 11, natively, with nothing to install: `src/windows.cs` and `src/overlay.cs` are built on first use with the C# compiler that ships in every Windows (`%LOCALAPPDATA%\hands\hands-<hash>.exe`, rebuilt when the source changes), and `src/platform.ts` hands every other module `windows.ts` in place of `macos.ts`, export for export. Under `bun test` the Mac stays the platform under test on every machine; `HANDS_PLATFORM=windows` says otherwise. Coordinates are physical pixels (the helper and this process are per-monitor DPI aware), so a screenshot is one pixel per point.
+The same three commands run on Windows 11, natively, with nothing to install: `src/windows.cs`, `src/overlay.cs` and `src/panel.cs` are built on first use with the C# compiler that ships in every Windows (`%LOCALAPPDATA%\hands\hands-<hash>.exe`, rebuilt when the source changes), and `src/platform.ts` hands every other module `windows.ts` in place of `macos.ts`, export for export. Under `bun test` the Mac stays the platform under test on every machine; `HANDS_PLATFORM=windows` says otherwise. Coordinates are physical pixels (the helper and this process are per-monitor DPI aware), so a screenshot is one pixel per point.
 
 The helper answers JSON over a named pipe, which Bun calls synchronously through `bun:ffi` (26 µs a round trip, measured), so nothing that is synchronous on the Mac had to change shape. Each piece, and what it measured here (Windows 11, Chrome 153, a 2560x1600 display at 150%):
 
@@ -308,7 +310,7 @@ The helper answers JSON over a named pipe, which Bun calls synchronously through
 | starts an app | `ShellExecuteEx` with `SW_SHOWNOACTIVATE`; the window is found as it appears, since the pid that comes back can be a stub (Notepad, Calculator) | nothing |
 | browses | a new window in **your own Chrome and profile** (`chrome.exe --new-window`); Chrome brings itself forward, and the seat is handed straight back (`AttachThreadInput` + `SetForegroundWindow`); from then on the omnibox, tabs, back, forward and reload are worked by posted clicks and keys, and the URL is read off the page's `Document` element | a flicker when the window is made, once per run |
 | shows the hand | a layered, click-through, never-activating tool window owned by the window it rides, excluded from screen captures (`WDA_EXCLUDEFROMCAPTURE`) | the hand, as on the Mac, in a tinted outline: GDI+ has no colour emoji |
-| `bun live` | the left Ctrl key (`HANDS_KEY=right-ctrl`, `right-alt`, `f8`, or a virtual-key number), `waveIn`/`waveOut` at 24 kHz, and the panel as an Edge (or Chrome) `--app` window with its own profile, kept topmost in the corner and clipped of the frame Chromium paints | the panel takes the foreground once as it opens |
+| `bun live` | the left Ctrl key (`HANDS_KEY=right-ctrl`, `right-alt`, `f8`, or a virtual-key number), `waveIn`/`waveOut` at 24 kHz, and the panel as the helper's own window: a WebView2 (the runtime every Edge carries, driven without its SDK through the runtime's own entry point) in a borderless, never-activating tool window whose clear pixels are not there, on the screen or to the mouse | nothing |
 
 Each hand works on a virtual desktop of its own ("Hands: Lefty", made as it opens its first window and removed as it ends; switch to it to watch), and the app it starts is moved there as its window appears, except a UWP app such as Calculator, which Windows freezes on a desktop that is not shown, so it stays behind your windows. Its browser window joins that desktop once your Chrome runs with `--disable-features=CalculateNativeWinOcclusion` (Chrome treats a window on another desktop as covered, and stops painting it and building its page tree; the flag turns that tracking off), and otherwise stays on the current desktop behind yours, as before. `HANDS_DESKTOP=0` turns the desktops off.
 
@@ -321,7 +323,7 @@ What Windows taught, each of which cost a wrong turn to find:
 - **Windows OCR from the in-box compiler** needs the per-namespace `.winmd` files in `System32\WinMetadata` plus `System.Runtime.dll` and `System.Runtime.WindowsRuntime.dll`; without the SDK's facade, `await` on WinRT operations and `AsBuffer()` do not compile, hence the small awaiter and `DataWriter` in `windows.cs`.
 - **Smart App Control** once blocked a freshly built unsigned exe. If the helper will not start, the error says so; allowing the file, or signing it, is the fix.
 
-Known limits of the port: chords posted to a background app carry no modifiers (a shortcut goes through `menu` or the foreground); a Win32 menu is not in the tree until it opens, so `menu` opens it on screen while it presses; `menu`, `close_tab` and `switch_tab` in the browser depend on the control being visible in the window; OCR confidence is always 1 (WinRT reports none); `focusedField` is system-wide, as on the Mac; the panel is a colour-keyed Chromium window: its page background is one exact colour that Windows makes see-through and click-through, so the cards float as on the Mac, with the title strip taking the same colour (a window region shapes what `PrintWindow` sees, not the screen, so that was not the way); `bun live` was exercised on this machine part by part and as one take (a hand sent to a booking page in the user's own Chrome), not yet on a second PC.
+Known limits of the port: chords posted to a background app carry no modifiers (a shortcut goes through `menu` or the foreground); a Win32 menu is not in the tree until it opens, so `menu` opens it on screen while it presses; `menu`, `close_tab` and `switch_tab` in the browser depend on the control being visible in the window; OCR confidence is always 1 (WinRT reports none); `focusedField` is system-wide, as on the Mac; the panel's transparency is one bit (a colour key, not alpha), so a card's rounded corner has a faint dark fringe, and the page keeps its shadows hard; a browser window was not the way (Chromium presents through DirectComposition, past the surface a colour key or a window region is applied to, and paints a title strip of its own in `--app` mode that no flag removes: measured), and neither was a page of another process, so the panel is the helper's and is excluded from captures like the hands; `bun live` was exercised on this machine part by part and as one take (a hand sent to a booking page in the user's own Chrome), not yet on a second PC.
 
 ## Development
 
