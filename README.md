@@ -6,8 +6,6 @@ Hold a key, say what you want done, and let go. Up to eight AI hands do it in yo
 
 Built by team PUK for the General Learning Hackathon. It covers all three tracks: automate your studies, your last job, and your life.
 
-<!-- Demo video: put the link here -->
-
 ![Three hands at work: two read about the circuit breaker pattern while the third builds a study site with flashcards and a focus timer. The panel on the right shows each hand's window live.](docs/studies.jpg)
 
 ## The problem
