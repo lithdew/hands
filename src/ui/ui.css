@@ -471,9 +471,9 @@ kbd {
   }
 }
 
-/* Windows: the panel is a browser window, and its page paints white unless told otherwise */
+/* Windows: the panel is a browser window, colour-keyed so that this exact colour is see-through: the cards float, the rest is not there */
 html.windows {
-  background: var(--ink);
+  background: #010203;
 }
 #deck:empty {
   display: none; /* no hands out: no gap above the dock */

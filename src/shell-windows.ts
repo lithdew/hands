@@ -2,7 +2,7 @@
  * The orchestrator's body on Windows: what `live.ts` needs from this PC that is not a hand. The same `Shell` as
  * shell.ts gives on a Mac, out of user32, winmm and a Chromium window: the talk key polled, the microphone and the
  * speaker on winmm's wave API with their headers polled for WHDR_DONE, and the panel a Chromium `--app` window in
- * the corner, clipped of its title strip. Everything is bun:ffi from this thread, on one 8 ms pump, and nothing
+ * the corner, colour-keyed so that only its cards show. Everything is bun:ffi from this thread, on one 8 ms pump, and nothing
  * here blocks for long: winmm plays and records on its own threads, and hands the buffers back for the pump to find.
  * The one thing that goes through the helper is a thumbnail, which is a capture like any other.
  */
@@ -47,6 +47,7 @@ const user32 = dlopen("user32.dll", {
   GetWindowLongPtrW: { args: ["ptr", "i32"], returns: "i64" },
   SetWindowLongPtrW: { args: ["ptr", "i32", "i64"], returns: "i64" },
   SetWindowRgn: { args: ["ptr", "ptr", "bool"], returns: "i32" },
+  SetLayeredWindowAttributes: { args: ["ptr", "u32", "u8", "u32"], returns: "bool" },
   GetWindowRgn: { args: ["ptr", "ptr"], returns: "i32" },
   GetWindowRect: { args: ["ptr", "ptr"], returns: "bool" },
   FindWindowW: { args: ["ptr", "ptr"], returns: "ptr" },
@@ -80,7 +81,8 @@ const SWP_NOSIZE = 1, SWP_NOMOVE = 2, SWP_NOACTIVATE = 0x10, SWP_FRAMECHANGED = 
 const HWND_TOPMOST = -1;
 const SW_HIDE = 0, SW_SHOWNA = 8; // prettier-ignore
 const GWL_EXSTYLE = -20;
-const WS_EX_TOOLWINDOW = 0x80, WS_EX_NOACTIVATE = 0x08000000; // prettier-ignore
+const WS_EX_TOOLWINDOW = 0x80, WS_EX_NOACTIVATE = 0x08000000, WS_EX_LAYERED = 0x80000; // prettier-ignore
+const KEY_COLOR = 0x00030201; // COLORREF of #010203, the page's background: every pixel of it is see-through and click-through (LWA_COLORKEY)
 
 // ------------------------------------------------------------------ the key
 
@@ -416,7 +418,8 @@ function panel(url: string) {
       const found = windowOf(proc.pid);
       if (!found) return;
       hwnd = found;
-      user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, Number(user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)) | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
+      user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, Number(user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)) | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED);
+      user32.SetLayeredWindowAttributes(hwnd, KEY_COLOR, 0, 1); // the page paints its background in the key colour, and there the window is not there: the cards are what shows
       user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED);
       if (wanted) place(...wanted);
       else user32.ShowWindow(hwnd, SW_HIDE); // nothing to show yet: `fit` brings it up
