@@ -55,7 +55,7 @@ function build(id: string): Card {
       <ol class="log"></ol>
       <form><input type="text" autocomplete="off" spellcheck="false"><button class="send">Send</button></form>
       <div class="controls"><button type="button" data-cmd="pause"></button><button type="button" data-cmd="stop">Stop</button><button type="button" data-cmd="close">Close</button>
-        <span class="keys"><kbd>↵</kbd> send <kbd>esc</kbd> back <kbd>⌘W</kbd> close</span></div>
+        <span class="keys"><kbd>↵</kbd> send <kbd>esc</kbd> back <kbd>${windows ? "Ctrl+W" : "⌘W"}</kbd> close</span></div>
     </div>`;
   const card: Card = { root, view: null, picture: "", clock: "" };
   for (const selector of ["header", ".view", ".now"]) part(card, selector).addEventListener("click", () => toggle(id));
@@ -237,7 +237,7 @@ socket.addEventListener("message", ({ data }) => {
 document.addEventListener("keydown", (event) => {
   if (!open) return;
   if (event.key === "Escape") toggle(null);
-  else if (event.metaKey && (event.key === "w" || event.key === "Backspace")) {
+  else if ((windows ? event.ctrlKey : event.metaKey) && (event.key === "w" || event.key === "Backspace")) {
     event.preventDefault();
     send({ cmd: "close", hand: open });
   }

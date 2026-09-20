@@ -393,10 +393,11 @@ function panel(url: string) {
       wanted = [width, height];
       place(width, height);
     },
-    /** How tall the panel may grow: the work area less the margins, in the page's own pixels. */
+    /** How tall the panel may grow: the work area less the margins and Chromium's title strip, in the page's own pixels. */
     room(): number {
       const [, top, , bottom] = area();
-      return Math.floor((bottom - top - 2 * MARGIN_PX) / scale());
+      const px = scale();
+      return Math.floor((bottom - top - 2 * MARGIN_PX - Math.round(FRAME_DIP[1] * px)) / px);
     },
     /**
      * Give the page the keyboard, or hand it back. On: nothing, the browser activates itself when the user clicks into the
