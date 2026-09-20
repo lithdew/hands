@@ -475,3 +475,6 @@ kbd {
 html.windows {
   background: var(--ink);
 }
+#deck:empty {
+  display: none; /* no hands out: no gap above the dock */
+}
