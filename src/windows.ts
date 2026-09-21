@@ -394,7 +394,10 @@ let desktopMade = false;
 let ownBrowserWindow: number | null = null; // the browser window this hand opened and moved to its desktop
 const sent = new Map<number, { app: string; pid: number; resent: number }>(); // the windows this hand moved to its desktop (the pid tells a reused handle from the window), and how often each was put back
 const grounded = new Set<string>(); // apps, by exe, whose windows stay on the desktop on screen from here on
+const own = new Map<number, number>(); // the windows this hand opened, each with its pid (the shell reuses handles), on its desktop or behind the user's: what it works in when its app has windows of the user's too
 let groundedNote: string | null = null; // for the model, once, the first time an app it opens is grounded
+let watcher: ReturnType<typeof setInterval> | null = null; // keeps the hand's windows where they belong while it thinks, once it has any
+const WATCH_MS = 1000;
 
 /**
  * Whether a window lies on the hand's desktop, by the shell's account, which a send changes at once (measured). Not
@@ -508,8 +511,9 @@ async function sendToDesktop(windowId: number, pid: number, app: string): Promis
  * grounded instead of sent a fourth time: the desktop is fighting us. So is one the shell will not take back.
  */
 function keepOnDesktop(): void {
-  if (sent.size === 0) return;
+  if (sent.size === 0 && own.size === 0) return;
   const list = windowList();
+  const front = (native.call("foreground") as { hwnd: number }).hwnd; // a window the user has brought forward is theirs to look at
   for (const [windowId, entry] of sent) {
     const window = list.find((w) => w.hwnd === windowId);
     if (!window || window.pid !== entry.pid) sent.delete(windowId); // gone, or its handle is another window's now
@@ -523,6 +527,26 @@ function keepOnDesktop(): void {
       }
     }
   }
+  // A window of the hand's on the desktop on screen (grounded, or desktops off) is put behind the user's windows again
+  // each time: a Chrome window climbs to the top after its first read, and Notepad on a press (both measured).
+  for (const [windowId, pid] of own) {
+    const at = list.findIndex((w) => w.hwnd === windowId);
+    if (at < 0 || list[at]!.pid !== pid) own.delete(windowId); // gone, or its handle is another window's now
+    else if (!sent.has(windowId) && !list[at]!.cloaked && windowId !== front && list.slice(at + 1).some((w) => !w.cloaked && w.pid !== pid)) native.call("sink", { hwnd: windowId }); // a window of someone else's lies behind it: it has climbed
+  }
+}
+
+/** From the first window of its own, the hand looks once a second, between actions too: a Chrome window climbed four seconds after it was sunk, with the hand idle (measured). Not under test, where the helper is a script. */
+function watchOwn(): void {
+  if (watcher || process.env.NODE_ENV === "test") return;
+  watcher = setInterval(() => {
+    try {
+      keepOnDesktop();
+    } catch {
+      // the helper is busy or gone: the next action looks again
+    }
+  }, WATCH_MS);
+  watcher.unref();
 }
 
 /** The names of every virtual desktop, in order. */
@@ -546,6 +570,9 @@ export function removeDesktop(name: string = desktopName()): void {
 export function releaseDesktop(): void {
   sent.clear();
   grounded.clear();
+  own.clear();
+  if (watcher) clearInterval(watcher);
+  watcher = null;
   groundedNote = null;
   if (!desktopMade) return;
   desktopMade = false;
@@ -571,6 +598,7 @@ const EXES: Record<string, string> = {
 /** What ShellExecute is handed to start an app, where it differs from the process that then runs. */
 const LAUNCHERS: Record<string, string> = { "CalculatorApp.exe": "calc.exe", "Notepad.exe": "notepad.exe" };
 const NAMES: Record<string, string> = { chrome: "Google Chrome", msedge: "Microsoft Edge" };
+const isBrowserApp = (app: string): boolean => Boolean(NAMES[basename(exeOf(app), ".exe").toLowerCase()]);
 
 const exeOf = (app: string): string => EXES[app.toLowerCase()] ?? (app.toLowerCase().endsWith(".exe") ? app : `${app}.exe`);
 
@@ -674,7 +702,7 @@ async function launch(file: string, args: string, timeout: number): Promise<{ pi
     // A UWP frame appears before the app's own window inside it, and until then carries the frame host's pid; the app's
     // window can also show up on its own, top level, before the frame adopts it (seen on Calculator). Both are waited
     // out: a CoreWindow moved to a desktop before its frame takes it in is never taken in, and the app freezes.
-    const fresh = windowList().find((w) => !before.has(w.hwnd) && w.pid !== process.pid && w.cls !== "Windows.UI.Core.CoreWindow" && (w.cls !== "ApplicationFrameWindow" || w.core !== 0));
+    const fresh = windowList().find((w) => !before.has(w.hwnd) && w.pid !== process.pid && !POPUP_CLASSES.has(w.cls) && w.cls !== "Windows.UI.Core.CoreWindow" && (w.cls !== "ApplicationFrameWindow" || w.core !== 0));
     if (fresh) return { pid: fresh.pid, windowId: fresh.hwnd };
   }
   return null;
@@ -689,14 +717,27 @@ const launcherFor = (app: string): { file: string; args: string } => {
 
 /** The app's pid, started if it was not running, without it coming forward or taking the keyboard. */
 export async function runInBackground(app: string, timeout = 8.0): Promise<number | null> {
-  const pid = await userInstance(app);
-  if (pid !== null) return pid;
+  const theirs = await userInstance(app);
+  // The user's own instance is not worked in: its windows are theirs, with their documents open (a hand once read the
+  // user's .env out of their Notepad). The app is started again for a window of the hand's own, which most apps open
+  // in the running instance; only an app that opens none is taken up as it is. A browser has its own way (openBackgroundWindow).
   const { file, args } = launcherFor(app);
-  const opened = await launch(file, args, timeout);
-  if (!opened) throw new Error(`${app} opened no window`);
+  const seat = (native.call("foreground") as { hwnd: number; pid: number }).hwnd; // whoever has the keyboard now keeps it
+  const opened = theirs !== null && isBrowserApp(app) ? null : await launch(file, args, theirs === null ? timeout : Math.min(timeout, 3));
+  if (!opened) {
+    if (theirs !== null) return theirs;
+    throw new Error(`${app} opened no window`);
+  }
   userPids.set(app, opened.pid);
+  own.set(opened.windowId, opened.pid);
+  watchOwn();
   const window = appWindows(opened.pid).some((w) => w.id === opened.windowId) ? opened.windowId : mainWindowId(opened.pid);
-  if (window !== null) await sendToDesktop(window, opened.pid, app); // to the hand's desktop, or behind the user's windows when the desktop is no good for it
+  if (window !== null) {
+    own.set(window, opened.pid);
+    await sendToDesktop(window, opened.pid, app); // to the hand's desktop, or behind the user's windows when the desktop is no good for it
+  }
+  // Notepad takes the foreground as it appears, whatever the launcher asks, and keeps it from the hand's desktop (measured): the user's typing would go to a window they cannot see.
+  if (seat && (native.call("foreground") as { pid: number }).pid === opened.pid) await returnSeat(seat, opened.pid);
   return opened.pid;
 }
 
@@ -913,6 +954,8 @@ async function openWindowAlone(browser: string, url: string): Promise<PinnedWind
   if (!opened) throw new Error(`${browser} opened no new window`);
   await returnSeat(seat, opened.pid, opened.windowId);
   // Once the seat is back: a browser that works unseen takes its window to the hand's desktop; any other keeps it here, sunk behind the user's.
+  own.set(opened.windowId, opened.pid);
+  watchOwn();
   if ((await browserUnoccluded(browser)) && (await sendToDesktop(opened.windowId, opened.pid, browser))) ownBrowserWindow = opened.windowId;
   return opened;
 }
@@ -928,9 +971,11 @@ export interface AppWindow {
 }
 
 /** An app's ordinary windows, front to back, those on the hand's own desktop included. One that is covered by another still counts; a minimized one does not. */
+const POPUP_CLASSES = new Set(["Xaml_WindowedPopupClass", "tooltips_class32", "#32768"]); // a WinUI popup or tooltip (Notepad's "New tab" tip was captured as the window, measured), a classic tooltip, a menu
+
 export function appWindows(pid: number): AppWindow[] {
   return windowList()
-    .filter((w) => w.pid === pid && w.frame[2] > MIN_WINDOW_SIDE_PT && w.frame[3] > MIN_WINDOW_SIDE_PT)
+    .filter((w) => w.pid === pid && !POPUP_CLASSES.has(w.cls) && w.frame[2] > MIN_WINDOW_SIDE_PT && w.frame[3] > MIN_WINDOW_SIDE_PT)
     .map(({ hwnd, frame }) => ({ id: hwnd, frame }));
 }
 
@@ -1193,7 +1238,11 @@ export async function revealWindow(_pid: number, windowId: number): Promise<bool
 // ------------------------------------------------------------------ an app that is not in front
 
 /** The window an app itself considers current: its front-most one. That holds whether or not the app is in front. */
-export const mainWindowId = (pid: number): number | null => appWindows(pid)[0]?.id ?? null;
+/** The window the hand works in: one it opened itself when the app has windows of the user's too, else the app's front one. */
+export const mainWindowId = (pid: number): number | null => {
+  const list = appWindows(pid);
+  return (list.find((w) => own.get(w.id) === pid) ?? list[0])?.id ?? null;
+};
 
 /**
  * A menu command, by the path a person would read off the menu bar: ["File", "New"]. A path that ends on a menu lists

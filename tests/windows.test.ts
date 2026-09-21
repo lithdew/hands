@@ -19,7 +19,7 @@ type Args = Record<string, unknown>;
 type Reply = ((args: Args) => unknown) | object | null;
 let calls: [string, Args][];
 /** A window put behind the user's, or on the hand's own desktop (where a send leaves it) and probed there (a picture with colours in it): asked after many things, never the point of most tests. */
-const HOUSEKEEPING: Record<string, Reply> = { sink: { ok: true }, desktop: { index: 1, created: true }, send: { ok: true }, onDesktop: { on: true }, recall: { ok: true }, colours: { colours: 32 }, removeDesktop: { removed: true }, reg: { value: null } };
+const HOUSEKEEPING: Record<string, Reply> = { foreground: { hwnd: 11, pid: 100 }, sink: { ok: true }, desktop: { index: 1, created: true }, send: { ok: true }, onDesktop: { on: true }, recall: { ok: true }, colours: { colours: 32 }, removeDesktop: { removed: true }, reg: { value: null } };
 /** A tree with labels enough for the probe to count the window as working. */
 const LABELLED = { nodes: [node(1, -1, "AXGroup", "Untitled - Notepad"), node(2, 1, "AXMenuItem", "File"), node(3, 1, "AXMenuItem", "Edit"), node(4, 1, "AXTextArea", "Text editor")], capped: false };
 
@@ -612,4 +612,31 @@ test("the renderer is the helper in its hand mode", () => {
   const command = windows.rendererCommand();
   expect(command[1]).toBe("hand");
   expect(command[0]).toMatch(/hands-[0-9a-f]+\.exe$/);
+});
+
+test("an app the user has running is started again for a window of the hand's own, which is what the hand works in; the user's window never is", async () => {
+  const theirs = { hwnd: 66, pid: 500, cls: "Notepad", title: ".env - Notepad", frame: [0, 0, 400, 500], core: 0, cloaked: false };
+  const mine = { hwnd: 55, pid: 500, cls: "Notepad", title: "Untitled - Notepad", frame: [0, 0, 400, 500], core: 0, cloaked: false };
+  const tip = { hwnd: 56, pid: 500, cls: "Xaml_WindowedPopupClass", title: "PopupHost", frame: [90, 30, 183, 63], core: 0, cloaked: false };
+  let launched = false;
+  helper({ processes: [{ pid: 500, cmd: '"C:\notepad.exe"' }], windows: () => (launched ? [tip, theirs, mine] : [theirs]), launch: () => ((launched = true), { pid: 0 }), tree: LABELLED });
+  windows.releaseDesktop();
+  calls = [];
+  expect(await windows.runInBackground("Notepad")).toBe(500);
+  expect(asked("launch")).toHaveLength(1);
+  expect(asked("send")).toEqual([{ hwnd: 55, name: windows.desktopName() }]); // the fresh window, not the user's, and not the tooltip
+  expect(windows.appWindows(500).map((w) => w.id)).toEqual([66, 55]); // the tooltip is not a window of the app
+  expect(windows.mainWindowId(500)).toBe(55); // the hand's own, though the user's is in front
+  windows.releaseDesktop();
+});
+
+test("an app that opens no second window is taken up as the user's, as before", async () => {
+  const theirs = { hwnd: 66, pid: 500, cls: "SpotifyMainWindow", title: "Spotify", frame: [0, 0, 400, 500], core: 0, cloaked: false };
+  helper({ processes: [{ pid: 500, cmd: '"C:\spotify.exe"' }], windows: [theirs], launch: { pid: 0 } });
+  windows.releaseDesktop();
+  calls = [];
+  expect(await windows.runInBackground("Spotify", 0.2)).toBe(500);
+  expect(asked("launch")).toHaveLength(1);
+  expect(asked("send")).toEqual([]);
+  expect(windows.mainWindowId(500)).toBe(66);
 });
