@@ -19,7 +19,7 @@ type Args = Record<string, unknown>;
 type Reply = ((args: Args) => unknown) | object | null;
 let calls: [string, Args][];
 /** A window put behind the user's, or on the hand's own desktop (where a send leaves it) and probed there (a picture with colours in it): asked after many things, never the point of most tests. */
-const HOUSEKEEPING: Record<string, Reply> = { foreground: { hwnd: 11, pid: 100 }, sink: { ok: true }, desktop: { index: 1, created: true }, send: { ok: true }, onDesktop: { on: true }, recall: { ok: true }, colours: { colours: 32 }, removeDesktop: { removed: true }, reg: { value: null } };
+const HOUSEKEEPING: Record<string, Reply> = { displays: [{ index: 0, frame: DISPLAY }], foreground: { hwnd: 11, pid: 100 }, sink: { ok: true }, desktop: { index: 1, created: true }, send: { ok: true }, onDesktop: { on: true }, recall: { ok: true }, colours: { colours: 32 }, removeDesktop: { removed: true }, reg: { value: null } };
 /** A tree with labels enough for the probe to count the window as working. */
 const LABELLED = { nodes: [node(1, -1, "AXGroup", "Untitled - Notepad"), node(2, 1, "AXMenuItem", "File"), node(3, 1, "AXMenuItem", "Edit"), node(4, 1, "AXTextArea", "Text editor")], capped: false };
 
@@ -38,6 +38,7 @@ const asked = (command: string) => calls.filter(([c]) => c === command).map(([, 
 beforeEach(() => {
   calls = [];
   windows.interrupt(false);
+  windows.forgetDisplays();
 });
 afterEach(() => mock.restore());
 

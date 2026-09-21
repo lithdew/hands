@@ -774,6 +774,12 @@ static class Uia
     static System.Windows.Rect CurrentRect(AutomationElement el) { object r = el.GetCurrentPropertyValue(AutomationElement.BoundingRectangleProperty, true); return r is System.Windows.Rect ? (System.Windows.Rect)r : System.Windows.Rect.Empty; }
 
     /** A posted click at an element's center: how a Chromium control is pressed without Chrome taking the seat, which every UIA action makes it do. */
+    static bool HasFocus(Node n)
+    {
+        try { AutomationElement focused = AutomationElement.FocusedElement; return focused != null && Automation.Compare(focused, n.element); }
+        catch (Exception) { return false; }
+    }
+
     static bool ClickOn(Node n, int count)
     {
         System.Windows.Rect r = CurrentRect(n.element);
@@ -851,8 +857,20 @@ static class Uia
             }
             if (n.chromium)
             {
-                if (!ClickOn(n, 3)) return "no rect";
-                Thread.Sleep(60);
+                // Clicked once, and again half a second on when the click did not give it the focus (WhatsApp's search box
+                // swallows the first): separate clicks, not a double or triple click, which an editor built on a framework
+                // (WhatsApp's composer, on Lexical) answers by dropping what is then typed (measured). Text it holds is
+                // selected with a triple click first, for the new text to replace it, as an ordinary field expects.
+                for (int attempt = 0; ; attempt++)
+                {
+                    if (!ClickOn(n, 1)) return "no rect";
+                    Thread.Sleep(80);
+                    if (attempt == 2 || HasFocus(n)) break;
+                    Thread.Sleep(500);
+                }
+                object had;
+                string held = n.element.TryGetCurrentPattern(ValuePattern.Pattern, out had) ? ((ValuePattern)had).Current.Value : null;
+                if (!string.IsNullOrWhiteSpace(held)) { Thread.Sleep(500); ClickOn(n, 3); Thread.Sleep(60); }
                 Input.Chars(n.root, text);
                 return "ok";
             }
@@ -861,7 +879,7 @@ static class Uia
             ((ValuePattern)p).SetValue(text);
             return "ok";
         });
-        return new Dictionary<string, object> { { "ok", result == "ok" }, { "why", result } };
+        return new Dictionary<string, object> { { "ok", result == "ok" }, { "why", result }, { "posted", n.chromium } }; // posted: as keystrokes, which the tree shows a beat later
     }
 
     public static object Value(int id)

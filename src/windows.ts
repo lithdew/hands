@@ -247,6 +247,9 @@ export function accessibilityTrusted(): boolean {
 let displayCache: { at: number; all: Display[] } | undefined;
 
 /** Every display, the primary one first, in physical pixels of the virtual screen. */
+/** Forget the displays: for a test whose displays differ from the last test's. */
+export const forgetDisplays = (): void => void (displayCache = undefined);
+
 export function displays(): Display[] {
   if (displayCache && performance.now() - displayCache.at < 2000) return displayCache.all;
   const all = (native.call("displays") as { index: number; frame: Frame }[]).map(({ index, frame }) => ({ index, frame }));
@@ -1084,7 +1087,11 @@ export const axFocus = (_ref: unknown): boolean => false;
 export function axSetValue(ref: unknown, value: string): boolean {
   if (!alive(ref)) return false;
   try {
-    return Boolean((native.call("setValue", { id: ref, text: value }) as { ok: boolean }).ok);
+    const { ok: taken, posted } = native.call("setValue", { id: ref, text: value }) as { ok: boolean; posted?: boolean };
+    // A Chromium field takes the text as posted keystrokes, and its tree shows them a beat later: WhatsApp's composer
+    // read back empty when asked at once and full 250 ms on (measured). So the value is waited for, up to a second and a half.
+    if (taken && posted) for (const end = performance.now() + 1500; performance.now() < end && !(axValue(ref) ?? "").endsWith(value); ) Bun.sleepSync(50);
+    return taken;
   } catch {
     return false;
   } finally {
