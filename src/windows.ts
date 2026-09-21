@@ -700,7 +700,14 @@ export async function browserUnoccluded(browser: string): Promise<boolean> {
 /** Start an executable without the foreground moving, and wait for the window it opens. The pid is the window's owner, since the launcher's can be a stub. */
 async function launch(file: string, args: string, timeout: number): Promise<{ pid: number; windowId: number } | null> {
   const before = new Set(windowList().map((w) => w.hwnd));
-  native.call("launch", { file, args, show: 4 }); // SW_SHOWNOACTIVATE
+  try {
+    native.call("launch", { file, args, show: 4 }); // SW_SHOWNOACTIVATE
+  } catch (error) {
+    // Not on the PATH: an installed app goes by its name, in the Start Menu or among the packaged apps (Claude, Spotify, WhatsApp).
+    const found = /error 2\)/.test((error as Error).message) ? installedApp(basename(file, ".exe")) : null;
+    if (found === null) throw error;
+    native.call("launch", { file: found, args: "", show: 4 });
+  }
   for (const end = performance.now() + timeout * 1000; performance.now() < end; await sleep(150)) {
     // A UWP frame appears before the app's own window inside it, and until then carries the frame host's pid; the app's
     // window can also show up on its own, top level, before the frame adopts it (seen on Calculator). Both are waited
@@ -710,6 +717,39 @@ async function launch(file: string, args: string, timeout: number): Promise<{ pi
   }
   return null;
 }
+
+/**
+ * What starts an installed app that is not on the PATH, by name, case aside: its Start Menu shortcut (Excel, Chrome), or
+ * else its packaged AppID through the shell's apps folder (Claude, Spotify, Calculator), as the Start menu itself starts
+ * it. The packaged list is the shell's, asked once (a second, measured). Null when nothing goes by that name.
+ */
+function installedApp(name: string): string | null {
+  const wanted = name.toLowerCase();
+  const dirs = [`${process.env.ProgramData}\Microsoft\Windows\Start Menu\Programs`, `${process.env.APPDATA}\Microsoft\Windows\Start Menu\Programs`];
+  let partial: string | null = null;
+  for (const dir of dirs) {
+    if (!existsSync(dir)) continue;
+    for (const entry of readdirSync(dir, { recursive: true, withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".lnk")) continue;
+      const title = entry.name.slice(0, -4).toLowerCase();
+      const path = join(entry.parentPath, entry.name);
+      if (title === wanted) return path;
+      if (title.startsWith(wanted) && partial === null) partial = path;
+    }
+  }
+  if (partial !== null) return partial;
+  startApps ??= (() => {
+    const listed = Bun.spawnSync(["powershell", "-NoProfile", "-NonInteractive", "-Command", "Get-StartApps | Select-Object Name, AppID | ConvertTo-Json -Compress"], { stdout: "pipe", stderr: "ignore" });
+    try {
+      return (JSON.parse(listed.stdout.toString()) as { Name: string; AppID: string }[]).filter((app) => app.Name && app.AppID).map((app) => [app.Name, app.AppID]);
+    } catch {
+      return []; // no shell, or nothing listed: the app is not known by name
+    }
+  })();
+  const app = startApps.find(([title]) => title.toLowerCase() === wanted) ?? startApps.find(([title]) => title.toLowerCase().startsWith(wanted));
+  return app ? "shell:AppsFolder\\" + app[1] : null;
+}
+let startApps: [name: string, appId: string][] | null = null;
 
 const launcherFor = (app: string): { file: string; args: string } => {
   const exe = exeOf(app);
