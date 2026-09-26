@@ -482,27 +482,70 @@ html.windows .name {
   font: 600 11.5px/1.2 var(--face);
   white-space: nowrap;
 }
-.view .show {
+/*
+ * Under the pointer, the picture's tools: pause or carry on, stop, and bring the window to you. A click on a card
+ * never takes the keyboard (panel.cs), so they act without taking the user out of their app. They fade inside the
+ * opaque picture, never at a card's edge.
+ */
+.tools {
   position: absolute;
   z-index: 3;
   top: 8px;
   right: 8px;
-  padding: 5px 10px 6px;
-  box-shadow: 2px 2px 0 var(--ink);
+  display: flex;
+  gap: 5px;
   opacity: 0;
+  translate: 0 -4px;
   pointer-events: none;
   transition:
     opacity var(--t-quick) var(--ease-out),
-    scale var(--t-tap) var(--ease-out),
-    background-color var(--t-tap) var(--ease-out);
+    translate var(--t-quick) var(--ease-out);
 }
-.view .show::after {
-  content: " ↗";
-}
-.card:hover .view .show,
-.card[data-status="needs_you"] .view .show {
+.card:hover .tools,
+.card[data-status="needs_you"] .tools {
   opacity: 1;
+  translate: 0 0;
   pointer-events: auto;
+}
+.tools button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  min-width: 30px;
+  padding: 0 8px;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+.tools svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+}
+.tools [data-cmd="stop"]:hover {
+  background: var(--alarm);
+  color: var(--sheet);
+}
+.tools [data-cmd="show"]::after {
+  content: " ↗";
+  white-space: pre;
+}
+/* what Show did, said for a moment in the middle of the picture */
+.flash {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  margin: 0;
+  padding: 5px 12px 6px;
+  border-radius: 999px;
+  background: var(--sheet);
+  color: var(--ink);
+  box-shadow: 0 0 0 2px var(--ink);
+  font: 600 12.5px/1.2 var(--face);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
 }
 /* Show brings the hand's window to the user, which only Windows can do yet: elsewhere there is no Show to press */
 html:not(.windows) [data-cmd="show"] {

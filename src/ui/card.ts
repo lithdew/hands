@@ -7,7 +7,7 @@
  */
 
 import { finished } from "./fold.ts";
-import { ms, settle } from "./motion.ts";
+import { EASE_OUT, ms, settle } from "./motion.ts";
 import { says, sentence, sight } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, Status } from "./state.ts";
 import { blocks } from "./text.ts";
@@ -22,7 +22,7 @@ const TOUCH: Record<string, [number, number]> = { "👋": [0.45, 0.75], "👆": 
 /** The word in a card's header. A hand at work has none: the line moving under its name says it. */
 const CHIP: Record<Status, string> = { starting: "starting", working: "", paused: "paused", needs_you: "needs you", done: "done", failed: "failed", stopped: "stopped" };
 
-/** What each state lets the user do from the sheet. */
+/** What each state lets the user do, from the sheet and from the tools on the picture. */
 const CONTROLS: Record<Status, string[]> = { starting: ["stop"], working: ["pause", "stop", "show"], paused: ["resume", "stop", "show"], needs_you: ["show", "close"], done: ["show", "close"], failed: ["show", "close"], stopped: ["show", "close"] };
 
 export const busy = (hand: Pick<HandView, "status">): boolean => hand.status === "working" || hand.status === "starting";
@@ -59,6 +59,7 @@ const put = (target: HTMLElement, text: string): boolean => {
 
 export function build(id: string, act: (message: ClientMessage) => void, toggle: (id: string) => void, closeKey: string): Card {
   const root = (template.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
+  root.dataset.id = id;
   const card: Card = { id, root, view: null, frames: [...root.querySelectorAll<HTMLImageElement>(".screen img")], url: "", frame: 0, ratio: null, of: undefined, clock: "", leaving: false };
   for (const selector of ["header", ".fold", ".tell"]) part(card, selector).addEventListener("click", () => toggle(id));
   part(card, ".close-key").textContent = closeKey;
@@ -73,11 +74,20 @@ export function build(id: string, act: (message: ClientMessage) => void, toggle:
   });
   for (const button of root.querySelectorAll<HTMLButtonElement>("button[data-cmd]")) {
     button.addEventListener("click", (event) => {
-      event.stopPropagation(); // the picture's Show is on the picture, which opens the sheet
-      act({ cmd: button.dataset.cmd as "pause" | "resume" | "stop" | "show" | "close", hand: id });
+      event.stopPropagation(); // the picture's tools are on the picture, which has a click of its own
+      const cmd = button.dataset.cmd as "pause" | "resume" | "stop" | "show" | "close";
+      act({ cmd, hand: id });
+      if (cmd === "show" && !card.root.classList.contains("open")) brought(card);
     });
   }
   return card;
+}
+
+/** Show was pressed on the card: the picture nods, and a word on it says where the window went. */
+function brought(card: Card): void {
+  part(card, ".screen").animate([{ scale: 1 }, { scale: 1.03 }, { scale: 1 }], { duration: ms(220), easing: EASE_OUT });
+  // A word, not a motion: it shows with reduced motion too. It fades inside the opaque picture, never at an edge.
+  part(card, ".flash").animate([{ opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 1, offset: 0.85 }, { opacity: 0 }], { duration: 1500 });
 }
 
 /** The card brought up to date with its hand. `folded`, `bare` and `open` are the column's say (fold.ts). */
@@ -113,12 +123,12 @@ export function paint(card: Card, hand: HandView, place: { folded: boolean; bare
   picture(card);
   mini(card);
 
+  // The same table decides the sheet's buttons and the picture's tools.
   const allowed = CONTROLS[hand.status];
-  for (const button of root.querySelectorAll<HTMLButtonElement>(".controls button[data-cmd]")) {
+  for (const button of root.querySelectorAll<HTMLButtonElement>("button[data-cmd]")) {
     const cmd = button.dataset.cmd!;
     button.hidden = !allowed.includes(cmd) || (cmd === "show" && !shown(card));
   }
-  part(card, ".view .show").hidden = !shown(card);
   const box = part<HTMLInputElement>(card, "input");
   box.placeholder = busy(hand) ? `Tell ${hand.name} what to change` : hand.status === "paused" ? `Tell ${hand.name} what to change, or ↵ to carry on` : hand.status === "needs_you" ? `Answer ${hand.name}, or tell it what to do` : `Give ${hand.name} something else to do`;
   part(card, ".sheet").inert = !place.open;

@@ -263,12 +263,27 @@ function rescaled(): void {
 rescaled();
 
 let filmed = "";
+let pictured: string[] = [];
+let hot: string | null = null;
 
-/** The hands whose card shows its picture, when that set changes: only they are filmed. */
-function film(hands: string[]): void {
-  const said = [...hands].sort().join(" ");
-  if (said !== filmed && send({ cmd: "visible", hands })) filmed = said;
+/** The hands whose card shows its picture, and the one under the pointer, when either changes: only they are filmed, that one first. */
+function film(hands = pictured): void {
+  pictured = hands;
+  const said = `${[...hands].sort().join(" ")} ${hot}`;
+  if (said !== filmed && send({ cmd: "visible", hands, hot })) filmed = said;
 }
+
+// The card under the pointer is the one being looked at: its picture comes four times a second.
+deck.addEventListener("pointerover", (event) => {
+  const id = (event.target as Element).closest<HTMLElement>(".card")?.dataset.id ?? null;
+  if (id === hot) return;
+  hot = id;
+  film();
+});
+deck.addEventListener("pointerleave", () => {
+  hot = null;
+  film();
+});
 
 // ------------------------------------------------------------------ what the Windows panel is told
 
