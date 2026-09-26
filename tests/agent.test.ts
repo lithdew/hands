@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
-import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import type { ToolResultMessage } from "@earendil-works/pi-ai";
-import { pruneScreens, staleCount } from "../src/agent.ts";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { Agent, AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AssistantMessage, StopReason, ToolResultMessage } from "@earendil-works/pi-ai";
+import { ending, logTo, managed, pruneScreens, staleCount, systemPrompt } from "../src/agent.ts";
+import type { Outcome } from "../src/tools.ts";
 
 const STUB = "[an earlier screen; call `screen` for the current one]";
 
@@ -80,4 +84,177 @@ test("an action that ends with a listing goes stale like a screen, and keeps wha
   expect(pruned[0]).toEqual({ ...opened, content: [{ type: "text", text: "opened https://arxiv.org in a new tab" }, { type: "text", text: STUB }] });
   expect(pruned[1]).toBe(tabs);
   expect(shapes(pruned)).toEqual(["stub", "stub", "stub", "full", "full", "full"]);
+});
+
+// ------------------------------------------------------------------ how a run ends
+
+const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
+const asked = (text: string): AgentMessage => ({ role: "user", content: text, timestamp: 0 });
+const said = (text: string, stopReason: StopReason = "stop", errorMessage?: string): AssistantMessage => ({
+  role: "assistant", content: text ? [{ type: "text", text }] : [], api: "openai-responses", provider: "openai", model: "m", usage, stopReason, errorMessage, timestamp: 0,
+}); // prettier-ignore
+const finished = (outcome: Outcome, summary: string): ToolResultMessage => ({
+  role: "toolResult", toolCallId: "finish-1", toolName: "finish", content: [{ type: "text", text: `recorded: ${outcome}` }], details: { finish: { outcome, summary } }, isError: false, timestamp: 0,
+}); // prettier-ignore
+
+test("a run ends as its finish says: done, needs you, or could not, which is a failure with the summary as its reason", () => {
+  const run = (outcome: Outcome, answer = "The answer.") => ending([asked("do it"), finished(outcome, "One line."), said(answer)], 0, null);
+  expect(run("done")).toEqual({ status: "done", answer: "The answer.", reason: "" });
+  expect(run("needs_you")).toEqual({ status: "needs_you", answer: "The answer.", reason: "" });
+  expect(run("could_not")).toEqual({ status: "failed", answer: "The answer.", reason: "One line." });
+  expect(run("done", "")).toEqual({ status: "done", answer: "One line.", reason: "" }); // no words after the finish: its summary is the answer
+});
+
+test("a finish from an earlier task, or one the user has spoken after, does not decide this one", () => {
+  const earlier = [asked("first"), finished("could_not", "No."), said("No.")];
+  expect(ending([...earlier, asked("second"), said("Done now.")], earlier.length, null).status).toBe("done");
+  expect(ending([asked("do it"), finished("done", "Did it."), asked("and also this"), said("Here.")], 0, null).status).toBe("done");
+  expect(ending([asked("do it"), finished("needs_you", "Log in."), asked("I logged in"), said("Still stuck.", "error", "socket hang up")], 0, null)).toEqual({
+    status: "failed",
+    answer: "Still stuck.",
+    reason: "socket hang up",
+  });
+});
+
+test("a stop the orchestrator asked for is a stop, however the model's turn came back", () => {
+  const aborted = [asked("do it"), said("", "error", "The operation was aborted")];
+  expect(ending(aborted, 0, "stop")).toEqual({ status: "stopped", answer: "", reason: "" });
+  expect(ending([asked("do it"), finished("done", "Did it."), said("Did it.")], 0, "stop").status).toBe("stopped");
+  expect(ending([asked("do it"), said("Halfway.", "aborted")], 0, "pause")).toEqual({ status: "paused", answer: "Halfway.", reason: "" });
+  expect(ending(aborted, 0, null).status).toBe("stopped"); // the user's own stop: the mouse in a corner
+});
+
+test("without a finish, the last turn decides: a model error fails with its message, and anything else is done", () => {
+  expect(ending([asked("do it"), said("", "error", "429 Too Many Requests")], 0, null)).toEqual({ status: "failed", answer: "", reason: "429 Too Many Requests" });
+  expect(ending([asked("do it"), said("It is 144.")], 0, null)).toEqual({ status: "done", answer: "It is 144.", reason: "" });
+  expect(ending([asked("do it")], 0, null, "Agent is already processing").reason).toBe("Agent is already processing");
+  expect(ending([asked("do it")], 0, null).status).toBe("failed");
+});
+
+// ------------------------------------------------------------------ a managed hand
+
+/** Just enough of pi's Agent for a managed hand: a transcript, a steering queue, and turns that answer as the test says. */
+class Scripted {
+  state = { messages: [] as AgentMessage[] };
+  queue: AgentMessage[] = [];
+  aborted = 0;
+  signal = undefined;
+  constructor(private turn: (heard: string) => Promise<AgentMessage[]>) {}
+  async prompt(text: string) {
+    this.state.messages.push(asked(text));
+    this.state.messages.push(...(await this.turn(text)));
+  }
+  async continue() {
+    const steers = this.queue.splice(0);
+    this.state.messages.push(...steers);
+    this.state.messages.push(...(await this.turn(steers.map((m) => (m.role === "user" ? JSON.stringify(m.content) : "")).join(" "))));
+  }
+  steer(message: AgentMessage) {
+    this.queue.push(message);
+  }
+  hasQueuedMessages() {
+    return this.queue.length > 0;
+  }
+  clearAllQueues() {
+    this.queue = [];
+  }
+  abort() {
+    this.aborted++;
+  }
+}
+
+/** A managed hand over a scripted agent, and everything it emitted, logged, and closed with. */
+function managedHand(turn: (heard: string) => Promise<AgentMessage[]>) {
+  const agent = new Scripted(turn);
+  const events: { type: string; status?: string; answer?: string; reason?: string }[] = [];
+  const log: string[] = [];
+  const closed: [boolean, string][] = [];
+  const hand = managed(agent as unknown as Agent, { emit: (event) => void events.push(event as (typeof events)[number]), record: (line) => void log.push(line), close: (keep, why) => void closed.push([keep, why]) });
+  const statuses = () => events.filter((event) => event.type === "status").map(({ status, answer, reason }) => ({ status, answer, reason }));
+  return { agent, hand, statuses, log, closed };
+}
+
+test("a managed run ends with the model's finish, and says so with its answer", async () => {
+  const { hand, statuses, log } = managedHand(async () => [finished("needs_you", "Sign in to WhatsApp."), said("Please sign in to WhatsApp on your phone.")]);
+  await hand.tell({ type: "prompt", text: "message Julia" });
+  expect(statuses()).toEqual([
+    { status: "working", answer: undefined, reason: undefined },
+    { status: "needs_you", answer: "Please sign in to WhatsApp on your phone.", reason: "" },
+  ]);
+  expect(log).toEqual(["[prompt] message Julia", "[status] needs_you"]);
+});
+
+test("a stop before the first prompt means the task never starts", async () => {
+  const { agent, hand, statuses, log } = managedHand(async () => [said("should not run")]);
+  hand.tell({ type: "stop" });
+  expect(hand.tell({ type: "prompt", text: "book a table" })).toBeUndefined();
+  expect(agent.state.messages).toEqual([]);
+  expect(statuses()).toEqual([{ status: "stopped", answer: "", reason: "" }]);
+  expect(log).toEqual(["[prompt] not started, since it was stopped first: book a table"]);
+  await hand.tell({ type: "prompt", text: "then this instead" }); // only the one prompt is dropped
+  expect(statuses().at(-1)?.status).toBe("done");
+});
+
+test("a stop mid-run is a stop, though pi hands the abort back as a failed turn", async () => {
+  let release: (() => void) | undefined;
+  const { agent, hand, statuses } = managedHand(async () => {
+    await new Promise<void>((resolve) => (release = resolve));
+    return [said("", "error", "The operation was aborted")];
+  });
+  const run = hand.tell({ type: "prompt", text: "find flights" })!;
+  await Bun.sleep(0);
+  hand.tell({ type: "steer", text: "only direct ones" }); // queued, then dropped with the task it was for
+  hand.tell({ type: "stop" });
+  release!();
+  await run;
+  expect(agent.aborted).toBe(1);
+  expect(agent.queue).toEqual([]);
+  expect(statuses().at(-1)).toEqual({ status: "stopped", answer: "", reason: "" });
+});
+
+test("a steer that arrives as the run is ending is still taken, and the run ends after it", async () => {
+  const { agent, hand, statuses, log } = managedHand(async (heard) => {
+    if (heard === "open the report") {
+      hand.tell({ type: "steer", text: "and print it" }); // the model is finishing its last turn
+      return [finished("done", "Opened it."), said("The report is open.")];
+    }
+    return [finished("done", "Printed it."), said("It is printing.")];
+  });
+  await hand.tell({ type: "prompt", text: "open the report" });
+  expect(agent.state.messages.filter((m) => m.role === "user")).toHaveLength(2);
+  expect(statuses().at(-1)).toEqual({ status: "done", answer: "It is printing.", reason: "" });
+  expect(log).toContain("[steer] and print it");
+});
+
+test("close gives back what the hand opened, keeping the browser only when asked", () => {
+  const { hand, closed } = managedHand(async () => []);
+  hand.tell({ type: "close" });
+  hand.tell({ type: "close", keep: true });
+  expect(closed).toEqual([
+    [false, "asked to"],
+    [true, "asked to"],
+  ]);
+});
+
+test("every line of the log starts with the time it was written", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hands-log-"));
+  try {
+    const record = logTo(folder);
+    record("[prompt] open the calculator");
+    record("[result] took=812ms Calculator, the window you are working in\n0 button 'Seven' @40,300");
+    const lines = readFileSync(join(folder, "agent.log"), "utf8").trimEnd().split("\n");
+    expect(lines).toHaveLength(3);
+    for (const line of lines) expect(line).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z /);
+    expect(lines[2]).toEndWith(" 0 button 'Seven' @40,300");
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test("the prompt is one prompt: no modes, no flags, and every task ends with finish", () => {
+  const prompt = systemPrompt("/work");
+  for (const gone of ["--background", "in the background", "run it again", "foreground"]) expect(prompt).not.toContain(gone);
+  expect(prompt).toContain("End every task by calling `finish`");
+  expect(prompt).toContain("seat=true");
+  expect(prompt).toContain("Never tell the user to restart you");
 });

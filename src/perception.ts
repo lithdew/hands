@@ -3,9 +3,10 @@
 import sharp from "sharp";
 import { MAX_OPTIONS, MIN_OCR_CONFIDENCE } from "./config.ts";
 import { hand } from "./hand.ts";
-import { platform as macos } from "./platform.ts";
-import { type AxNode, type Box, type Capture, type Frame, fromAx, type Item, item, type Point, roleWord, type Screen, sizePt, toPoints } from "./models.ts";
+import { onWindows, platform as macos } from "./platform.ts";
+import { type AxNode, type Box, type Capture, center, type Frame, fromAx, type Item, item, type Point, roleWord, type Screen, sizePt, toPoints } from "./models.ts";
 import { OCR_RECTS, OCR_REGION_PCT, phase, type Timing } from "./timing.ts";
+import * as windows from "./windows.ts";
 
 export type Line = [text: string, confidence: number, box: Box];
 export const ECHO_CHARS = 24;
@@ -132,8 +133,15 @@ export function isEcho(value: string, echoes: Set<string>): boolean {
  */
 export async function perceive(screen: Screen, budget: number, goal: string, timing?: Timing, cache?: OcrCache): Promise<Item[]> {
   const blocks = await phase(timing, "ocr", () => ocr(screen, budget, goal, cache, timing));
-  const [nodes, hidden] = await phase(timing, "ax", () => axNodes(screen, budget));
-  const merged = mergeWithOrigins(blocks, toAxItems(nodes, screen.scale, screen.origin), budget);
+  const [found, hidden] = await phase(timing, "ax", () => axNodes(screen, budget));
+  // What the listing leaves out: anything whose centre lies off the capture, and a browser window's own tab strip,
+  // toolbar and bookmarks, which its header sums up as its tabs.
+  const all = toAxItems(found, screen.scale, screen.origin);
+  const top = screen.tabs ? pageTop(all) : null;
+  const shown = (it: Item) => onCapture(screen, it) && (top === null || center(it)[1] >= top);
+  const kept = all.flatMap((it, i) => (shown(it) ? [i] : []));
+  const nodes = kept.map((i) => found[i]!);
+  const merged = mergeWithOrigins(blocks.filter(shown), kept.map((i) => all[i]!), budget);
   screen.axRefs.clear();
   for (const [it, origin] of merged) if (origin !== null && nodes[origin]!.ref) screen.axRefs.set(it.index, nodes[origin]!.ref);
   const items = merged.map(([it]) => it);
@@ -271,6 +279,36 @@ export async function thumbnail(image: Capture, divisor = THUMB_DIVISOR): Promis
   const data = await sharp(image.path).greyscale().resize(width, height, { fit: "fill", kernel: "linear" }).raw().toBuffer();
   return { data, width, height };
 }
+
+// ------------------------------------------------------------------ telling when a window has settled
+
+const GLANCE_PX = 320; // the long side of a glance: enough to see a page change, small enough to take every 150 ms
+const GLANCE_TILE = 32; // glance pixels per side of the patches compared
+const BLANK: Thumb = { data: new Uint8Array(1), width: 1, height: 1 };
+
+/**
+ * A small grey picture of one window, to tell whether it is still changing: the panel's own thumbnail where the
+ * platform makes one without a file (a window drawing nothing is one black pixel), else a capture written to
+ * `scratch`. Null when there is nothing to look at: the window is minimized or gone.
+ */
+export async function glance(windowId: number, scratch: string): Promise<Thumb | null> {
+  const small = onWindows() ? windows.thumbnail(windowId, GLANCE_PX) : null;
+  if (small && "jpeg" in small) {
+    const { data, info } = await sharp(small.jpeg).greyscale().raw().toBuffer({ resolveWithObject: true });
+    return { data, width: info.width, height: info.height };
+  }
+  if (small) return "blank" in small ? BLANK : null;
+  try {
+    const shot = await macos.screenshotWindow(windowId, scratch);
+    return await thumbnail(shot, Math.max(1, Math.round(Math.max(shot.width, shot.height) / GLANCE_PX)));
+  } catch {
+    return null;
+  }
+}
+
+/** Two glances show the same picture: the same size, and no patch of it changed past the tile threshold. */
+export const stillAs = (now: Thumb, before: Thumb): boolean =>
+  now.width === before.width && now.height === before.height && changedTiles(now, before, tilesIn([0, 0, now.width, now.height], GLANCE_TILE), 1).length === 0;
 
 /** The region cut into tiles aligned to its own origin. The last row and column are short. */
 export function tilesIn(region: Box, tile = TILE_PX): Box[] {
@@ -482,19 +520,56 @@ export function offscreenControls(nodes: AxNode[], items: Item[]): AxNode[] {
   });
 }
 
-/** Controls as items, converted from global screen points to pixels on the captured display. */
+/** Controls as items, converted from global screen points to pixels on the captured display. A field's value comes along. */
 export const toAxItems = (nodes: AxNode[], scale: number, origin: Point = [0, 0]): Item[] =>
   nodes.map((node, i) => {
     const [x, y] = [node.x - origin[0], node.y - origin[1]];
-    return item(i, node.label, 1.0, [x * scale, y * scale, (x + node.w) * scale, (y + node.h) * scale], roleWord(node), "ax");
+    const it = item(i, node.label, 1.0, [x * scale, y * scale, (x + node.w) * scale, (y + node.h) * scale], roleWord(node), "ax");
+    return node.value === undefined ? it : { ...it, value: node.value };
   });
+
+/** Whether an item's centre lies on the capture: a control scrolled above a window's top edge has a place, but nothing to click there. */
+export const onCapture = (screen: Screen, it: Item): boolean => {
+  const [x, y] = center(it);
+  return x >= 0 && y >= 0 && x < screen.image.width && y < screen.image.height;
+};
+
+// A browser's address bar, and the buttons that only its bookmarks bar carries, as Chrome and Edge name them.
+const ADDRESS_BAR = /^address and search bar$/i;
+const BOOKMARKS_BAR = /^(all bookmarks|other bookmarks|mobile bookmarks|other favorites|unnamed bookmark for )/i;
+
+/**
+ * Where a browser window's page begins, in capture pixels: under its toolbar, and under its bookmarks bar when one
+ * shows, which is the row just below the toolbar with a bookmark button in it. Null when there is no address bar
+ * to go by, and then nothing is taken for the browser's own.
+ */
+export function pageTop(controls: Item[]): number | null {
+  const bar = controls.find((it) => it.role === "field" && ADDRESS_BAR.test(it.text));
+  if (!bar) return null;
+  const within = (it: Item, y: number, reach: number) => Math.abs(center(it)[1] - y) < reach;
+  const mark = controls.find((it) => BOOKMARKS_BAR.test(it.text) && center(it)[1] > bar.y2 && within(it, bar.y2, 2 * (bar.y2 - bar.y1)));
+  if (!mark) return bar.y2;
+  return Math.max(bar.y2, ...controls.filter((it) => within(it, center(mark)[1], (mark.y2 - mark.y1) / 2)).map((it) => it.y2));
+}
 
 /** The frontmost app's labelled on-screen controls as items on the capture. */
 export const axItems = (screen: Screen, budget: number): Item[] => toAxItems(axNodes(screen, budget)[0], screen.scale, screen.origin);
 
+/**
+ * Windows OCR reads an icon as a letter or two ('x' on Close, 'c' on Reload) and garbles the words beside one ('Ifi
+ * Home', 'B open'), where the accessibility label is clean. So there a control keeps its own label, and a fragment
+ * lying on a control is dropped. The Mac's OCR does neither, and keeps the longer label, which is often the fuller one.
+ */
+const NOISY_OCR = onWindows();
+const FRAGMENT_CHARS = 2;
+
+export interface MergeOptions {
+  noisyOcr?: boolean;
+}
+
 /** One item per thing. An accessibility control that sits on the OCR block naming it replaces both. */
-export const mergeSources = (ocrItems: Item[], controls: Item[], budget = MAX_OPTIONS): Item[] =>
-  mergeWithOrigins(ocrItems, controls, budget).map(([it]) => it);
+export const mergeSources = (ocrItems: Item[], controls: Item[], budget = MAX_OPTIONS, options: MergeOptions = {}): Item[] =>
+  mergeWithOrigins(ocrItems, controls, budget, options).map(([it]) => it);
 
 /**
  * The merge, each item paired with the position of the control it came from, or null for plain text.
@@ -502,7 +577,7 @@ export const mergeSources = (ocrItems: Item[], controls: Item[], budget = MAX_OP
  * The pairing survives the budget cut and the renumbering, which is the only way back from a
  * final item to the accessibility element behind it.
  */
-export function mergeWithOrigins(ocrItems: Item[], controls: Item[], budget = MAX_OPTIONS): [Item, number | null][] {
+export function mergeWithOrigins(ocrItems: Item[], controls: Item[], budget = MAX_OPTIONS, { noisyOcr = NOISY_OCR }: MergeOptions = {}): [Item, number | null][] {
   const taken = new Set<number>();
   const merged: [Item, number | null][] = [];
   controls.forEach((control, origin) => {
@@ -515,10 +590,12 @@ export function mergeWithOrigins(ocrItems: Item[], controls: Item[], budget = MA
     if (best < 0) return void merged.push([control, origin]);
     const block = ocrItems[best]!;
     taken.add(best);
-    const label = control.text.length >= block.text.length ? control.text : block.text;
-    merged.push([{ ...block, text: label, role: control.role, source: "ax+ocr" }, origin]);
+    const label = noisyOcr ? control.text || block.text : control.text.length >= block.text.length ? control.text : block.text;
+    const value = control.value === undefined ? {} : { value: control.value };
+    merged.push([{ ...block, text: label, role: control.role, source: "ax+ocr", ...value }, origin]);
   });
-  ocrItems.forEach((block, i) => void (taken.has(i) || merged.push([block, null])));
+  const fragment = (block: Item) => noisyOcr && block.text.trim().length <= FRAGMENT_CHARS && controls.some((control) => boxOverlap(control, block) >= MIN_BOX_OVERLAP);
+  ocrItems.forEach((block, i) => void (taken.has(i) || fragment(block) || merged.push([block, null])));
   const kept = keptByBudget(merged.map(([it]) => it), budget).map((i) => merged[i]!);
   return readingOrder(kept.map(([it]) => it)).map((j, i) => [{ ...kept[j]![0], index: i }, kept[j]![1]]);
 }
