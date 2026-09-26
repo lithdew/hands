@@ -74,6 +74,31 @@ export function moved(before: string, after: string): boolean {
   return next !== "" && next !== driver(before).label && !RESTING.test(next);
 }
 
+/** What a lookup is searching for, from its action ("searching 'ramen near King's Cross'"), as its card says it. */
+export function searching(action: string): string {
+  const query = /^searching\s+(.+)$/i.exec(action.trim())?.[1]?.trim();
+  if (!query) return action.trim() ? sentence(action.trim()) : "Searching the web";
+  return `Searching “${query.replace(/^['"‘“]+|['"’”]+$/g, "")}”`;
+}
+
+/** Second-level names under which a country's sites sit: bbc.co.uk is "bbc", not "co". */
+const UNDER = new Set(["co", "com", "org", "net", "ac", "gov", "edu", "ne", "or"]);
+
+/** A source's chip: its site as a reader names it (no www), and the letter that stands for it. */
+export function site(url: string): { letter: string; name: string } {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return { letter: "?", name: url.slice(0, 24) };
+  }
+  host = host.replace(/^www\d?\./, "");
+  const labels = host.split(".");
+  const [second = "", top = ""] = labels.slice(-2);
+  const main = labels.length >= 3 && top.length === 2 && UNDER.has(second) ? labels[labels.length - 3]! : labels.length >= 2 ? second : host;
+  return { letter: (main.match(/[\p{L}\p{N}]/u)?.[0] ?? "?").toUpperCase(), name: host.length > 26 ? `${host.slice(0, 25)}…` : host };
+}
+
 /**
  * Whether these lines start a hand's transcript. A task is its first line and comes at no other time, so lines that
  * bring one for a card still out are a new hand's: one that took a closed hand's name before the page heard that the

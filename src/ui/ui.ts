@@ -136,11 +136,12 @@ function update(): void {
   for (const hand of hands) {
     const card = cards.get(hand.id);
     if (card) track(card, hand); // first: a picture of a window the hand has left may go, and change the card's shape
-    // A picture's shape is the last frame's; before the first, the window's own, when the hand has one.
-    const ratio = card?.url ? card.ratio : hand.size ? hand.size[0] / hand.size[1] : null;
+    // A picture's shape is the last frame's; before the first, the window's own, when the hand has one. A lookup has none.
+    const ratio = hand.kind === "lookup" ? null : card?.url ? card.ratio : hand.size ? hand.size[0] / hand.size[1] : null;
     const said = says(hand);
     // A receipt's words stand beside its small picture, where fewer of them fit on a line.
-    shapes.set(hand.id, { ratio, words: said !== "", lines: lines(said, finished(hand.status) && card?.url ? RECEIPT_CHARS : CARD_CHARS), tally: (card?.steps.length ?? 0) > 0 });
+    const chars = finished(hand.status) && card?.url ? RECEIPT_CHARS : CARD_CHARS;
+    shapes.set(hand.id, { ratio, words: said !== "", lines: lines(said, chars), tally: (card?.steps.length ?? 0) > 0, sources: hand.kind === "lookup" && !!hand.sources?.length });
   }
   const layout = arrange(hands, shapes, room - extra(), open);
   // Crowded past folding: the column stops at the room and the cards scroll inside it, so the top ones stay reachable.

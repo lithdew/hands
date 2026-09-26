@@ -672,6 +672,77 @@ html:not(.windows) [data-cmd="show"] {
 .card.receipt .tally:not(:empty) {
   display: block;
 }
+
+/* a lookup: no window, so no picture. While it searches, a glass circles over what it looks for; once it has
+   answered, its sources are chips under the answer, each opening in the user's own browser. */
+.card[data-kind="lookup"] .subtitle {
+  background: linear-gradient(100deg, var(--ink) 40%, color-mix(in srgb, var(--glove) 40%, var(--ink)) 50%, var(--ink) 60%) 0 0 / 300% 100%;
+  animation: scour 1.6s linear infinite;
+}
+.card[data-kind="lookup"] .subtitle::before {
+  content: "🔍";
+  display: inline-block;
+  animation: search 1.4s ease-in-out infinite;
+}
+@keyframes scour {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+@keyframes search {
+  25% {
+    translate: 2px -2px;
+  }
+  50% {
+    translate: 4px 0;
+  }
+  75% {
+    translate: 2px 2px;
+  }
+}
+.sources {
+  display: none;
+}
+.card.receipt .sources:not(:empty) {
+  display: flex;
+  flex-wrap: wrap; /* a chip that does not fit goes to a second row, which is cut off whole */
+  gap: 8px 6px;
+  height: 24px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+.source {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 170px;
+  height: 24px;
+  padding: 0 10px 0 3px;
+  border: 0;
+  border-radius: 999px;
+  font: 600 11.5px/1 var(--face);
+}
+.source i {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--dot, var(--glove));
+  font: 700 10.5px/1 var(--face);
+  font-style: normal;
+}
+.source span {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .said {
   margin: 0;
   font-size: 13.5px;
@@ -1168,6 +1239,8 @@ html:not(.windows) [data-cmd="show"] {
   .chip.jev::before,
   .ticks i,
   .ticks::after,
+  .subtitle,
+  .subtitle::before,
   #dock::after,
   #dock.thinking .palm i {
     animation: none !important;

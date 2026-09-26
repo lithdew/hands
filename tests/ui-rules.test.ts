@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { anew, closes, driver, moved, type Press, says, sight, steps, tally } from "../src/ui/rules.ts";
+import { anew, closes, driver, moved, type Press, says, searching, sight, site, steps, tally } from "../src/ui/rules.ts";
 import type { HandView } from "../src/ui/state.ts";
 
 const view = (extra: Partial<HandView>): HandView => ({ id: "lefty", name: "Lefty", color: "4f8cff", task: "Book a table", status: "working", action: "", glyph: "👆", at: null, size: null, viewing: false, answer: "", reason: "", seat: "", seatWhy: "", picture: "none", since: 0, ...extra }); // prettier-ignore
@@ -62,6 +62,22 @@ test("Jev's moves are told by its name before the action, and counted once each,
   expect(moved("thinking", "Jev › looking")).toBe(false);
   expect(moved("thinking", "Jev › clicker: “x”")).toBe(false);
   expect(moved("thinking", "")).toBe(false);
+});
+
+test("a lookup says what it is searching for, in the words its action gives", () => {
+  expect(searching("searching 'best ramen near King's Cross'")).toBe("Searching “best ramen near King's Cross”");
+  expect(searching("searching “tate modern hours”")).toBe("Searching “tate modern hours”");
+  expect(searching("reading 3 pages")).toBe("Reading 3 pages");
+  expect(searching("")).toBe("Searching the web");
+});
+
+test("a source's chip names its site as a reader would, with the letter of its own name", () => {
+  expect(site("https://www.tate.org.uk/visit/tate-modern")).toEqual({ letter: "T", name: "tate.org.uk" });
+  expect(site("https://en.wikipedia.org/wiki/Tate_Modern")).toEqual({ letter: "W", name: "en.wikipedia.org" });
+  expect(site("https://www.bbc.co.uk/news")).toEqual({ letter: "B", name: "bbc.co.uk" });
+  expect(site("http://localhost:3000/a")).toEqual({ letter: "L", name: "localhost" });
+  expect(site("https://a-very-long-subdomain.of-a-long-site.example.com/")).toEqual({ letter: "E", name: "a-very-long-subdomain.of-…" });
+  expect(site("not a url").letter).toBe("?");
 });
 
 test("a task in lines for a card still out is a new hand under its name; the same task sent afresh on connecting is not", () => {

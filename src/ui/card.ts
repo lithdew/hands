@@ -8,7 +8,7 @@
 
 import { finished } from "./fold.ts";
 import { EASE_OUT, ms, settle } from "./motion.ts";
-import { driver, moved, says, sentence, type Step, sight, steps, tally } from "./rules.ts";
+import { driver, moved, says, searching, sentence, type Step, sight, site, steps, tally } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, Status } from "./state.ts";
 import { blocks } from "./text.ts";
 
@@ -43,6 +43,7 @@ export interface Card {
 }
 
 const TICKS = 24; // the most steps the header shows: the latest
+const DOTS = ["4f8cff", "ff8a3d", "34c77b", "ff5ca8", "b07cff", "29c5d6", "9bd63a", "ff6b5c"]; // a source's letter sits on one of the cast's colours
 
 const template = document.getElementById("card") as HTMLTemplateElement;
 
@@ -84,6 +85,13 @@ export function build(id: string, act: (message: ClientMessage) => void, toggle:
       if (cmd === "show" && !card.root.classList.contains("open")) brought(card);
     });
   }
+  // A lookup's source opens in the user's own browser; the orchestrator opens only an address some card lists.
+  part(card, ".sources").addEventListener("click", (event) => {
+    const source = (event.target as Element).closest<HTMLButtonElement>("button[data-url]");
+    if (!source) return;
+    event.stopPropagation();
+    act({ cmd: "open", url: source.dataset.url! });
+  });
   // A hand that needs you is answered from its card: what the button says is said to it, as the box would.
   for (const button of root.querySelectorAll<HTMLButtonElement>("button[data-say]")) {
     button.addEventListener("click", (event) => {
@@ -110,6 +118,7 @@ export function paint(card: Card, hand: HandView, place: { folded: boolean; bare
   root.dataset.status = hand.status;
   root.dataset.seat = hand.seat;
   root.dataset.picture = hand.picture;
+  root.dataset.kind = hand.kind ?? "hand";
   root.classList.toggle("strip", place.folded);
   root.classList.toggle("open", place.open);
   root.classList.toggle("viewed", hand.viewing && !place.open);
@@ -132,7 +141,7 @@ export function paint(card: Card, hand: HandView, place: { folded: boolean; bare
   put(part(card, ".who"), identity(hand.name));
   put(part(card, ".name"), hand.name);
   put(part(card, "time"), card.clock);
-  put(part(card, ".doing"), hand.status === "working" ? label || "thinking" : hand.status === "starting" ? hand.task : "");
+  put(part(card, ".doing"), hand.status === "working" ? (hand.kind === "lookup" ? searching(hand.action) : label || "thinking") : hand.status === "starting" ? hand.task : "");
   const chip = part(card, ".chip.state");
   const word = hand.seat === "holding" ? "using your mouse" : hand.seat === "waiting" ? "waiting for you" : CHIP[hand.status];
   if (put(chip, word) && before) settle(chip); // a status change, set down where the eye is
@@ -145,19 +154,50 @@ export function paint(card: Card, hand: HandView, place: { folded: boolean; bare
   root.classList.toggle("receipt", receipt);
   root.classList.toggle("quiet", !(said || (receipt && (shown(card) || card.steps.length > 0))) || place.open || place.bare || (place.folded && busy(hand) && !hand.seat));
   put(part(card, ".tally"), card.steps.length ? tally(card.steps, card.clock) : "");
+  sources(card, hand);
   put(part(card, ".brief"), hand.task);
   picture(card);
   mini(card);
 
-  // The same table decides the sheet's buttons and the picture's tools.
+  // The same table decides the sheet's buttons and the picture's tools. A lookup has no window, and is not paused.
   const allowed = CONTROLS[hand.status];
   for (const button of root.querySelectorAll<HTMLButtonElement>("button[data-cmd]")) {
     const cmd = button.dataset.cmd!;
-    button.hidden = !allowed.includes(cmd) || (cmd === "show" && !shown(card));
+    button.hidden = !allowed.includes(cmd) || (cmd === "show" && !shown(card)) || (hand.kind === "lookup" && (cmd === "pause" || cmd === "resume"));
   }
   const box = part<HTMLInputElement>(card, "input");
   box.placeholder = busy(hand) ? `Tell ${hand.name} what to change` : hand.status === "paused" ? `Tell ${hand.name} what to change, or ↵ to carry on` : hand.status === "needs_you" ? `Answer ${hand.name}, or tell it what to do` : `Give ${hand.name} something else to do`;
   part(card, ".sheet").inert = !place.open;
+}
+
+/**
+ * A finished lookup's sources, a chip for each site: its letter and its name, the page's title on hover. A site it
+ * read more than one page of has one chip, which opens the first, and says how many more there were.
+ */
+function sources(card: Card, hand: HandView): void {
+  const row = part(card, ".sources");
+  const list = hand.kind === "lookup" && finished(hand.status) ? (hand.sources ?? []) : [];
+  const said = list.map((source) => source.url).join(" ");
+  if (row.dataset.said === said) return;
+  row.dataset.said = said;
+  const sites = new Map<string, { url: string; title: string; letter: string; more: number }>();
+  for (const source of list) {
+    const { letter, name } = site(source.url);
+    const seen = sites.get(name);
+    if (seen) seen.more++;
+    else sites.set(name, { url: source.url, title: source.title || source.url, letter, more: 0 });
+  }
+  row.replaceChildren(
+    ...[...sites].map(([name, { url, title, letter, more }]) => {
+      const chip = element("button", "source");
+      chip.type = "button";
+      chip.dataset.url = url;
+      chip.title = title;
+      chip.style.setProperty("--dot", `#${DOTS[letter.charCodeAt(0) % DOTS.length]}`);
+      chip.append(element("i", "", letter), element("span", "", more ? `${name} +${more}` : name));
+      return chip;
+    }),
+  );
 }
 
 /** Whether the card has a picture of its hand's window to show: the last good frame, even when the window has stopped drawing. */
@@ -201,11 +241,13 @@ function picture(card: Card): void {
   const caption = part(card, ".caption");
   caption.hidden = !has || (hand.picture !== "blank" && hand.picture !== "minimized");
   put(caption, hand.picture === "minimized" ? "Minimized" : "Not drawing while out of sight");
-  // What it is doing, as a subtitle on the picture, or under the task until the picture comes.
+  // What it is doing, as a subtitle on the picture, or under the task until the picture comes; a lookup, which has
+  // no picture, says what it is searching for.
   const subtitle = part(card, ".subtitle");
   subtitle.hidden = hand.status !== "working";
   subtitle.dataset.glyph = hand.glyph;
-  if (put(subtitle, sentence(driver(hand.action).label || "thinking")) && !subtitle.hidden) settle(subtitle);
+  const doing = hand.kind === "lookup" ? searching(hand.action) : sentence(driver(hand.action).label || "thinking");
+  if (put(subtitle, doing) && !subtitle.hidden) settle(subtitle);
   if (!card.ratio && hand.size) card.root.style.setProperty("--ratio", String(hand.size[0] / hand.size[1])); // until the first frame says otherwise
   const marker = part(card, ".marker");
   // The hand is placed in its window's own points: over another window's picture, it would point at nothing there.
