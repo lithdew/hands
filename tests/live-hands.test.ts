@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as live from "../src/live.ts";
 import type { Shell } from "../src/shell.ts";
+import * as windows from "../src/windows.ts";
 
 // The orchestrator with its outside replaced: each hand a scripted process (what it is told, what it says, when it
 // goes), and the voice a scripted Live session. Nothing here starts a process or opens a socket.
@@ -372,4 +373,26 @@ test("a fact the backend remembers goes in the user's profile, and every later s
   const start = sessions.at(-1)!.sent[0]!.session;
   expect(start.instructions).toContain("Kartikay (not Kartike) is a colleague.");
   expect(start.delegation.responses.instructions).toContain("Kartikay (not Kartike) is a colleague.");
+});
+
+test("Show is carried out by the hand, which knows where it keeps its window; a hand whose process has gone is shown from here; on the Mac it is nothing", async () => {
+  const present = spyOn(windows, "present").mockImplementation(() => true);
+  live.dispatch("start_hands", { tasks: ["find flights to Tokyo", "open Notepad"] }, runs);
+  hands[0]!.say({ type: "cue", subject: { window: 4242, origin: [0, 0] }, size: [1280, 800] });
+  hands[1]!.say({ type: "cue", subject: { window: 99, origin: [0, 0] }, size: [800, 600] });
+  await Bun.sleep(5);
+  live.command({ cmd: "show", hand: "lefty" }); // the Mac's panel offers no Show, and one that comes anyway does nothing
+  expect(hands[0]!.told.at(-1)).toEqual({ type: "prompt", text: "find flights to Tokyo" });
+  process.env.HANDS_PLATFORM = "windows";
+  try {
+    live.command({ cmd: "show", hand: "lefty" });
+    expect(hands[0]!.told.at(-1)).toEqual({ type: "show", window: 4242 }); // parked off the screens, it is the hand that knows where to
+    expect(present).not.toHaveBeenCalled();
+    hands[1]!.finish(1);
+    await Bun.sleep(20);
+    live.command({ cmd: "show", hand: "righty" });
+    expect(present).toHaveBeenCalledWith(99);
+  } finally {
+    delete process.env.HANDS_PLATFORM;
+  }
 });

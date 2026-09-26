@@ -1042,9 +1042,15 @@ function announce(): void {
   if (live && ready && toldBackend !== (toldBackend = backendPrompt())) sendLive({ type: "session.update", session: { delegation: { type: "responses", responses: { instructions: toldBackend } } } });
 }
 
-/** Bring a hand's window to the user: onto the desktop on screen, restored, and in front. */
+/**
+ * Bring a hand's window to the user: on screen, restored, and in front. The hand does it itself, since only its own
+ * process knows where it keeps that window (parked past the screens' edge, or on a desktop of its own) and must not
+ * take it back afterwards; this process does it only for a hand whose process has gone. The Mac has no Show: its
+ * panel does not offer one, and one that comes anyway is ignored.
+ */
 function show(hand: Hand): void {
   if (!onWindows() || hand.window === null) return;
+  if (tell(hand, { type: "show", window: hand.window })) return;
   try {
     windows.present(hand.window);
   } catch (error) {
@@ -1052,7 +1058,8 @@ function show(hand: Hand): void {
   }
 }
 
-function command(message: ClientMessage): void {
+/** What the panel's buttons and its box ask for. */
+export function command(message: ClientMessage): void {
   if (process.env.HANDS_DEBUG) console.error(`[panel] ${JSON.stringify(message)}`);
   if (message.cmd === "size") {
     const room = shell?.panel.room();
