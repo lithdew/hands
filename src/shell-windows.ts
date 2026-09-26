@@ -5,96 +5,146 @@
  * corner (src/panel.cs), told where to be. Everything is bun:ffi from this thread, on one 8 ms pump, and nothing here
  * blocks for long: winmm plays and records on its own threads, and hands the buffers back for the pump to find.
  * What goes through the helper is a thumbnail, which is a capture like any other, and the panel.
+ *
+ * The system's libraries are bound on first use, not on import: platform.ts imports this module on a Mac too.
  */
 
 import { dlopen, JSCallback, type Pointer, ptr } from "bun:ffi";
-import { mkdirSync, readFileSync, unlinkSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { cushion, type Shell, type Talk } from "./shell.ts";
-import { allWindows, helperPath, native } from "./windows.ts";
+import { cushion, type Panel, type Shell, type Shot, type Talk } from "./shell.ts";
+import { helperPath, thumbnail } from "./windows.ts";
 
 const PUMP_MS = 8;
-const TAP_MS = 250; // let go sooner than this and it was a slip, not a sentence
+const ARM_MS = 200; // the talk key must be held alone this long before it is a press: a Ctrl for a shortcut never is
 const SAMPLE_RATE = 24000; // what gpt-live-1 hears and speaks: mono, 16-bit
 const CHUNK_BYTES = (SAMPLE_RATE * 2 * 40) / 1000; // 40 ms
-const PREROLL_CHUNKS = 8; // what a warm microphone remembers: a third of a second
+const PREROLL_CHUNKS = 12; // what a warm microphone remembers, half a second: the words said while the key was being armed, and a little before
 const IN_FLIGHT = 16;
 const QUIET = 100 / 32768; // a chunk that never gets louder than this is a pause
+const PAD_STEP_MS = 10; // silence goes in these steps, so the speaker's headers come in a few sizes and are used again
 const THUMB_PX = 720;
 const MARGIN_PX = 12;
+const PANEL_W = 600; // CSS px: the widest the page lays itself out, and the panel's fixed width
+const AREA_MS = 1000; // how long a reading of the work area is trusted: it is asked for every time state goes to the page
+const REFIT_MS = 2000; // how often the panel looks to see whether the work area under it has changed
+const RESTART_MS = [1000, 2000, 5000, 10_000, 30_000]; // the panel, started again after it has gone, a little later each time
+const STEADY_MS = 60_000; // a panel that ran this long before it went is started again at once
 const WAVE_MAPPER = 0xffffffff;
 const WHDR_DONE = 1;
 const WHDR_PREPARED = 2;
+const MONITORINFOF_PRIMARY = 1;
+const ABM_GETSTATE = 4;
+const ABM_GETTASKBARPOS = 5;
+const ABS_AUTOHIDE = 1;
+const ABE_RIGHT = 2;
+const ABE_BOTTOM = 3;
+const TASKBAR_PX = 48; // a Windows 11 taskbar at 100%: what an auto-hidden one is taken to be when it reports less
 type Ref = Pointer | bigint; // a handle as bun:ffi returns it
 const HDR_BYTES = 48; // a WAVEHDR on x64: lpData@0 dwBufferLength@8 dwBytesRecorded@12 dwUser@16 dwFlags@24 dwLoops@28 lpNext@32 reserved@40
 
-const user32 = dlopen("user32.dll", {
-  GetAsyncKeyState: { args: ["i32"], returns: "i16" },
-  SetProcessDpiAwarenessContext: { args: ["i64"], returns: "bool" },
-  IsWindowVisible: { args: ["ptr"], returns: "bool" },
-  GetWindowRect: { args: ["ptr", "ptr"], returns: "bool" },
-  FindWindowW: { args: ["ptr", "ptr"], returns: "ptr" },
-  GetDpiForSystem: { args: [], returns: "u32" },
-  EnumDisplayMonitors: { args: ["ptr", "ptr", "ptr", "i64"], returns: "bool" },
-  GetMonitorInfoW: { args: ["ptr", "ptr"], returns: "bool" },
-}).symbols;
-const winmm = dlopen("winmm.dll", {
-  waveInOpen: { args: ["ptr", "u32", "ptr", "ptr", "ptr", "u32"], returns: "i32" },
-  waveInPrepareHeader: { args: ["ptr", "ptr", "u32"], returns: "i32" },
-  waveInUnprepareHeader: { args: ["ptr", "ptr", "u32"], returns: "i32" },
-  waveInAddBuffer: { args: ["ptr", "ptr", "u32"], returns: "i32" },
-  waveInStart: { args: ["ptr"], returns: "i32" },
-  waveInStop: { args: ["ptr"], returns: "i32" },
-  waveInReset: { args: ["ptr"], returns: "i32" },
-  waveOutOpen: { args: ["ptr", "u32", "ptr", "ptr", "ptr", "u32"], returns: "i32" },
-  waveOutPrepareHeader: { args: ["ptr", "ptr", "u32"], returns: "i32" },
-  waveOutUnprepareHeader: { args: ["ptr", "ptr", "u32"], returns: "i32" },
-  waveOutWrite: { args: ["ptr", "ptr", "u32"], returns: "i32" },
-  waveOutReset: { args: ["ptr"], returns: "i32" },
-}).symbols;
+function bind() {
+  const user32 = dlopen("user32.dll", {
+    GetAsyncKeyState: { args: ["i32"], returns: "i16" },
+    SetProcessDpiAwarenessContext: { args: ["i64"], returns: "bool" },
+    GetForegroundWindow: { args: [], returns: "ptr" },
+    GetDpiForSystem: { args: [], returns: "u32" },
+    EnumDisplayMonitors: { args: ["ptr", "ptr", "ptr", "i64"], returns: "bool" },
+    GetMonitorInfoW: { args: ["ptr", "ptr"], returns: "bool" },
+  }).symbols;
+  const winmm = dlopen("winmm.dll", {
+    waveInOpen: { args: ["ptr", "u32", "ptr", "ptr", "ptr", "u32"], returns: "i32" },
+    waveInPrepareHeader: { args: ["ptr", "ptr", "u32"], returns: "i32" },
+    waveInUnprepareHeader: { args: ["ptr", "ptr", "u32"], returns: "i32" },
+    waveInAddBuffer: { args: ["ptr", "ptr", "u32"], returns: "i32" },
+    waveInStart: { args: ["ptr"], returns: "i32" },
+    waveInStop: { args: ["ptr"], returns: "i32" },
+    waveInReset: { args: ["ptr"], returns: "i32" },
+    waveOutOpen: { args: ["ptr", "u32", "ptr", "ptr", "ptr", "u32"], returns: "i32" },
+    waveOutPrepareHeader: { args: ["ptr", "ptr", "u32"], returns: "i32" },
+    waveOutUnprepareHeader: { args: ["ptr", "ptr", "u32"], returns: "i32" },
+    waveOutWrite: { args: ["ptr", "ptr", "u32"], returns: "i32" },
+    waveOutReset: { args: ["ptr"], returns: "i32" },
+  }).symbols;
+  const shell32 = dlopen("shell32.dll", { SHAppBarMessage: { args: ["u32", "ptr"], returns: "u64" } }).symbols;
+  return { user32, winmm, shell32 };
+}
+let bound: ReturnType<typeof bind> | undefined;
+const system = () => (bound ??= bind());
 
 // ------------------------------------------------------------------ the key
 
 const TALK_KEYS: Record<string, number> = { "left-ctrl": 0xa2, "right-ctrl": 0xa3, "right-alt": 0xa5, f8: 0x77 };
+const NAMES: Record<number, string> = { 0xa2: "left Ctrl", 0xa3: "right Ctrl", 0xa4: "left Alt", 0xa5: "right Alt", 0xa0: "left Shift", 0xa1: "right Shift" };
 const MODIFIERS = new Set([0x10, 0x11, 0x12, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5]); // Shift, Ctrl, Alt and their sides: held with the talk key without meaning to type
+const MOUSE_BUTTONS = [0x01, 0x02, 0x04, 0x05, 0x06]; // left, right, middle and the two side buttons: a click while the key is held is not talking
+const TWIN: Record<number, number> = { 0xa0: 0x10, 0xa1: 0x10, 0xa2: 0x11, 0xa3: 0x11, 0xa4: 0x12, 0xa5: 0x12 }; // the key for either side, which is down whenever this side is
 
 /** The push-to-talk key: left Ctrl (a laptop keyboard may have no right one), or what HANDS_KEY names (`right-ctrl`, `right-alt`, `f8`, or a virtual key code). */
 export const talkKey = (setting = process.env.HANDS_KEY): number => (setting ? (TALK_KEYS[setting.toLowerCase()] ?? Number(setting)) || 0xa2 : 0xa2);
 
+/** The talk key as the user would name it: "left Ctrl", "F8". */
+export function talkKeyName(key = talkKey()): string {
+  if (NAMES[key]) return NAMES[key];
+  if (key >= 0x70 && key <= 0x87) return `F${key - 0x6f}`;
+  if ((key >= 0x30 && key <= 0x39) || (key >= 0x41 && key <= 0x5a)) return String.fromCharCode(key);
+  return `the key with code ${key}`;
+}
+
+/**
+ * The keys that go down with the talk key and are part of it: its side-less twin (Windows reports VK_CONTROL down with
+ * either Ctrl), and for right Alt, the left Ctrl that a keyboard layout with AltGr sends along with it.
+ */
+const partOf = (key: number): Set<number> => new Set([key, ...(TWIN[key] ? [TWIN[key]] : []), ...(key === 0xa5 ? [0xa2, 0x11] : [])]);
+
 /**
  * The push-to-talk key, polled from the async key table, which sees every key whoever has the keyboard: no hook, so
- * no thread that must pump messages. A key pressed while it is held means the user is typing, not talking: that
- * cancels. `fake` holds the key down from inside, for a run that speaks from a file. `isDown` and `now` are
- * parameters so that the machine can be tested without a keyboard.
+ * no thread that must pump messages. Nothing happens when it goes down: it is a press only once it has been held
+ * alone for ARM_MS, and any other key or a mouse button before then (a Ctrl+C, a Ctrl+click, AltGr for a character)
+ * drops it without a sign. Once it is a press, "down"; a key typed while it is held means the user is typing after
+ * all, "cancel"; let go, "up". `fake` holds the key down from inside, for a run that speaks from a file, and is a press
+ * at once. `isDown` and `now` are parameters so that the machine can be tested without a keyboard.
  */
 export function watchKey(onTalk: (talk: Talk) => void, isDown: (vk: number) => boolean, key = talkKey(), now = () => performance.now()): { poll(): void; fake(down: boolean): void } {
-  let [held, faked, cancelled, since] = [false, false, false, 0];
+  const own = partOf(key);
+  let state: "up" | "arming" | "pressed" | "dropped" = "up";
+  let [faked, since] = [false, 0];
   const was = new Uint8Array(256); // what was already down when the talk key went down: not typing
-  const scan = (): boolean => {
+  /** Whether a key or button has gone down since the last look: any at all while arming, and not a modifier once pressed. */
+  const scan = (strict: boolean): boolean => {
     let typed = false;
-    for (let vk = 0x08; vk <= 0xfe; vk++) {
-      if (vk === key || MODIFIERS.has(vk)) continue;
+    const look = (vk: number) => {
+      if (own.has(vk)) return;
       const down = isDown(vk) ? 1 : 0;
-      if (down && !was[vk]) typed = true;
+      if (down && !was[vk] && (strict || !MODIFIERS.has(vk))) typed = true;
       was[vk] = down;
-    }
+    };
+    for (const vk of MOUSE_BUTTONS) look(vk);
+    for (let vk = 0x08; vk <= 0xfe; vk++) look(vk);
     return typed;
   };
   return {
     fake: (down) => void (faked = down),
     poll() {
       const down = faked || isDown(key);
-      if (down && !held) {
-        [since, cancelled] = [now(), false];
-        scan();
-        onTalk("down");
-      } else if (!down && held) {
-        if (!cancelled) onTalk(now() - since < TAP_MS ? "cancel" : "up");
-      } else if (down && !cancelled && !faked && scan()) {
-        cancelled = true;
+      if (!down) {
+        if (state === "pressed") onTalk("up");
+        state = "up";
+        return;
+      }
+      if (state === "up") {
+        since = now();
+        scan(true); // only to learn what was down already
+        state = faked ? "pressed" : "arming";
+        if (faked) onTalk("down");
+      } else if (state === "arming") {
+        if (scan(true)) state = "dropped";
+        else if (now() - since >= ARM_MS) {
+          state = "pressed";
+          onTalk("down");
+        }
+      } else if (state === "pressed" && !faked && scan(false)) {
+        state = "dropped";
         onTalk("cancel");
       }
-      held = down;
     },
   };
 }
@@ -131,6 +181,9 @@ export function recycle(queued: Header[], free: Header[], done: (h: Header) => b
   for (let i = queued.length - 1; i >= 0; i--) if (done(queued[i]!)) free.push(...queued.splice(i, 1));
 }
 
+/** The bytes of silence for a pad of `ms`, in whole steps of PAD_STEP_MS: a pad of any other length would need a header of its own. */
+export const padBytes = (ms: number): number => Math.round(ms / PAD_STEP_MS) * ((PAD_STEP_MS * SAMPLE_RATE) / 1000) * 2;
+
 const out = new BigUint64Array(1);
 const made = (status: number, what: string): bigint => {
   if (status !== 0) throw new Error(`${what} failed (MMSYSERR ${status})`);
@@ -138,9 +191,10 @@ const made = (status: number, what: string): bigint => {
 };
 
 function sound() {
-  // The microphone. Kept warm, it runs all the time and remembers its last third of a second, so that a press of the
-  // key loses nothing to the microphone starting up (60 ms, measured) or to a word begun before the key was down;
-  // nothing it hears leaves this process until someone listens. Cold, it runs only while someone does.
+  const { winmm } = system();
+  // The microphone. Kept warm, it runs all the time and remembers its last half second, so that a press of the key
+  // loses nothing to the microphone starting up (60 ms, measured), to the key being armed, or to a word begun before
+  // the key was down; nothing it hears leaves this process until someone listens. Cold, it runs only while someone does.
   let hear: ((pcm: Uint8Array) => void) | null = null;
   let input: bigint | null = null;
   let running = false;
@@ -173,14 +227,14 @@ function sound() {
       for (const pcm of kept.splice(0)) onChunk(pcm);
       hear = onChunk;
     },
-    /** Stop handing over: a warm microphone goes back to remembering, a cold one is closed. */
+    /** Stop handing over, and forget: a warm microphone goes back to remembering from now, a cold one is closed. */
     rest(keepWarm: boolean): void {
       hear = null;
+      kept.length = 0;
       if (keepWarm || !running || input === null) return;
       running = false;
       winmm.waveInStop(input);
       winmm.waveInReset(input); // every buffer comes back at once, and is put back in by `open`
-      kept.length = 0;
     },
     /** What the device has filled since the last pump, in order. */
     pump(): void {
@@ -233,7 +287,7 @@ function sound() {
       const pad = cushion(left, peak < QUIET);
       if (process.env.HANDS_DEBUG && pad !== 0 && (pad === null || peak >= QUIET)) console.error(`[speaker] ${Math.round(left)} ms queued: ${pad === null ? "a pause left out" : `${Math.round(pad)} ms of silence put into speech`}`);
       if (pad === null) return;
-      write(Math.round((pad * SAMPLE_RATE) / 1000) * 2);
+      write(padBytes(pad));
       write(pcm);
     },
     /** Drop what is queued: the user has started talking over it. Every header comes back done, for `write` to reuse. */
@@ -247,96 +301,169 @@ function sound() {
 
 // ------------------------------------------------------------------ the panel
 
-/** The monitors' work areas (the desktop less the taskbar), in physical pixels, in the order the system lists them. */
-function workAreas(): [left: number, top: number, right: number, bottom: number][] {
-  const areas: [number, number, number, number][] = [];
-  const info = new Uint8Array(40); // MONITORINFO: cbSize, rcMonitor, rcWork, dwFlags
+/** A display: the whole of it and its work area (the desktop less a taskbar that does not hide), in physical pixels. */
+type Box = [left: number, top: number, right: number, bottom: number];
+export interface Monitor {
+  bounds: Box;
+  work: Box;
+  primary: boolean;
+}
+
+/** The monitors, the primary one first and the rest as the system lists them: so display 0 is the one the hands and the helper call 0 too. */
+export const primaryFirst = (monitors: Monitor[]): Monitor[] => [...monitors.filter((m) => m.primary), ...monitors.filter((m) => !m.primary)];
+
+function monitors(): Monitor[] {
+  const { user32 } = system();
+  const found: Monitor[] = [];
+  const info = new Uint8Array(40); // MONITORINFO: cbSize@0, rcMonitor@4, rcWork@20, dwFlags@36
   const view = new DataView(info.buffer);
+  const box = (at: number): Box => [view.getInt32(at, true), view.getInt32(at + 4, true), view.getInt32(at + 8, true), view.getInt32(at + 12, true)];
   const each = new JSCallback(
     (monitor: Ref) => {
       view.setUint32(0, 40, true);
-      if (user32.GetMonitorInfoW(monitor, ptr(info))) areas.push([view.getInt32(20, true), view.getInt32(24, true), view.getInt32(28, true), view.getInt32(32, true)]);
+      if (user32.GetMonitorInfoW(monitor, ptr(info))) found.push({ bounds: box(4), work: box(20), primary: (view.getUint32(36, true) & MONITORINFOF_PRIMARY) !== 0 });
       return true;
     },
     { args: ["ptr", "ptr", "ptr", "i64"], returns: "bool" },
   );
   user32.EnumDisplayMonitors(null, null, each.ptr, 0);
   each.close();
-  return areas;
+  return primaryFirst(found);
+}
+
+/** The taskbar, when it hides itself: which edge it is on, and how far it reaches in when it slides out. Null when it does not hide. */
+function hidingTaskbar(): { edge: number; rect: Box } | null {
+  const { shell32 } = system();
+  const data = new Uint8Array(48); // APPBARDATA on x64: cbSize@0, hWnd@8, uCallbackMessage@16, uEdge@20, rc@24, lParam@40
+  const view = new DataView(data.buffer);
+  view.setUint32(0, 48, true);
+  if ((Number(shell32.SHAppBarMessage(ABM_GETSTATE, ptr(data))) & ABS_AUTOHIDE) === 0) return null;
+  if (!shell32.SHAppBarMessage(ABM_GETTASKBARPOS, ptr(data))) return null;
+  return { edge: view.getUint32(20, true), rect: [view.getInt32(24, true), view.getInt32(28, true), view.getInt32(32, true), view.getInt32(36, true)] };
+}
+
+/**
+ * The part of a monitor the panel may use: its work area, less a taskbar that hides itself, which the work area does
+ * not count and which slides out over the corner. That one is cleared by its full size, whatever it is doing now: a
+ * hidden one says it is a sliver, and so is taken to be as big as a taskbar at this scale.
+ */
+export function usable(monitor: Monitor, taskbar: { edge: number; rect: Box } | null, scale: number): Box {
+  const [left, top, right, bottom] = monitor.work;
+  if (!taskbar) return [left, top, right, bottom];
+  const [tl, tt, tr, tb] = taskbar.rect;
+  const [ml, mt, mr, mb] = monitor.bounds;
+  if (tr <= ml || tl >= mr || tb <= mt || tt >= mb) return [left, top, right, bottom]; // on another monitor
+  const full = Math.round(TASKBAR_PX * scale);
+  if (taskbar.edge === ABE_BOTTOM) return [left, top, right, Math.min(bottom, mb - Math.max(tb - tt, full))];
+  if (taskbar.edge === ABE_RIGHT) return [left, top, Math.min(right, mr - Math.max(tr - tl, full)), bottom];
+  return [left, top, right, bottom];
+}
+
+/** Where the panel goes: a box of the page's fixed width and the whole height it may have, in the bottom right corner of `area`, in physical pixels. */
+export function placement([, top, right, bottom]: Box, dpr: number): { x: number; y: number; w: number; h: number } {
+  const [w, h] = [Math.round(PANEL_W * dpr), Math.max(1, bottom - top - 2 * MARGIN_PX)];
+  return { x: right - MARGIN_PX - w, y: bottom - MARGIN_PX - h, w, h };
 }
 
 /**
  * A borderless, never-activating window in the bottom right corner that shows one web page, above other windows:
  * the helper's "panel" mode (src/panel.cs), a WebView2 in a tool window whose clear pixels are not there, told
- * where to be over its stdin. This process does the arithmetic, in physical pixels: the page's CSS pixels times
- * the display's scale, tucked in the corner of the work area, clear of the taskbar.
+ * where to be over its stdin. The window has one size, PANEL_W by as tall as the corner allows, in the page's pixels
+ * times its devicePixelRatio, and the page lays itself out in its bottom right: it is placed again only when the work
+ * area, the ratio, or whether there is anything to show changes, never as the page's content grows and shrinks. If
+ * the panel's process goes, another is started, a little later each time.
  */
-function panel(url: string) {
-  const proc = Bun.spawn([helperPath(), "panel", url, `${process.env.LOCALAPPDATA}\\hands\\webview`], { stdin: "pipe", stdout: "ignore", stderr: "inherit" });
-  proc.unref();
-  const tell = (command: Record<string, unknown>): void => {
-    if (proc.exitCode !== null) return; // gone: it said why on stderr
-    proc.stdin.write(`${JSON.stringify(command)}\n`);
-    proc.stdin.flush();
-  };
-  /** The work area of the chosen display, less the taskbar when it is showing there: an auto-hiding one is not counted out of the work area, and it slides up over the corner. */
-  const area = (): [number, number, number, number] => {
-    const areas = workAreas();
-    const [left, top, right, bottom] = areas[Math.min(Number(process.env.HANDS_SCREEN) || 0, areas.length - 1)] ?? [0, 0, 1920, 1080];
-    const tray = user32.FindWindowW(ptr(Buffer.from("Shell_TrayWnd\0", "utf16le")), null);
-    const rect = new Int32Array(4);
-    if (tray && user32.IsWindowVisible(tray) && user32.GetWindowRect(tray, ptr(rect)) && rect[0]! < right && rect[2]! > left && rect[1]! < bottom && rect[1]! > top + (bottom - top) / 2) return [left, top, right, rect[1]!];
-    return [left, top, right, bottom];
-  };
-  const scale = () => user32.GetDpiForSystem() / 96;
+function panel(url: string): Panel & { refit(): void } {
+  const { user32 } = system();
+  let proc: Bun.Subprocess<"pipe", "ignore", "inherit"> | null = null;
+  let dpr = user32.GetDpiForSystem() / 96; // until the page says
   let shown = false;
+  let placed = ""; // the last command that placed or hid the window
+  let failures = 0;
+  let cached: { at: number; box: Box } | null = null;
+
+  const area = (): Box => {
+    if (cached && performance.now() - cached.at < AREA_MS) return cached.box;
+    const all = monitors();
+    const monitor = all[Math.min(Number(process.env.HANDS_SCREEN) || 0, all.length - 1)];
+    const box = monitor ? usable(monitor, hidingTaskbar(), dpr) : ([0, 0, 1920, 1080] as Box);
+    cached = { at: performance.now(), box };
+    return box;
+  };
+  const tell = (command: Record<string, unknown>): void => {
+    if (!proc || proc.exitCode !== null) return; // gone: it said why on stderr, and another is on its way
+    try {
+      proc.stdin.write(`${JSON.stringify(command)}\n`);
+      proc.stdin.flush();
+    } catch {
+      // it went as this was written: its exit starts another, which is placed from scratch
+    }
+  };
+  const place = (): void => {
+    const command = shown ? { cmd: "fit", ...placement(area(), dpr) } : { cmd: "hide" };
+    const said = JSON.stringify(command);
+    if (said === placed || (!shown && !placed)) return; // a window never shown needs no hiding
+    tell(command);
+    placed = said;
+  };
+  const start = (): void => {
+    const began = performance.now();
+    try {
+      proc = Bun.spawn([helperPath(), "panel", url, `${process.env.LOCALAPPDATA}\\hands\\webview`], { stdin: "pipe", stdout: "ignore", stderr: "inherit" });
+    } catch (error) {
+      console.error(`[panel] cannot start the panel: ${(error as Error).message}`);
+      return again(began);
+    }
+    proc.unref();
+    placed = "";
+    place();
+    void proc.exited.then((code) => {
+      console.error(`[panel] the panel closed (exit code ${code})`);
+      again(began);
+    });
+  };
+  const again = (began: number): void => {
+    if (performance.now() - began > STEADY_MS) failures = 0;
+    const wait = RESTART_MS[Math.min(failures++, RESTART_MS.length - 1)]!;
+    setTimeout(start, wait).unref();
+  };
+  start();
   return {
-    /** Size the window to the page's content and keep it in the corner. Nothing to show: no window. */
-    fit(width: number, height: number): void {
-      if (width < 1 || height < 1) {
-        if (shown) tell({ cmd: "hide" });
-        return void (shown = false);
-      }
-      const px = scale();
-      const [w, h] = [Math.round(width * px), Math.round(height * px)];
-      const [, , right, bottom] = area();
-      tell({ cmd: "fit", x: right - MARGIN_PX - w, y: bottom - MARGIN_PX - h, w, h });
-      shown = true;
+    /** The page's size and pixel ratio: nothing to show (0 by 0) hides the window, and anything else shows it at its one size. */
+    fit(width: number, height: number, ratio?: number): void {
+      shown = width >= 1 && height >= 1;
+      if (ratio && ratio > 0 && ratio !== dpr) [dpr, cached] = [ratio, null];
+      place();
     },
-    /** How tall the panel may grow: the work area less the margins, in the page's own pixels. */
+    /** How tall the panel is, in the page's own pixels: the page lays itself out in that. */
     room(): number {
       const [, top, , bottom] = area();
-      return Math.floor((bottom - top - 2 * MARGIN_PX) / scale());
+      return Math.floor((bottom - top - 2 * MARGIN_PX) / dpr);
     },
     /** Give the page the keyboard, or hand it back to whatever the user was in: the helper does both. */
     focus(on: boolean): void {
       tell({ cmd: "focus", on });
     },
+    /** Place the window again if the work area has changed under it: a taskbar moved or set to hide, a display added. */
+    refit: place,
   };
 }
 
 // ------------------------------------------------------------------ the camera
 
-/** One window of another app as a small JPEG, through the helper's capture, wherever it lies and whatever covers it. Null when it is gone. */
-function camera(): (windowId: number) => Uint8Array | null {
-  const dir = `${tmpdir()}\\hands-thumbs`;
-  mkdirSync(dir, { recursive: true });
-  return (windowId) => {
-    const path = `${dir}\\${windowId}-${process.pid}.jpg`;
-    try {
-      native.call("capture", { hwnd: windowId, path, format: "jpeg", max: THUMB_PX });
-      const jpeg = new Uint8Array(readFileSync(path));
-      unlinkSync(path);
-      return jpeg.length ? jpeg : null;
-    } catch {
-      return null;
-    }
-  };
+/** One window of another app, small, through the helper: never a minimized window restored for it, and never a frame that shows nothing. Null when it is gone. */
+function camera(windowId: number): Shot {
+  try {
+    return thumbnail(windowId, THUMB_PX);
+  } catch {
+    return null; // the helper went away with it: the next frame starts another
+  }
 }
 
 // ------------------------------------------------------------------ all of it
 
 export function start(options: { url: string; onTalk: (talk: Talk) => void }): Shell {
+  const { user32 } = system();
   user32.SetProcessDpiAwarenessContext(-4); // per-monitor aware v2, before any window or DPI is looked at: every coordinate here is a physical pixel
   const key = watchKey(options.onTalk, (vk) => (user32.GetAsyncKeyState(vk) & 0x8000) !== 0);
   const { mic, speaker } = sound();
@@ -345,5 +472,19 @@ export function start(options: { url: string; onTalk: (talk: Talk) => void }): S
     key.poll();
     mic.pump();
   }, PUMP_MS);
-  return { mic, speaker, panel: { fit: corner.fit, room: corner.room, focus: corner.focus }, thumbnail: camera(), holdKey: key.fake, frontWindow: () => allWindows()[0]?.id ?? null };
+  setInterval(() => {
+    try {
+      corner.refit();
+    } catch (error) {
+      console.error(`[panel] ${(error as Error).message}`);
+    }
+  }, REFIT_MS);
+  return {
+    mic,
+    speaker,
+    panel: { fit: corner.fit, room: corner.room, focus: corner.focus },
+    thumbnail: camera,
+    holdKey: key.fake,
+    frontWindow: () => Number(user32.GetForegroundWindow() ?? 0) || null, // the window the user is in, straight from user32: no helper, so nothing to break
+  };
 }

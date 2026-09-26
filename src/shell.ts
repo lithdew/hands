@@ -342,11 +342,24 @@ function camera(): (windowId: number) => Uint8Array | null {
 
 // ------------------------------------------------------------------ all of it
 
+/** The corner window, as `live.ts` tells it about the page in it. */
+export interface Panel {
+  /** The page's size in its own pixels, and its devicePixelRatio where it knows it. Nothing to show (0 by 0): no window. */
+  fit(width: number, height: number, dpr?: number): void;
+  /** How tall the page may grow, in its own pixels. */
+  room(): number;
+  /** Give the page the keyboard, or hand it back to whatever the user was in. */
+  focus(on: boolean): void;
+}
+
+/** One picture of a window for the panel, or why there is none: it draws nothing, or it is minimized. Null when the window is gone. */
+export type Shot = { jpeg: Uint8Array } | { blank: true } | { minimized: true } | null;
+
 export interface Shell {
   mic: ReturnType<typeof sound>["mic"];
   speaker: ReturnType<typeof sound>["speaker"];
-  panel: ReturnType<typeof panel>;
-  thumbnail: ReturnType<typeof camera>;
+  panel: Panel;
+  thumbnail(windowId: number): Shot;
   /** Hold the talk key down from inside: a run that speaks from a file has no finger. */
   holdKey(down: boolean): void;
   /** The ordinary window in front of all others, the one the user is looking at. */
@@ -368,5 +381,9 @@ export function start(options: { url: string; onTalk: (talk: Talk) => void }): S
     });
     key.poll();
   }, PUMP_MS);
-  return { ...parts, holdKey: key.fake, frontWindow: () => macos.allWindows().find((w) => w.alpha >= 1)?.id ?? null };
+  const thumbnail = (windowId: number): Shot => {
+    const jpeg = parts.thumbnail(windowId);
+    return jpeg ? { jpeg } : null;
+  };
+  return { ...parts, thumbnail, holdKey: key.fake, frontWindow: () => macos.allWindows().find((w) => w.alpha >= 1)?.id ?? null };
 }

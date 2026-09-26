@@ -1,5 +1,8 @@
 /** Tunables, the site catalog, and environment. Bun loads .env on its own. */
 
+import { homedir } from "node:os";
+import { join } from "node:path";
+
 export const MIN_OCR_CONFIDENCE = 0.3;
 export const MAX_OPTIONS = 255; // TypeSafe Choice ceiling
 export const ABORT_CORNER_PX = 4;
@@ -38,3 +41,5 @@ export const handColor = (): string | undefined => process.env.HANDS_COLOR || un
 export const liveModel = (): string => process.env.HANDS_LIVE_MODEL || "gpt-live-1";
 export const liveVoice = (): string => process.env.HANDS_LIVE_VOICE || "marin";
 export const liveBackend = (): string => process.env.HANDS_LIVE_BACKEND || "gpt-5.6-luna";
+/** Where the hands `hands live` sends out keep what they make: Documents\Hands in the user's folder (~/Documents/Hands on a Mac), or HANDS_WORK. */
+export const workFolder = (): string => process.env.HANDS_WORK || join(homedir(), "Documents", "Hands");

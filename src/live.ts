@@ -1,16 +1,17 @@
 #!/usr/bin/env bun
 /**
- * `hands live`: hold the right Option key, say what you want, let go. A voice (gpt-live-1) hears it and hands the
- * work to one hand or several, each a `hands --background --json` process of its own with its own hand on screen.
- * A panel in the corner shows a live picture of the window each hand is in; click one to read its transcript and
- * steer it, or say it to the voice, which can also stop hands and always knows what each of them is up to.
+ * `hands live`: hold the talk key (right Option on a Mac, left Ctrl on Windows), say what you want, let go. A voice
+ * (gpt-live-1) hears it and hands the work to one hand or several, each a `hands --json` process of its own with its
+ * own hand on screen, working in windows of its own behind yours. A panel in the corner shows a live picture of the
+ * window each hand is in; click one to read its transcript and steer it, or say it to the voice, which can also stop
+ * hands and always knows what each of them is up to.
  *
  * Three things meet here: the hands (processes, spoken to in JSON lines), the voice (one Live session: audio both
- * ways, and a Responses backend that turns what was said into the four tool calls below), and the shell (the key,
+ * ways, and a Responses backend that turns what was said into the tool calls below), and the shell (the key,
  * the microphone, the speaker, the panel). This file is the wiring; none of the three knows about the others.
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import OpenAI from "openai";
@@ -21,16 +22,35 @@ import * as config from "./config.ts";
 import { type Cue, POSES } from "./hand.ts";
 import { onWindows, PERMISSION, platform as macos, startShell } from "./platform.ts";
 import { cushion, type Shell, type Talk } from "./shell.ts";
+import { talkKeyName } from "./shell-windows.ts";
 import page from "./ui/index.html";
 import type { ClientMessage, HandView, LogEntry, ServerMessage, Status, VoiceView } from "./ui/state.ts";
 import * as windows from "./windows.ts";
 
 const MAX_HANDS = 8; // the whole cast. Each is a model, a browser window and a renderer of its own
-const FRAME_MS = 160; // one hand's picture is refreshed each tick, turn and turn about
-const IDLE_MS = 60_000; // an open session is sent audio all the time and costs by the minute: after this long with nothing said it is closed, and started again, from the conversation so far, when next needed
-const NOTE_CHARS = 1500; // a note to the voice may be 500 tokens
-const PROGRESS_MS = 20_000; // how often the voice is told how the hands are getting on, while they are
+const READY_MS = 30_000; // a hand that has not said it is ready by then never will
+const CLOSE_MS = 2000; // how long a dismissed hand has to put its windows away and go, before it is ended
+const STDERR_LINES = 20; // what is kept of a hand's stderr, to say why it went
 const RECENT = 6;
+const TICK_MS = 100; // how often the camera looks for a picture that is due
+const ALONE_MS = 250; // the one card that shows a picture is refreshed four times a second
+const EACH_MS = 1000; // several are refreshed once a second each, in turn
+const VIEWING_MS = 1000; // the user has a hand's window in front of them (or no longer does) once it has lasted this long
+const IDLE_MS = 60_000; // an open session is sent audio all the time and costs by the minute: after this long with nobody talking it is closed, and started again, told the conversation so far, when next needed
+const CONNECT_MS = 8000; // a session that has not started by then will not
+const RETRY_MS = [2000, 4000, 8000, 15_000, 30_000]; // and the next try waits this long, longer each time
+const TAIL_MS = 300; // the microphone is heard this long after the key comes up: a last syllable outlasts the finger
+const HEARD_MS = 2000; // the transcript trails the speech
+const THINKING_MS = 12_000; // a reply that has not begun by then is not coming
+const QUIET_MS = 2000; // the voice has finished a reply once it has said nothing for this long
+const REPLY_GAP_MS = 700; // on the session's timeline, a gap this long in the voice's transcript is the start of another reply
+const TURNS = 20; // how much of the conversation a new session is told: what the user said, what the voice said, a line per tool call
+const NOTE_CHARS = 1500; // a note to the voice may be 500 tokens
+const TASK_CHARS = 150;
+const ANSWER_CHARS = 200;
+const SUMMARY_CHARS = 300; // what the voice is given to say of a hand's answer
+const STEER_CHARS = 200;
+const MIC_SILENT = 16; // of 32767: a press whose loudest sample stayed under this was heard by a microphone that gives nothing
 const CHUNK_MS = 40;
 
 // A hand's name is how it is spoken of, and its colour is how it is told apart on the screen.
@@ -40,16 +60,52 @@ const CAST: [name: string, color: string][] = [
 
 // ------------------------------------------------------------------ the hands
 
+/** A hand's process, as this file uses one. */
+export interface HandProcess {
+  readonly stdin: { write(data: string): unknown; flush(): unknown; end(): unknown };
+  readonly stdout: ReadableStream<Uint8Array>;
+  readonly stderr: ReadableStream<Uint8Array>;
+  readonly exited: Promise<number>;
+  kill(): void;
+}
+
+/** What reaches beyond this process: a hand's process, and the voice's socket. Tests put their own in their place. */
+export const outside = {
+  spawn: (command: string[], cwd: string, env: Record<string, string | undefined>): HandProcess => Bun.spawn(command, { cwd, env, stdin: "pipe", stdout: "pipe", stderr: "pipe" }),
+  voice: (): LiveWS => new LiveWS(new OpenAI()),
+};
+
 interface Hand extends HandView {
-  proc: Bun.Subprocess<"pipe", "pipe", "ignore">;
+  proc: HandProcess;
+  runDir: string;
   log: LogEntry[];
   recent: string[]; // its last few actions, for the voice
   window: number | null;
-  closed: boolean;
+  closed: boolean; // dismissed: its going is expected
+  gone: boolean; // its process has ended
+  stderr: string[]; // the last lines it wrote there
+  failure: string; // why this side ended it, when it did
+  reported: boolean; // the voice has been given how its latest run ended, to say
+  front: { value: boolean; since: number }; // whether its window is the one in front, and since when: `viewing` follows once that has lasted
+  shot: number; // when its window was last filmed
+  last: boolean; // it has finished and its final frame is taken: it is not filmed again
+  starting?: ReturnType<typeof setTimeout>; // the watch on it saying it is ready
 }
 
 const hands = new Map<string, Hand>();
-const active = (hand: Hand) => hand.status === "starting" || hand.status === "working";
+const leaving = new Set<Hand>(); // dismissed, and not gone yet
+/** A run that has ended one way or another: nothing more comes of it unless it is given something new. */
+const finished = (hand: Pick<HandView, "status">) => hand.status === "done" || hand.status === "failed" || hand.status === "stopped";
+/** Hands at work, paused, or waiting for the user first, then the ones that have finished, each in the order they came. */
+const ordered = <T extends Pick<HandView, "status">>(all: Iterable<T>): T[] => {
+  const list = [...all];
+  return [...list.filter((one) => !finished(one)), ...list.filter(finished)];
+};
+
+const view = (hand: Hand): HandView => {
+  const { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since } = hand;
+  return { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since };
+};
 
 /** The hands a spoken name means: one by name, or every one for "all". */
 export const named = <T extends { id: string }>(all: Iterable<T>, wanted: string[]): T[] => {
@@ -60,22 +116,141 @@ export const named = <T extends { id: string }>(all: Iterable<T>, wanted: string
 /** The first of the cast not yet on stage. */
 export const cast = (taken: Iterable<string>, names = new Set(taken)): [string, string] | null => CAST.find(([name]) => !names.has(name.toLowerCase())) ?? null; // read once: a map's keys can only be gone through once
 
-/** What the voice is told about the hands: one line each, the newest actions last. */
-export function snapshot(all: Iterable<Pick<Hand, "name" | "status" | "task" | "action" | "recent" | "answer" | "since">>, now = Date.now()): string {
-  const lines = [...all].map((hand) => {
-    const minutes = Math.max(0, Math.round((now - hand.since) / 60_000));
-    const doing = hand.status === "working" ? `; now: ${hand.action || "thinking"}; lately: ${hand.recent.join(" > ") || "nothing yet"}` : "";
-    const result = hand.answer ? `; it said: ${hand.answer}` : "";
-    return `- ${hand.name} [${hand.status}, ${minutes} min] task: ${hand.task}${doing}${result}`;
-  });
-  return (lines.join("\n") || "No hands are out.").slice(0, NOTE_CHARS);
+/** A folder of its own for each hand that goes out: lefty, then lefty-2 for the next Lefty, and so on. Nothing a hand leaves is written over by the next. */
+export function runFolder(runs: string, name: string, exists: (path: string) => boolean = existsSync): string {
+  for (let n = 1; ; n++) {
+    const folder = join(runs, n === 1 ? name.toLowerCase() : `${name.toLowerCase()}-${n}`);
+    if (!exists(folder)) return folder;
+  }
 }
 
-function tell(hand: Hand, command: Command): void {
+/** Cut to `limit` characters at a word, with an ellipsis when anything was cut. */
+export const cap = (text: string, limit: number): string => {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= limit) return flat;
+  const cut = flat.slice(0, limit - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > limit / 2 ? cut.slice(0, space) : cut).replace(/[\s,;:.]+$/, "")}…`;
+};
+
+/** A line of Markdown as plain words: links as their text, no URLs, no marks. */
+const inline = (text: string): string =>
+  text
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/<?https?:\/\/[^\s>)]*[^\s>).,;:!?]>?/g, "")
+    .replace(/(\*\*|__)(.+?)\1/g, "$2")
+    .replace(/(^|[^\w*])\*(?!\s)([^*]+?)\*(?!\w)/g, "$1$2")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/\(\s*\)/g, "")
+    .replace(/\s+([.,;:!?])/g, "$1") // where a URL was
+    .trim();
+
+/** A paragraph of Markdown as something to say: headings, tables and code left out, list items run together. */
+function sayable(paragraph: string): string {
+  const LIST = /^\s*(?:[-*+•]|\d+[.)])\s+/;
+  const lines = paragraph
+    .replace(/```[\s\S]*?```/g, "")
+    .split("\n")
+    .filter((line) => !/^\s{0,3}#{1,6}\s/.test(line) && !/^\s*\|/.test(line) && !/^\s*[-=:|]{3,}\s*$/.test(line))
+    .map((line) => ({ item: LIST.test(line), text: inline(line.replace(LIST, "").replace(/^\s*>\s?/, "")) }))
+    .filter((line) => line.text);
+  let said = "";
+  for (const { item, text } of lines) said += !said ? text : item && !said.endsWith(":") ? `; ${text}` : ` ${text}`;
+  return said.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * What the voice is given to say of a hand's answer: its first paragraph with words in it (a heading alone does not
+ * count, and one too short to say anything takes the next with it), as plain words, cut to `limit`. The card keeps
+ * the whole answer.
+ */
+export function voiceSummary(answer: string, limit = SUMMARY_CHARS): string {
+  const paragraphs = answer.split(/\n\s*\n/).map(sayable).filter(Boolean);
+  let text = paragraphs[0] ?? "";
+  if (text.length < 60 && paragraphs[1]) text = `${text}${/[.!?:]$/.test(text) ? "" : ":"} ${paragraphs[1]}`;
+  return cap(text, limit);
+}
+
+/** One hand as the backend and the voice know it, each part cut short: what it is on, what it is doing, what came of it. */
+export interface Brief {
+  hand: string;
+  status: Status;
+  task: string;
+  minutes?: number;
+  now?: string;
+  lately?: string;
+  needs?: string;
+  reason?: string;
+  answer?: string;
+  reported?: boolean; // the answer has been told to the user already
+}
+type Known = Pick<Hand, "name" | "status" | "task" | "action" | "recent" | "answer" | "reason" | "since" | "reported">;
+
+export function brief(hand: Known, now = Date.now()): Brief {
+  const known: Brief = { hand: hand.name, status: hand.status, task: cap(hand.task, TASK_CHARS) };
+  if (!finished(hand)) known.minutes = Math.max(0, Math.round((now - hand.since) / 60_000));
+  if (hand.status === "working") {
+    known.now = cap(hand.action || "thinking", 60);
+    if (hand.recent.length) known.lately = hand.recent.slice(-3).map((label) => cap(label, 40)).join(" > ");
+  }
+  const outcome = voiceSummary(hand.status === "failed" ? hand.reason || hand.answer : hand.answer, ANSWER_CHARS);
+  if (!outcome) return known;
+  known[hand.status === "needs_you" ? "needs" : hand.status === "failed" ? "reason" : "answer"] = outcome;
+  if (hand.reported) known.reported = true;
+  return known;
+}
+
+/** What the voice and the backend are told of the hands: a line each, the ones still at it first. Every hand has its line, whatever the others have to say. */
+export function snapshot(all: Iterable<Known>, now = Date.now()): string {
+  const lines = ordered(all).map((hand) => {
+    const { hand: name, status, task, minutes, now: doing, lately, needs, reason, answer, reported } = brief(hand, now);
+    const parts = [`- ${name} [${status}${minutes === undefined ? "" : `, ${minutes} min`}] task: ${task}`];
+    if (doing) parts.push(`now: ${doing}`);
+    if (lately) parts.push(`lately: ${lately}`);
+    if (needs) parts.push(`needs: ${needs}`);
+    if (reason) parts.push(`why: ${reason}`);
+    if (answer) parts.push(`it said${reported ? " (already told to the user)" : ""}: ${answer}`);
+    return parts.join("; ");
+  });
+  return lines.join("\n") || "No hands are out.";
+}
+
+const STOP_WORDS = new Set("a an and are as at be by for from i in is it me my of on or so that the this to up with you your".split(" "));
+const words = (text: string): Set<string> =>
+  new Set(
+    (text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])
+      .filter((word) => word.length > 1 && !STOP_WORDS.has(word))
+      .map((word) => (word.length > 3 && word.endsWith("s") && !word.endsWith("ss") ? word.slice(0, -1) : word)), // flights and flight are one word here
+  );
+
+/**
+ * Whether two tasks are one: the backend giving again a task that a hand is already on. The words that matter in one
+ * are all in the other, and they are nearly all its words. Tokyo for Paris, or a detail added, makes another task:
+ * better a second hand than a request lost.
+ */
+export function sameTask(a: string, b: string): boolean {
+  const [x, y] = [words(a), words(b)];
+  if (!x.size || !y.size) return a.trim().toLowerCase() === b.trim().toLowerCase();
+  let shared = 0;
+  for (const word of x) if (y.has(word)) shared++;
+  return (shared === x.size || shared === y.size) && shared / (x.size + y.size - shared) >= 0.9;
+}
+
+/** A hand's task once it has been told something: new work, for a hand that has finished; for one still at it, its first task and the latest word on it. */
+export function steered(task: string, text: string, still: boolean): string {
+  return still ? `${task.split(" → now: ")[0]} → now: ${cap(text, STEER_CHARS)}` : text;
+}
+
+function tell(hand: Hand, command: Command): boolean {
+  if (hand.gone) return false;
   try {
     hand.proc.stdin.write(`${JSON.stringify(command)}\n`);
     hand.proc.stdin.flush();
-  } catch {} // it has gone: its exit says so
+    return true;
+  } catch {
+    return false; // it has gone: its exit says so
+  }
 }
 
 function record(hand: Hand, kind: LogEntry["kind"], text: string): void {
@@ -85,25 +260,36 @@ function record(hand: Hand, kind: LogEntry["kind"], text: string): void {
 }
 
 function startHand(task: string, runs: string): Hand | null {
+  if (hands.size >= MAX_HANDS) {
+    const oldest = [...hands.values()].find(finished); // makes room, and its windows stay where they are
+    if (oldest) void close(oldest, true);
+  }
   const role = cast(hands.keys());
   if (!role || hands.size >= MAX_HANDS) return null;
   const [name, color] = role;
-  const runDir = join(runs, name.toLowerCase());
+  const [runDir, cwd] = [runFolder(runs, name), config.workFolder()];
   mkdirSync(runDir, { recursive: true });
-  const proc = Bun.spawn([process.execPath, join(import.meta.dir, "agent.ts"), ...(process.env.HANDS_FOREGROUND ? [] : ["--background"]), "--json", "--name", name, "--color", color, "--out", runDir], { // HANDS_FOREGROUND=1: the hands take the seat, for an app that will not work behind your windows
-    cwd: resolve(import.meta.dir, ".."),
-    env: { ...process.env, HANDS_SLOT: String(CAST.findIndex(([one]) => one === name)) }, // where on a HANDS_SCREEN stage its window goes
-    stdin: "pipe",
-    stdout: "pipe",
-    stderr: "ignore", // the hand keeps its own log in its run folder
-  });
-  const hand: Hand = { id: name.toLowerCase(), name, color, task, status: "starting", action: "", glyph: POSES.wave[0], at: null, size: null, viewing: false, answer: "", reason: "", seat: "", seatWhy: "", picture: "none", since: Date.now(), proc, log: [], recent: [], window: null, closed: false }; // prettier-ignore
+  mkdirSync(cwd, { recursive: true });
+  const proc = outside.spawn(
+    [process.execPath, join(import.meta.dir, "agent.ts"), "--json", "--name", name, "--color", color, "--cwd", cwd, "--out", runDir],
+    resolve(import.meta.dir, ".."),
+    { ...process.env, HANDS_SLOT: String(CAST.findIndex(([one]) => one === name)) }, // where on a HANDS_SCREEN stage its window goes
+  );
+  const hand: Hand = { id: name.toLowerCase(), name, color, task, status: "starting", action: "", glyph: POSES.wave[0], at: null, size: null, viewing: false, answer: "", reason: "", seat: "", seatWhy: "", picture: "none", since: Date.now(), proc, runDir, log: [], recent: [], window: null, closed: false, gone: false, stderr: [], failure: "", reported: false, front: { value: false, since: 0 }, shot: 0, last: false }; // prettier-ignore
   hands.set(hand.id, hand);
+  tell(hand, { type: "prompt", text: task }); // now, so that whatever it is told next comes after its task: `ready` is only a status
   record(hand, "task", task);
   console.log(`[${name}] ${task}`);
-  void follow(hand);
-  void proc.exited.then(() => {
-    if (!hand.closed && active(hand)) settle(hand, "failed", `its process ended unexpectedly: see ${runDir}`);
+  hand.starting = setTimeout(() => {
+    if (hand.gone || hand.closed) return;
+    hand.failure = `it did not start within ${READY_MS / 1000} s`;
+    hand.proc.kill();
+  }, READY_MS);
+  void follow(hand).catch(() => {});
+  const drained = drain(hand).catch(() => {});
+  void proc.exited.then(async (code) => {
+    await Promise.race([drained, new Promise((done) => setTimeout(done, 500))]); // its last words on stderr, unless something it started holds the pipe open
+    ended(hand, code);
   });
   changed();
   return hand;
@@ -117,6 +303,7 @@ async function follow(hand: Hand): Promise<void> {
     const lines = (pending + decoder.decode(chunk, { stream: true })).split("\n");
     pending = lines.pop() ?? "";
     for (const line of lines) {
+      if (!line.trim()) continue;
       try {
         heard(hand, JSON.parse(line));
       } catch (error) {
@@ -126,59 +313,126 @@ async function follow(hand: Hand): Promise<void> {
   }
 }
 
+/** A hand's stderr, into stderr.log in its run folder as it comes, with the last lines kept here to say why it went, if it goes. */
+async function drain(hand: Hand): Promise<void> {
+  const file = join(hand.runDir, "stderr.log");
+  const decoder = new TextDecoder();
+  let pending = "";
+  for await (const chunk of hand.proc.stderr) {
+    appendFileSync(file, chunk);
+    const lines = (pending + decoder.decode(chunk, { stream: true })).split(/\r?\n/);
+    pending = lines.pop() ?? "";
+    hand.stderr.push(...lines.map((line) => line.trim()).filter(Boolean));
+    hand.stderr.splice(0, Math.max(0, hand.stderr.length - STDERR_LINES));
+  }
+  if (pending.trim()) hand.stderr.push(pending.trim());
+}
+
 type HandEvent =
   | { type: "ready" | "clicked" }
-  | { type: "status"; status: Status; answer?: string }
+  | { type: "status"; status: Status; answer?: string; reason?: string }
   | { type: "tool"; name: string; args: string }
   | { type: "result"; error: boolean; text: string }
   | { type: "say"; text: string }
   | ({ type: "cue" } & Cue);
 
 function heard(hand: Hand, event: HandEvent): void {
-  if (event.type === "ready") tell(hand, { type: "prompt", text: hand.task });
-  else if (event.type === "tool") record(hand, "tool", `${event.name} ${event.args}`);
+  if (event.type === "ready") return void clearTimeout(hand.starting); // its task is already waiting for it
+  if (event.type === "tool") record(hand, "tool", `${event.name} ${event.args}`);
   else if (event.type === "result") record(hand, event.error ? "error" : "result", event.text);
   else if (event.type === "say") record(hand, "say", event.text);
   else if (event.type === "clicked") focus = hand.id; // the user clicked the hand itself: it has stopped where it was, and its card opens
   else if (event.type === "status") {
-    if (event.status === "working") hand.status = "working";
-    else settle(hand, event.status, event.answer ?? "");
+    clearTimeout(hand.starting);
+    if (event.status === "working") [hand.status, hand.reason, hand.last] = ["working", "", false];
+    else settle(hand, event.status, event.answer ?? "", event.reason ?? "");
   } else if (event.type === "cue") {
-    if (event.subject) [hand.window, hand.size] = [event.subject.window ?? null, event.subject.window === undefined ? null : (event.size ?? null)];
+    if (event.subject) {
+      const window = event.subject.window ?? null;
+      if (window !== hand.window) [hand.picture, hand.shot] = ["none", 0]; // a window of its own it has not been filmed in yet
+      [hand.window, hand.size] = [window, event.subject.window === undefined ? null : (event.size ?? null)];
+    }
     if (event.at) hand.at = event.at;
     if (event.pose) hand.glyph = POSES[event.pose][0];
     if (event.label && event.label !== hand.action && event.pose !== "think" && event.pose !== "look") hand.recent = [...hand.recent, event.label].slice(-RECENT);
     if (event.label !== undefined) hand.action = event.label;
+    if (event.seat) [hand.seat, hand.seatWhy] = event.seat.state === "free" ? ["", ""] : [event.seat.state, event.seat.why];
   }
   changed();
 }
 
-/** A run has ended. The voice hears how, and says so if there is something to say. */
-function settle(hand: Hand, status: Status, answer: string): void {
-  hand.status = status;
-  hand.answer = answer;
+/**
+ * A run has ended, and how. The voice is to say it when the hand is done (what it found, in a sentence or two), needs
+ * the user, or could not finish (and why); a stop or a pause, or anything more about a hand whose run was already
+ * over, it only knows. The card keeps the whole answer.
+ */
+function settle(hand: Hand, status: Status, answer: string, reason = "", quietly = false): void {
+  [hand.status, hand.answer, hand.reason, hand.seat, hand.seatWhy, hand.reported] = [status, answer, reason, "", "", false];
   record(hand, "status", status);
-  console.log(`[${hand.name}] ${status}${answer ? `: ${answer}` : ""}`);
-  if (status === "done") note(`${hand.name} has finished. Task: ${hand.task}\nWhat it reports: ${answer || "nothing"}`, true);
-  else if (status === "failed") note(`${hand.name} could not finish its task (${hand.task}). ${answer}`, true);
-  else note(`${hand.name} is now ${status}.`);
-}
-
-function close(hand: Hand): void {
-  hand.closed = true;
-  hand.proc.kill();
-  if (onWindows()) windows.removeDesktop(`Hands: ${hand.name}`); // killed, the hand cannot take its own desktop down
-  hands.delete(hand.id);
-  if (focus === hand.id) focus = null;
-  console.log(`[${hand.name}] closed`);
+  console.log(`[${hand.name}] ${status}${answer ? `: ${answer}` : ""}${reason ? ` (${reason})` : ""}`);
+  const summary = voiceSummary(status === "failed" ? reason || answer : answer);
+  if (quietly) aside(`${hand.name}'s process has ended${summary ? `: ${summary}` : "."}`);
+  else if (status === "stopped" || status === "paused") aside(`${hand.name} is now ${status}${summary ? `: ${summary}` : "."}`);
+  else if (status === "done") aloud(`${hand.name} has finished${summary ? `: ${summary}` : ", with nothing to report."} (Its task: ${cap(hand.task, TASK_CHARS)})`, hand);
+  else if (status === "needs_you") aloud(`${hand.name} needs you: ${summary || "it is waiting for you."}`, hand);
+  else if (status === "failed") aloud(`${hand.name} couldn't finish: ${summary || "it gave no reason."}`, hand);
   changed();
 }
 
-/** What the panel's buttons and the voice's tools both come down to. */
+/** A hand's process has ended. Unless it was dismissed, that is a failure, whatever it was doing, and the last lines of its stderr say why. */
+function ended(hand: Hand, code: number): void {
+  hand.gone = true;
+  clearTimeout(hand.starting);
+  leaving.delete(hand);
+  if (hand.closed) return;
+  const why = hand.failure || hand.stderr.slice(-3).join(" / ") || `its process ended (exit code ${code})`;
+  settle(hand, "failed", hand.answer, cap(why, 300), finished(hand));
+}
+
+/**
+ * Dismiss a hand, from the card and the voice's list at once. It is told to close (the browser windows it opened
+ * too, unless `keep`) and its stdin is ended, and whatever it has not done in CLOSE_MS it never will: it is ended from
+ * here, with the desktop it may have left. The voice knows, and says nothing of it.
+ */
+async function close(hand: Hand, keep = false): Promise<void> {
+  if (hand.closed) return;
+  hand.closed = true;
+  clearTimeout(hand.starting);
+  hands.delete(hand.id);
+  if (focus === hand.id) focus = null;
+  console.log(`[${hand.name}] closed${keep ? ", its windows left where they are" : ""}`);
+  aside(`${hand.name} was dismissed.`);
+  changed();
+  if (hand.gone) return end(hand);
+  leaving.add(hand);
+  tell(hand, keep ? { type: "close", keep } : { type: "close" });
+  try {
+    hand.proc.stdin.end();
+  } catch {}
+  const code = await Promise.race([hand.proc.exited, new Promise<null>((done) => setTimeout(done, CLOSE_MS, null))]);
+  leaving.delete(hand);
+  if (code === 0) return; // it put its windows away and went
+  if (code === null) console.log(`[${hand.name}] did not go when asked: ended`);
+  end(hand); // and one that went some other way (a Ctrl-C reaches every process in the console) took nothing down
+}
+
+/** End a hand's process from here, and take down the desktop it may have left: unless another hand goes by its name now (`all`: at exit, when every hand is going). */
+function end(hand: Hand, all = false): void {
+  try {
+    hand.proc.kill();
+  } catch {} // already gone
+  if (onWindows() && windows.desktopsEnabled() && (all || !hands.has(hand.id))) windows.removeDesktop(`Hands: ${hand.name}`);
+}
+
+/** What the panel's buttons and the voice's tools both come down to. A hand that has finished is given new work; one still at it keeps its task, and the latest word on it. */
 function steer(hand: Hand, text: string): void {
+  const fresh = finished(hand);
+  hand.task = steered(hand.task, text, !fresh);
+  if (fresh) hand.since = Date.now();
+  [hand.answer, hand.reason, hand.reported, hand.last] = ["", "", false, false];
   record(hand, "steer", text);
-  hand.answer = "";
   tell(hand, { type: "steer", text });
+  changed();
 }
 
 // ------------------------------------------------------------------ the voice
@@ -186,7 +440,7 @@ function steer(hand: Hand, text: string): void {
 const MACHINE = onWindows() ? "Windows PC" : "Mac"; // the one word of these prompts that differs by platform
 
 export const FRONTEND = `Personality:
-You are Hands, the voice of a small team of agents, called hands, that work the user's ${MACHINE} for them. The user holds a key, says what they want, and lets go. Be brief and warm, like a capable colleague: a few words, never a speech. Never read out URLs, ids, or long lists.
+You are Hands, the voice of a small team of agents, called hands, that work the user's ${MACHINE} for them. The user holds a key, says what they want, and lets go. Be brief and warm, like a capable colleague: a few words, never a speech. Never read out URLs, ids, file paths, or long lists. Speak English, unless the user's latest turn is in another language: then answer in that one.
 
 Backchannel policy:
 The user speaks in short push-to-talk bursts. Make no listening sounds while they speak.
@@ -196,77 +450,133 @@ If the user starts talking while you are speaking, stop and listen.
 
 Delegation policy:
 Backend tools:
-- Hands: start one hand or several on tasks, steer a hand that is working, stop or close hands, and look up how each hand is doing.
+- Hands: start one hand or several on tasks, steer a hand, stop or close hands, and look up how each hand is doing.
 
 You cannot do, open, look up, work out, or check anything yourself, and you never answer from your own knowledge. When the user asks for something, a hand does it on their ${MACHINE}, and you report what the hand found. "Open the calculator and work out twelve times twelve" is work for a hand, not a sum for you to do.
 
 Delegate to the backend when:
 - The user asks for anything at all to be done, opened, found, worked out, written or checked, however small or easy it seems.
 - The user corrects, redirects, pauses, resumes, stops or closes a hand, or changes a task in progress.
+- The user adds a detail to a task already given: a spelling, a name, a number. It goes to the hand that has the task.
 - The user asks how a hand is doing, and the notes you have been given do not already answer it.
 
 Do not delegate to the backend when:
 - The user greets you, thanks you, or asks you to repeat something you already said.
-- You cannot tell what they want without a brief clarifying question.
+- You cannot tell what they want without a brief clarifying question. A request whose words are all there is complete: do not ask for more.
 - A note you were given already answers the question.
+- The user takes back what they asked in the same breath ("find me somewhere to eat... actually, never mind"). A correction cancels what it corrects: only what is left is asked for.
 
-Delegate before giving an answer that depends on backend work. You do not know a result until a note tells you a hand has finished and what it reports. Until then say only that it is being done: never a number, an answer, or "done", not even one you could work out yourself, because the user asked for it to be done on their computer and is watching it happen.
-After delegating, confirm in a few words ("On it." "Two hands on it."), once. What the backend then tells you it did is for you to know, not to announce again.
-If the user cuts in with a correction or an addition, delegate it together with what it corrects, so the backend sees both.
-You are given notes about what the hands are doing and what they found. When a hand finishes, tell the user what it found in a sentence or two.`;
+After delegating, confirm once, in a few words ("On it." "Two hands on it."). The backend's reply is for you to know: say nothing about it, unless it reports an error.
 
-export const BACKEND = `You dispatch work to hands: agents that each operate one ${MACHINE} app or one browser window at a time, in the background, by themselves. You do not do tasks yourself and you cannot see the screen. You only call tools.
+What you may say:
+- You do not know a result until a note tells you a hand has finished and what it found. Until then say only that it is being done. Sent, done, booked, bought, a number, or any other result may come only from a note that says a hand finished, and must match what that note says.
+- Never say you are doing, redoing or checking something you have not just delegated.
+- Never ask the user to do anything, unless a note says a hand needs them to.
+- Never tell the user to restart anything, or to change how the hands work.
 
-Act on the user's latest words in the light of everything before them. A short turn such as "yes", "make it four" or "not that one" means what it means given what came before, and a turn that cut in on an earlier one adds to it or corrects it: steer the hand that is already on it rather than starting another. Do not redo what you have already done.
+Notes:
+You are given notes about the hands. One that says a hand has finished, needs the user, or couldn't finish is for the user: tell them in a sentence or two, in your own words, once. A note marked "for you to know" is context, not something to answer: say nothing because of it.`;
+
+export const BACKEND = `You dispatch work to hands: agents that each work the user's ${MACHINE} in apps and browser windows of their own, behind the user's windows, and borrow the user's mouse and keyboard for a moment when they must. You do not do tasks yourself and you cannot see the screen. You only call tools.
+
+Act on the user's latest words in the light of everything before them. A short turn such as "yes", "make it four" or "not that one" means what it means given what came before. A turn that cut in on an earlier one adds to it or corrects it, and a correction in the same breath cancels what it corrects. A turn that only adds a detail (a spelling, a name, a number) goes with steer_hand to the hand that has the task. A task a hand is already on (see "Hands out right now") is steered, not started again. Every turn that asks for something ends in a tool call, or in one short question when you truly cannot tell what is wanted.
 
 Every task is carried out by operating the user's ${MACHINE}, and that is the point: the user wants it done on their computer, in the app or on the site they named ("open the calculator and work out 12 times 12" is a task for the Calculator app, not arithmetic). Never tell a hand to avoid the computer, never water a request down, and add no restrictions the user did not ask for.
 
-- start_hands: one task per hand. Use several hands only when the parts are independent (different apps, sites, or lookups); otherwise one. A hand knows nothing of this conversation, so each task must stand alone: put every detail it needs into it, as a plain instruction, and keep what the user said about how: the app or site they named, their numbers, names and wording. At most ${MAX_HANDS} hands can be out at once.
-- Two hands must not work in the same app at the same time, except the browser, where each gets a window of its own.
-- steer_hand: the user adds to, corrects, or redirects what a hand is doing, or gives a finished or stopped hand something new. Phrase it as an instruction to that hand. "Carry on" resumes a paused hand.
+- start_hands: one task per hand. Use several hands only when the parts are independent (different apps, sites, or lookups); otherwise one. A hand knows nothing of this conversation, so each task must stand alone: put every detail it needs into it, as a plain instruction, and keep what the user said about how: the app or site they named, their numbers, names and wording. At most ${MAX_HANDS} hands can be out at once; the oldest finished one makes way for a new one.
+- A hand works in windows it opened itself, never in the user's own windows or tabs. When the user means theirs ("close my Chrome windows", "the document I have open"), say so in the task.
+- Two hands must not work in the same app at the same time, except the browser, where each has a window of its own.
+- steer_hand: the user adds to, corrects, or redirects what a hand is doing, answers a hand that needs them, or gives a finished or stopped hand something new. Phrase it as an instruction to that hand. "Carry on" resumes a paused hand.
 - stop_hands halts hands but keeps them, so they can still be asked about or steered. close_hands dismisses them for good.
 - get_hands: read it before answering anything about progress or results.
 Hands are referred to by name; "all" means every hand.
 
-When the tools have returned, reply with one short sentence on what you did, for the voice to know. If the latest words needed nothing from you (thanks, small talk), call no tools and say so in three words. Never invent a result.`;
+Never tell a hand how to work: which tools, which windows, foreground or background. It knows its own way. Never tell a hand or the user to restart anything.
+
+When the tools have returned, reply in this form and nothing more: "Asked Lefty to <what, in a few words>; waiting." For several hands: "Asked Lefty to …; asked Righty to …; waiting." For close_hands: "Dismissed Lefty." When a tool returned an error, say what it was in one short sentence instead. After get_hands, answer the question in a sentence or two from what it says, and nothing it does not say. When the latest words needed nothing from you (thanks, small talk), call no tools and reply "Nothing to do." Never invent a result.`;
 
 const WHICH = { type: "string", description: 'A hand\'s name, or "all".' };
 const TOOLS = [
-  { type: "function", name: "start_hands", strict: true, description: "Start one new hand per task.", parameters: { type: "object", additionalProperties: false, required: ["tasks"], properties: { tasks: { type: "array", items: { type: "string", description: "A task that stands alone, as an instruction." } } } } },
-  { type: "function", name: "steer_hand", strict: true, description: "Tell a hand something: a correction, an addition, a new task, or to carry on.", parameters: { type: "object", additionalProperties: false, required: ["hand", "message"], properties: { hand: WHICH, message: { type: "string" } } } },
+  { type: "function", name: "start_hands", strict: true, description: "Start one new hand per task. A task a hand is already on gives that hand back instead.", parameters: { type: "object", additionalProperties: false, required: ["tasks"], properties: { tasks: { type: "array", items: { type: "string", description: "A task that stands alone, as an instruction." } } } } },
+  { type: "function", name: "steer_hand", strict: true, description: "Tell a hand something: a correction, an addition, an answer it needs, a new task, or to carry on.", parameters: { type: "object", additionalProperties: false, required: ["hand", "message"], properties: { hand: WHICH, message: { type: "string" } } } },
   { type: "function", name: "stop_hands", strict: true, description: "Halt hands where they are. They stay, and can be steered again.", parameters: { type: "object", additionalProperties: false, required: ["hands"], properties: { hands: { type: "array", items: WHICH } } } },
   { type: "function", name: "close_hands", strict: true, description: "Dismiss hands for good.", parameters: { type: "object", additionalProperties: false, required: ["hands"], properties: { hands: { type: "array", items: WHICH } } } },
-  { type: "function", name: "get_hands", strict: true, description: "Every hand: its status, task, what it is doing, its last few actions, and what it reported.", parameters: { type: "object", additionalProperties: false, required: [], properties: {} } },
+  { type: "function", name: "get_hands", strict: true, description: "Every hand, the ones still at it first: its status, task, what it is doing, and what came of it, each cut short. An answer already told to the user is marked so.", parameters: { type: "object", additionalProperties: false, required: [], properties: {} } },
 ]; // prettier-ignore
 
-/** One tool call from the backend, done. What comes back is what the backend reads. */
+/** One tool call from the backend, done. What comes back is what is known, and no more: a hand that has been asked has not yet done anything. */
 export function dispatch(name: string, args: Record<string, unknown>, runs: string): unknown {
-  const wanted = (key: string): Hand[] => named(hands.values(), [args[key]].flat().map(String));
   if (name === "start_hands") {
     return (args.tasks as string[]).map((task) => {
+      const already = [...hands.values()].find((one) => !finished(one) && !one.gone && sameTask(one.task, task));
+      if (already) return { hand: already.name, state: "already on it", result: "pending" };
       const started = startHand(task, runs);
-      return started ? { hand: started.name, task } : { task, error: `${MAX_HANDS} hands are already out: close one first` };
+      return started ? { hand: started.name, state: "started", result: "pending" } : { task, error: `${MAX_HANDS} hands are out and none has finished: stop or close one first` };
     });
   }
-  if (name === "get_hands") return snapshot(hands.values());
-  const found = wanted(name === "steer_hand" ? "hand" : "hands");
+  if (name === "get_hands") return hands.size ? ordered(hands.values()).map((one) => brief(one)) : "No hands are out.";
+  const found = named(hands.values(), [args[name === "steer_hand" ? "hand" : "hands"]].flat().map(String));
   if (!found.length) return { error: `no such hand. Out now: ${[...hands.values()].map((h) => h.name).join(", ") || "none"}` };
-  for (const one of found) {
-    if (name === "steer_hand") steer(one, String(args.message));
-    else if (name === "stop_hands") tell(one, { type: "stop" });
-    else if (name === "close_hands") close(one);
-  }
-  return { ok: found.map((one) => one.name) };
+  const outcomes = found.map((one) => {
+    if (name === "close_hands") {
+      void close(one);
+      return { hand: one.name, state: "dismissed" };
+    }
+    if (one.gone) return { hand: one.name, error: `${one.name} has gone: its process ended. Start a new hand if its task is still wanted.` };
+    if (name === "steer_hand") {
+      steer(one, String(args.message));
+      return { hand: one.name, state: "instruction delivered", result: "pending" };
+    }
+    if (name !== "stop_hands") return { hand: one.name, error: `no tool called ${name}` };
+    if (one.status !== "working" && one.status !== "starting") return { hand: one.name, state: `not working: ${one.status}` };
+    tell(one, { type: "stop" });
+    return { hand: one.name, state: "stop requested", result: "pending" };
+  });
+  return outcomes.length === 1 ? outcomes[0] : outcomes;
 }
 
-const voice: VoiceView = { state: "idle", heard: "", said: "", notice: "" };
+/** The backend's standing picture of the hands: who is out and on what. What each is doing this minute it gets from get_hands. */
+const backendPrompt = (): string => `${BACKEND}\n\nHands out right now:\n${ordered(hands.values()).map((one) => `- ${one.name} [${one.status}]: ${cap(one.task, TASK_CHARS)}`).join("\n") || "none"}`;
+let toldBackend = "";
+let runsDir = "";
+
+/** What a new session is told of what came before: the conversation's last turns, and how the hands stand. Null when there is nothing to tell. */
+export function context(turns: string[], hands: string): string | null {
+  const parts: string[] = [];
+  if (turns.length) parts.push(`The conversation so far, for you to know. All of it has been answered: do not answer it again, or repeat any of it.\n${turns.join("\n")}`);
+  if (hands) parts.push(`The hands now, for you to know:\n${hands}`);
+  return parts.length ? parts.join("\n\n") : null;
+}
+
+/** A piece of the voice's transcript added to what it has said so far: a new sentence gets its space, even from a piece that came without one. */
+export const joined = (said: string, delta: string): string => (said && /[.!?…]$/.test(said) && /^[^\s.,!?;:]/.test(delta) ? `${said} ${delta}` : said + delta);
+
+const turns: string[] = []; // the conversation, a line a turn, for the next session
+function addTurn(line: string): void {
+  turns.push(line);
+  turns.splice(0, Math.max(0, turns.length - TURNS));
+}
+
+const UNREACHABLE = "Can't reach the voice. Retrying…";
+const MIC_NOTICE = onWindows() ? "Your microphone is silent: check Windows' microphone privacy settings" : "Your microphone is silent: check System Settings > Privacy & Security > Microphone";
+const NO_MIC = "No microphone to listen with: check that one is plugged in and allowed";
+
+/** What the dock shows of the voice. */
+export const voice: VoiceView = { state: "idle", heard: "", said: "", notice: "" };
 let live: LiveWS | null = null;
 let started: Promise<void> | null = null;
-let ready = false; // the session has started: audio may be sent
-let spokenAt = Date.now(); // when anything last happened in the conversation: an open session costs by the minute
+let ready = false; // the session has started and not closed: audio and notes may be sent
+let spokenAt = Date.now(); // when the user last let go of the key or the backend last did something: an open session costs by the minute
+let failures = 0; // sessions in a row that never started
+let retry: ReturnType<typeof setTimeout> | undefined;
 let quiet: ReturnType<typeof setTimeout> | undefined;
+let turn: { up: number; audio?: number; tool?: number } | null = null; // the latest press, from the key coming up: how long the voice took to answer it
+const toSay: { text: string; hand?: Hand }[] = []; // notes for the voice to say, once nobody is talking
 
-const sendLive = (event: object) => live?.send(event as never);
+/** Everything but a session's start goes to a session that has started and has not closed: sent to one that has closed, it would be lost. */
+const sendLive = (event: object) => {
+  if (ready) live?.send(event as never);
+};
 
 // The guide's loop, and nothing on top of it. "Supply a continuous microphone stream paced at its recorded sample rate":
 // gpt-live-1 is full duplex and "manages when to listen and speak as audio streams continuously", so an open session is
@@ -287,71 +597,163 @@ function hum(): void {
   for (due = Math.max(due, now - 1000); due <= now; due += CHUNK_MS) hear(SILENCE); // a Mac that slept does not owe the hours
 }
 
-/** Tell the voice something: `session.commentary.append` for it to say, `session.thinking.append` for it to know. A closed session is opened for it. */
-function note(content: string, aloud = false): void {
-  spokenAt = Date.now();
-  void connect()
-    .then(() => sendLive({ type: aloud ? "session.commentary.append" : "session.thinking.append", delegation_id: null, content: content.slice(0, NOTE_CHARS) }))
-    .catch(() => {});
+/** For the voice to say, once nobody is talking: kept until then, and a session opened for it if there is none. */
+function aloud(text: string, hand?: Hand): void {
+  toSay.push({ text, hand });
+  flushNotes();
 }
 
-/** How the hands are getting on, for the voice to know: while they are working, when something has changed, and not while anyone is talking. */
-let told = "";
-function progress(): void {
-  const now = snapshot(hands.values());
-  if (!live || !ready || feed || voice.state !== "idle" || now === told || ![...hands.values()].some(active)) return;
-  told = now;
-  sendLive({ type: "session.thinking.append", delegation_id: null, content: `How the hands are getting on:\n${now}` });
+/** For the voice to know, and not to say, now. A session that is not open is told how things stand when it starts. */
+function aside(text: string): void {
+  sendLive({ type: "session.thinking.append", delegation_id: null, content: `For you to know, not to say: ${text}`.slice(0, NOTE_CHARS) });
+}
+
+/** What the voice is to say goes to it together, when the key is not held and it is neither listening, thinking nor speaking. */
+function flushNotes(): void {
+  if (!toSay.length || feed || voice.state !== "idle") return;
+  if (!ready) return void connect().then(flushNotes, () => {});
+  const told = toSay.splice(0);
+  sendLive({ type: "session.commentary.append", delegation_id: null, content: told.map((one) => one.text).join("\n").slice(0, NOTE_CHARS) });
+  for (const one of told) if (one.hand) one.hand.reported = true;
 }
 
 function setVoice(state: VoiceView["state"]): void {
   if (voice.state === state) return;
   voice.state = state;
   changed();
+  if (state === "idle") flushNotes();
 }
 
-/** The Live session, as in the guide: `LiveWS`, `session.start`, and handlers for what comes back. Started at launch, and again after an idle one was closed. */
+function setNotice(notice: string): void {
+  if (voice.notice === notice) return;
+  voice.notice = notice;
+  changed();
+}
+
+/** The session could not be started: the dock says so, and another try is made a little later than the last. */
+function unreachable(session: LiveWS | null, why: string): void {
+  if (session && live === session) [live, started, ready] = [null, null, false];
+  console.error(`[voice] ${why}`);
+  [voice.state, voice.notice] = ["offline", UNREACHABLE];
+  changed();
+  clearTimeout(retry);
+  retry = setTimeout(() => void connect().catch(() => {}), RETRY_MS[Math.min(failures++, RETRY_MS.length - 1)]);
+}
+
+/** Let the voice go: no session, no more tries, and nothing left to say. */
+export function hangUp(): void {
+  clearTimeout(retry);
+  clearTimeout(quiet);
+  const session = live;
+  [live, started, ready, failures] = [null, null, false, 0];
+  toSay.length = 0;
+  [voice.state, voice.heard, voice.said, voice.notice] = ["idle", "", "", ""];
+  try {
+    session?.close();
+  } catch {} // it had gone already
+}
+
+/** The voice's reply has ended: its line in the log, and in the conversation a new session is told. */
+function endReply(): void {
+  clearTimeout(quiet);
+  const text = voice.said.trim();
+  voice.said = "";
+  if (!text) return;
+  console.log(`[voice] “${text}”`);
+  addTurn(`You: ${text}`);
+}
+
+/**
+ * The Live session, as in the guide: `LiveWS`, `session.start`, and handlers for what comes back. Started at launch,
+ * and again when needed after an idle one was closed, told the conversation so far. One that has not started in
+ * CONNECT_MS is given up on, and the dock says the voice cannot be reached until a later try gets through.
+ */
 function connect(): Promise<void> {
   if (live && started) return started;
-  const session = (live = new LiveWS(new OpenAI()));
-  started = new Promise((resolveStarted, reject) => {
-    session.on("session.started", () => {
-      ready = true;
-      resolveStarted();
-    });
-    session.on("close", () => {
-      if (live === session) [live, started, ready] = [null, null, false];
-      reject(new Error("the voice hung up"));
-      setVoice("idle");
-    });
+  clearTimeout(retry);
+  let session: LiveWS;
+  try {
+    session = outside.voice();
+  } catch (error) {
+    unreachable(null, (error as Error).message);
+    return Promise.reject(error);
+  }
+  live = session;
+  const current = () => live === session;
+  let replyEnd = Number.NEGATIVE_INFINITY; // on this session's timeline, where the voice's transcript last left off
+  const attempt = Promise.withResolvers<void>();
+  started = attempt.promise;
+  attempt.promise.catch(() => {});
+  const timer = setTimeout(() => {
+    if (!current() || ready) return;
+    attempt.reject(new Error("the voice did not answer"));
+    unreachable(session, `the voice did not answer in ${CONNECT_MS / 1000} s`);
+    session.close();
+  }, CONNECT_MS);
+  /** The session is over, from either end: it is let go of at once, so that nothing more is sent to it and the next press opens another. */
+  const lost = (): void => {
+    if (!current()) return; // one already let go of: closed for idling, or given up on
+    const began = ready;
+    [live, started, ready] = [null, null, false];
+    if (!began) return unreachable(null, "the voice hung up before the session started");
+    if (feed) return void connect().catch(() => {}); // mid-sentence: the rest of it goes to a new session
+    if (voice.state === "speaking" || voice.state === "thinking") setVoice("idle");
+  };
+  session.on("session.started", () => {
+    clearTimeout(timer);
+    if (!current()) return;
+    ready = true;
+    failures = 0;
+    if (voice.notice === UNREACHABLE) voice.notice = "";
+    if (voice.state === "offline" || voice.state === "connecting") voice.state = feed ? "listening" : "idle";
+    changed();
+    attempt.resolve();
+    flushNotes();
   });
-  started.catch(() => {});
+  session.on("close", () => {
+    clearTimeout(timer);
+    attempt.reject(new Error("the voice hung up"));
+    lost();
+  });
+  session.on("session.closed", () => {
+    lost(); // finalized: nothing more may be sent
+    session.close();
+  });
   session.on("error", (error) => console.error(`[voice] ${error.message}`));
-  session.on("session.closed", () => session.close()); // finalized: the socket can go
   if (process.env.HANDS_DEBUG) session.on("event", (event) => /audio|transcript/.test(event.type) || console.error(`[live] ${JSON.stringify(event).slice(0, 400)}`));
 
-  // Captions: what it heard, and what it is saying.
-  session.on("session.input_transcript.delta", ({ delta }) => ((voice.heard += delta), changed()));
-  session.on("session.output_transcript.delta", ({ delta }) => {
-    voice.said += delta;
-    spokenAt = Date.now();
-    if (voice.state !== "listening") setVoice("speaking");
+  // Captions: what it heard, and what it is saying, a reply at a time.
+  session.on("session.input_transcript.delta", ({ delta }) => {
+    if (!current()) return;
+    voice.heard += delta;
+    changed();
+  });
+  session.on("session.output_transcript.delta", ({ delta, start_ms, end_ms }) => {
+    if (!current() || feed) return; // said over the user, whose key keeps its sound from the speaker too: not heard
+    logHeard(); // the user's turn is over, as far as the voice is concerned
+    if (voice.said && start_ms - replyEnd > REPLY_GAP_MS) endReply();
+    voice.said = joined(voice.said, delta);
+    replyEnd = end_ms;
+    if (voice.state !== "listening" && voice.state !== "connecting") setVoice("speaking");
     clearTimeout(quiet);
     quiet = setTimeout(() => {
-      if (voice.state !== "speaking") return;
-      console.log(`[voice] “${voice.said.trim()}”`);
-      voice.said = "";
-      setVoice("idle");
-    }, 2000);
+      endReply();
+      if (voice.state === "speaking") setVoice("idle");
+    }, QUIET_MS);
     changed();
   });
 
   // Its speech: "decode delta from each session.output_audio.delta event and queue the audio for playback in order".
   // Except while the key is held: the microphone is open, and the voice is stopping anyway now that it hears the user.
   session.on("session.output_audio.delta", ({ delta }) => {
-    if (feed) return;
+    if (!current() || feed) return;
+    if (turn && turn.audio === undefined) console.log(`[timing] the voice spoke ${Math.round((turn.audio = performance.now() - turn.up))} ms after the key came up`);
     const pcm = Buffer.from(delta, "base64");
-    if (!quietly) shell?.speaker.play(pcm);
+    try {
+      if (!quietly) shell?.speaker.play(pcm);
+    } catch (error) {
+      console.error(`[speaker] ${(error as Error).message}`);
+    }
     keep("voice", pcm); // the tape has the voice even when the room does not
   });
 
@@ -359,11 +761,12 @@ function connect(): Promise<void> {
   // completed: then every call is carried out, answered with a function_call_output, and the response continued.
   const calls = new Map<string, { name: string; arguments: string }>();
   session.on("response.event", ({ event }) => {
-    spokenAt = Date.now();
+    if (!current()) return;
     const item = event.item as { type?: string; call_id?: string; name?: string; arguments?: string } | undefined;
     if (event.type === "response.output_item.done" && item?.type === "function_call" && item.call_id) calls.set(item.call_id, { name: item.name ?? "", arguments: item.arguments ?? "{}" });
     if (event.type !== "response.completed" || !calls.size) return;
     for (const [call_id, call] of calls) {
+      spokenAt = Date.now();
       let output: unknown;
       try {
         output = dispatch(call.name, JSON.parse(call.arguments), runsDir);
@@ -371,75 +774,125 @@ function connect(): Promise<void> {
         output = { error: String(error) };
       }
       console.log(`[backend] ${call.name} ${call.arguments} -> ${JSON.stringify(output)}`);
+      if (turn && turn.tool === undefined) console.log(`[timing] ${call.name} ${Math.round((turn.tool = performance.now() - turn.up))} ms after the key came up`);
+      addTurn(`Backend: ${call.name} ${cap(call.arguments, 200)} -> ${cap(JSON.stringify(output), 200)}`);
       sendLive({ type: "response.item.create", item: { type: "function_call_output", call_id, output: JSON.stringify(output) } });
     }
     calls.clear();
     sendLive({ type: "response.create" });
   });
 
-  sendLive({
+  const told = context(turns, hands.size ? snapshot(hands.values()) : "");
+  const start = {
     type: "session.start",
     session: {
       model: config.liveModel(),
       audio: { format: { type: "audio/pcm", rate: 24000 }, output: { voice: config.liveVoice() } },
       instructions: FRONTEND,
-      // A session started again, after an idle one was closed, is told how things stand; the hands outlive sessions.
-      input: hands.size ? [{ type: "message", role: "developer", content: [{ type: "input_text", text: `How the hands are getting on:\n${snapshot(hands.values())}` }] }] : undefined,
+      // A session started again, after an idle one was closed, is told what was said and how things stand; the hands outlive sessions.
+      input: told ? [{ type: "message", role: "developer", content: [{ type: "input_text", text: told }] }] : undefined,
       delegation: { type: "responses", responses: { model: config.liveBackend(), instructions: (toldBackend = backendPrompt()), tools: TOOLS, parallel_tool_calls: true, reasoning: { effort: "low" } } },
     },
-  });
-  return started;
-}
-
-/** The backend's standing picture of the hands: who is out and on what. What each is doing this minute it gets from get_hands. */
-const backendPrompt = () => `${BACKEND}\n\nHands out right now:\n${[...hands.values()].map((one) => `- ${one.name} [${one.status}]: ${one.task}`).join("\n") || "none"}`;
-let toldBackend = "";
-let runsDir = "";
-
-/** The key: this application's control of its microphone. Down, the voice hears the room; up, it hears silence again. */
-function talk(phase: Talk): void {
-  if (!shell) return;
-  spokenAt = Date.now();
-  if (phase === "down") {
-    shell.speaker.hush(); // talking over it stops it, here at once and there as soon as it hears the user
-    [voice.heard, voice.said] = ["", ""];
-    const waiting: string[] = []; // what is said while a session is still being started: "buffer the opening speech through connection setup"
-    let open = false;
-    connect()
-      .then(() => {
-        for (const audio of waiting.splice(0)) hear(audio);
-        open = true;
-      })
-      .catch((error) => (console.error(`[voice] ${error.message}`), setVoice("idle")));
-    setVoice("listening");
-    announce(); // at once: the panel's answer to the key is what makes it feel held
-    fromFile = speaking;
-    if (!fromFile) console.log("[key] listening…");
-    let chunks = 0;
-    feed = (pcm) => {
-      keep("you", pcm);
-      const audio = Buffer.from(pcm).toString("base64");
-      if (open) hear(audio);
-      else waiting.push(audio);
-      if (chunks++ % 2) return; // the panel's fingers move with the voice: a dozen times a second is plenty
-      const samples = new Int16Array(pcm.buffer, pcm.byteOffset, pcm.length >> 1);
-      let peak = 0;
-      for (let at = 0; at < samples.length; at += 4) peak = Math.max(peak, Math.abs(samples[at]!));
-      publish({ type: "level", value: Math.min(1, Math.sqrt(peak / 12000)) });
-    };
-    if (!speaking) shell.mic.listen((pcm) => feed?.(pcm)); // beginning with what the microphone remembered from just before the key went down
-    return;
-  }
-  feed = null;
-  shell.mic.rest(warm);
-  setVoice(phase === "up" ? "thinking" : "idle");
-  announce();
-  if (phase !== "up") return void (fromFile || console.log("[key] let go too soon, or a key was typed with it: ignored"));
-  if (!fromFile) setTimeout(() => console.log(`[you] ${voice.heard.trim() || "(nothing was heard)"}`), 2000); // the transcript trails the speech
-  setTimeout(() => voice.state === "thinking" && setVoice("idle"), 12_000);
+  };
+  session.send(start as never);
+  return attempt.promise;
 }
 
 let feed: ((pcm: Uint8Array) => void) | null = null;
+let tail: ReturnType<typeof setTimeout> | undefined;
+let thinking: ReturnType<typeof setTimeout> | undefined;
+let heardLine: ReturnType<typeof setTimeout> | undefined;
+let loudest = 0; // the loudest sample of the press under way
+
+/** What the voice heard of the last press, into the log and the conversation: once, when its reply begins, at the next press, or a little after the key came up. */
+function logHeard(): void {
+  if (heardLine === undefined) return;
+  clearTimeout(heardLine);
+  heardLine = undefined;
+  const text = voice.heard.trim();
+  console.log(`[you] ${text || "(nothing was heard)"}`);
+  if (text) addTurn(`User: ${text}`);
+}
+
+/**
+ * The key: this application's control of its microphone. Down (held alone long enough to mean it), the voice hears
+ * the room, from a moment before; up, it hears the last syllable out and then silence again; cancel (a key typed after
+ * all), it hears silence at once.
+ */
+export function talk(phase: Talk, body = shell): void {
+  if (!body) return;
+  if (phase === "down") return press(body);
+  clearTimeout(tail);
+  if (phase === "cancel") {
+    feed = null;
+    body.mic.rest(warm);
+    if (voice.state !== "offline") setVoice("idle");
+    announce();
+    return void (fromFile || console.log("[key] a key was typed with it: ignored"));
+  }
+  spokenAt = Date.now();
+  turn = { up: performance.now() };
+  clearTimeout(thinking);
+  if (voice.state !== "offline") setVoice("thinking"); // offline, the dock goes on saying why nobody heard
+  announce();
+  const held = feed;
+  tail = setTimeout(() => {
+    if (feed !== held) return; // pressed again meanwhile: that press has the microphone now
+    feed = null;
+    body.mic.rest(warm);
+  }, TAIL_MS);
+  thinking = setTimeout(() => voice.state === "thinking" && setVoice("idle"), THINKING_MS);
+  if (fromFile) return;
+  heardLine = setTimeout(logHeard, HEARD_MS);
+  if (loudest >= MIC_SILENT) {
+    if (voice.notice === MIC_NOTICE || voice.notice === NO_MIC) setNotice("");
+  } else if (!voice.notice) setNotice(MIC_NOTICE); // a voice that cannot be reached is the thing to say first
+}
+
+function press(shell: Shell): void {
+  clearTimeout(tail);
+  clearTimeout(thinking);
+  logHeard(); // the last press's words, if their line is still to come
+  endReply(); // and what the voice was saying, which this cuts off
+  shell.speaker.hush(); // talking over it stops it, here at once and there as soon as it hears the user
+  voice.heard = "";
+  loudest = 0;
+  turn = null;
+  const waiting: string[] = []; // what is said while a session is still being started: "buffer the opening speech through connection setup"
+  let open = false;
+  if (ready) setVoice("listening");
+  else if (voice.state !== "offline") setVoice("connecting"); // and listening once the session has started; offline, the dock goes on saying why, and a try is made now
+  connect()
+    .then(() => {
+      for (const audio of waiting.splice(0)) hear(audio);
+      open = true;
+    })
+    .catch(() => void (waiting.length = 0));
+  announce(); // at once: the panel's answer to the key is what makes it feel held
+  fromFile = speaking;
+  if (!fromFile) console.log("[key] listening…");
+  let chunks = 0;
+  const mine = (pcm: Uint8Array) => {
+    keep("you", pcm);
+    const audio = Buffer.from(pcm).toString("base64");
+    if (open) hear(audio);
+    else waiting.push(audio);
+    const samples = new Int16Array(pcm.buffer, pcm.byteOffset, pcm.length >> 1);
+    let peak = 0;
+    for (let at = 0; at < samples.length; at += 4) peak = Math.max(peak, Math.abs(samples[at]!));
+    loudest = Math.max(loudest, peak);
+    if (chunks++ % 2 || (voice.state !== "listening" && voice.state !== "connecting")) return; // the panel's fingers move with the voice: a dozen times a second is plenty
+    publish({ type: "level", value: Math.min(1, Math.sqrt(peak / 12000)) });
+  };
+  feed = mine;
+  if (speaking) return;
+  try {
+    shell.mic.listen((pcm) => feed?.(pcm)); // beginning with what the microphone remembered from just before the key was a press
+  } catch (error) {
+    console.error(`[mic] ${(error as Error).message}`);
+    setNotice(NO_MIC);
+  }
+}
 
 // ------------------------------------------------------------------ the tape
 
@@ -475,7 +928,7 @@ function writeTape(path: string): void {
   writeFileSync(`${path}.json`, JSON.stringify({ startedAt: tape.startedAt }));
 }
 let quietly = false; // `--quiet`: the voice is read off the panel, not heard
-let warm = true; // the microphone stays open between presses, remembering its last third of a second (`--cold-mic` turns that off)
+let warm = true; // the microphone stays open between presses, remembering its last half second (`--cold-mic` turns that off)
 let speaking = false; // `--say`: the words come from a file, not the microphone
 let fromFile = false; // and so did the turn being taken
 
@@ -503,6 +956,7 @@ async function say(text: string, runs: string): Promise<void> {
   }
   const pcm = samplesOf(new Uint8Array(await Bun.file(wav).arrayBuffer()));
   console.log(`[you] ${text}`);
+  addTurn(`User: ${text}`);
   speaking = true;
   shell?.holdKey(true);
   await Bun.sleep(300);
@@ -518,6 +972,7 @@ let shell: Shell | null = null;
 let focus: string | null = null;
 const viewers = new Set<Bun.ServerWebSocket<unknown>>();
 let dirty = false;
+let visible: Set<string> | null = null; // the hands whose cards show a picture, as the page last said: until it says, every one
 
 const publish = (message: ServerMessage) => {
   for (const viewer of viewers) viewer.send(JSON.stringify(message));
@@ -532,26 +987,39 @@ function changed(): void {
 
 /** The state of things, to the panel, now. */
 function announce(): void {
-  {
-    dirty = false;
-    const views = [...hands.values()].map(({ proc, log, recent, window, closed, ...view }): HandView => view);
-    publish({ type: "state", hands: views, voice, focus, room: shell?.panel.room() ?? 800, talkKey: TALK_KEY.replace(/ key$/, "") });
-    if (focus) shell?.panel.focus(true);
-    focus = null; // said once: the card opens, and is the page's from then on
-    if (live && ready && toldBackend !== (toldBackend = backendPrompt())) sendLive({ type: "session.update", session: { delegation: { type: "responses", responses: { instructions: toldBackend } } } });
+  dirty = false;
+  publish({ type: "state", hands: [...hands.values()].map(view), voice, focus, room: shell?.panel.room() ?? 800, talkKey: TALK_KEY });
+  if (focus) shell?.panel.focus(true);
+  focus = null; // said once: the card opens, and is the page's from then on
+  if (live && ready && toldBackend !== (toldBackend = backendPrompt())) sendLive({ type: "session.update", session: { delegation: { type: "responses", responses: { instructions: toldBackend } } } });
+}
+
+/** Bring a hand's window to the user: onto the desktop on screen, restored, and in front. */
+function show(hand: Hand): void {
+  if (!onWindows() || hand.window === null) return;
+  try {
+    windows.present(hand.window);
+  } catch (error) {
+    console.error(`[${hand.name}] cannot bring its window forward: ${(error as Error).message}`);
   }
 }
 
 function command(message: ClientMessage): void {
   if (process.env.HANDS_DEBUG) console.error(`[panel] ${JSON.stringify(message)}`);
-  if (message.cmd === "size") return shell?.panel.fit(message.width, message.height);
+  if (message.cmd === "size") {
+    const room = shell?.panel.room();
+    shell?.panel.fit(message.width, message.height, message.dpr);
+    if (shell && shell.panel.room() !== room) changed(); // a new pixel ratio is a new room, in the page's pixels
+    return;
+  }
   if (message.cmd === "focus") return shell?.panel.focus(message.on);
-  if (message.cmd === "clear" || message.cmd === "visible") return; // CONTRACT: the orchestrator work package handles these
+  if (message.cmd === "visible") return void (visible = new Set(message.hands));
+  if (message.cmd === "clear") return void [...hands.values()].filter(finished).forEach((one) => void close(one));
   const target = hands.get(message.hand);
   if (!target) return;
   if (message.cmd === "steer") steer(target, message.text);
-  else if (message.cmd === "close") close(target);
-  else if (message.cmd === "show") return; // CONTRACT: windows.present(target.window)
+  else if (message.cmd === "close") void close(target);
+  else if (message.cmd === "show") show(target);
   else tell(target, { type: message.cmd });
 }
 
@@ -580,47 +1048,110 @@ function serve(key: string) {
   });
 }
 
-/** Turn and turn about: one hand's window is photographed each tick, unless the user is looking at the window itself. */
+/**
+ * Whether the user has a hand's window in front of them: `viewing`, once what the window in front says has lasted
+ * VIEWING_MS, so a card does not flicker as the user passes through. True when it changed.
+ */
+export function glance(hand: Pick<Hand, "window" | "viewing" | "front">, front: number | null, now: number): boolean {
+  const value = hand.window !== null && hand.window === front;
+  if (value !== hand.front.value) hand.front = { value, since: now };
+  if (value === hand.viewing || now - hand.front.since < VIEWING_MS) return false;
+  hand.viewing = value;
+  return true;
+}
+
+/**
+ * The hand whose window is to be photographed now, if any. Only cards that show a picture are filmed, and not while
+ * the user has the window itself in front of them: one card alone four times a second, several once a second each,
+ * the longest waiting first. A hand that has finished is filmed once more, and then not again.
+ */
+export function nextShot<T extends Pick<Hand, "id" | "window" | "viewing" | "last" | "shot">>(all: Iterable<T>, visible: Set<string> | null, now: number): T | null {
+  const shown = [...all].filter((one) => one.window !== null && !one.viewing && !one.last && (!visible || visible.has(one.id)));
+  const every = shown.length === 1 ? ALONE_MS : EACH_MS;
+  let next: T | null = null;
+  for (const one of shown) if (now - one.shot >= every && (!next || one.shot < next.shot)) next = one;
+  return next;
+}
+
+/** The camera. Each tick, the window in front (straight from the system, not the helper) and at most one picture, for whoever is watching. Nothing that goes wrong in a tick ends the run. */
 function film(): void {
-  let turn = 0;
   setInterval(() => {
-    const front = shell?.frontWindow() ?? null;
-    const filmed = [...hands.values()].filter((one) => one.window !== null);
-    for (const one of filmed) {
-      if (one.viewing === (one.window === front)) continue;
-      one.viewing = one.window === front;
-      changed();
+    try {
+      const now = performance.now();
+      const front = shell?.frontWindow() ?? null;
+      for (const one of hands.values()) if (glance(one, front, now)) changed();
+      if (!viewers.size || !shell) return;
+      const one = nextShot(hands.values(), visible, now);
+      if (!one) return;
+      one.shot = now;
+      if (finished(one)) one.last = true; // its final frame
+      const shot = shell.thumbnail(one.window!);
+      if (!shot) return;
+      const picture = "jpeg" in shot ? "live" : "blank" in shot ? "blank" : "minimized"; // a frame that shows nothing, or none at all, is not sent: the card keeps its last
+      if (one.picture !== picture) {
+        one.picture = picture;
+        changed();
+      }
+      if (!("jpeg" in shot)) return;
+      const id = new TextEncoder().encode(one.id);
+      const frame = new Uint8Array(1 + id.length + shot.jpeg.length);
+      frame.set([id.length]);
+      frame.set(id, 1);
+      frame.set(shot.jpeg, 1 + id.length);
+      for (const viewer of viewers) viewer.send(frame);
+    } catch (error) {
+      console.error(`[film] ${(error as Error).message}`);
     }
-    const one = filmed[turn++ % Math.max(1, filmed.length)];
-    if (!one || one.viewing || !viewers.size) return;
-    const jpeg = shell?.thumbnail(one.window!);
-    if (!jpeg) return;
-    const id = new TextEncoder().encode(one.id);
-    const frame = new Uint8Array(1 + id.length + jpeg.length);
-    frame.set([id.length]);
-    frame.set(id, 1);
-    frame.set(jpeg, 1 + id.length);
-    for (const viewer of viewers) viewer.send(frame);
-  }, FRAME_MS);
+  }, TICK_MS);
 }
 
 // ------------------------------------------------------------------ main
 
-const TALK_KEY = onWindows() ? "left Ctrl key" : "right Option key";
+const TALK_KEY = onWindows() ? talkKeyName() : "right Option"; // as the user would name it
+
+/** Local time as ISO 8601, to the millisecond, with its offset from UTC. */
+export function isoTime(at = new Date()): string {
+  const pad = (n: number, width = 2) => String(Math.abs(n)).padStart(width, "0");
+  const offset = -at.getTimezoneOffset();
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}.${pad(at.getMilliseconds(), 3)}${offset < 0 ? "-" : "+"}${pad(Math.floor(Math.abs(offset) / 60))}:${pad(Math.abs(offset) % 60)}`;
+}
+
+/** Every line of the log from here on begins with the time it was written. */
+function stamp(): void {
+  for (const level of ["log", "error"] as const) {
+    const write = console[level].bind(console);
+    console[level] = (...args: unknown[]) => write(isoTime(), ...args);
+  }
+}
+
+let quitting = false;
+
+/** Dismiss every hand, each given CLOSE_MS to put its windows away and go, then let the voice go and leave. Asked twice, leave at once. */
+async function shutdown(code: number): Promise<void> {
+  if (quitting) process.exit(code);
+  quitting = true;
+  await Promise.all([...hands.values()].map((one) => close(one)));
+  hangUp();
+  if (process.env.HANDS_TAPE) writeTape(process.env.HANDS_TAPE);
+  process.exit(code);
+}
 
 const USAGE = `usage: bun live [--quiet] [--say "words"]... [--every SECONDS] [--out DIR]
 
-Hold the ${TALK_KEY}, say what you want done, and let go. ${config.liveModel()} hears it and sends out hands:
-one, or several at once. The corner of the screen shows each hand's window; click a card for its transcript and
-to steer it, or click the hand itself to stop it where it is. Tell the voice to steer, stop or close hands too.
+Hold the ${TALK_KEY} key, say what you want done, and let go. ${config.liveModel()} hears it and sends out hands:
+one, or several at once, each working in windows of its own behind yours. The corner of the screen shows each
+hand's window; click a card for its transcript and to steer it, or click the hand itself to stop it where it is. Tell
+the voice to steer, stop or close hands too. What the hands make goes in ${config.workFolder()}.
 
   --quiet        the voice does not speak: what it says shows in the panel only.
-  --cold-mic     open the microphone only while the key is held. By default it stays open and remembers its last third
-                 of a second (in memory only: nothing is sent until the key is held), so that a press never clips the
+  --cold-mic     open the microphone only while the key is held. By default it stays open and remembers its last half
+                 second (in memory only: nothing is sent until the key is held), so that a press never clips the
                  start of a sentence; the price is the system's microphone light staying on. Cold, about a tenth of
                  a second at the start of each press is lost.
   --say WORDS    say this to the voice instead of holding the key (synthesized speech): for trying it without a
-                 microphone. Give it several times to say several things, --every SECONDS apart (default 30).`;
+                 microphone. Give it several times to say several things, --every SECONDS apart (default 30).
+
+On Windows, HANDS_KEY picks the key to hold: left-ctrl (the default), right-ctrl, right-alt, f8, or a key code.`;
 
 async function main(argv: string[]): Promise<void> {
   const { values } = parseArgs({
@@ -629,7 +1160,19 @@ async function main(argv: string[]): Promise<void> {
   });
   if (values.help) return void console.log(USAGE);
   if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set (put it in .env): the voice is OpenAI's");
+  stamp();
+  // Nothing that goes wrong in a timer or a handler ends the run: the voice, the panel and every hand go with it.
+  process.on("uncaughtException", (error) => console.error(`[live] ${error.stack ?? error}`));
+  process.on("unhandledRejection", (error) => console.error(`[live] ${(error as Error)?.stack ?? error}`));
   if (!macos.accessibilityTrusted()) throw new Error(PERMISSION);
+  if (onWindows()) {
+    try {
+      const removed = windows.sweepDesktops();
+      if (removed) console.log(`[live] took down ${removed} "Hands: …" desktop${removed === 1 ? "" : "s"} an earlier run left behind`);
+    } catch (error) {
+      console.error(`[live] cannot look for desktops an earlier run left behind: ${(error as Error).message}`);
+    }
+  }
   const runs = resolve(values.out);
   mkdirSync(runs, { recursive: true });
   quietly = values.quiet;
@@ -638,25 +1181,40 @@ async function main(argv: string[]): Promise<void> {
   const key = crypto.randomUUID();
   const server = serve(key);
   runsDir = runs;
-  shell = startShell({ url: `http://127.0.0.1:${server.port}/?key=${key}`, onTalk: talk });
+  shell = startShell({ url: `http://127.0.0.1:${server.port}/?key=${key}`, onTalk: (phase) => talk(phase) });
   film();
   // Ready before the first press: the session already started, the microphone already open and remembering.
   void connect().catch(() => {});
-  if (warm) shell.mic.warm();
+  if (warm) {
+    try {
+      shell.mic.warm();
+    } catch (error) {
+      console.error(`[mic] ${(error as Error).message}`);
+      setNotice(NO_MIC);
+    }
+  }
   // The stream never stops while a session is open: whenever the microphone has not just spoken, silence does, at the same pace.
   setInterval(hum, CHUNK_MS / 2);
-  setInterval(progress, PROGRESS_MS);
-  // And a session nobody has said anything in for a while is closed the way the guide closes one: asked to, and let finish.
-  setInterval(() => live && ready && !feed && voice.state === "idle" && Date.now() - spokenAt > IDLE_MS && sendLive({ type: "session.close" }), 5000);
+  // And a session nobody has said anything in for a while is closed the way the guide closes one: asked to, and let finish. It is let go of at once, so that a press meanwhile opens another.
+  setInterval(() => {
+    if (!live || !ready || feed || voice.state !== "idle" || toSay.length || Date.now() - spokenAt <= IDLE_MS) return;
+    const idle = live;
+    [live, started, ready] = [null, null, false];
+    idle.send({ type: "session.close" } as never);
+  }, 5000);
   if (process.env.HANDS_DEBUG && process.platform !== "win32") process.on("SIGUSR2", () => live?.close()); // hang up on the voice, to see it call back
   if (process.env.HANDS_SAY && process.platform !== "win32") process.on("SIGUSR1", () => void say(readFileSync(process.env.HANDS_SAY!, "utf8").trim(), runs)); // a line said on cue: a take directed from outside
-  process.on("SIGINT", () => {
-    for (const one of [...hands.values()]) close(one);
-    live?.close();
-    if (process.env.HANDS_TAPE) writeTape(process.env.HANDS_TAPE);
-    process.exit(130);
+  // Ctrl-C, the console window closed, Ctrl-Break, or asked to: every hand is dismissed properly first.
+  for (const [signal, code] of [["SIGINT", 130], ["SIGHUP", 129], ["SIGBREAK", 149], ["SIGTERM", 143]] as const) {
+    try {
+      process.on(signal, () => void shutdown(code));
+    } catch {} // a signal this system does not have
+  }
+  // Leaving any other way, the hands still here are ended, and their desktops taken down.
+  process.on("exit", () => {
+    for (const one of [...hands.values(), ...leaving]) if (!one.gone) end(one, true);
   });
-  console.log(`run folder: ${runs}\nhold the ${TALK_KEY} and say what you want done. Ctrl-C to quit.`);
+  console.log(`run folder: ${runs}\nhold the ${TALK_KEY} key and say what you want done. Ctrl-C to quit.`);
 
   for (const words of values.say ?? []) {
     await say(words, runs);

@@ -1,7 +1,19 @@
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { workFolder } from "../src/config.ts";
 import { parseReply, validUrl } from "../src/writer.ts";
 
 // test_dotenv_sets_only_missing_keys and test_dotenv_missing_file_is_fine have no port: config.ts has no load_dotenv, Bun loads .env itself.
+
+afterEach(() => void delete process.env.HANDS_WORK);
+
+test("the hands of `hands live` keep what they make in Documents/Hands, unless told otherwise", () => {
+  delete process.env.HANDS_WORK;
+  expect(workFolder()).toBe(join(homedir(), "Documents", "Hands"));
+  process.env.HANDS_WORK = join("D:", "elsewhere");
+  expect(workFolder()).toBe(join("D:", "elsewhere"));
+});
 
 test("valid url", () => {
   expect(validUrl("https://www.cnn.com")).toBe(true);

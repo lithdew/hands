@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { cast, dispatch, named, samplesOf, snapshot } from "../src/live.ts";
+import { cap, cast, context, dispatch, glance, isoTime, joined, named, nextShot, runFolder, sameTask, samplesOf, snapshot, steered, voiceSummary } from "../src/live.ts";
 import { cushion } from "../src/shell.ts";
 
-const hand = (name: string, extra = {}) => ({ id: name.toLowerCase(), name, status: "working" as const, task: `task of ${name}`, action: "", recent: [] as string[], answer: "", since: 0, ...extra });
+const hand = (name: string, extra = {}) => ({ id: name.toLowerCase(), name, status: "working" as const, task: `task of ${name}`, action: "", recent: [] as string[], answer: "", reason: "", since: 0, reported: false, ...extra });
 
 test("a spoken name finds its hand whatever its case, and `all` finds every one", () => {
   const out = [hand("Lefty"), hand("Righty")];
@@ -18,14 +18,124 @@ test("the next hand gets the first name and colour nobody is using", () => {
   expect(cast(["lefty", "righty", "thumbs", "pinky", "index", "palm", "knuckles", "digit"])).toBeNull();
 });
 
-test("what the voice is told: what a working hand is up to, what a finished one said, and never more than a note holds", () => {
+test("a new Lefty never writes into an old Lefty's run folder", () => {
+  const taken = new Set(["/runs/lefty", "/runs/lefty-2"]);
+  expect(runFolder("/runs", "Lefty", (path) => taken.has(path.replaceAll("\\", "/")))).toMatch(/lefty-3$/);
+  expect(runFolder("/runs", "Righty", () => false)).toMatch(/righty$/);
+});
+
+test("what the voice is told of the hands: the ones still at it first, a line each, and what a finished one said, cut short", () => {
   const told = snapshot(
-    [hand("Lefty", { action: "click “Search”", recent: ["open arxiv.org", "click “Search”"] }), hand("Righty", { status: "done", answer: "It is 144.", since: 0 })],
+    [
+      hand("Righty", { status: "done", answer: "It is **144**.", since: 0 }),
+      hand("Lefty", { action: "click “Search”", recent: ["open arxiv.org", "click “Search”"], since: 0 }),
+      hand("Thumbs", { status: "needs_you", answer: "The site wants you to sign in to Google.", since: 0 }),
+    ],
     5 * 60_000,
   );
-  expect(told).toBe("- Lefty [working, 5 min] task: task of Lefty; now: click “Search”; lately: open arxiv.org > click “Search”\n- Righty [done, 5 min] task: task of Righty; it said: It is 144.");
+  expect(told).toBe(
+    [
+      "- Lefty [working, 5 min] task: task of Lefty; now: click “Search”; lately: open arxiv.org > click “Search”",
+      "- Thumbs [needs_you, 5 min] task: task of Thumbs; needs: The site wants you to sign in to Google.",
+      "- Righty [done] task: task of Righty; it said: It is 144.",
+    ].join("\n"),
+  );
   expect(snapshot([])).toBe("No hands are out.");
-  expect(snapshot([hand("Lefty", { answer: "x".repeat(5000), status: "done" })]).length).toBe(1500);
+});
+
+test("no hand drops out of the voice's picture, however much another has to say", () => {
+  const long = "Funding rounds, in order. ".repeat(250);
+  const told = snapshot([hand("Lefty", { status: "done", answer: long, task: "x".repeat(900) }), hand("Righty"), hand("Thumbs", { status: "failed", reason: long })]);
+  for (const name of ["Lefty", "Righty", "Thumbs"]) expect(told).toContain(`- ${name} [`);
+  for (const line of told.split("\n")) expect(line.length).toBeLessThan(450);
+});
+
+test("an answer the voice has already said is marked so, and a failure says why", () => {
+  const told = snapshot([hand("Lefty", { status: "done", answer: "Yashima, at 12:30.", reported: true }), hand("Righty", { status: "failed", reason: "the helper went away" })]);
+  expect(told).toContain("it said (already told to the user): Yashima, at 12:30.");
+  expect(told).toContain("why: the helper went away");
+});
+
+test("the voice says a hand's answer from its first paragraph, as plain words: no marks, links, URLs, tables or headings", () => {
+  const answer = [
+    "## Lunch pick",
+    "",
+    "**Yashima** has an [omakase](https://example.com/omakase) at 12:30 for `HK$880`, see https://yashima.hk.",
+    "",
+    "| time | price |",
+    "|---|---|",
+    "| 12:30 | 880 |",
+  ].join("\n");
+  expect(voiceSummary(answer)).toBe("Yashima has an omakase at 12:30 for HK$880, see.");
+  expect(voiceSummary("Created the workbook:\n- Model.xlsx in Documents\\Hands\n- a chart on its second sheet")).toBe("Created the workbook: Model.xlsx in Documents\\Hands; a chart on its second sheet");
+  expect(voiceSummary("Done.\n\nThe message to Kartikay was sent at 3:04 pm, and he has read it.")).toBe("Done. The message to Kartikay was sent at 3:04 pm, and he has read it.");
+  expect(voiceSummary("word ".repeat(200)).length).toBeLessThanOrEqual(300);
+  expect(voiceSummary("")).toBe("");
+});
+
+test("text is cut at a word, with an ellipsis only when something was cut", () => {
+  expect(cap("short enough", 20)).toBe("short enough");
+  expect(cap("one two three four five six", 16)).toBe("one two three…");
+});
+
+test("a task the backend gives again is the same task; another destination, or a detail added, is another", () => {
+  expect(sameTask("Find the cheapest flight from Hong Kong to Tokyo next Friday", "find the cheapest flights from Hong Kong to Tokyo, next friday")).toBe(true);
+  expect(sameTask("Find the cheapest flight from Hong Kong to Tokyo next Friday", "Find the cheapest flight from Hong Kong to Paris next Friday")).toBe(false);
+  expect(sameTask("Find the cheapest flight from Hong Kong to Tokyo", "Find the cheapest flight from Hong Kong to Tokyo and book it")).toBe(false);
+  expect(sameTask("Open the calculator and work out 12 times 12", "Summarize the YouTube Shorts you watched")).toBe(false);
+});
+
+test("a steer to a hand at work keeps its task and says what is wanted now; to one that has finished, it is its task", () => {
+  expect(steered("find flights to Tokyo", "only direct ones", true)).toBe("find flights to Tokyo → now: only direct ones");
+  expect(steered("find flights to Tokyo → now: only direct ones", "make it Osaka", true)).toBe("find flights to Tokyo → now: make it Osaka");
+  expect(steered("find flights to Tokyo", "book a table at Yashima", false)).toBe("book a table at Yashima");
+  expect(steered("t", "x".repeat(500), true).length).toBeLessThan(215);
+});
+
+test("the voice's transcript runs replies together with a space where a sentence ended without one", () => {
+  expect(joined("Okay, I'll have that set up.", "Sure")).toBe("Okay, I'll have that set up. Sure");
+  expect(joined("Okay", ", sure")).toBe("Okay, sure");
+  expect(joined("", "Hi")).toBe("Hi");
+  expect(joined("Hi.", " there")).toBe("Hi. there");
+});
+
+test("a new session is told the conversation so far and how the hands stand, as context and not to be answered", () => {
+  expect(context([], "")).toBeNull();
+  const told = context(["User: find me flights to Tokyo", "Backend: start_hands … -> Lefty", "You: On it."], "- Lefty [working, 1 min] task: flights");
+  expect(told).toContain("do not answer it again");
+  expect(told).toContain("User: find me flights to Tokyo\nBackend: start_hands … -> Lefty\nYou: On it.");
+  expect(told).toContain("The hands now, for you to know:\n- Lefty");
+});
+
+test("the camera films only cards that show a picture: one alone four times a second, several once a second each in turn", () => {
+  const card = (id: string, shot: number, extra = {}) => ({ id, window: 1, viewing: false, last: false, shot, ...extra });
+  expect(nextShot([card("lefty", 0)], null, 200)?.id).toBeUndefined();
+  expect(nextShot([card("lefty", 0)], null, 250)?.id).toBe("lefty");
+  const three = [card("lefty", 500), card("righty", 100), card("thumbs", 0, { window: null }), card("pinky", 0, { viewing: true }), card("index", 0, { last: true })];
+  expect(nextShot(three, null, 1050)).toBeNull(); // two cards with windows: each waits its second
+  expect(nextShot(three, null, 1100)?.id).toBe("righty");
+  expect(nextShot(three, new Set(["lefty"]), 1100)?.id).toBe("lefty"); // the only card showing a picture: four times a second
+  expect(nextShot(three, new Set([]), 5000)).toBeNull();
+});
+
+test("a card knows its window is in front only once that has lasted a second, and the same going back", () => {
+  const one = { window: 7, viewing: false, front: { value: false, since: 0 } };
+  expect(glance(one, 7, 1000)).toBe(false);
+  expect(glance(one, 7, 1500)).toBe(false);
+  expect(glance(one, 7, 2000)).toBe(true);
+  expect(one.viewing).toBe(true);
+  expect(glance(one, 9, 2100)).toBe(false); // passed through another window
+  expect(glance(one, 7, 2200)).toBe(false);
+  expect(glance(one, null, 3000)).toBe(false);
+  expect(glance(one, null, 4000)).toBe(true);
+  const gone = { window: null, viewing: true, front: { value: true, since: 0 } }; // its window went while it was in front
+  glance(gone, null, 100);
+  expect(glance(gone, null, 1200)).toBe(true);
+  expect(gone.viewing).toBe(false);
+});
+
+test("the log's time is local ISO 8601 to the millisecond, with its offset", () => {
+  expect(isoTime(new Date(2026, 8, 26, 9, 5, 7, 42))).toMatch(/^2026-09-26T09:05:07\.042[+-]\d\d:\d\d$/);
 });
 
 test("the samples of a WAV are its data chunk, wherever the other chunks have put it", () => {
