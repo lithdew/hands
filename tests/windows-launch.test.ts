@@ -316,6 +316,9 @@ test("an app's launch hands the rest of its watch of the seat to the helper, whi
   expect(watch.asked).toMatchObject({ seat: 11, pid: 480, children: true, exes: ["excel.exe"], package: null, me: process.pid });
   expect(watch.asked!.window).toBeUndefined(); // where the app's window goes is the caller's to say
   expect(watch.asked!.ms as number).toBeGreaterThan(800);
+  const lock = join(lockRoot, "hands-open-window.lock");
+  for (const end = performance.now() + 3000; existsSync(lock) && performance.now() < end; ) await Bun.sleep(50);
+  expect(existsSync(lock)).toBe(false); // let go once the helper's watch was over, and nothing asked of the helper after the test
 });
 
 test("a document that opens no window of the hand's own is an error", async () => {
