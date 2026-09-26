@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { cap, cast, context, dispatch, FRONTEND, glance, isoTime, joined, named, nextShot, runFolder, sameTask, samplesOf, snapshot, steered, voiceSummary } from "../src/live.ts";
+import { cap, cast, context, dispatch, FRONTEND, glance, isoTime, joined, named, nextShot, notesThatFit, runFolder, sameTask, samplesOf, snapshot, steered, voiceSummary } from "../src/live.ts";
 import { cushion } from "../src/shell.ts";
 
 const hand = (name: string, extra = {}) => ({ id: name.toLowerCase(), name, status: "working" as const, task: `task of ${name}`, action: "", recent: [] as string[], answer: "", reason: "", since: 0, reported: false, ...extra });
@@ -161,6 +161,14 @@ test("the voice sends a question about how things are going to the backend, and 
   // And a result it may give: from a note that a hand finished, or from that answer.
   const results = FRONTEND.split("\n").find((line) => line.includes("any other result may come only from"))!;
   expect(results).toContain("the backend's answer to a question about how things are going");
+});
+
+test("notes go to the voice whole, the oldest first, as many as fit in one, and never none", () => {
+  const note = (n: number) => "x".repeat(n);
+  expect(notesThatFit([note(500), note(500), note(498)])).toBe(3); // 1498 with the two line breaks
+  expect(notesThatFit([note(500), note(500), note(499)])).toBe(2);
+  expect(notesThatFit([note(1600), note(10)])).toBe(1);
+  expect(notesThatFit([])).toBe(0);
 });
 
 test("a tool call about a hand that is not out says who is, and does nothing", () => {

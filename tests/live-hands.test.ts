@@ -396,3 +396,53 @@ test("Show is carried out by the hand, which knows where it keeps its window; a 
     delete process.env.HANDS_PLATFORM;
   }
 });
+
+test("notes that waited go to the voice whole, as many as fit in one, and a hand counts as told only once its note has gone", async () => {
+  const cities = ["Tokyo", "Osaka", "Kyoto", "Sapporo", "Nagoya"];
+  const task = (city: string) => `Find the cheapest direct flight from Hong Kong to ${city} next Friday morning, with one checked bag, and compare the fares on two sites`;
+  live.dispatch("start_hands", { tasks: cities.map(task) }, runs);
+  hands[0]!.say({ type: "status", status: "done", answer: "Tokyo: HK$2,100." });
+  await Bun.sleep(5);
+  const session = sessions.at(-1)!;
+  const said = () => session.notes("session.commentary.append");
+  const told = () => known().filter((one) => one.reported).map((one) => one.hand);
+  jest.useFakeTimers();
+  session.emit("session.output_transcript.delta", { delta: "Lefty found Tokyo.", start_ms: 1000, end_ms: 1800 });
+  for (let i = 1; i < cities.length; i++) hands[i]!.say({ type: "status", status: "done", answer: `${cities[i]}: ${"a fare worth telling you about, ".repeat(12)}` });
+  await settle();
+  expect(said().length).toBe(1);
+  jest.advanceTimersByTime(2000); // it has finished speaking
+  expect(said().length).toBe(2);
+  const notes = said()[1]!.split("\n");
+  expect(notes.map((note) => note.split(" has finished")[0])).toEqual(["Righty", "Thumbs", "Pinky"]);
+  for (const note of notes) expect(note).toEndWith("compare the fares on two sites)"); // each of them whole
+  expect(told()).toEqual(["Lefty", "Righty", "Thumbs", "Pinky"]);
+  jest.advanceTimersByTime(15_000); // it said nothing of them: what is left goes all the same
+  expect(said().at(-1)).toStartWith("Index has finished: Nagoya");
+  expect(told()).toContain("Index");
+});
+
+test("a press cancelled before the session has started sends none of what it heard; one that is not, all of it", async () => {
+  const listening: ((pcm: Uint8Array) => void)[] = [];
+  const body = {
+    mic: { warm() {}, listen: (onChunk: (pcm: Uint8Array) => void) => void listening.push(onChunk), rest() {} },
+    speaker: { play() {}, hush() {} },
+    panel: { fit() {}, room: () => 800, focus() {} },
+    thumbnail: () => null,
+    holdKey() {},
+    frontWindow: () => null,
+  } as unknown as Shell;
+  const heard = () => sessions.flatMap((session) => session.sent.filter((event) => event.type === "session.input_audio.append"));
+  live.talk("down", body);
+  expect(live.voice.state).toBe("connecting");
+  listening[0]!(new Uint8Array(3840)); // what the microphone remembered, and a word: buffered while the session starts
+  live.talk("cancel", body); // a key typed with it: it was a shortcut, not talk
+  await settle();
+  expect(sessions.length).toBe(1);
+  expect(heard()).toEqual([]);
+  live.talk("down", body);
+  listening[1]!(new Uint8Array(3840));
+  await settle();
+  expect(heard().length).toBe(1);
+  live.talk("cancel", body);
+});

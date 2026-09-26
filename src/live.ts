@@ -604,6 +604,7 @@ let notedAt = 0; // when the voice was last given something to say
 let failures = 0; // sessions in a row that never started
 let retry: ReturnType<typeof setTimeout> | undefined;
 let quiet: ReturnType<typeof setTimeout> | undefined;
+let unsaid: ReturnType<typeof setTimeout> | undefined; // notes that did not fit in the last one, tried again if the voice never goes quiet after it
 let turn: { up: number; audio?: number; tool?: number } | null = null; // the latest press, from the key coming up: how long the voice took to answer it
 const toSay: { text: string; hand?: Hand }[] = []; // notes for the voice to say, once nobody is talking
 
@@ -631,9 +632,9 @@ function hum(): void {
   for (due = Math.max(due, now - 1000); due <= now; due += CHUNK_MS) hear(SILENCE); // a Mac that slept does not owe the hours
 }
 
-/** For the voice to say, once nobody is talking: kept until then, and a session opened for it if there is none. */
+/** For the voice to say, once nobody is talking: kept until then, and a session opened for it if there is none. A note is never longer than the voice may be given at once. */
 function aloud(text: string, hand?: Hand): void {
-  toSay.push({ text, hand });
+  toSay.push({ text: cap(text, NOTE_CHARS), hand });
   flushNotes();
 }
 
@@ -642,14 +643,31 @@ function aside(text: string): void {
   sendLive({ type: "session.thinking.append", delegation_id: null, content: `For you to know, not to say: ${text}`.slice(0, NOTE_CHARS) });
 }
 
-/** What the voice is to say goes to it together, when the key is not held and it is neither listening, thinking nor speaking. */
+/**
+ * What the voice is to say goes to it together, when the key is not held and it is neither listening, thinking nor
+ * speaking: as many whole notes as fit in one, the oldest first. The rest wait for it to have said those (it goes
+ * idle again when it has), or for SAYING_MS if it says nothing. A hand is marked as told only when its note went.
+ */
 function flushNotes(): void {
   if (!toSay.length || feed || voice.state !== "idle") return;
   if (!ready) return void connect().then(flushNotes, () => {});
-  const told = toSay.splice(0);
-  sendLive({ type: "session.commentary.append", delegation_id: null, content: told.map((one) => one.text).join("\n").slice(0, NOTE_CHARS) });
+  const told = toSay.splice(0, notesThatFit(toSay.map((one) => one.text)));
+  sendLive({ type: "session.commentary.append", delegation_id: null, content: told.map((one) => one.text).join("\n") });
   notedAt = Date.now();
   for (const one of told) if (one.hand) one.hand.reported = true;
+  clearTimeout(unsaid);
+  if (toSay.length) unsaid = setTimeout(flushNotes, SAYING_MS);
+}
+
+/** How many of the notes, from the first, go to the voice in one: as many whole ones as fit, and never none. */
+export function notesThatFit(notes: string[], limit = NOTE_CHARS): number {
+  let [count, length] = [0, 0];
+  for (const note of notes) {
+    length += (count ? 1 : 0) + note.length; // each on a line of its own
+    if (count && length > limit) break;
+    count++;
+  }
+  return count;
 }
 
 function setVoice(state: VoiceView["state"]): void {
@@ -691,6 +709,7 @@ export function closeIdle(): void {
 export function hangUp(): void {
   clearTimeout(retry);
   clearTimeout(quiet);
+  clearTimeout(unsaid);
   const session = live;
   [live, started, ready, failures] = [null, null, false, 0];
   toSay.length = 0;
@@ -851,6 +870,7 @@ let tail: ReturnType<typeof setTimeout> | undefined;
 let thinking: ReturnType<typeof setTimeout> | undefined;
 let heardLine: ReturnType<typeof setTimeout> | undefined;
 let loudest = 0; // the loudest sample of the press under way
+let pressed: { cancelled: boolean } | null = null; // the latest press, and whether a key typed with it cancelled it
 
 /** What the voice heard of the last press, into the log and the conversation: once, when its reply begins, at the next press, or a little after the key came up. */
 function logHeard(): void {
@@ -872,6 +892,7 @@ export function talk(phase: Talk, body = shell): void {
   if (phase === "down") return press(body);
   clearTimeout(tail);
   if (phase === "cancel") {
+    if (pressed) pressed.cancelled = true;
     feed = null;
     body.mic.rest(warm);
     if (voice.state !== "offline") setVoice("idle");
@@ -907,12 +928,14 @@ function press(shell: Shell): void {
   loudest = 0;
   turn = null;
   const waiting: string[] = []; // what is said while a session is still being started: "buffer the opening speech through connection setup"
+  const ours = (pressed = { cancelled: false }); // a press cancelled before the session started had nothing meant for it: what it buffered is dropped
   let open = false;
   if (ready) setVoice("listening");
   else if (voice.state !== "offline") setVoice("connecting"); // and listening once the session has started; offline, the dock goes on saying why, and a try is made now
   connect()
     .then(() => {
-      for (const audio of waiting.splice(0)) hear(audio);
+      const said = waiting.splice(0);
+      if (!ours.cancelled) for (const audio of said) hear(audio);
       open = true;
     })
     .catch(() => void (waiting.length = 0));
