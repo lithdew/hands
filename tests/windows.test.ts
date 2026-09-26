@@ -65,6 +65,7 @@ beforeEach(() => {
   windows.forgetDisplays();
   windows.pace.persistMs = 0; // a launch's waits, shortened: the fake's windows do not come and go on their own
   windows.pace.seatWatchMs = 0;
+  windows.pace.browserWatchMs = 0;
   lockRoot = mkdtempSync(join(tmpdir(), "hands-test-locks-"));
   windows.locks.root = lockRoot; // never a real hand's locks
 });

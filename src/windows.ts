@@ -425,7 +425,7 @@ function keysFor(target: KeyTarget): number {
   const list = windowList();
   const entry = list.find((w) => w.hwnd === target.windowId);
   if (!entry) throw new Error("the window is gone; look again");
-  if (!isOwn(entry, list) && opened.has(entry.pid)) throw new Error(`that window is not one this hand opened: keys go only to its own windows in ${appName(entry.pid)}`);
+  if (!isOwn(entry, list) && opened.has(entry.pid)) throw new Error(`that window is not one this hand opened: in ${entry.exe || "that app"}, keys go only to the hand's own windows`);
   return target.windowId;
 }
 
@@ -705,8 +705,12 @@ async function sendToDesktop(windowId: number, pid: number, app: string): Promis
     sent.set(windowId, { app, pid, resent: 0 }); // from here on it is kept there
     return true;
   }
+  if (desktopsBroken) {
+    native.call("sink", { hwnd: windowId }); // never sent: the desktops are off, which is no fault of the app's
+    return false;
+  }
   // Only here does the model hear of it, on the result of the open that grounded the app: a grounding later in the run (keepOnDesktop) goes to the log alone.
-  if (ground(app, windowId, pid, why) && !desktopsBroken) groundedNote = `${app} cannot work on a desktop of its own, so it stays behind your windows.`;
+  if (ground(app, windowId, pid, why)) groundedNote = `${app} cannot work on a desktop of its own, so it stays behind your windows.`;
   return false;
 }
 
@@ -826,6 +830,8 @@ export function releaseDesktop(): void {
   opened.clear();
   browserWindows.clear();
   inFront.clear();
+  primed.clear();
+  stale.clear();
   groundedNote = null;
   desktopsBroken = false;
 }
@@ -1231,8 +1237,13 @@ export async function borrow<T>(target: KeyTarget, since: number, work: () => Pr
 
 // ------------------------------------------------------------------ opening a window of the hand's own
 
-/** How long a launch waits on the app: a fresh window must stay this long to be taken for its main window, not a splash; and the seat is watched this long after, since an app can take the foreground late (Excel at 1.7 s: measured). A test shortens them. */
-export const pace = { persistMs: 300, seatWatchMs: 1500 };
+/**
+ * How long an opening waits on the app: a fresh window must stay `persistMs` to be taken for its main window, not a
+ * splash; the seat is watched `seatWatchMs` after a launch, since an app can take the foreground late (Excel at 1.7 s:
+ * measured), and `browserWatchMs` after a browser window opens (Chrome takes it a beat after the window exists, and
+ * again for a bubble). A test shortens them.
+ */
+export const pace = { persistMs: 300, seatWatchMs: 1500, browserWatchMs: 2500 };
 
 /** What a launch looks for: what it started, and what the window that opens will be of. */
 interface Launching {
@@ -1689,7 +1700,7 @@ async function openWindowAlone(browser: string, url: string): Promise<PinnedWind
       if (fresh) opened = { pid: fresh.pid, windowId: fresh.hwnd, scripted: String(fresh.hwnd) };
     }
   } finally {
-    if (seat) await returnSeat(seat, (w) => !before.has(w.hwnd), opened?.windowId);
+    if (seat) await returnSeat(seat, (w) => !before.has(w.hwnd), opened?.windowId, pace.browserWatchMs);
   }
   if (!opened) throw new Error(`${browser} opened no new window`);
   // Once the seat is back: a browser that works unseen takes its window to the hand's desktop; any other keeps it here, sunk behind the user's.
