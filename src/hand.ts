@@ -41,6 +41,7 @@ export interface Cue {
   ms?: number; // how long the glide to `at` takes; without it the hand is simply there
   count?: number; // taps
   swipe?: Point; // which way the fingers go in a scroll
+  seat?: { state: "waiting" | "holding" | "free"; why: string }; // borrowing the user's mouse and keyboard (src/seat.ts): the hand shows it, and so does its card
 }
 
 const REST_MS = 400; // how long a pose is held once its action is over, before the hand goes back to thinking
@@ -143,6 +144,11 @@ export const hand = {
       await Bun.sleep(ms);
     }
     send({ pose, label, ...extra });
+  },
+
+  /** The hand is waiting to borrow the user's mouse and keyboard, holding them, or has given them back. */
+  seat(state: "waiting" | "holding" | "free", why = ""): void {
+    if (renderer) send({ seat: { state, why } });
   },
 
   /** Where the pointer is this instant, in the middle of a drag. */

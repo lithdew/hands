@@ -1372,3 +1372,21 @@ export function actionableElements(pid: number, display: Frame, options: WalkOpt
   for (const node of [...result[0], ...result[1]]) live.add(node.ref as number);
   return [result[0], result[1], result[2] || reply.capped];
 }
+
+// ------------------------------------------------------------------ for the orchestrator (CONTRACT STUBS: the native work package implements these)
+
+/** One picture of a window for the panel: never restores a minimized window, and says when the window draws nothing. */
+export type Thumbnail = { jpeg: Uint8Array } | { blank: true } | { minimized: true } | null;
+export function thumbnail(_windowId: number, _maxPx: number): Thumbnail {
+  return null;
+}
+
+/** Bring a window to the user: onto the desktop on screen, restored, and in front. */
+export function present(_windowId: number): boolean {
+  return false;
+}
+
+/** Remove every "Hands: …" desktop a run left behind; how many were removed. */
+export function sweepDesktops(): number {
+  return 0;
+}

@@ -97,7 +97,7 @@ function startHand(task: string, runs: string): Hand | null {
     stdout: "pipe",
     stderr: "ignore", // the hand keeps its own log in its run folder
   });
-  const hand: Hand = { id: name.toLowerCase(), name, color, task, status: "starting", action: "", glyph: POSES.wave[0], at: null, size: null, viewing: false, answer: "", since: Date.now(), proc, log: [], recent: [], window: null, closed: false }; // prettier-ignore
+  const hand: Hand = { id: name.toLowerCase(), name, color, task, status: "starting", action: "", glyph: POSES.wave[0], at: null, size: null, viewing: false, answer: "", reason: "", seat: "", seatWhy: "", picture: "none", since: Date.now(), proc, log: [], recent: [], window: null, closed: false }; // prettier-ignore
   hands.set(hand.id, hand);
   record(hand, "task", task);
   console.log(`[${name}] ${task}`);
@@ -259,7 +259,7 @@ export function dispatch(name: string, args: Record<string, unknown>, runs: stri
   return { ok: found.map((one) => one.name) };
 }
 
-const voice: VoiceView = { state: "idle", heard: "", said: "" };
+const voice: VoiceView = { state: "idle", heard: "", said: "", notice: "" };
 let live: LiveWS | null = null;
 let started: Promise<void> | null = null;
 let ready = false; // the session has started: audio may be sent
@@ -535,7 +535,7 @@ function announce(): void {
   {
     dirty = false;
     const views = [...hands.values()].map(({ proc, log, recent, window, closed, ...view }): HandView => view);
-    publish({ type: "state", hands: views, voice, focus, room: shell?.panel.room() ?? 800 });
+    publish({ type: "state", hands: views, voice, focus, room: shell?.panel.room() ?? 800, talkKey: TALK_KEY.replace(/ key$/, "") });
     if (focus) shell?.panel.focus(true);
     focus = null; // said once: the card opens, and is the page's from then on
     if (live && ready && toldBackend !== (toldBackend = backendPrompt())) sendLive({ type: "session.update", session: { delegation: { type: "responses", responses: { instructions: toldBackend } } } });
@@ -546,10 +546,12 @@ function command(message: ClientMessage): void {
   if (process.env.HANDS_DEBUG) console.error(`[panel] ${JSON.stringify(message)}`);
   if (message.cmd === "size") return shell?.panel.fit(message.width, message.height);
   if (message.cmd === "focus") return shell?.panel.focus(message.on);
+  if (message.cmd === "clear" || message.cmd === "visible") return; // CONTRACT: the orchestrator work package handles these
   const target = hands.get(message.hand);
   if (!target) return;
   if (message.cmd === "steer") steer(target, message.text);
   else if (message.cmd === "close") close(target);
+  else if (message.cmd === "show") return; // CONTRACT: windows.present(target.window)
   else tell(target, { type: message.cmd });
 }
 

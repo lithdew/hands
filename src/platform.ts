@@ -9,9 +9,12 @@
 
 import { join } from "node:path";
 import * as mac from "./macos.ts";
+import { macSeat } from "./macos-seat.ts";
+import type { SeatPlatform } from "./seat.ts";
 import { start as macShell } from "./shell.ts";
 import { start as windowsShell } from "./shell-windows.ts";
 import * as windows from "./windows.ts";
+import { windowsSeat } from "./windows-seat.ts";
 
 type Used =
   | "accessibilityTrusted" | "activate" | "actionableElements" | "appName" | "appWindows" | "axFocus" | "axPerform" | "axPress" | "axSetValue" | "axValue"
@@ -35,6 +38,9 @@ export function onWindows(env: NodeJS.ProcessEnv = process.env, os: string = pro
 }
 
 export const platform: Platform = onWindows() ? windows : mac;
+
+/** Keys to one window, the window to look at, and borrowing the seat for what cannot be done from behind (src/seat.ts). */
+export const seat: SeatPlatform = onWindows() ? windowsSeat : macSeat;
 
 // The types the tools name through the namespace (`macos.PinnedWindow`), which a value alone does not carry.
 export declare namespace platform {

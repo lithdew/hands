@@ -23,7 +23,7 @@ const KEY = windows ? "left Ctrl" : "right ⌥";
 
 // How tall the pieces are, for deciding how many cards can stay unfolded. Measured off the stylesheet, give or take.
 const [STRIP, GAP, ANSWER, FULL_EXTRA, SHEET_FIXED] = [46, 10, 44, 262, 154]; // a folded card, the space between, a folded card's answer, what unfolding adds, a sheet without its log
-const STATUS: Record<Status, string> = { starting: "getting ready", working: "working", paused: "paused", done: "done", failed: "couldn’t finish", stopped: "stopped" };
+const STATUS: Record<Status, string> = { starting: "getting ready", working: "working", paused: "paused", needs_you: "needs you", done: "done", failed: "couldn’t finish", stopped: "stopped" };
 
 interface Card {
   root: HTMLElement;
@@ -98,7 +98,7 @@ function doing(hand: HandView): string {
   if (hand.status === "starting") return "Getting ready";
   if (hand.status === "working") return hand.action || "Thinking";
   if (hand.status === "paused") return "Paused. Tell it what to change, or let it carry on.";
-  return plain(hand.answer) || { done: "Done", failed: "Couldn’t finish", stopped: "Stopped" }[hand.status];
+  return plain(hand.answer) || { needs_you: "Needs you", done: "Done", failed: "Couldn’t finish", stopped: "Stopped" }[hand.status];
 }
 const finished = (hand: HandView) => hand.status === "done" || hand.status === "failed" || hand.status === "stopped";
 
@@ -209,7 +209,7 @@ function write(hand: string, entries: LogEntry[], reset = false): void {
 /** The dock. Yellow with your words while you talk and it thinks; the same two colours the other way round while it answers. */
 function speak({ state, heard, said }: VoiceView): void {
   const hint = last.hands.length ? `Hold ${KEY} to steer, stop or ask` : `Hold ${KEY} and ask for a hand`;
-  const text = { idle: hint, connecting: heard, listening: heard, thinking: heard, speaking: said }[state].trim();
+  const text = { idle: hint, connecting: heard, listening: heard, thinking: heard, speaking: said, offline: hint }[state].trim();
   dock.className = state === "connecting" ? "listening" : state;
   words.textContent = text || (state === "listening" || state === "connecting" ? "Listening…" : "…"); // only while the key is held: the transcript trails the speech, and a dock still saying "Listening…" after the key is up looks like one that has not let go
   words.classList.toggle("waiting", !text);
