@@ -118,6 +118,20 @@ test("borrowing the seat is a cue of its own, for the hand on the screen and its
   ]);
 });
 
+test("while Jev acts for the hand, every label it shows says so (the tag, the card, the voice's recent actions all read them), and none does once it is cleared", () => {
+  const cues = started({ HANDS_PLATFORM: "windows", HANDS_SLOT: "0" });
+  hand.via("Jev");
+  try {
+    hand.look({ window: 7, origin: [0, 0] }, [800, 600]);
+    void hand.cue("press", "click “Pricing”");
+    void hand.cue("scroll", ""); // no label, nothing to say it on
+  } finally {
+    hand.via("");
+  }
+  void hand.cue("press", "click “Plans”");
+  expect(cues.flatMap((cue) => (cue.label === undefined ? [] : [cue.label]))).toEqual(["", "Jev › looking", "Jev › click “Pricing”", "", "click “Plans”"]);
+});
+
 test("a glide is timed in the points the renderer says the pixels make", async () => {
   const cues = started({ HANDS_PLATFORM: "windows", HANDS_SLOT: "0" }, "2");
   await hand.unseen(async () => {}); // its answer comes after its scale: the scale is in

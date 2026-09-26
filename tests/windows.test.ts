@@ -152,27 +152,104 @@ test("a listing drops one control listed twice, Excel's empty cells and the titl
   ]);
 });
 
-test("a covered Chromium window of the hand's own is lifted, without activation, for its first read only; the user's never is", async () => {
+/**
+ * A browser window of the hand's own (an app drawn as a page, started as one of its own) covered by the terminal, whose
+ * page has a tree only once a lift has shown it at its address, as Chrome builds a page's tree only once the page has
+ * shown (measured): `lag` reads after the lift's own, 0 for the lift's own read. `address` is what its omnibox says;
+ * a page at "about:blank" never comes up. `covered` false puts it in front of the terminal. Beside it, a window of the
+ * user's whose page has no tree.
+ */
+async function coveredPage() {
   const mine = { hwnd: 44, pid: 400, cls: "Chrome_WidgetWin_1", title: "Claude", frame: [0, 0, 900, 600], core: 0, exe: "claude.exe", caption: true };
   const theirs = { hwnd: 45, pid: 401, cls: "Chrome_WidgetWin_1", title: "WhatsApp", frame: [0, 0, 900, 600], core: 0, exe: "WhatsApp.exe", caption: true };
-  let launched = false;
   const cover = { hwnd: 11, pid: 100, cls: "X", title: "", frame: [0, 0, 2560, 1600], core: 0, exe: "WindowsTerminal.exe" };
+  const page = { address: "one.example/", launched: false, lifted: false, covered: true, lag: 0, begun: new Map<string, number>(), shown: new Set<string>() };
+  const omnibox = () => ({ ...node(3, 2, "AXTextField", "Address and search bar", { frame: [100, 40, 600, 30] }), value: page.address });
   helper({
     processes: [],
-    windows: () => (launched ? [cover, mine, theirs] : [cover, theirs]),
-    launch: () => ((launched = true), { pid: 0 }),
+    windows: () => (!page.launched ? [cover, theirs] : page.covered ? [cover, mine, theirs] : [mine, cover, theirs]),
+    launch: () => ((page.launched = true), { pid: 0 }),
     exe: { name: "claude" },
-    topmost: { ok: true },
-    tree: { nodes: [node(1, -1, "AXGroup", "x", { frame: [0, 0, 900, 600] }), node(2, 1, "AXLink", "Go", { actions: ["AXPress"] })], capped: false },
+    topmost: ({ on }) => ((page.lifted = Boolean(on)), { ok: true }),
+    tree: ({ hwnd }) => {
+      if (hwnd === 44 && page.lifted && page.address !== "about:blank" && !page.begun.has(page.address)) page.begun.set(page.address, page.lag);
+      const left = hwnd === 44 ? page.begun.get(page.address) : undefined;
+      if (left !== undefined && left <= 0) page.shown.add(page.address);
+      else if (left !== undefined) page.begun.set(page.address, left - 1);
+      const toolbar = [node(1, -1, "AXGroup", "", { frame: [0, 0, 900, 600] }), node(2, 1, "AXButton", "Back", { actions: ["AXPress"], frame: [10, 40, 30, 30] }), omnibox()];
+      const content = hwnd === 44 && page.shown.has(page.address) ? [node(4, 1, "AXLink", "Charles Babbage", { actions: ["AXPress"], frame: [120, 300, 120, 20] })] : [];
+      return { nodes: [...toolbar, ...content], capped: false };
+    },
   });
   windows.releaseDesktop();
   expect(await windows.runInBackground("claude.exe")).toBe(400);
-  windows.actionableElements(400, DISPLAY, { windowId: 44 });
+  return page;
+}
+
+test("a covered page of the hand's own with no tree is lifted, without activation, for one read; once up it is not lifted again; the user's never is", async () => {
+  await coveredPage();
+  const [found] = windows.actionableElements(400, DISPLAY, { windowId: 44 });
+  expect(found.map((n) => n.label)).toContain("Charles Babbage"); // the lifted read is the one walked
   expect(asked("topmost")).toEqual([{ hwnd: 44, on: true }, { hwnd: 44, on: false }]);
+  expect(asked("sink").at(-1)).toEqual({ hwnd: 44 }); // and back behind the user's windows
   windows.actionableElements(400, DISPLAY, { windowId: 44 });
   expect(asked("topmost")).toHaveLength(2);
   windows.actionableElements(401, DISPLAY, { windowId: 45 });
   expect(asked("topmost")).toHaveLength(2);
+  windows.releaseDesktop();
+});
+
+test("the browser's own toolbar is no page: a page navigated to is lifted again, and one that never comes up is lifted twice at that address, not at every read", async () => {
+  const page = await coveredPage();
+  windows.actionableElements(400, DISPLAY, { windowId: 44 });
+  expect(asked("topmost")).toHaveLength(2);
+  page.address = "two.example/"; // a new page, whose tree is not on yet, though the toolbar's is
+  const [found] = windows.actionableElements(400, DISPLAY, { windowId: 44 });
+  expect(asked("topmost")).toHaveLength(4);
+  expect(found.map((n) => n.label)).toContain("Charles Babbage");
+  page.address = "about:blank";
+  const reads = asked("tree").length;
+  for (let i = 0; i < 3; i++) windows.actionableElements(400, DISPLAY, { windowId: 44 });
+  expect(asked("topmost")).toHaveLength(8);
+  expect(asked("tree").length - reads).toBeGreaterThan(4); // after each lift, the page was read again while it was waited for
+  windows.releaseDesktop();
+});
+
+test("a lift lasts one read, however long the page takes: a page that comes up after it is read again behind the user's windows", async () => {
+  const page = await coveredPage();
+  page.lag = 2; // Chrome sends the page's tree on two reads after the lift's own
+  const before = calls.length;
+  const [found] = windows.actionableElements(400, DISPLAY, { windowId: 44 });
+  expect(found.map((n) => n.label)).toContain("Charles Babbage");
+  const order = calls.slice(before).map(([command, args]) => (command === "topmost" ? `topmost ${args.on}` : command)).filter((command) => ["tree", "sink"].includes(command) || command.startsWith("topmost"));
+  expect(order).toEqual(["tree", "topmost true", "tree", "topmost false", "sink", "tree", "tree"]);
+  windows.actionableElements(400, DISPLAY, { windowId: 44 });
+  expect(asked("topmost")).toHaveLength(2); // the page came up at this address: not lifted again
+  windows.releaseDesktop();
+});
+
+test("priming a blank page lifts it again on request and says whether it came up; the user's window and a window that is no browser's are left alone", async () => {
+  const page = await coveredPage();
+  windows.actionableElements(400, DISPLAY, { windowId: 44 });
+  expect(windows.primePage(44)).toBe(true); // lifted, although a lift brought this page up before
+  expect(asked("topmost")).toHaveLength(4);
+  page.address = "about:blank";
+  expect(windows.primePage(44)).toBe(false);
+  expect(asked("topmost")).toHaveLength(6);
+  expect(windows.primePage(45)).toBe(false);
+  expect(windows.primePage(11)).toBe(false);
+  expect(asked("topmost")).toHaveLength(6);
+  windows.releaseDesktop();
+});
+
+test("priming a page whose window shows already does nothing: it is neither lifted nor sunk behind the user's windows", async () => {
+  const page = await coveredPage();
+  page.address = "about:blank";
+  page.covered = false; // the user brought it up to watch
+  const sinks = asked("sink").length;
+  expect(windows.primePage(44)).toBe(true);
+  expect(asked("topmost")).toEqual([]);
+  expect(asked("sink")).toHaveLength(sinks);
   windows.releaseDesktop();
 });
 

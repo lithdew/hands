@@ -6,15 +6,42 @@ import { join } from "node:path";
 export const MIN_OCR_CONFIDENCE = 0.3;
 export const MAX_OPTIONS = 255; // TypeSafe Choice ceiling
 export const ABORT_CORNER_PX = 4;
-export const DEFAULT_MIN_CONFIDENCE = 0.4;
+export const DEFAULT_MIN_CONFIDENCE = 0.4; // the kind of action; the item and field have bars of their own, below
 export const DEFAULT_STEPS = 100;
 export const DEFAULT_DELAY = 2.0;
+
+// Jev, TypeSafe's classifier, as the clicker asks it. The bars are the teammate's measured ones (D:/projects/puk/jev
+// ground.eval.ts: a click at 0.5 left 1-2% wrong clicks; no field pick was wrong at 0.3; done at goal_met 0.8, or 0.5
+// when the kind agrees), set on DOM elements and kept until hands' own items are measured.
+export const DEFAULT_JEV_MODEL = "jev-1.13.0"; // pinned, so the bars keep meaning what they were measured to mean
+export const JEV_TIMEOUT_MS = 4000; // one attempt: a warm answer takes about 330 ms, a cold one about a second
+export const JEV_RETRIES = 1;
+export const CLICK_AT = 0.5; // the item to click, and the off-screen control to press
+export const FIELD_AT = 0.3; // the field to type into
+export const DONE_AT = 0.8; // goal_met alone ends the run
+export const DONE_AGREED = 0.5; // goal_met, when the kind says done too
+export const SUBMIT_AT = 0.5; // Return after typing
+export const STUCK_AT = 0.7; // the stuck noul, which counts only after STUCK_AFTER actions
+export const STUCK_AFTER = 3;
+export const GATE_AT = 0.5; // a consequence of a click (src/gate.ts) that stops the run for the user's approval
+export const MAX_ITEMS = 600; // items a step shows Jev; past PER_CHOICE the item question is asked in parts
+export const PER_CHOICE = 250; // item ids per Choice, leaving room for none_of_these under the ceiling
+export const ITEM_CHARS = 100; // an item's text as Jev reads it
+export const OFFSCREEN_SHOWN = 40; // off-screen controls a step offers, the ones sharing most words with the goal
+export const OFFSCREEN_CHARS = 80;
+export const RETRY_ITEMS = 120; // a request over Jev's token limit is sent once more with this many items and no off-screen controls
+export const WAIT_S = 1; // the `wait` action
+export const HISTORY_SHOWN = 10;
+export const SHOW_PAGE_MS = 400; // how long a blank page's window is held in front, with nothing sent to it, for its browser to draw it
+export const SHOW_PAGE_WAIT_MS = 5000; // how long that waits for the user to pause
+/** Jev's model: pinned, unless TYPESAFE_DEFAULT_MODEL names another. */
+export const jevModel = (): string => process.env.TYPESAFE_DEFAULT_MODEL?.trim() || DEFAULT_JEV_MODEL;
 export const DEFAULT_MODEL = "openai-codex/gpt-6-astra"; // provider/model, resolved through pi-ai
 export const DEFAULT_THINKING = "low";
 export const DEFAULT_SERVICE_TIER = "priority";
 export const DEFAULT_BROWSER = "Google Chrome";
 
-// Sites the classifier can pick by name. Anything else goes through the writer.
+// Sites the classifier can pick by name, in `bun clicker` (a hand opens pages with its own `browser`). Anything else goes through the writer.
 export const SITES: Record<string, string> = {
   github: "https://github.com/",
   gmail: "https://mail.google.com/",

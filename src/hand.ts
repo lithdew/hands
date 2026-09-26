@@ -79,6 +79,7 @@ let size: Point = [0, 0]; // how big the subject was at the last look
 let last: Point = [0, 0];
 let perPoint = 1; // the subject's pixels to a point, as the renderer last said
 let resting: ReturnType<typeof setTimeout> | undefined;
+let via = ""; // who is acting for the hand just now (Jev, while the clicker runs): its labels say so
 
 /** No renderer will answer those waiting on one now: they go on at once, as they would once they had waited long enough. */
 function unanswered(): void {
@@ -193,6 +194,7 @@ export const hand = {
   async cue(pose: Pose, label: string, at?: Point, extra: Pick<Cue, "count" | "swipe"> = {}): Promise<void> {
     if (!watched()) return;
     clearTimeout(resting);
+    if (via && label) label = `${via} › ${label}`;
     if (at) {
       const ms = glideMs(last, at, perPoint);
       send({ pose: pose === "draw" ? pose : "point", label, at: (last = at), ms }); // a pen stays a pen between strokes
@@ -211,6 +213,14 @@ export const hand = {
     send({ seat: { state, why } });
     if (!renderer) return Promise.resolve();
     return Promise.race([new Promise<void>((heard) => seatAcks.push(heard)), Bun.sleep(SEAT_ACK_MS)]);
+  },
+
+  /**
+   * Who acts for the hand from now on, until it is cleared with "": every label it shows then reads `Jev › click
+   * “Pricing”`, on the tag under the hand, on its card, and in what the voice hears of its recent actions.
+   */
+  via(who: string): void {
+    via = who;
   },
 
   /** Where the pointer is this instant, in the middle of a drag. */

@@ -208,6 +208,62 @@ test("typing uses keystrokes when there is no element", async () => {
   expect(written).not.toHaveBeenCalled();
 });
 
+test("a value the field took but formats its own way is not typed again: the field changed", async () => {
+  spyOn(macos, "axSetValue").mockImplementation(() => true);
+  spyOn(macos, "axValue").mockImplementation(() => "(555) 123-4567");
+  expect(await fillField(field({}), "5551234567")).toBe("via accessibility");
+  expect(calls).not.toContainEqual(["type", "5551234567"]);
+});
+
+/** type_text into item 1, a field of the screen's that is not the one with the focus (that one lies elsewhere). */
+const typingInto = (submit = 0) => new Decision(answer("type_text", 0.9), null, null, null, { field: answer("1", 0.9), submit });
+const nameField = item(1, "Name", 1, [100, 100, 300, 140], "field", "ax");
+const otherFocused: Field = { role: "AXTextField", label: "Search", placeholder: "", value: "", x: 400, y: 20, w: 200, h: 30, ref: { other: true } };
+
+test("on the seat, typing reads back the field it chose, not whichever has the focus", async () => {
+  const ref = { name: true };
+  const values = new Map<unknown, string>();
+  spyOn(macos, "axSetValue").mockImplementation((r, text) => (values.set(r, text), true));
+  spyOn(macos, "axValue").mockImplementation((r) => values.get(r) ?? "");
+  const focused = spyOn(macos, "focusedField").mockImplementation(unreachable("the chosen field has an element of its own to read"));
+  const live = screen({ axRefs: new Map([[1, ref]]), field: otherFocused });
+  expect(await perform(typingInto(), live, [nameField], { ...context(), text: "Ada" })).toBe("typed 'Ada' into 'Name' via accessibility");
+  expect(focused).not.toHaveBeenCalled();
+});
+
+test("on the seat, a listed field that is not the focused one is clicked before keystrokes, and checked by its own value", async () => {
+  const ref = { name: true };
+  let holds = "";
+  spyOn(macos, "axSetValue").mockImplementation(() => false);
+  spyOn(macos, "axPress").mockImplementation(() => false);
+  spyOn(macos, "axValue").mockImplementation(() => holds);
+  spyOn(macos, "typeText").mockImplementation(async (text) => void (calls.push(["type", text]), (holds = text)));
+  const live = screen({ axRefs: new Map([[1, ref]]), field: otherFocused });
+  expect(await perform(typingInto(), live, [nameField], { ...context(), text: "Ada" })).toBe("typed 'Ada' into 'Name' via keystrokes");
+  expect(calls).toEqual([["focus", ref], ["click", [100, 60]], ["type", "Ada"]]);
+  // The field that has the focus already is typed into as it is.
+  calls = [];
+  holds = "";
+  const focusedHere: Field = { ...otherFocused, x: 50, y: 50, w: 100, h: 20, ref };
+  await perform(typingInto(), screen({ axRefs: new Map([[1, ref]]), field: focusedHere }), [nameField], { ...context(), text: "Ada" });
+  expect(calls).toEqual([["focus", ref], ["type", "Ada"]]);
+});
+
+test("on the seat, Return after typing goes to the field's own confirm action, and to the keyboard only when it has none", async () => {
+  const ref = { name: true };
+  spyOn(macos, "axSetValue").mockImplementation(() => true);
+  spyOn(macos, "axValue").mockImplementation(() => "Ada");
+  const confirm = spyOn(macos, "axPerform").mockImplementation(() => true);
+  const pressed = spyOn(macos, "press").mockImplementation(async () => {});
+  const live = screen({ axRefs: new Map([[1, ref]]), field: otherFocused });
+  expect(await perform(typingInto(0.9), live, [nameField], { ...context(), text: "Ada" })).toBe("typed 'Ada' into 'Name' via accessibility, and pressed Return");
+  expect(confirm.mock.calls).toEqual([[ref, "AXConfirm"]]);
+  expect(pressed).not.toHaveBeenCalled();
+  confirm.mockImplementation(() => false);
+  await perform(typingInto(0.9), live, [nameField], { ...context(), text: "Ada" });
+  expect(pressed.mock.calls).toEqual([["return"]]);
+});
+
 test("the field record leaves the element out so a run can be written", () => {
   const element: Record<string, unknown> = {};
   element.self = element; // no log can serialize it, as with the real handle

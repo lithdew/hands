@@ -50,7 +50,7 @@ Each is one spoken request, recorded in one take on the machine this was built o
 ```
 
 - **Models where they fit.** A realtime voice model for the conversation, a reasoning model behind it for delegation, and for each hand any provider [pi](https://github.com/earendil-works/pi) supports (a ChatGPT subscription signed in with `pi` works with no key of its own). Seeing is not a model call at all: a hand reads a window as text, from on-device OCR and the accessibility tree, and acts by index. A screenshot goes to the model only when text falls short.
-- **The cheapest step.** `clicker` is a port of [typesafe-computer-use](https://github.com/awlevin/typesafe-computer-use): a small [TypeSafe](https://docs.typesafe.ai) classifier picks the next action from that numbered list, and stops when it is unsure. Its author measured $0.0002 a decision, 155x cheaper than a frontier model reading the screenshot, with 14x to 40x lower model latency (3.7x faster for a whole step). Those are the original's figures, and they are for this loop, which `bun clicker` runs on its own: a hand does not use it.
+- **The cheapest step.** `clicker` is a port of [typesafe-computer-use](https://github.com/awlevin/typesafe-computer-use): a small [TypeSafe](https://docs.typesafe.ai) classifier picks the next action from that numbered list, and stops when it is unsure. Its author measured $0.0002 a decision, 155x cheaper than a frontier model reading the screenshot, with 14x to 40x lower model latency (3.7x faster for a whole step). Those are the original's figures, for this loop, which `bun clicker` runs on its own; a hand hands it one small step at a time as its `clicker` tool, where it works from behind as the hand does.
 - **All native, all TypeScript.** Quartz, accessibility, Vision, AppKit, Core Animation, WebKit, AVFAudio and the window server's private SkyLight are called through `bun:ffi`: no compiler, no helper binary, no Electron (on the Mac; Windows has one helper, which it builds itself: see [Windows](#windows)). The on-screen hand costs about 1% of a core, and a picture of a hand's window takes about 7 ms.
 - **Measured, not assumed.** With the user working in another app throughout, a three-minute task (search arXiv, keep four papers as tabs, build a PDF, attach it to a new Apple Note) had Notes in front in 0 of 655 samples. 365 tests cover the pure logic and the Windows layer's promises. A dropped connection or a crashed renderer does not end a run.
 
@@ -65,7 +65,7 @@ The rest of this page is the reference: how to install it, every command, and ho
 
 - **`live`** is the voice, the panel, and the hands it sends out.
 - **`hands`** is a [pi](https://github.com/earendil-works/pi) agent (`pi-agent-core`) that has pi's coding tools (`read`, `bash`, `edit`, `write`) and computer use side by side: perception and actions as individual tools, and `finish`, which ends each task as done, needs you, or could not.
-- **`clicker`** is the port: it drives a Mac toward a goal you type in plain English. It reads the screen deterministically (Vision OCR plus the accessibility tree), asks a TypeSafe classifier which action comes next, and only calls a writing model when a field genuinely needs free text.
+- **`clicker`** is the port: it drives a Mac toward a goal you type in plain English. It reads the screen deterministically (Vision OCR plus the accessibility tree), asks a TypeSafe classifier (Jev) which action comes next, and only calls a writing model when a field genuinely needs free text. A hand uses the same loop as a tool, in its own window and from behind: one small step (a click-through, one search box with the text to type), after which it reads the window's listing and goes on.
 
 ```
 bun hands "Open up the calculator and check for me what 1337*1337 with it"   # while you keep working
@@ -93,7 +93,7 @@ The language model goes through [pi-ai](https://github.com/earendil-works/pi/tre
 | `HANDS_SERVICE_TIER` | `priority` | sent as `service_tier`; `off` sends none |
 | `CLICKER_WRITER_MODEL`, `CLICKER_ANSWER_MODEL` | `HANDS_MODEL` | the clicker's per-step writer, and the reader of its last screen |
 | `CLICKER_BROWSER` | `Google Chrome` | any Chromium browser with Chrome's scripting dictionary |
-| `CLICKER_EMAIL` | none | enables the clicker's `type_email` action |
+| `CLICKER_EMAIL` | none | enables the clicker's `type_email` action, offered only for a goal that asks for an email, a username or a sign-in, and no text given |
 | `OPENAI_API_KEY` | required by `bun live` | the voice |
 | `HANDS_LIVE_MODEL`, `HANDS_LIVE_VOICE`, `HANDS_LIVE_BACKEND` | `gpt-live-1`, `marin`, `gpt-5.6-luna` | the voice, how it sounds, and the Responses model behind it that turns what was said into tool calls |
 | `HANDS_WORK`, `HANDS_PROFILE` | `~/Documents/Hands`, `~/.hands/profile.md` | where `bun live`'s hands work, and what the voice knows of you (names as they are spelled), which it adds to |
@@ -118,7 +118,7 @@ bun clicker "log in" --act --steps 20 --delay 3      # longer and slower
 bun clicker-inspect "any goal"                       # 3-2-1, capture, open the annotated screen + payload
 ```
 
-**Stopping a live run.** Ctrl-C, or slam the mouse into the top-left corner of whichever screen it is on. The clicker also stops itself on `done` or `none`, on confidence under `--min-confidence` (0.4), after two consecutive no-ops, or at `--steps`. In `bun live`, Ctrl-C dismisses every hand first.
+**Stopping a live run.** Ctrl-C, or slam the mouse into the top-left corner of whichever screen it is on. The clicker also stops itself once the screen shows the goal met (Jev's `goal_met` at 0.8, or 0.5 when it also says `done`), on `none` or a pick it is unsure of (the kind under `--min-confidence`, 0.4; the item under 0.5; the field under 0.3), on a loop (the same action three times with no change on screen, four actions of any kind without one, or two refused in a row), on a click whose label commits something (send, buy, delete...), typing that Return submits, or Return itself, when Jev's consequence check flags it, on a blank page, or at `--steps`. In `bun live`, Ctrl-C dismisses every hand first.
 
 **One mode: behind first, the seat when needed.** A hand works behind your windows, and everything it does names its window (see [Behind your windows](#behind-your-windows)), so your mouse, keyboard and focus stay yours. What cannot be done from there borrows the seat, your real mouse and keyboard, for that one action, and gives it back: a right click; on Windows also a shortcut, a drag outside a web page, and typing into Office (see [Windows](#windows)); and an action retried with `seat=true` because from behind it had no effect. `--background` is still accepted, and changes nothing. `bun clicker` is the exception: like the original, it works the screen in front of you with your own mouse and keyboard, so leave it alone while it runs.
 
@@ -236,14 +236,18 @@ accessibility ─► focused field          ScriptingBridge ─► active tab UR
 clock, dates.ts ─► "dated 2026-10-13 (in 27 days)" on any block containing a date
                      │
                      ▼
-        one TypeSafe request, three Choices, four with off-screen controls
-        kind | item | site | offscreen
+        one TypeSafe request: the items once, in state, one line each
+        ("12: link 'Charles Babbage' (middle-left)"), and questions over bare ids
+        kind | item (in parts past 250) | field + submit | offscreen | site
+        goal_met | stuck
                      │
                      ▼
-        deterministic action ─► wait ─► next step
+        deterministic action ─► next look ─► screen changed, or not ─► next step
 ```
 
-The design, the action space, the OCR crop-and-reuse cache, the accessibility pruning rules and the run folder are the original's; its [README](https://github.com/awlevin/typesafe-computer-use#readme) explains each. Every run writes `runs/<timestamp>/` (`run.log`, `run.json`, and per step the raw capture, the annotated capture, the exact payload, and every probability), and a saved capture replays offline:
+What Jev is shown and asked follows measurements made with the same model (puk's `jev/` grounding eval, about 4,900 requests over 141 decisions): items described once in state with bare ids as the labels, and a question that says what a match is, picked the right element 98% of the time, against 78% for items described in state and again as the labels, the port's first shape, which also put a busy date picker over Jev's token limit. Only actions that can run are offered (no click with nothing to click, no typing without a field), and absolute questions ride along: `goal_met` (a run is done only when the screen shows it), `stuck`, and after typing whether the field submits with Return. A hand's clicker never picks a website (the hand opens pages with `browser`), types the text the hand gave it, starts from the hand's own capture when nothing has acted since, and returns the window's listing instead of a written answer. A page that reads as blank (a covered Chrome window draws nothing, and builds no tree for a page it thinks nobody sees) is shown to the browser once, lifted over your windows for a moment or brought in front with nothing typed, before the run gives up on it as `blank`. The model is pinned to `jev-1.13.0` (`TYPESAFE_DEFAULT_MODEL` overrides it), each request gives up after 4 s and is tried once more, and a stop ends it at once.
+
+The design, the action space, the OCR crop-and-reuse cache, the accessibility pruning rules and the run folder are the original's; its [README](https://github.com/awlevin/typesafe-computer-use#readme) explains each. Every run writes `runs/<timestamp>/` (`run.log`, `run.json`, and per step the raw capture, the annotated capture, the exact payload, and every probability, with the model that answered and the tokens it read), and a saved capture replays offline:
 
 ```
 bun clicker "same goal" --image runs/<ts>/step-003-raw.png --app "Google Chrome" --url "https://example.com/"
@@ -280,11 +284,12 @@ src/
   perception.ts   capture, OCR, the read region and the changed-tile cache, block merging,
                   goal-echo filter, the accessibility item source, and the merge of the two
   dates.ts        date parsing and "in N days" hints
-  decide.ts       state, criteria, the multi-Choice request, the Noul check
+  decide.ts       what Jev is told and asked, its answers read back and checked, the shared client
+  gate.ts         Jev's look at a committing click's consequences
   writer.ts       the writer model, structured replies, URL validation, the final answer
   actions.ts      one handler per action, each returning a history line
-  runner.ts       the step loop, run folder, stop rules, the hand-off for the answer
-  report.ts       logging, annotated screenshots, payload dump
+  runner.ts       the step loop, run folder, blank pages, stop rules, the hand-off for the answer
+  report.ts       logging, annotated screenshots, payload dump, a run told in a line
   timing.ts       phase stopwatches, the timing line, run summary
   cli.ts          `clicker` and `clicker inspect`
   llm.ts          pi-ai model runtime, model resolution, the service tier
