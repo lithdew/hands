@@ -46,9 +46,10 @@ export interface Item {
   y2: number;
   role: string;
   source: "ocr" | "ax" | "ax+ocr";
+  value?: string; // what a field holds now, when its control says (never a password's)
 }
 
-export const item = (index: number, text: string, ocrConfidence: number, box: Box, role = "", source: Item["source"] = "ocr"): Item => ({
+export const item =(index: number, text: string, ocrConfidence: number, box: Box, role = "", source: Item["source"] = "ocr"): Item => ({
   index,
   text,
   ocrConfidence,
@@ -77,6 +78,7 @@ export interface AxNode {
   h: number;
   pressable: boolean;
   ref?: unknown;
+  value?: string; // a field's current text, when the platform reads it (never a password's)
 }
 
 export const roleWord = (node: AxNode): string => ROLE_WORDS[node.role] ?? "other";
@@ -130,6 +132,11 @@ export interface Screen {
   windowId?: number; // set when the capture is of one window alone, which may sit behind others
   axRefs: Map<number, unknown>; // item index -> accessibility element, when it has one
   offscreen: AxNode[]; // labelled controls the app exposes but does not show
+  // What the listing's header says about the window beyond its app and size:
+  dialog?: string | null; // the title of a dialog the window has open, which is what was captured
+  theirs?: boolean; // the window is the user's own, not one the hand opened
+  tabs?: { count: number; active: string }; // a browser window of the hand's own: its tabs, which stand in for its tab strip and toolbar
+  readOnly?: boolean; // the user's screen, captured to be read and never acted on
 }
 
 export const sizePt = (s: Screen): Point => [s.image.width / s.scale, s.image.height / s.scale];
