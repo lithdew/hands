@@ -2,9 +2,12 @@
 // shell-windows.ts sends them. A borderless, never-activating tool window in the corner with a WebView2 in it,
 // showing the same page as the Mac's panel. The web view is told to paint nothing behind the page, the window's
 // own colour is the key (LWA_COLORKEY through the form's TransparencyKey), and so every pixel the page leaves
-// clear is not there: not on the screen, and not to the mouse. The cards float, as on the Mac. (A browser window
-// cannot be made to do this: Chromium presents through DirectComposition, past the surface the key is applied to,
-// and paints a title strip of its own in --app mode that no flag removes; measured, see the README.)
+// clear is not on the screen. The cards float, as on the Mac. (A browser window cannot be made to do this:
+// Chromium presents through DirectComposition, past the surface the key is applied to, and paints a title strip
+// of its own in --app mode that no flag removes; measured, see the README.) The mouse is another matter: the web
+// view is a child window of the browser's, and it takes the mouse over every pixel of it, clear or not (measured:
+// WindowFromPoint over a clear pixel is the panel), so the page says where it is solid, and the window lets the
+// mouse through everywhere else (Pass).
 //
 // WebView2 is hosted without its SDK: the runtime that comes with Edge exports the loader's entry point from
 // EmbeddedBrowserWebView.dll, and the few COM interfaces used are declared here, with their published GUIDs.
@@ -90,10 +93,15 @@ class PanelWindow : Form
     readonly string url, dataDir, dll;
     ICoreWebView2Controller controller;
     ICoreWebView2 web;
-    WebView2EnvironmentCompleted onEnvironment; WebView2ControllerCompleted onController; // kept: the runtime holds them only as COM pointers
+    WebView2EnvironmentCompleted onEnvironment; WebView2ControllerCompleted onController; WebView2ProcessFailed onFailed; WebView2MessageReceived onMessage; // kept: the runtime holds them only as COM pointers
     WebView2CreateEnvironment create;
     bool keyboard = false; // whether the page may have the keyboard: a sheet with its box is open
     IntPtr previous = IntPtr.Zero; // who had the foreground before the page took it
+    bool quitting = false;
+    int restarts = 0; // how many times the web view has been made again after its browser process went away
+    Rectangle[] solid = new Rectangle[0]; // where the page shows something, in the window's pixels, as it last said
+    bool through = true; // whether the mouse goes through the window now, all of it
+    readonly System.Windows.Forms.Timer pointer = new System.Windows.Forms.Timer { Interval = 30 }; // how often the pointer is looked for over the page
     public bool Failed = false;
 
     public PanelWindow(string url, string dataDir, string dll)
@@ -106,13 +114,23 @@ class PanelWindow : Form
     }
     protected override CreateParams CreateParams
     {
-        get { CreateParams p = base.CreateParams; p.ExStyle |= HandNative.WS_EX_TOOLWINDOW | HandNative.WS_EX_NOACTIVATE | HandNative.WS_EX_TOPMOST; return p; }
+        get { CreateParams p = base.CreateParams; p.ExStyle |= HandNative.WS_EX_TOOLWINDOW | HandNative.WS_EX_NOACTIVATE | HandNative.WS_EX_TOPMOST | HandNative.WS_EX_TRANSPARENT; return p; }
     }
     protected override bool ShowWithoutActivation { get { return true; } }
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        HandNative.SetWindowDisplayAffinity(Handle, HandNative.WDA_EXCLUDEFROMCAPTURE); // out of every capture, like the hands themselves
+        // Out of every capture, like the hands themselves; HANDS_RECORDABLE=1 leaves it in, for a demo or a bug report.
+        if (Environment.GetEnvironmentVariable("HANDS_RECORDABLE") != "1") HandNative.SetWindowDisplayAffinity(Handle, HandNative.WDA_EXCLUDEFROMCAPTURE);
+        pointer.Tick += delegate { Pass(); };
+        pointer.Start();
+    }
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        // Alt+F4 while a sheet has the keyboard, or anything else's WM_CLOSE, would take the window away and leave the
+        // process running without it: the panel goes when the orchestrator does, or when Windows does.
+        if (!quitting && e.CloseReason != CloseReason.WindowsShutDown) { e.Cancel = true; return; }
+        base.OnFormClosing(e);
     }
     protected override void WndProc(ref Message m)
     {
@@ -140,6 +158,12 @@ class PanelWindow : Form
                 Fit();
                 controller.put_IsVisible(1);
                 if (controller.get_CoreWebView2(out web) < 0 || web == null) { Fail("WebView2 gave no web view"); return; }
+                Configure();
+                onFailed = new WebView2ProcessFailed(delegate (int kind) { BeginInvoke((Action<int>)Recover, kind); }); // after the event: a web view is not remade from inside its own
+                WebView2Token token;
+                if (web.add_ProcessFailed(onFailed, out token) < 0) Console.Error.WriteLine("panel: cannot watch the web view's processes; a crash will leave it blank");
+                onMessage = new WebView2MessageReceived(Heard);
+                if (web.add_WebMessageReceived(onMessage, out token) < 0) Console.Error.WriteLine("panel: cannot hear the page; the mouse will go through all of it");
                 web.Navigate(url);
             });
             if (environment.CreateCoreWebView2Controller(Handle, onController) < 0) Fail("WebView2 would not make a controller");
@@ -153,6 +177,56 @@ class PanelWindow : Form
         Console.Error.WriteLine("panel: " + why);
         Failed = true;
         Quit();
+    }
+
+    /**
+     * A panel, not a browser: no menu of the browser's own, no zoom (it would change the page's size under a window
+     * fitted to it), no status bar, no error page (a page that failed to load is nothing, not an opaque box in the
+     * corner of the screen), no browser keys (F5, Ctrl+P, F12: the editing keys stay), and dev tools only under HANDS_DEBUG.
+     */
+    void Configure()
+    {
+        ICoreWebView2Settings settings;
+        if (web.get_Settings(out settings) < 0 || settings == null) { Console.Error.WriteLine("panel: WebView2 gave no settings; the panel is a browser page"); return; }
+        bool debug = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("HANDS_DEBUG"));
+        settings.put_AreDefaultContextMenusEnabled(0);
+        settings.put_IsZoomControlEnabled(0);
+        settings.put_IsStatusBarEnabled(0);
+        settings.put_IsBuiltInErrorPageEnabled(0);
+        settings.put_AreDevToolsEnabled(debug ? 1 : 0);
+        int keys = 1;
+        try
+        {
+            ICoreWebView2Settings3 more = (ICoreWebView2Settings3)settings;
+            more.put_AreBrowserAcceleratorKeysEnabled(0);
+            more.get_AreBrowserAcceleratorKeysEnabled(out keys);
+        }
+        catch (InvalidCastException) { } // a runtime older than the setting: its keys stay
+        if (!debug) return;
+        int menus, zoom, bar, tools, script;
+        settings.get_AreDefaultContextMenusEnabled(out menus); settings.get_IsZoomControlEnabled(out zoom); settings.get_IsStatusBarEnabled(out bar); settings.get_AreDevToolsEnabled(out tools); settings.get_IsScriptEnabled(out script);
+        Console.Error.WriteLine("panel: script " + script + ", context menus " + menus + ", zoom " + zoom + ", status bar " + bar + ", dev tools " + tools + ", browser keys " + keys);
+    }
+
+    /**
+     * One of the web view's processes went away. A page whose renderer crashed or hung is loaded again (it reconnects
+     * and is sent everything afresh); a browser process that went away took the web view with it, which is made
+     * again, three times at most. Anything else (the GPU process, a utility) the runtime starts again by itself.
+     */
+    void Recover(int kind)
+    {
+        Console.Error.WriteLine("panel: a WebView2 process went away (kind " + kind + ")");
+        if (kind == WebView2ProcessFailed.RENDERER_EXITED || kind == WebView2ProcessFailed.RENDERER_HUNG || kind == WebView2ProcessFailed.UNKNOWN)
+        {
+            if (web != null) web.Navigate(url);
+            return;
+        }
+        if (kind != WebView2ProcessFailed.BROWSER_EXITED) return;
+        if (++restarts > 3) { Fail("the WebView2 browser process keeps going away"); return; }
+        try { if (controller != null) controller.Close(); } catch (Exception) { }
+        controller = null;
+        web = null;
+        Open();
     }
     /** The web view fills the window, whatever the window is now. */
     void Fit()
@@ -222,8 +296,55 @@ class PanelWindow : Form
         return given;
     }
 
+    // ------------------------------------------------------------------ the mouse
+
+    /**
+     * What the page says of itself, through the web view's own channel (window.chrome.webview.postMessage): where it
+     * is solid, as rectangles in CSS pixels with the pixel ratio they are in. Nothing else is listened to.
+     */
+    void Heard(string json)
+    {
+        Dictionary<string, object> message;
+        try { message = HandJson.Parse(json) as Dictionary<string, object>; } catch (Exception) { return; }
+        object value;
+        if (message == null || !message.TryGetValue("solid", out value) || !(value is List<object>)) return;
+        List<object> parts = (List<object>)value;
+        double scale = message.TryGetValue("dpr", out value) && value is double ? (double)value : 1;
+        var made = new List<Rectangle>();
+        foreach (object part in parts)
+        {
+            var box = part as List<object>;
+            if (box == null || box.Count < 4 || !(box[0] is double && box[1] is double && box[2] is double && box[3] is double)) continue;
+            int left = (int)Math.Floor((double)box[0] * scale), top = (int)Math.Floor((double)box[1] * scale);
+            made.Add(new Rectangle(left, top, (int)Math.Ceiling(((double)box[0] + (double)box[2]) * scale) - left, (int)Math.Ceiling(((double)box[1] + (double)box[3]) * scale) - top));
+        }
+        if (solid.Length == 0 && made.Count > 0 && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("HANDS_DEBUG"))) Console.Error.WriteLine("panel: the page is solid in " + made.Count + " places");
+        solid = made.ToArray();
+        Pass();
+    }
+
+    /**
+     * The mouse goes through the whole window, web view and all (WS_EX_TRANSPARENT), unless the pointer is over a
+     * part of the page that is solid. Looked at every 30 ms and whenever the page moves, and left as it is while a
+     * button is held, so a press or a drag that has begun ends where it began.
+     */
+    void Pass()
+    {
+        if ((PanelNative.GetAsyncKeyState(PanelNative.VK_LBUTTON) & 0x8000) != 0 || (PanelNative.GetAsyncKeyState(PanelNative.VK_RBUTTON) & 0x8000) != 0) return;
+        HandNative.POINT cursor;
+        HandNative.GetCursorPos(out cursor);
+        bool over = false;
+        foreach (Rectangle part in solid) if (part.Contains(cursor.x - Left, cursor.y - Top)) { over = true; break; }
+        if (over != through) return;
+        through = !over;
+        int style = HandNative.GetWindowLong(Handle, HandNative.GWL_EXSTYLE);
+        HandNative.SetWindowLong(Handle, HandNative.GWL_EXSTYLE, through ? style | HandNative.WS_EX_TRANSPARENT : style & ~HandNative.WS_EX_TRANSPARENT);
+    }
+
     public void Quit()
     {
+        quitting = true;
+        pointer.Stop();
         try { if (controller != null) controller.Close(); } catch (Exception) { }
         controller = null;
         Application.Exit();
@@ -233,6 +354,8 @@ class PanelWindow : Form
 static class PanelNative
 {
     public const uint SWP_SHOWWINDOW = 0x40, SWP_HIDEWINDOW = 0x80, LOAD_WITH_ALTERED_SEARCH_PATH = 8;
+    public const int VK_LBUTTON = 1, VK_RBUTTON = 2;
+    [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
@@ -330,10 +453,105 @@ interface ICoreWebView2Controller2
 [ComImport, Guid("76ECEACB-0462-4D94-AC83-423A6793775E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 interface ICoreWebView2
 {
-    [PreserveSig] int get_Settings(out IntPtr settings);
+    [PreserveSig] int get_Settings(out ICoreWebView2Settings settings);
     [PreserveSig] int get_Source(out IntPtr source);
     [PreserveSig] int Navigate([MarshalAs(UnmanagedType.LPWStr)] string uri);
     [PreserveSig] int NavigateToString([MarshalAs(UnmanagedType.LPWStr)] string html);
+    [PreserveSig] int add_NavigationStarting(IntPtr handler, out WebView2Token token);
+    [PreserveSig] int remove_NavigationStarting(WebView2Token token);
+    [PreserveSig] int add_ContentLoading(IntPtr handler, out WebView2Token token);
+    [PreserveSig] int remove_ContentLoading(WebView2Token token);
+    [PreserveSig] int add_SourceChanged(IntPtr handler, out WebView2Token token);
+    [PreserveSig] int remove_SourceChanged(WebView2Token token);
+    [PreserveSig] int add_HistoryChanged(IntPtr handler, out WebView2Token token);
+    [PreserveSig] int remove_HistoryChanged(WebView2Token token);
+    [PreserveSig] int add_NavigationCompleted(IntPtr handler, out WebView2Token token);
+    [PreserveSig] int remove_NavigationCompleted(WebView2Token token);
+    [PreserveSig] int add_FrameNavigationStarting(IntPtr handler, out WebView2Token token);
+    [PreserveSig] int remove_FrameNavigationStarting(WebView2Token token);
+    [PreserveSig] int add_FrameNavigationCompleted(IntPtr handler, out WebView2Token token);
+    [PreserveSig] int remove_FrameNavigationCompleted(WebView2Token token);
+    [PreserveSig] int add_ScriptDialogOpening(IntPtr handler, out WebView2Token token);
+    [PreserveSig] int remove_ScriptDialogOpening(WebView2Token token);
+    [PreserveSig] int add_PermissionRequested(IntPtr handler, out WebView2Token token);
+    [PreserveSig] int remove_PermissionRequested(WebView2Token token);
+    [PreserveSig] int add_ProcessFailed(IWebView2ProcessFailed handler, out WebView2Token token);
+    [PreserveSig] int remove_ProcessFailed(WebView2Token token);
+    [PreserveSig] int AddScriptToExecuteOnDocumentCreated(IntPtr script, IntPtr handler);
+    [PreserveSig] int RemoveScriptToExecuteOnDocumentCreated(IntPtr id);
+    [PreserveSig] int ExecuteScript(IntPtr script, IntPtr handler);
+    [PreserveSig] int CapturePreview(int format, IntPtr stream, IntPtr handler);
+    [PreserveSig] int Reload();
+    [PreserveSig] int PostWebMessageAsJson(IntPtr json);
+    [PreserveSig] int PostWebMessageAsString(IntPtr text);
+    [PreserveSig] int add_WebMessageReceived(IWebView2MessageReceived handler, out WebView2Token token);
+    [PreserveSig] int remove_WebMessageReceived(WebView2Token token);
+}
+
+[ComImport, Guid("E562E4F0-D7FA-43AC-8D71-C05150499F00"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface ICoreWebView2Settings
+{
+    [PreserveSig] int get_IsScriptEnabled(out int enabled);
+    [PreserveSig] int put_IsScriptEnabled(int enabled);
+    [PreserveSig] int get_IsWebMessageEnabled(out int enabled);
+    [PreserveSig] int put_IsWebMessageEnabled(int enabled);
+    [PreserveSig] int get_AreDefaultScriptDialogsEnabled(out int enabled);
+    [PreserveSig] int put_AreDefaultScriptDialogsEnabled(int enabled);
+    [PreserveSig] int get_IsStatusBarEnabled(out int enabled);
+    [PreserveSig] int put_IsStatusBarEnabled(int enabled);
+    [PreserveSig] int get_AreDevToolsEnabled(out int enabled);
+    [PreserveSig] int put_AreDevToolsEnabled(int enabled);
+    [PreserveSig] int get_AreDefaultContextMenusEnabled(out int enabled);
+    [PreserveSig] int put_AreDefaultContextMenusEnabled(int enabled);
+    [PreserveSig] int get_AreHostObjectsAllowed(out int allowed);
+    [PreserveSig] int put_AreHostObjectsAllowed(int allowed);
+    [PreserveSig] int get_IsZoomControlEnabled(out int enabled);
+    [PreserveSig] int put_IsZoomControlEnabled(int enabled);
+    [PreserveSig] int get_IsBuiltInErrorPageEnabled(out int enabled);
+    [PreserveSig] int put_IsBuiltInErrorPageEnabled(int enabled);
+}
+
+[ComImport, Guid("FDB5AB74-AF33-4854-84F0-0A631DEB5EBA"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface ICoreWebView2Settings3
+{
+    [PreserveSig] int get_IsScriptEnabled(out int enabled);
+    [PreserveSig] int put_IsScriptEnabled(int enabled);
+    [PreserveSig] int get_IsWebMessageEnabled(out int enabled);
+    [PreserveSig] int put_IsWebMessageEnabled(int enabled);
+    [PreserveSig] int get_AreDefaultScriptDialogsEnabled(out int enabled);
+    [PreserveSig] int put_AreDefaultScriptDialogsEnabled(int enabled);
+    [PreserveSig] int get_IsStatusBarEnabled(out int enabled);
+    [PreserveSig] int put_IsStatusBarEnabled(int enabled);
+    [PreserveSig] int get_AreDevToolsEnabled(out int enabled);
+    [PreserveSig] int put_AreDevToolsEnabled(int enabled);
+    [PreserveSig] int get_AreDefaultContextMenusEnabled(out int enabled);
+    [PreserveSig] int put_AreDefaultContextMenusEnabled(int enabled);
+    [PreserveSig] int get_AreHostObjectsAllowed(out int allowed);
+    [PreserveSig] int put_AreHostObjectsAllowed(int allowed);
+    [PreserveSig] int get_IsZoomControlEnabled(out int enabled);
+    [PreserveSig] int put_IsZoomControlEnabled(int enabled);
+    [PreserveSig] int get_IsBuiltInErrorPageEnabled(out int enabled);
+    [PreserveSig] int put_IsBuiltInErrorPageEnabled(int enabled);
+    [PreserveSig] int get_UserAgent(out IntPtr agent);
+    [PreserveSig] int put_UserAgent(IntPtr agent);
+    [PreserveSig] int get_AreBrowserAcceleratorKeysEnabled(out int enabled);
+    [PreserveSig] int put_AreBrowserAcceleratorKeysEnabled(int enabled);
+}
+
+[ComImport, Guid("79E0AEA4-990B-42D9-AA1D-0FCC2E5BC7F1"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IWebView2ProcessFailed { [PreserveSig] int Invoke(IntPtr sender, IntPtr args); }
+
+[ComImport, Guid("8155A9A4-1474-4A86-8CAE-151B0FA6B8CA"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface ICoreWebView2ProcessFailedEventArgs { [PreserveSig] int get_ProcessFailedKind(out int kind); }
+
+[ComImport, Guid("57213F19-00E6-49FA-8E07-898EA01ECBD2"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IWebView2MessageReceived { [PreserveSig] int Invoke(IntPtr sender, IntPtr args); }
+
+[ComImport, Guid("0F99A40C-E962-4207-9E92-E3D542EFF849"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface ICoreWebView2WebMessageReceivedEventArgs
+{
+    [PreserveSig] int get_Source(out IntPtr source);
+    [PreserveSig] int get_WebMessageAsJson(out IntPtr json);
 }
 
 [ComVisible(true), ClassInterface(ClassInterfaceType.None)]
@@ -349,4 +567,48 @@ class WebView2ControllerCompleted : IWebView2ControllerCompleted
     readonly Action<int, ICoreWebView2Controller> then;
     public WebView2ControllerCompleted(Action<int, ICoreWebView2Controller> then) { this.then = then; }
     public int Invoke(int hr, ICoreWebView2Controller controller) { then(hr, controller); return 0; }
+}
+/** Which process went away, as COREWEBVIEW2_PROCESS_FAILED_KIND numbers it; UNKNOWN when the event would not say. */
+[ComVisible(true), ClassInterface(ClassInterfaceType.None)]
+class WebView2ProcessFailed : IWebView2ProcessFailed
+{
+    public const int UNKNOWN = -1, BROWSER_EXITED = 0, RENDERER_EXITED = 1, RENDERER_HUNG = 2;
+    readonly Action<int> then;
+    public WebView2ProcessFailed(Action<int> then) { this.then = then; }
+    public int Invoke(IntPtr sender, IntPtr args)
+    {
+        int kind = UNKNOWN;
+        try
+        {
+            ICoreWebView2ProcessFailedEventArgs failed = Marshal.GetObjectForIUnknown(args) as ICoreWebView2ProcessFailedEventArgs;
+            if (failed == null || failed.get_ProcessFailedKind(out kind) < 0) kind = UNKNOWN;
+        }
+        catch (Exception) { kind = UNKNOWN; }
+        then(kind);
+        return 0;
+    }
+}
+/** A message from the page, as the JSON it was posted as. */
+[ComVisible(true), ClassInterface(ClassInterfaceType.None)]
+class WebView2MessageReceived : IWebView2MessageReceived
+{
+    readonly Action<string> then;
+    public WebView2MessageReceived(Action<string> then) { this.then = then; }
+    public int Invoke(IntPtr sender, IntPtr args)
+    {
+        string json = null;
+        try
+        {
+            ICoreWebView2WebMessageReceivedEventArgs message = Marshal.GetObjectForIUnknown(args) as ICoreWebView2WebMessageReceivedEventArgs;
+            IntPtr text;
+            if (message != null && message.get_WebMessageAsJson(out text) >= 0 && text != IntPtr.Zero)
+            {
+                json = Marshal.PtrToStringUni(text);
+                Marshal.FreeCoTaskMem(text);
+            }
+        }
+        catch (Exception) { }
+        if (json != null) then(json);
+        return 0;
+    }
 }
