@@ -20,8 +20,31 @@ using System.Windows.Forms;
 
 static class Hand
 {
+    const int FAULTS_TOLD = 5, FAULTS_BORNE = 50; // of one burst of faults: how many are told, and how many make a hand that is broken
+    static readonly TimeSpan BURST = TimeSpan.FromSeconds(5);
+    static int faults; // in the burst under way
+    static DateTime burst = DateTime.MinValue; // when it began
+
     public static int Run(string[] args)
     {
+        // A fault in a drawing must never end a run, nor put a .NET "Unhandled exception" dialog on the user's desktop
+        // from a process they never started. One on the window's thread is told on stderr, which reaches the agent's
+        // log, and the hand carries on; a hand that faults frame after frame is broken, and goes quietly, and the run
+        // carries on unseen. Anywhere else the process is ending anyway: it is told, and ends without the dialog.
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException); // before the first window, or it cannot be set
+        Application.ThreadException += delegate (object sender, ThreadExceptionEventArgs e)
+        {
+            DateTime now = DateTime.UtcNow;
+            if (now - burst > BURST) { burst = now; faults = 0; }
+            faults++;
+            if (faults <= FAULTS_TOLD) Tell("hand: " + e.Exception);
+            if (faults >= FAULTS_BORNE) { Tell("hand: faulted " + faults + " times in a few seconds, and has gone"); Environment.Exit(1); }
+        };
+        AppDomain.CurrentDomain.UnhandledException += delegate (object sender, UnhandledExceptionEventArgs e)
+        {
+            Tell("hand: " + e.ExceptionObject);
+            Environment.Exit(1);
+        };
         HandNative.SetProcessDpiAwarenessContext(new IntPtr(-4)); // before the first window: every coordinate here is a physical pixel
         HandNative.timeBeginPeriod(1);
         var window = new HandWindow();
@@ -37,9 +60,11 @@ static class Hand
                     string cue = line;
                     if (cue.Trim().Length > 0) window.BeginInvoke((Action)delegate { window.Play(cue); });
                 }
-                window.BeginInvoke((Action)window.Depart); // the agent is gone
             }
-            catch (InvalidOperationException) { } // the window has gone first
+            catch (InvalidOperationException) { return; } // the window has gone first
+            catch (IOException) { } // the pipe broke: the agent is as gone as if it had closed it
+            try { window.BeginInvoke((Action)window.Depart); } // the agent is gone
+            catch (InvalidOperationException) { }
         });
         reader.IsBackground = true;
         reader.Start();
@@ -72,6 +97,12 @@ static class Hand
         ticker.Start();
         Application.Run();
         return 0;
+    }
+
+    /** A line on stderr, which may itself be gone. */
+    public static void Tell(string line)
+    {
+        try { Console.Error.WriteLine(line); } catch (Exception) { }
     }
 }
 
@@ -767,21 +798,33 @@ class HandEmoji
         }
     }
 
-    /** The coloured layers of an emoji, bottom first, in pixels of the EM-sized font; none when the font has no colour for it. */
+    /**
+     * The coloured layers of an emoji, bottom first, in pixels of the EM-sized font; none when the font has no colour for
+     * it. The tables are read as the font gives them, and whatever font answers to the name: an offset that lies outside
+     * its table means the colour cannot be trusted, and the line art is drawn instead.
+     */
     List<KeyValuePair<GraphicsPath, Color>> Layers(int codepoint)
     {
         var layers = new List<KeyValuePair<GraphicsPath, Color>>();
         int glyph = GlyphOf(codepoint);
-        if (colr == null || cpal == null || glyph < 0) return layers;
+        if (glyph < 0 || !Has(colr, 0, 14) || !Has(cpal, 0, 14)) return layers;
         int bases = U16(colr, 2), baseAt = U32(colr, 4), layerAt = U32(colr, 8);
         int palette = U32(cpal, 8) + 4 * U16(cpal, 12); // the first palette's colours, four bytes each: blue, green, red, alpha
         for (int i = 0; i < bases; i++)
         {
             int record = baseAt + 6 * i;
+            if (!Has(colr, record, 6)) break;
             if (U16(colr, record) != glyph) continue;
             for (int l = U16(colr, record + 2), end = l + U16(colr, record + 4); l < end; l++)
             {
-                int layer = layerAt + 4 * l, entry = U16(colr, layer + 2), at = palette + 4 * entry;
+                int layer = layerAt + 4 * l;
+                int entry = Has(colr, layer, 4) ? U16(colr, layer + 2) : -1, at = palette + 4 * entry;
+                if (entry < 0 || (entry != 0xFFFF && !Has(cpal, at, 4)))
+                {
+                    foreach (var made in layers) made.Key.Dispose();
+                    layers.Clear();
+                    return layers;
+                }
                 Color color = entry == 0xFFFF ? HandFigure.INK : Color.FromArgb(cpal[at + 3], cpal[at + 2], cpal[at + 1], cpal[at]); // 0xFFFF: the text's own colour
                 layers.Add(new KeyValuePair<GraphicsPath, Color>(Outline(U16(colr, layer)), color));
             }
@@ -834,14 +877,19 @@ class HandEmoji
         if (size == 0 || size == 0xFFFFFFFF) return path;
         var data = new byte[size];
         if (HandNative.GetGlyphOutlineW(dc, (uint)glyph, NATIVE_UNHINTED_BY_INDEX, out metrics, size, data, ref identity) == 0xFFFFFFFF) return path;
-        for (int at = 0; at < size; )
+        // Every size in the data is checked against what is there: a contour that claims more than the buffer holds, or
+        // nothing at all, ends the outline rather than reading past it or going round forever.
+        for (int at = 0; at + 16 <= data.Length; )
         {
-            int end = at + BitConverter.ToInt32(data, at); // a TTPOLYGONHEADER: its size, its type, the contour's first point
+            int claimed = BitConverter.ToInt32(data, at); // a TTPOLYGONHEADER: its size, its type, the contour's first point
+            if (claimed < 16 || claimed > data.Length - at) break;
+            int end = at + claimed;
             PointF start = Fixed(data, at + 8), pen = start;
             path.StartFigure();
-            for (int curve = at + 16; curve < end; )
+            for (int curve = at + 16; curve + 4 <= end; )
             {
                 int kind = BitConverter.ToUInt16(data, curve), count = BitConverter.ToUInt16(data, curve + 2), points = curve + 4;
+                if (points + 8 * count > end) break;
                 if (kind == 1) // TT_PRIM_LINE
                     for (int i = 0; i < count; i++) { PointF next = Fixed(data, points + 8 * i); path.AddLine(pen, next); pen = next; }
                 else if (kind == 2) // TT_PRIM_QSPLINE: between two control points lies a point on the curve, halfway
@@ -870,14 +918,15 @@ class HandEmoji
     /** The font's glyph for a character, from its format 12 map, which covers every plane. */
     int GlyphOf(int codepoint)
     {
-        if (cmap == null) return -1;
-        for (int i = 0, n = U16(cmap, 2); i < n; i++)
+        if (!Has(cmap, 0, 4)) return -1;
+        for (int i = 0, n = U16(cmap, 2); i < n && Has(cmap, 4 + 8 * i, 8); i++)
         {
             int at = U32(cmap, 4 + 8 * i + 4);
-            if (U16(cmap, at) != 12) continue;
+            if (!Has(cmap, at, 16) || U16(cmap, at) != 12) continue;
             for (int g = 0, groups = U32(cmap, at + 12); g < groups; g++)
             {
                 int group = at + 16 + 12 * g;
+                if (!Has(cmap, group, 12)) break;
                 if (codepoint >= U32(cmap, group) && codepoint <= U32(cmap, group + 4)) return U32(cmap, group + 8) + codepoint - U32(cmap, group);
             }
         }
@@ -894,6 +943,8 @@ class HandEmoji
     }
     static int U16(byte[] b, int i) { return b[i] << 8 | b[i + 1]; }
     static int U32(byte[] b, int i) { return b[i] << 24 | b[i + 1] << 16 | b[i + 2] << 8 | b[i + 3]; }
+    /** Whether the table has `length` bytes at `at`: an offset read from it may point anywhere, or be negative, read as a signed number. */
+    static bool Has(byte[] b, int at, int length) { return b != null && at >= 0 && at <= b.Length - length; }
 }
 
 class HandWindow : Form
@@ -906,11 +957,15 @@ class HandWindow : Form
     readonly string dump = Environment.GetEnvironmentVariable("HANDS_HAND_DUMP"); // a PNG of each new pose, for checking the drawing: captures leave the hand out
     readonly bool recordable = Environment.GetEnvironmentVariable("HANDS_RECORDABLE") == "1"; // for demos: in screen recordings, but for the agent's own captures of the screen
 
+    static readonly string[] RESTING = { "think", "done", "wait", "stop" }; // the poses of a hand between actions, or at the end of its run
+
     IntPtr target = IntPtr.Zero; // the window ridden, or none: then the hand is a spot on a display, above everything
     double[] origin = { 0, 0 };
     bool riding, seen, shown, hovered, topmost, dumpPending;
+    bool away; // riding a display with nothing to do there: faded from it until its next action (Linger)
     double read = -1e9, leaving = -1e9, drew = -1e9, reported; // when the target was last read, the agent left, a frame was drawn; the scale last told to hand.ts
     string drawn = ""; // what the bitmap shows, so that a frame that changes nothing costs nothing
+    int pushed = -1; // the window's alpha as last pushed: it changes without the picture as the hand comes into view or goes
     int atX = int.MinValue, atY = int.MinValue;
     IntPtr memory = IntPtr.Zero, section = IntPtr.Zero, unselected = IntPtr.Zero;
     Bitmap canvas; // drawn by GDI+ straight into the DIB section that UpdateLayeredWindow reads
@@ -935,9 +990,17 @@ class HandWindow : Form
     protected override void WndProc(ref Message m)
     {
         if (m.Msg == HandNative.WM_MOUSEACTIVATE) { m.Result = (IntPtr)HandNative.MA_NOACTIVATE; return; } // a click on the hand never takes the user out of their app
-        if (m.Msg == HandNative.WM_LBUTTONDOWN) stdout.Write("click\n");
+        if (m.Msg == HandNative.WM_LBUTTONDOWN) Say("click"); // hand.ts hands it to the agent, which pauses the hand where it is
         if (m.Msg == HandNative.WM_SETTINGCHANGE) figure.Calm = !Animating();
         base.WndProc(ref m);
+    }
+
+    /** A line for hand.ts. The agent may have gone first, taking its end of the pipe with it: then nobody is left to tell. */
+    void Say(string line)
+    {
+        try { stdout.Write(line + "\n"); }
+        catch (IOException) { }
+        catch (ObjectDisposedException) { }
     }
 
     /** Whether the system animates (Settings, Accessibility, Animation effects), as the panel's page reads prefers-reduced-motion. */
@@ -954,11 +1017,18 @@ class HandWindow : Form
     public void Play(string line)
     {
         Dictionary<string, object> cue;
-        try { cue = HandJson.Parse(line) as Dictionary<string, object>; } catch (Exception error) { Console.Error.WriteLine("hand: " + error.Message); return; }
+        try { cue = HandJson.Parse(line) as Dictionary<string, object>; } catch (Exception error) { Hand.Tell("hand: " + error.Message); return; }
         if (cue == null) return;
-        double now = Now();
+        // hand.ts hears that a seat cue is on show: a borrow that waits for this never clicks on its own hand. It is
+        // answered whatever became of it, so that the answers stay in step with the cues.
+        try { Apply(cue, Now()); }
+        finally { if (cue.ContainsKey("seat")) Say("seat"); }
+    }
+
+    void Apply(Dictionary<string, object> cue, double now)
+    {
         object value;
-        if (cue.TryGetValue("color", out value) && value is List<object>)
+        if (cue.TryGetValue("color", out value) && value is List<object> && ((List<object>)value).Count >= 3)
         {
             var rgb = (List<object>)value;
             figure.Tint = Color.FromArgb(Channel(rgb[0]), Channel(rgb[1]), Channel(rgb[2]));
@@ -972,6 +1042,9 @@ class HandWindow : Form
             object state, why;
             figure.Borrow(seat.TryGetValue("state", out state) && state is string ? (string)state : "", seat.TryGetValue("why", out why) && why is string ? (string)why : "", now);
             read = -1e9; // the stacking changes now, not at the next read
+            // The pointer is the hand's own from here on: its press must reach the window under it. A hand the user's
+            // pointer left hovered while it waited lets clicks through now, not at the next frame.
+            if (figure.Seat == "holding") Hittable(false, now);
         }
         if (cue.ContainsKey("name") || cue.ContainsKey("label"))
             figure.Label(cue.TryGetValue("name", out value) ? value as string : null, cue.TryGetValue("label", out value) ? value as string : null, now);
@@ -984,6 +1057,7 @@ class HandWindow : Form
         }
         if (cue.TryGetValue("at", out value) && value is List<object>)
             figure.Glide(Pair(value), cue.TryGetValue("ms", out value) && value is double ? (double)value : 0, now, cue.ContainsKey("subject") || !shown); // a new subject is jumped to, not travelled to
+        Linger(now);
         Frame();
     }
 
@@ -1003,7 +1077,7 @@ class HandWindow : Form
             HandNative.SetWindowDisplayAffinity(Handle, shy ? HandNative.WDA_EXCLUDEFROMCAPTURE : HandNative.WDA_NONE);
             if (shy) HandNative.DwmFlush(); // the screen has been composed without the hand once before the capture is told to go
         }
-        if (shy) stdout.Write("\n");
+        if (shy) Say("");
     }
 
     /**
@@ -1025,7 +1099,20 @@ class HandWindow : Form
     {
         if (!shown) { Application.Exit(); return; }
         leaving = Now();
-        figure.Leave(leaving + LINGER_MS); // its last pose stays up long enough to be seen
+        if (!away) figure.Leave(leaving + LINGER_MS); // its last pose stays up long enough to be seen; one already fading from a display is let go on
+    }
+
+    /**
+     * A hand riding a spot on a display rather than a window is above everything there, over whatever the user has open,
+     * so it stays only while it acts: a look at the user's screen, a hello. Back at rest, or at the end of its run, it
+     * fades from the display (still riding it), and comes back for its next action there, or when it rides a window.
+     */
+    void Linger(double now)
+    {
+        bool rest = riding && target == IntPtr.Zero && figure.Seat.Length == 0 && Array.IndexOf(RESTING, figure.Pose) >= 0;
+        if (rest == away) return;
+        away = rest;
+        if (away) figure.Leave(now); else figure.Appear(now);
     }
 
     // ------------------------------------------------------------------ frames
@@ -1035,12 +1122,17 @@ class HandWindow : Form
         if (!riding || IsDisposed) return;
         double now = Now();
         if (leaving > 0 && figure.Gone(now)) { Close(); Application.Exit(); return; }
+        if (away && figure.Gone(now))
+        {
+            if (shown) { HandNative.ShowWindow(Handle, HandNative.SW_HIDE); shown = false; }
+            return; // faded from the display it rides: nothing is drawn until its next action there
+        }
         if (now - read >= READ_MS)
         {
             read = now;
             bool was = seen;
             seen = Read(now);
-            if (seen && !was) figure.Appear(now); // back from minimized, or from another desktop
+            if (seen && !was && !away) figure.Appear(now); // back from minimized, from another desktop, or from off the screens
         }
         if (!seen)
         {
@@ -1053,15 +1145,19 @@ class HandWindow : Form
         Hover(x, y, now);
         if (shown && !figure.Busy(now) && now - drew < IDLE_MS) { Place(x, y); return; } // a resting pose is drawn at half the rate
 
+        // The alpha is part of what a frame shows: a hand coming back into view is pushed at none, and with the system's
+        // animations off nothing else about it changes, so a picture that stays the same is pushed again as it fades in.
         string key = figure.Key(now);
+        int alpha = Math.Max(0, Math.Min(255, (int)Math.Round(figure.Opacity(now) * 255)));
         if (key != drawn || !shown)
         {
             drawn = key;
             drew = now;
             using (var g = Graphics.FromImage(canvas)) figure.Draw(g, now);
             if (dumpPending) { dumpPending = false; try { canvas.Save(dump, ImageFormat.Png); } catch (Exception) { } }
-            Push(x, y, (byte)Math.Round(figure.Opacity(now) * 255));
+            Push(x, y, (byte)alpha);
         }
+        else if (alpha != pushed) Push(x, y, (byte)alpha);
         else Place(x, y);
         if (!shown) { HandNative.ShowWindow(Handle, HandNative.SW_SHOWNOACTIVATE); shown = true; } // after its pixels are in place, so it never shows a stale frame
     }
@@ -1077,20 +1173,23 @@ class HandWindow : Form
             origin[0] = frame.left; origin[1] = frame.top;
             if (!HandNative.IsWindowVisible(target) || HandNative.IsIconic(target)) return false;
             if (HandNative.DwmGetWindowAttribute(target, HandNative.DWMWA_CLOAKED, out cloaked, 4) == 0 && cloaked != 0) return false; // on another desktop: the hand shows again when the user goes there
+            // Parked off every screen (windows.ts park): the hand and its pill go with it, and come back when it does,
+            // rather than hang a sliver of pill over the edge of the last display.
+            if (HandNative.MonitorFromRect(ref frame, HandNative.MONITOR_DEFAULTTONULL) == IntPtr.Zero) return false;
         }
         double[] at = figure.Position(now);
         var point = new HandNative.POINT(); point.x = (int)Math.Round(origin[0] + at[0]); point.y = (int)Math.Round(origin[1] + at[1]);
         uint dpi, dpiY;
         if (HandNative.GetDpiForMonitor(HandNative.MonitorFromPoint(point, HandNative.MONITOR_DEFAULTTONEAREST), 0, out dpi, out dpiY) != 0) dpi = 144;
         if (figure.Rescale(dpi) || canvas == null) Allocate();
-        if (figure.PixelsPerPoint != reported) stdout.Write("scale " + (reported = figure.PixelsPerPoint).ToString(CultureInfo.InvariantCulture) + "\n"); // hand.ts times its glides in points
+        if (figure.PixelsPerPoint != reported) Say("scale " + (reported = figure.PixelsPerPoint).ToString(CultureInfo.InvariantCulture)); // hand.ts times its glides in points
         Stack();
         return true;
     }
 
     /**
      * Keep the hand right above its window, so that whatever covers the window covers the hand; above everything while it
-     * waits for the seat or holds it, and when it rides a display rather than a window.
+     * waits for the seat or holds it, and when it rides a display rather than a window, for as long as it acts there (Linger).
      */
     void Stack()
     {
@@ -1115,13 +1214,18 @@ class HandWindow : Form
      * The window lets every click through, except while the mouse is on the hand or its tag and nothing covers them: then
      * it takes them, so the hand can be clicked, and swells a little to say so. A hand waiting for the seat can be clicked
      * too, which is how the user says not now; one holding it cannot: the pointer is the hand's own then, and its press
-     * must reach the window under it.
+     * must reach the window under it. Nor can a hand riding a spot on a display: it lies over whatever the user has there,
+     * where a click meant for their own window must not be taken.
      */
     void Hover(int x, int y, double now)
     {
         HandNative.POINT cursor;
         HandNative.GetCursorPos(out cursor);
-        bool over = leaving < 0 && figure.Seat != "holding" && figure.Hits(cursor.x - x, cursor.y - y) && Uncovered(cursor);
+        Hittable(leaving < 0 && target != IntPtr.Zero && figure.Seat != "holding" && figure.Hits(cursor.x - x, cursor.y - y) && Uncovered(cursor), now);
+    }
+
+    void Hittable(bool over, double now)
+    {
         if (over == hovered) return;
         hovered = over;
         figure.Hover(over, now);
@@ -1163,7 +1267,7 @@ class HandWindow : Form
         var zero = new HandNative.POINT();
         var blend = new HandNative.BLENDFUNCTION(); blend.op = 0; blend.flags = 0; blend.alpha = alpha; blend.format = 1; // AC_SRC_OVER, AC_SRC_ALPHA
         HandNative.UpdateLayeredWindow(Handle, IntPtr.Zero, ref at, ref size, memory, ref zero, 0, ref blend, 2); // ULW_ALPHA
-        atX = x; atY = y;
+        atX = x; atY = y; pushed = alpha;
     }
 
     void Place(int x, int y)
@@ -1243,7 +1347,7 @@ static class HandNative
 {
     public const int GWL_EXSTYLE = -20;
     public const int WS_EX_TRANSPARENT = 0x20, WS_EX_TOOLWINDOW = 0x80, WS_EX_TOPMOST = 0x8, WS_EX_LAYERED = 0x80000, WS_EX_NOACTIVATE = 0x08000000;
-    public const uint SWP_NOSIZE = 1, SWP_NOMOVE = 2, SWP_NOZORDER = 4, SWP_NOACTIVATE = 0x10, GW_HWNDPREV = 3, GA_ROOT = 2, MONITOR_DEFAULTTONEAREST = 2;
+    public const uint SWP_NOSIZE = 1, SWP_NOMOVE = 2, SWP_NOZORDER = 4, SWP_NOACTIVATE = 0x10, GW_HWNDPREV = 3, GA_ROOT = 2, MONITOR_DEFAULTTONULL = 0, MONITOR_DEFAULTTONEAREST = 2;
     public static readonly IntPtr HWND_TOP = IntPtr.Zero, HWND_TOPMOST = new IntPtr(-1), HWND_NOTOPMOST = new IntPtr(-2);
     public const int SW_HIDE = 0, SW_SHOWNOACTIVATE = 4, WM_SETTINGCHANGE = 0x1A, WM_MOUSEACTIVATE = 0x21, WM_LBUTTONDOWN = 0x201, MA_NOACTIVATE = 3, DWMWA_EXTENDED_FRAME_BOUNDS = 9, DWMWA_CLOAKED = 14;
     public const uint SPI_GETCLIENTAREAANIMATION = 0x1042;
@@ -1270,6 +1374,7 @@ static class HandNative
     [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
     [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT pt);
     [DllImport("user32.dll")] public static extern IntPtr MonitorFromPoint(POINT pt, uint flags);
+    [DllImport("user32.dll")] public static extern IntPtr MonitorFromRect(ref RECT rect, uint flags);
     [DllImport("shcore.dll")] public static extern int GetDpiForMonitor(IntPtr monitor, int type, out uint dpiX, out uint dpiY);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hwnd);
