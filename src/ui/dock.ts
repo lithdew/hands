@@ -42,6 +42,13 @@ let typed: { asked: string; said: string | null; timer: ReturnType<typeof setTim
 /** Whether the voice is at rest, so the dock can be typed to: not while it listens, thinks or speaks. */
 export const resting = (): boolean => state === "idle" || state === "offline";
 
+/**
+ * Whether a hand has the user's mouse and keyboard, or waits for them to pause to take them: the banner says so. The
+ * box does not come out then: the panel lets every click through while a hand holds them (panel.cs), and a hand that
+ * waits takes them, and the foreground, at the user's next pause.
+ */
+export const seated = (): boolean => !banner.hidden;
+
 /** The box is out, or put away: while it is out the dock holds it, and whatever the dock was showing of a typed line goes. */
 export function typing(on: boolean): void {
   boxed = on;

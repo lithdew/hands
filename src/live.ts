@@ -838,9 +838,10 @@ export function dispatch(name: string, args: Record<string, unknown>, runs: stri
  * pause, carry on and show are the card's own buttons. A question is answered in the dock from what the voice would be
  * told: a Live session takes the user's audio and notes for it to say, not a typed turn, so the voice is not asked. The
  * dock is told what came of the line at once; the voice's conversation has the line and that, and when something was
- * done, the voice is told what, so that a spoken turn later follows on. An empty line is the box coming out: Jev's
- * connection is opened then, while the user types (measured: a first reading took 460 to 580 ms on a cold connection,
- * and 290 to 330 ms on one opened so). `jevs` is Jev, which tests replace.
+ * done, the voice is told what, so that a spoken turn later follows on. An empty line is the box coming out, or typed
+ * into after a while: Jev's connection is opened then, while the user types (measured, each in a process of its own: a
+ * first reading took 430 to 540 ms on a cold connection, and 295 to 365 ms on one opened so and then left for 1 to 60 s,
+ * one of 452 ms apart; left for 90 s or more, 400 to 480 ms, as on a cold one). `jevs` is Jev, which tests replace.
  */
 export async function ask(text: string, jevs: { read(typed: string, out: Out[]): Promise<Intent>; warm(): void } = { read: (typed, out) => intent(jev, typed, out), warm: warmUp }): Promise<string> {
   const typed = text.trim();
