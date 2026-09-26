@@ -92,6 +92,50 @@ test("left Ctrl is not a press when AltGr sends it, and right Alt is one despite
   expect(right.heard).toEqual(["down"]);
 });
 
+test("a modifier already down makes the talk key part of a chord, whichever came first: AltGr all at once, Shift then Ctrl, Win then Ctrl", () => {
+  const altGr = keyboard(0xa2);
+  altGr.down.add(0xa2).add(0x11).add(0xa5).add(0x12); // as AltGr arrives: its left Ctrl and right Alt in the same instant
+  altGr.hold(600);
+  altGr.down.add(0x51); // the Q of an @
+  altGr.hold(16);
+  expect(altGr.heard).toEqual([]);
+
+  const shift = keyboard(0xa2);
+  shift.down.add(0xa0).add(0x10);
+  shift.hold(40);
+  shift.down.add(0xa2).add(0x11); // Ctrl+Shift, for a shortcut
+  shift.hold(600);
+  expect(shift.heard).toEqual([]);
+
+  const win = keyboard(0xa2);
+  win.down.add(0x5b);
+  win.hold(40);
+  win.down.add(0xa2).add(0x11);
+  win.hold(300);
+  win.down.add(0x27); // Win+Ctrl+Right: the next desktop
+  win.hold(16);
+  expect(win.heard).toEqual([]);
+
+  const again = keyboard(0xa2); // and once they are let go of, the key is a press as ever
+  again.down.add(0x5b);
+  again.down.add(0xa2).add(0x11);
+  again.hold(40);
+  again.down.clear();
+  again.hold(16);
+  again.down.add(0xa2).add(0x11);
+  again.hold(240);
+  expect(again.heard).toEqual(["down"]);
+});
+
+test("the Windows key going down during a press is a modifier, not typing", () => {
+  const k = keyboard(0xa2);
+  k.down.add(0xa2).add(0x11);
+  k.hold(240);
+  k.down.add(0x5b);
+  k.hold(40);
+  expect(k.heard).toEqual(["down"]);
+});
+
 test("a faked hold is a press at once, and typing under it is not a cancel", () => {
   const k = keyboard();
   k.watch.fake(true);

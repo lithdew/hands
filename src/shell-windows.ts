@@ -74,7 +74,7 @@ const system = () => (bound ??= bind());
 
 const TALK_KEYS: Record<string, number> = { "left-ctrl": 0xa2, "right-ctrl": 0xa3, "right-alt": 0xa5, f8: 0x77 };
 const NAMES: Record<number, string> = { 0xa2: "left Ctrl", 0xa3: "right Ctrl", 0xa4: "left Alt", 0xa5: "right Alt", 0xa0: "left Shift", 0xa1: "right Shift" };
-const MODIFIERS = new Set([0x10, 0x11, 0x12, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5]); // Shift, Ctrl, Alt and their sides: held with the talk key without meaning to type
+const MODIFIERS = new Set([0x10, 0x11, 0x12, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0x5b, 0x5c]); // Shift, Ctrl, Alt and their sides, and the Windows keys: held with the talk key without meaning to type
 const MOUSE_BUTTONS = [0x01, 0x02, 0x04, 0x05, 0x06]; // left, right, middle and the two side buttons: a click while the key is held is not talking
 const TWIN: Record<number, number> = { 0xa0: 0x10, 0xa1: 0x10, 0xa2: 0x11, 0xa3: 0x11, 0xa4: 0x12, 0xa5: 0x12 }; // the key for either side, which is down whenever this side is
 
@@ -99,7 +99,10 @@ const partOf = (key: number): Set<number> => new Set([key, ...(TWIN[key] ? [TWIN
  * The push-to-talk key, polled from the async key table, which sees every key whoever has the keyboard: no hook, so
  * no thread that must pump messages. Nothing happens when it goes down: it is a press only once it has been held
  * alone for ARM_MS, and any other key or a mouse button before then (a Ctrl+C, a Ctrl+click, AltGr for a character)
- * drops it without a sign. Once it is a press, "down"; a key typed while it is held means the user is typing after
+ * drops it without a sign. So does a modifier that was down already when it went down: the talk key is then part of a
+ * chord, whichever key came first (Shift then Ctrl, Win then Ctrl, and AltGr, whose left Ctrl and right Alt arrive in
+ * the same instant). A key other than a modifier that was down already is not typing: it may be stuck, or resting
+ * under something. Once it is a press, "down"; a key typed while it is held means the user is typing after
  * all, "cancel"; let go, "up". `fake` holds the key down from inside, for a run that speaks from a file, and is a press
  * at once. `isDown` and `now` are parameters so that the machine can be tested without a keyboard.
  */
@@ -133,7 +136,8 @@ export function watchKey(onTalk: (talk: Talk) => void, isDown: (vk: number) => b
       if (state === "up") {
         since = now();
         scan(true); // only to learn what was down already
-        state = faked ? "pressed" : "arming";
+        const chord = [...MODIFIERS].some((vk) => !own.has(vk) && was[vk]);
+        state = faked ? "pressed" : chord ? "dropped" : "arming";
         if (faked) onTalk("down");
       } else if (state === "arming") {
         if (scan(true)) state = "dropped";
