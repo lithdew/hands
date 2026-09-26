@@ -894,6 +894,29 @@ test("an app already running as the user's is not started again, and automation'
   expect(asked("processes")).toEqual([{ exe: "chrome.exe" }]);
 });
 
+test("a URL read off the omnibox gets its scheme back: https for a site, http for a server on this PC or the local network, none for one that has its own", async () => {
+  let shown = "";
+  spyOn(process, "kill").mockImplementation(() => true);
+  helper({
+    processes: [{ pid: 400, cmd: '"C:\\chrome.exe"' }],
+    windows: [{ hwnd: 45, pid: 400, cls: "Chrome_WidgetWin_1", title: "Page - Google Chrome", frame: [50, 50, 1200, 800], core: 0, exe: "chrome.exe" }],
+    browser: () => ({ tabs: [{ title: "Page", active: true, frame: null, close: null }], url: null, omnibox: [438, 227, 545, 37], omniboxValue: shown, buttons: {}, loading: false }),
+  });
+  const cases: [string, string][] = [
+    ["en.wikipedia.org/wiki/Ada_Lovelace", "https://en.wikipedia.org/wiki/Ada_Lovelace"],
+    ["127.0.0.1:8765/second", "http://127.0.0.1:8765/second"],
+    ["localhost:3000", "http://localhost:3000"],
+    ["192.168.1.20/admin", "http://192.168.1.20/admin"],
+    ["view-source:127.0.0.1:8765/second", "view-source:127.0.0.1:8765/second"],
+    ["file:///C:/notes/page.html", "file:///C:/notes/page.html"],
+    ["localhost.example.com/x", "https://localhost.example.com/x"],
+  ];
+  for (const [omnibox, url] of cases) {
+    shown = omnibox;
+    expect(await windows.browserUrl("Google Chrome", "45")).toBe(url);
+  }
+});
+
 test("the browser's tabs, URL and loading state are read off its windows, and a tab is navigated from behind only once its omnibox holds the URL", async () => {
   let typed = ""; // what the omnibox of window 45 holds while it is being typed into
   let went = false;
