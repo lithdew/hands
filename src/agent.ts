@@ -141,8 +141,8 @@ export async function ask(agent: Agent, prompt: string, halted: () => boolean = 
   }
 }
 
-/** How a run ended, as the orchestrator hears it. */
-export type Ended = { status: Exclude<Status, "starting" | "working">; answer: string; reason: string };
+/** How a run ended, as the orchestrator hears it. `checked`: a done run's last screen as Jev read it (src/reflex.ts), absent when nothing was checked. */
+export type Ended = { status: Exclude<Status, "starting" | "working">; answer: string; reason: string; checked?: number };
 
 /** The model's own verdict on a run: its last `finish`, unless the user has said something since, which reopens the task. */
 function verdict(run: AgentMessage[]): Finish | null {
@@ -176,7 +176,8 @@ export function ending(messages: AgentMessage[], from: number, asked: "pause" | 
   if (finish) {
     const answer = said || finish.answer || finish.summary; // a finish ends the run, so its answer is usually the last word
     if (finish.outcome === "could_not") return { status: "failed", answer, reason: finish.summary };
-    return { status: finish.outcome === "needs_you" ? "needs_you" : "done", answer, reason: "" };
+    if (finish.outcome === "needs_you") return { status: "needs_you", answer, reason: "" };
+    return { status: "done", answer, reason: "", ...(typeof finish.checked === "number" ? { checked: finish.checked } : {}) };
   }
   if (failure !== null) return { status: "failed", answer: said, reason: failure };
   if (last?.role !== "assistant") return { status: "failed", answer: "", reason: "the run ended before the model answered" };
@@ -329,8 +330,8 @@ export function managed(agent: Agent, { emit, record, close, show }: Managed) {
     if (asked === "stop") agent.clearAllQueues(); // a steer for a task that was stopped is not for the next one
     const ended = ending(agent.state.messages, from, asked, failure);
     last = ended.status;
-    record(`[status] ${ended.status}${ended.reason ? `: ${ended.reason}` : ""}`);
-    emit({ type: "status", ...ended });
+    record(`[status] ${ended.status}${ended.reason ? `: ${ended.reason}` : ""}${ended.checked === undefined ? "" : ` (Jev checked the last screen: ${ended.checked.toFixed(2)})`}`);
+    emit({ type: "status", ...ended }); // with `checked` when Jev read a done run's last screen
     await hand.cue(POSE_AT_END[ended.status], ended.status.replace("_", " "));
   };
   const halt = (pause: boolean) => {

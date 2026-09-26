@@ -302,6 +302,32 @@ test("the voice is to say a hand's outcome once, from a short plain summary; a s
   expect(session.notes("session.commentary.append").length).toBe(2);
 });
 
+test("Jev's check of a done hand's last screen is on its card while it is done, and the voice hears Jev saw it only at 0.8 or more", async () => {
+  live.dispatch("start_hands", { tasks: ["find when Babbage was born", "find when Lovelace was born"] }, runs);
+  const card = (id: string) => live.cards().find((one) => one.id === id)!;
+  const [lefty, righty] = [hands[0]!, hands[1]!];
+  lefty.say({ type: "status", status: "working" });
+  lefty.say({ type: "status", status: "done", answer: "Babbage was born in 1791.", checked: 0.93 });
+  righty.say({ type: "status", status: "done", answer: "Lovelace was born in 1815.", checked: 0.42 });
+  await Bun.sleep(5);
+  expect(card("lefty").checked).toBe(0.93);
+  expect(card("righty").checked).toBe(0.42);
+  const said = sessions.at(-1)!.notes("session.commentary.append").join("\n");
+  expect(said).toContain("Lefty has finished: Babbage was born in 1791. Jev saw it on the hand's screen. (Its task: find when Babbage was born)");
+  expect(said).toContain("Righty has finished: Lovelace was born in 1815. (Its task: find when Lovelace was born)");
+  // A new run has no check yet; one that ends otherwise has none; a process that goes after a done run leaves none on its card.
+  lefty.say({ type: "status", status: "working" });
+  await Bun.sleep(5);
+  expect(card("lefty")).not.toHaveProperty("checked");
+  lefty.say({ type: "status", status: "needs_you", answer: "Sign in to the library.", checked: 0.9 });
+  await Bun.sleep(5);
+  expect(card("lefty")).not.toHaveProperty("checked");
+  righty.finish(1);
+  await Bun.sleep(20);
+  expect(card("righty")).toMatchObject({ status: "failed" });
+  expect(card("righty")).not.toHaveProperty("checked");
+});
+
 test("while the voice is speaking, what it is to say next waits until it has finished", async () => {
   live.dispatch("start_hands", { tasks: ["open Paint", "open Notepad"] }, runs);
   hands[0]!.say({ type: "status", status: "done", answer: "Paint is open." });

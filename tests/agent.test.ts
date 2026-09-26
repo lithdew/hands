@@ -111,6 +111,16 @@ test("a finish ends the run, and its answer is what the user is told", () => {
   expect(ending([asked("do it"), answered, said("In 1791.")], 0, null).answer).toBe("In 1791."); // words after it, when the model wrote some anyway
 });
 
+test("a done finish carries Jev's check of its last screen; any other ending, or a finish with none, carries nothing", () => {
+  const checked = (outcome: Outcome, check?: number): ToolResultMessage => ({ ...finished(outcome, "Found it."), details: { finish: { outcome, summary: "Found it.", ...(check === undefined ? {} : { checked: check }) } } });
+  expect(ending([asked("do it"), checked("done", 0.94)], 0, null)).toEqual({ status: "done", answer: "Found it.", reason: "", checked: 0.94 });
+  expect(ending([asked("do it"), checked("done", 0)], 0, null).checked).toBe(0);
+  expect(ending([asked("do it"), checked("done")], 0, null)).not.toHaveProperty("checked");
+  expect(ending([asked("do it"), checked("needs_you", 0.9)], 0, null)).not.toHaveProperty("checked");
+  expect(ending([asked("do it"), checked("could_not", 0.9)], 0, null)).not.toHaveProperty("checked");
+  expect(ending([asked("do it"), checked("done", 0.94)], 0, "stop")).not.toHaveProperty("checked");
+});
+
 test("a finish from an earlier task, or one the user has spoken after, does not decide this one", () => {
   const earlier = [asked("first"), finished("could_not", "No."), said("No.")];
   expect(ending([...earlier, asked("second"), said("Done now.")], earlier.length, null).status).toBe("done");
@@ -194,6 +204,17 @@ test("a managed run ends with the model's finish, and says so with its answer", 
     { status: "needs_you", answer: "Please sign in to WhatsApp on your phone.", reason: "" },
   ]);
   expect(log).toEqual(["[prompt] message Julia", "[status] needs_you"]);
+});
+
+test("a managed done run says Jev's check of its last screen in its status, and logs it", async () => {
+  const done: ToolResultMessage = { ...finished("done", "Found it."), details: { finish: { outcome: "done", summary: "Found it.", answer: "Born in 1791.", checked: 0.91 } } };
+  const events: object[] = [];
+  const log: string[] = [];
+  const agent = new Scripted(async () => [done]);
+  const hand = managed(agent as unknown as Agent, { emit: (event) => void events.push(event), record: (line) => void log.push(line), close() {}, show() {} });
+  await hand.tell({ type: "prompt", text: "when was Babbage born?" });
+  expect(events.at(-1)).toEqual({ type: "status", status: "done", answer: "Born in 1791.", reason: "", checked: 0.91 });
+  expect(log.at(-1)).toBe("[status] done (Jev checked the last screen: 0.91)");
 });
 
 test("a stop before the first prompt means the task never starts", async () => {
