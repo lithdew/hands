@@ -104,8 +104,8 @@ const ordered = <T extends Pick<HandView, "status">>(all: Iterable<T>): T[] => {
 };
 
 const view = (hand: Hand): HandView => {
-  const { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since, window } = hand;
-  return { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since, window };
+  const { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since, window, kind, sources, pose, taps, glide } = hand;
+  return { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since, window, kind, sources, pose, taps, glide };
 };
 
 /** The hands a spoken name means: one by name, or every one for "all". */
@@ -276,7 +276,7 @@ function startHand(task: string, runs: string): Hand | null {
     resolve(import.meta.dir, ".."),
     { ...process.env, HANDS_SLOT: String(CAST.findIndex(([one]) => one === name)) }, // where on a HANDS_SCREEN stage its window goes
   );
-  const hand: Hand = { id: name.toLowerCase(), name, color, task, status: "starting", action: "", glyph: POSES.wave[0], at: null, size: null, viewing: false, answer: "", reason: "", seat: "", seatWhy: "", picture: "none", since: Date.now(), proc, runDir, log: [], recent: [], window: null, closed: false, gone: false, stderr: [], failure: "", reported: false, front: { value: false, since: 0 }, shot: 0, last: false }; // prettier-ignore
+  const hand: Hand = { id: name.toLowerCase(), name, color, task, status: "starting", action: "", glyph: POSES.wave[0], at: null, size: null, viewing: false, answer: "", reason: "", seat: "", seatWhy: "", picture: "none", since: Date.now(), proc, runDir, log: [], recent: [], window: null, closed: false, gone: false, stderr: [], failure: "", reported: false, front: { value: false, since: 0 }, shot: 0, last: false, kind: "hand", pose: "wave", taps: 0, glide: 0 }; // prettier-ignore
   hands.set(hand.id, hand);
   tell(hand, { type: "prompt", text: task }); // now, so that whatever it is told next comes after its task: `ready` is only a status
   record(hand, "task", task);
@@ -1107,6 +1107,7 @@ export function command(message: ClientMessage): void {
   if (message.cmd === "focus") return shell?.panel.focus(message.on);
   if (message.cmd === "visible") return void (visible = new Set(message.hands));
   if (message.cmd === "clear") return void [...hands.values()].filter(finished).forEach((one) => void close(one));
+  if (message.cmd === "open") return; // a lookup's source: opened once lookups exist (src/web.ts)
   const target = hands.get(message.hand);
   if (!target) return;
   if (target.gone && (message.cmd === "steer" || message.cmd === "resume")) return record(target, "error", `${target.name} has gone: its process ended, so it cannot be told anything more. Ask the voice for a new hand.`);
@@ -1216,7 +1217,7 @@ export function isoTime(at = new Date()): string {
  */
 export function occlusionNotice(browser: string): string {
   const vendor = /edge/i.test(browser) ? "Microsoft\\Edge" : "Google\\Chrome";
-  return `${browser} stops drawing windows it thinks nobody can see, so hands' browser windows stay behind yours and show a strip at a screen edge while they are read. For browsing fully out of sight, run \`reg add HKCU\\Software\\Policies\\${vendor} /v NativeWindowOcclusionEnabled /t REG_DWORD /d 0 /f\` and restart ${browser} (the README says more, under "Windows", "Browsing fully out of sight").`;
+  return `${browser} stops drawing a window it thinks nobody can see, so a hand's page behind your windows can go blank: with a window of yours full screen, hands (and Jev, their fast clicker) cannot read or click a page until they borrow your screen for a moment. For browsing fully out of sight, run \`reg add HKCU\\Software\\Policies\\${vendor} /v NativeWindowOcclusionEnabled /t REG_DWORD /d 0 /f\` and restart ${browser} (the README says more, under "Windows", "Browsing fully out of sight").`;
 }
 
 /** Every line of the log from here on begins with the time it was written. */
