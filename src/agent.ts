@@ -246,7 +246,11 @@ function personify(agent: Agent): void {
 }
 
 /** What a managed hand is told, a JSON line at a time. A `prompt` to a hand at work is a `steer`. */
-export type Command = { type: "prompt" | "steer"; text: string } | { type: "pause" | "resume" | "stop" } | { type: "close"; keep?: boolean }; // close: close the browser windows the hand opened (unless keep), leave its other windows, then exit
+export type Command =
+  | { type: "prompt" | "steer"; text: string }
+  | { type: "pause" | "resume" | "stop" }
+  | { type: "close"; keep?: boolean } // close: close the browser windows the hand opened (unless kept: `keep`, or else what its finish said), leave its other windows, then exit
+  | { type: "show"; window: number }; // bring this window of the hand's to the user, from the process that knows where it is kept
 
 /** Where a managed hand's words go: its event stream, its log, and its way out. */
 export interface Managed {
