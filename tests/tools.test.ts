@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import sharp from "sharp";
+import { TypeSafeClient } from "@typesafe-ai/sdk";
 import { hand } from "../src/hand.ts";
 import { macSeat } from "../src/macos-seat.ts";
 import * as macos from "../src/macos.ts";
@@ -493,6 +494,48 @@ test("on Windows, a browser window that a link of the user's landed in is theirs
     });
     await expect(call("screen", {})).rejects.toThrow(windows.LINK_LANDED);
   });
+});
+
+test("the clicker hands a step to Jev and acts from behind: a press through accessibility and a field's value, never the user's pointer or keyboard", async () => {
+  desk({ nodes: [button("Pricing", 100, 50), field("Search", 300, 50)] });
+  const was = process.env.TYPESAFE_API_KEY;
+  process.env.TYPESAFE_API_KEY = "test-key";
+  const answer = (choice: string) => ({ choice, confidence: 0.97, probabilities: { [choice]: 0.97 } });
+  type State = { screen_items_in_reading_order: { i: number; text: string }[] };
+  let step = 0;
+  spyOn(TypeSafeClient.prototype, "systemOne").mockImplementation((async ({ state }: { state: State }) => {
+    const pricing = state.screen_items_in_reading_order.find((it) => it.text === "Pricing")!.i;
+    step++;
+    return { answers: step === 1 ? { kind: answer("click_item"), item: answer(String(pricing)), site: answer("none") } : { kind: answer("done"), site: answer("none") } };
+  }) as never);
+  const pressed = spyOn(macos, "axPress").mockImplementation(() => true);
+  const seated = [spyOn(macos, "clickAt"), spyOn(macos, "typeText"), spyOn(macos, "press"), spyOn(macos, "scroll")];
+  try {
+    const { call } = hands();
+    await call("open_app", { name: "TextEdit" });
+    const report = JSON.parse(await call("clicker", { goal: "open the Pricing page" }));
+    expect(report.outcome).toBe("done");
+    expect(report.actions).toEqual(["pressed 'Pricing' via accessibility"]);
+    expect(pressed).toHaveBeenCalledTimes(1);
+    for (const spy of seated) expect(spy).not.toHaveBeenCalled();
+  } finally {
+    if (was === undefined) delete process.env.TYPESAFE_API_KEY;
+    else process.env.TYPESAFE_API_KEY = was;
+  }
+});
+
+test("the clicker needs a window of the hand's own, and TypeSafe's key", async () => {
+  desk();
+  const was = process.env.TYPESAFE_API_KEY;
+  try {
+    delete process.env.TYPESAFE_API_KEY;
+    await expect(hands().call("clicker", { goal: "open the Pricing page" })).rejects.toThrow("TYPESAFE_API_KEY is not set");
+    process.env.TYPESAFE_API_KEY = "test-key";
+    await expect(hands().call("clicker", { goal: "open the Pricing page" })).rejects.toThrow("open a window of your own first");
+  } finally {
+    if (was === undefined) delete process.env.TYPESAFE_API_KEY;
+    else process.env.TYPESAFE_API_KEY = was;
+  }
 });
 
 test("a browser window's own tab strip, toolbar and bookmarks give way to one line about its tabs", async () => {

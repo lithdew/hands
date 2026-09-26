@@ -17,6 +17,7 @@ import { onWindows, PERMISSION, platform as macos } from "./platform.ts";
 import { computerTools, type Details, type Finish } from "./tools.ts";
 import type { Status } from "./ui/state.ts";
 import * as windows from "./windows.ts";
+import { makeWriter } from "./writer.ts";
 
 // A screen listing is a few thousand tokens and a screenshot far more, and only the latest few say
 // anything true about the screen. Older ones are cut in batches rather than one a turn, so the
@@ -98,6 +99,7 @@ ${MENUS}
 ${KEYS}
 - ${IN_THE_BROWSER} by pressing its links and controls, and keep \`browser\` open for getting to a site in the first place, or for a URL that saves many steps (search results, filters and dates usually live in the query string).
 ${SEAT}
+- \`clicker\` hands one small, concrete step in your window to Jev, a fast classifier that acts from behind as you do, about a second a step: a click-through (open a page from its menu, pick a date, dismiss a banner, fill and submit one search box). Prefer it for such steps, give it one goal it can see through, then look with \`screen\` yourself.
 - The clipboard is the user's too: do not copy or paste through it. Put text in with \`type\`, and move files with the shell.
 - Indexes only describe the capture they came from, so look again after anything that changes the window, and before you report what it shows. Ask for the screenshot when text is not enough.
 - You may issue several tool calls in one turn when you already know the sequence; they run in order.${SHELL}
@@ -210,7 +212,7 @@ export async function createAgent(options: { cwd: string; runDir: string; model?
       systemPrompt: systemPrompt(options.cwd),
       model: await resolveModel(options.model ?? config.agentModel()),
       thinkingLevel: (options.thinking ?? config.thinking()) as ThinkingLevel,
-      tools: [...createCodingTools(options.cwd, shell), ...computerTools({ runDir: options.runDir, cwd: options.cwd, onAbort: () => agent.abort() })],
+      tools: [...createCodingTools(options.cwd, shell), ...computerTools({ runDir: options.runDir, cwd: options.cwd, onAbort: () => agent.abort(), writer: await makeWriter() })],
     },
     streamFn: models.streamSimple.bind(models),
     onPayload,

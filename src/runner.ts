@@ -35,9 +35,10 @@ export interface RunConfig {
   image?: string; // replay a saved capture (never acts)
   app?: string; // frontmost app to report during replay
   url?: string; // browser URL to report during replay
+  look?: (out: string, timing?: Timing) => Promise<Screen>; // how a step sees: a hand's own window (src/tools.ts); the screen, by default
 }
 
-type Config = Required<Pick<RunConfig, "goal" | "out" | "act" | "steps" | "minConfidence" | "delay">> & Pick<RunConfig, "image" | "app" | "url">;
+type Config = Required<Pick<RunConfig, "goal" | "out" | "act" | "steps" | "minConfidence" | "delay">> & Pick<RunConfig, "image" | "app" | "url" | "look">;
 
 export interface RunState {
   history: string[];
@@ -120,7 +121,8 @@ async function conclude(cfg: Config, ctx: Context, state: RunState, log: Log): P
   const started = performance.now();
   if (state.view === null) {
     macos.checkAbort();
-    const screen = await capture({ out: join(cfg.out, "answer-raw.png"), imagePath: cfg.image, app: cfg.app, url: cfg.url, browser: ctx.browser });
+    const out = join(cfg.out, "answer-raw.png");
+    const screen = cfg.look ? await cfg.look(out) : await capture({ out, imagePath: cfg.image, app: cfg.app, url: cfg.url, browser: ctx.browser });
     state.view = [screen, await perceive(screen, MAX_OPTIONS, cfg.goal)];
   }
   const [screen, items] = state.view;
@@ -141,7 +143,7 @@ async function runStep(cfg: Config, ctx: Context, state: RunState, step: number,
   const name = prefix.slice(cfg.out.length + 1);
   if (cfg.image) await Bun.write(`${prefix}-raw.png`, Bun.file(cfg.image));
   const screen = await phase(timing, "capture", () =>
-    capture({ out: `${prefix}-raw.png`, imagePath: cfg.image, app: cfg.app, url: cfg.url, browser: ctx.browser, timing }),
+    cfg.look ? cfg.look(`${prefix}-raw.png`, timing) : capture({ out: `${prefix}-raw.png`, imagePath: cfg.image, app: cfg.app, url: cfg.url, browser: ctx.browser, timing }),
   );
   const items = await perceive(screen, MAX_OPTIONS, cfg.goal, timing, cfg.image ? undefined : state.ocrCache);
   state.view = [screen, items];

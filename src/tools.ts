@@ -20,14 +20,17 @@ import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
 import { StringEnum } from "@earendil-works/pi-ai";
 import sharp from "sharp";
 import { type TSchema, Type } from "typebox";
-import { pressOffscreen } from "./actions.ts";
+import { type Drive, pressOffscreen } from "./actions.ts";
 import * as config from "./config.ts";
 import { hand, quote } from "./hand.ts";
 import { onWindows, platform as macos, seat } from "./platform.ts";
-import { Abort, center, type Item, type Point, repr, roleWord, type Screen, sizePt } from "./models.ts";
+import { Abort, center, type Field, type Item, type Point, repr, roleWord, type Screen, sizePt } from "./models.ts";
 import { capture, glance, OcrCache, perceive, stillAs, type Thumb } from "./perception.ts";
+import { run } from "./runner.ts";
 import { type KeyTarget, SeatBusy, SeatTaken } from "./seat.ts";
+import type { Timing } from "./timing.ts";
 import * as windows from "./windows.ts";
+import type { Writer } from "./writer.ts";
 
 const SETTLE_FLOOR_MS = 150; // the least a capture waits after an action, for the action to land
 const SETTLE_POLL_MS = 150; // between the glances that tell whether the window has stopped changing
@@ -37,6 +40,7 @@ const ITEM_TEXT_CHARS = 600;
 const VALUE_CHARS = 120;
 // A model reading a listing has no Choice ceiling, and a busy page has hundreds of things on it.
 const SCREEN_ITEMS = 600;
+const CLICKER_STEPS = 25; // the most actions one Jev run takes, unless the model asks for fewer or more
 const PAGE_LOAD_MS = 10_000; // how long a navigation may keep a capture waiting
 const SCROLL_LINES = 10; // what a borrowed wheel turns, the way a page's own scroll would
 // The words the model reads: the Mac strings stay as they were, and Windows gets its own apps, modifier and menus.
@@ -106,6 +110,8 @@ export interface ToolOptions {
   cwd?: string;
   /** The user asked to stop: the mouse hit a corner, or Ctrl-C. */
   onAbort: (reason: string) => void;
+  /** The model that writes what the clicker types and which site it opens, and reads the screen it ends on: null when its provider has no credentials. */
+  writer?: Writer | null;
 }
 
 /** How a task ended, in the model's own words: its `finish` call. */
@@ -246,7 +252,7 @@ export function seatRefused(why: string, reason: string): string {
  * `target`; the window looked at is the one the platform says to (src/seat.ts workingWindow): the hand's own, or a
  * dialog it has opened.
  */
-export function computerTools({ runDir, cwd = process.cwd(), onAbort }: ToolOptions): AgentTool<any>[] {
+export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = null }: ToolOptions): AgentTool<any>[] {
   const browser = config.browser();
   const ocrCache = new OcrCache();
   const tool = toolMaker(onAbort);
@@ -308,9 +314,8 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort }: ToolOpti
    * showing a sliver of it may have moved it. A page is only handed input while its browser thinks it can be seen,
    * so a browser's window is first slid until some of it shows.
    */
-  const pointed = async (): Promise<macos.PointerTarget> => {
+  const pointed = async (windowId: number = current().screen.windowId!): Promise<macos.PointerTarget> => {
     const { app, pid } = mine();
-    const windowId = current().screen.windowId!;
     const isWeb = web();
     const place = () => macos.appWindows(pid).find((w) => w.id === windowId)?.frame;
     const before = place();
@@ -437,6 +442,12 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort }: ToolOpti
       const screen = await capture({ out: nextCapture(), browser, onlyToRead: true });
       return listing({ ...screen, field: null, readOnly: true }, screenshot);
     }
+    return listing(await grab(nextCapture()), screenshot);
+  }
+
+  /** A capture of the window being worked, once it has settled: the hand's own, or the dialog it has open. */
+  async function grab(out: string, timing?: Timing): Promise<Screen> {
+    if (!target) throw new Error("nothing of yours is open yet: `open_app` an app, or `browser` open a url");
     const { app, pid, pinned } = target;
     // A link of the user's landed in the hand's browser window (src/windows.ts): the window is let go, and nothing of
     // the user's tab goes to the model. Asked again after every read of the window's tabs, which is where it is found.
@@ -457,11 +468,11 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort }: ToolOpti
     await settled(working.windowId, pinned?.scripted);
     const url = pinned ? ((await macos.browserUrl(browser, pinned.scripted)) ?? undefined) : undefined;
     givenUp();
-    const screen = await capture({ target: { pid, windowId: working.windowId }, out: nextCapture(), url });
+    const screen = await capture({ target: { pid, windowId: working.windowId }, out, url, timing });
     Object.assign(screen, { dialog: working.dialog, theirs: working.theirs });
     if (pinned && !working.dialog) screen.tabs = await tabsOf(pinned, screen.url);
     givenUp(screen.image.path);
-    return listing(screen, screenshot);
+    return screen;
   }
   const look = async (screenshot: boolean): Promise<Result> => (await see(screenshot))[0];
 
@@ -477,6 +488,87 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort }: ToolOpti
     const [seen, screen] = await see(false);
     return { ...seen, content: [{ type: "text", text: typeof text === "string" ? text : text(screen) }, ...seen.content] };
   };
+
+  /**
+   * The clicker's actions (src/actions.ts Drive) in the window being worked, from behind, as the tools themselves act:
+   * a press through accessibility or a pointer of the hand's own, a field's value or keys posted to the window, a page
+   * scrolled by its own action, and the hand's own browser window. Nothing moves the user's pointer or takes their
+   * keyboard. An action that could not be done (the user did not pause for a click into a page, a field that takes
+   * nothing from behind) is said as failed, and the loop looks again; a stop, or a link of the user's landing in the
+   * window, ends the run.
+   */
+  const behind: Drive = {
+    async click(it, screen) {
+      const at = spot(screen, it);
+      const what = repr(it.text);
+      await hand.cue("press", `click ${quote(it.text)}`, at);
+      const ref = screen.axRefs.get(it.index);
+      try {
+        if (ref !== undefined && macos.axPress(ref)) return touched(`pressed ${what} via accessibility`);
+        const pointer = await pointed(screen.windowId!);
+        await macos.windowPointer(pointer, [onScreen(pointer, at[0], at[1])]);
+        return touched(`clicked ${what} with a pointer of its own`);
+      } catch (error) {
+        return failed(error, `click ${what}`);
+      }
+    },
+    async fill(field, text) {
+      void hand.cue("write", `typing ${quote(text)}`);
+      try {
+        if (field.ref !== undefined && macos.axSetValue(field.ref, text) && flat(macos.axValue(field.ref) ?? "").endsWith(flat(text))) return touched("via accessibility");
+        await seat.typeIn(keysTo(), text);
+        return touched("via keys posted to the window");
+      } catch (error) {
+        return failed(error, "typing");
+      }
+    },
+    reread: (field) => (field.ref === undefined ? null : { ...field, value: macos.axValue(field.ref) ?? "" }),
+    async clear(field) {
+      if (field.ref !== undefined) macos.axSetValue(field.ref, "");
+    },
+    async key(name) {
+      await seat.pressIn(keysTo(), name);
+      touched("");
+    },
+    async scroll(lines) {
+      const { pid } = mine();
+      const windowId = seat.workingWindow(pid, target?.pinned?.windowId ?? target?.window)?.windowId;
+      if (windowId !== undefined) macos.scrollPage(pid, windowId, lines < 0 ? "down" : "up");
+      touched("");
+    },
+    async browse(url) {
+      let pinned = webWindow && alive(webWindow) ? webWindow : null;
+      if (!url) {
+        if (!pinned) return "use_browser refused: you have no browser window of your own open, and no site was named";
+        target = { app: browser, pid: pinned.pid, pinned };
+        return touched(`working in ${browser}`);
+      }
+      if (pinned) {
+        if (!(await macos.openUrl(browser, url, { window: pinned.scripted, newTab: false, background: true }))) return `use_browser failed: ${url} did not open`;
+      } else {
+        pinned = webWindow = await macos.openBackgroundWindow(browser, url);
+        await macos.stageWindow(pinned.pid, pinned.windowId);
+      }
+      target = { app: browser, pid: pinned.pid, pinned };
+      return touched(`opened ${url}`);
+    },
+  };
+  /** An action of the clicker's landed: the next capture waits for the window to settle, as after any tool's. */
+  const touched = (text: string): string => ((lastAction = performance.now()), text);
+  /** An action of the clicker's that did nothing: a line the loop reads as a no-op. A stop, and a window that is the user's now, end the run. */
+  const failed = (error: unknown, what: string): string => {
+    if (error instanceof Abort || (error instanceof Error && error.message === windows.LINK_LANDED)) throw error;
+    return `${what} failed: ${((unguarded(error, what) as Error).message ?? String(error)).replace(/^nothing was done \([^)]*\): /, "")}`;
+  };
+  /** Where the clicker's keys go: the window being worked, as `type` and `key` send them from behind. */
+  const keysTo = (): KeyTarget => {
+    const { app, pid, pinned } = mine();
+    if (pinned && !seat.browserKeysFromBehind) throw new Error(`keys cannot be sent to ${app} from behind here`);
+    const windowId = seat.workingWindow(pid, pinned?.windowId ?? target?.window)?.windowId;
+    if (windowId === undefined) throw new Error(`${app} has no window open`);
+    return { pid, windowId };
+  };
+  let clickerRuns = 0;
 
   const notepads = new Set<number>(); // Notepad windows already given a tab of the hand's own
   /**
@@ -815,6 +907,35 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort }: ToolOpti
         if (done === null) throw new Error(`there is no such tab in your window${action === "close_tab" ? ", or it is too narrow to show its close button: switch_tab to it first" : ""}; list \`tabs\` to see them, counted from 1`);
         const verb = { switch_tab: "switched to", close_tab: "closed", back: "went back in", forward: "went forward in", reload: "reloaded" }[action as macos.TabCommand];
         return moved(`${verb} ${tab ? `tab ${tab}` : "the active tab"}: ${done}`);
+      },
+    ),
+    tool(
+      "clicker",
+      "Hand one small goal in the window you are working in to Jev, TypeSafe's fast classifier: each step it reads the window and picks the " +
+        "next press, typing, key, scroll or website, in about a second and for a fraction of a cent, and acts from behind as you do. It stops " +
+        "the moment its choice is not clear-cut, so give it a single visible target (`open the Pricing page`, `choose 21 September in the date " +
+        "picker`, `dismiss the cookie banner`, `search the site for noise-cancelling headphones`), never a compound goal, a comparison, or a " +
+        "judgement: those split its vote and it stops without acting. It cannot draw, drag, use key chords, or open an app. Returns what it " +
+        "did and what it read at the end; look with `screen` yourself after.",
+      Type.Object({
+        goal: Type.String({ description: "One plain-English goal, with every detail it needs: it sees nothing of this conversation." }),
+        steps: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, description: `Most actions it may take. Default ${CLICKER_STEPS}.` })),
+      }),
+      async ({ goal, steps = CLICKER_STEPS }) => {
+        if (!process.env.TYPESAFE_API_KEY) throw new Error("the clicker cannot run: TYPESAFE_API_KEY is not set. Do the steps yourself.");
+        if (!target) throw new Error("open a window of your own first (`open_app`, or `browser` open a url), then hand the clicker a goal in it");
+        view = null; // its captures release every element handle the last `screen` gave out
+        void hand.cue("go", `clicker: ${quote(goal)}`);
+        const out = join(runDir, `clicker-${String(++clickerRuns).padStart(2, "0")}`);
+        const look = async (shot: string, timing?: Timing): Promise<Screen> => {
+          const screen = await grab(shot, timing);
+          lastLook = performance.now();
+          return screen;
+        };
+        const state = await run({ goal, out, act: true, steps, look }, (typesafe, history) => ({ goal, browser, email: config.email(), typesafe, writer, history, drive: behind }));
+        if (state.outcome.startsWith("aborted")) throw new Abort(state.outcome);
+        const report = { outcome: state.outcome, goal_achieved: state.answer?.achieved ?? null, answer: state.answer?.text ?? null, actions: state.history };
+        return acted(JSON.stringify(report, null, 1));
       },
     ),
     tool(

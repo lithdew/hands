@@ -18,6 +18,29 @@ export interface Context {
   typesafe: TypeSafeClient;
   writer: Writer | null;
   history: string[];
+  /** How the actions reach the machine. Unset, they go through the seat, on the user's own screen (`bun clicker`); a hand sets it to its own window, worked from behind (src/tools.ts). */
+  drive?: Drive;
+}
+
+/**
+ * The loop's actions on one window from behind, as a hand works its own: nothing moves the user's pointer or takes
+ * their keyboard. Each returns the line for the history, where "refused" or "failed" marks one that did nothing.
+ */
+export interface Drive {
+  /** Press an item, or click it with a pointer addressed to the window alone. */
+  click(it: Item, screen: Screen): Promise<string>;
+  /** Put text in the focused field: its value when it takes one, else keys posted to the window. Returns which way ran, as fillField does. */
+  fill(field: Field, text: string): Promise<string>;
+  /** The field as it is now, for checking what was typed; null when that cannot be read. */
+  reread(field: Field): Field | null;
+  /** Empty a field typed into wrongly. */
+  clear(field: Field): Promise<void>;
+  /** Return or Escape, posted to the window. */
+  key(name: "return" | "escape"): Promise<void>;
+  /** A page of the window up (positive) or down. */
+  scroll(lines: number): Promise<void>;
+  /** The hand's own browser window, at `url`, or as it is (null), made the window worked in. */
+  browse(url: string | null): Promise<string>;
 }
 
 type Handler = (decision: Decision, screen: Screen, items: Item[], ctx: Context) => string | Promise<string>;
@@ -27,7 +50,7 @@ export const isNoop = (description: string): boolean => NOOP_MARKERS.some((marke
 export async function perform(decision: Decision, screen: Screen, items: Item[], ctx: Context): Promise<string> {
   const key = decision.chosen;
   const chosen = items.find((it) => String(it.index) === key);
-  if (chosen) return clickItem(chosen, screen);
+  if (chosen) return ctx.drive ? ctx.drive.click(chosen, screen) : clickItem(chosen, screen);
   if (key.startsWith(OFFSCREEN_PREFIX)) return pressOffscreen(key.slice(OFFSCREEN_PREFIX.length), screen);
   const handler = HANDLERS[key];
   if (!handler) throw new Error(`unknown action ${repr(key)}`);
@@ -91,6 +114,7 @@ export async function fillField(field: Field, text: string): Promise<string> {
 const useBrowser: Handler = async (decision, _screen, _items, ctx) => {
   const site = decision.site.choice;
   if (site === "none") {
+    if (ctx.drive) return ctx.drive.browse(null);
     if (await macos.activate(ctx.browser)) return `activated ${ctx.browser}`;
     return `use_browser failed: ${ctx.browser} did not come to the front`;
   }
@@ -101,13 +125,14 @@ const useBrowser: Handler = async (decision, _screen, _items, ctx) => {
   }
   if (!url) return "use_browser refused: the writer proposed no usable URL for this goal";
   void hand.cue("go", `open ${url.replace(/^https?:\/\//, "")}`);
+  if (ctx.drive) return ctx.drive.browse(url);
   if (await macos.openUrl(ctx.browser, url)) return `opened ${url}`;
   return `use_browser failed: opened ${url} but ${ctx.browser} did not come to the front`;
 };
 
 const typeEmail: Handler = async (_decision, screen, _items, ctx) => {
   if (!(screen.field && isText(screen.field))) return "type_email refused: no text field is focused";
-  return `typed email ${await fillField(screen.field, ctx.email ?? "")}`;
+  return `typed email ${ctx.drive ? await ctx.drive.fill(screen.field, ctx.email ?? "") : await fillField(screen.field, ctx.email ?? "")}`;
 };
 
 const typeTextAction: Handler = async (_decision, screen, items, ctx) => {
@@ -115,20 +140,31 @@ const typeTextAction: Handler = async (_decision, screen, items, ctx) => {
   if (!ctx.writer) return "type_text refused: no writer available";
   const text = await composeText(ctx.writer, ctx.goal, screen, items, ctx.history);
   if (!text) return "type_text refused: writer declined to fill this field";
-  const how = await fillField(screen.field, text);
+  const how = ctx.drive ? await ctx.drive.fill(screen.field, text) : await fillField(screen.field, text);
+  if (how.includes("failed")) return `type_text failed: ${repr(screen.field.label)} ${how}`;
   await Bun.sleep(300);
-  const p = await verifyTyped(ctx.typesafe, ctx.goal, screen.field, text, macos.focusedField());
+  const p = await verifyTyped(ctx.typesafe, ctx.goal, screen.field, text, ctx.drive ? ctx.drive.reread(screen.field) : macos.focusedField());
   if (p < VERIFY_THRESHOLD) {
-    await macos.clearField();
+    await (ctx.drive ? ctx.drive.clear(screen.field) : macos.clearField());
     return `typed ${repr(text)} into ${repr(screen.field.label)} ${how} but verification failed (${p.toFixed(2)}); cleared it`;
   }
   return `typed ${repr(text)} into ${repr(screen.field.label)} ${how} (verified ${p.toFixed(2)})`;
 };
 
-const key = (name: string, description: string): Handler => async () => (void hand.cue("key", `press ${name}`), await macos.press(name), description);
-const scroll = (lines: number, description: string): Handler => async () => (
-  void hand.cue("scroll", description, undefined, { swipe: [0, Math.sign(lines)] }), await macos.scroll(lines), description
-);
+const key =
+  (name: "return" | "escape", description: string): Handler =>
+  async (_decision, _screen, _items, ctx) => {
+    void hand.cue("key", `press ${name}`);
+    await (ctx.drive ? ctx.drive.key(name) : macos.press(name));
+    return description;
+  };
+const scroll =
+  (lines: number, description: string): Handler =>
+  async (_decision, _screen, _items, ctx) => {
+    void hand.cue("scroll", description, undefined, { swipe: [0, Math.sign(lines)] });
+    await (ctx.drive ? ctx.drive.scroll(lines) : macos.scroll(lines));
+    return description;
+  };
 
 const HANDLERS: Record<string, Handler> = {
   use_browser: useBrowser,
