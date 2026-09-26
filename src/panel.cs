@@ -166,8 +166,7 @@ class PanelWindow : Form
                 controller = made;
                 try { ((ICoreWebView2Controller2)made).put_DefaultBackgroundColor(new WebView2Color { A = 0 }); } // nothing behind the page: the key colour shows, and is not there
                 catch (InvalidCastException) { Console.Error.WriteLine("panel: this WebView2 runtime cannot paint a clear background; the panel will be a dark rectangle"); }
-                Fit();
-                controller.put_IsVisible(1);
+                Fit(); // and shows it
                 if (controller.get_CoreWebView2(out web) < 0 || web == null) { Fail("WebView2 gave no web view"); return; }
                 Configure();
                 onFailed = new WebView2ProcessFailed(delegate (int kind) { BeginInvoke((Action<int>)Recover, kind); }); // after the event: a web view is not remade from inside its own
@@ -255,12 +254,21 @@ class PanelWindow : Form
         web = null;
         Open();
     }
-    /** The web view fills the window, whatever the window is now. */
+    /**
+     * The web view fills the window, whatever the window is now. It is hidden while its bounds change and shown again:
+     * a web view only given new bounds leaves the part of the window it had before opaque black, a square at the
+     * corner of a window that grew (measured: the window is made 10 by 10, and a 10 by 10 black square stayed at the
+     * corner of the panel, over the cards, until the web view was shown again). The window is placed again only when
+     * the work area changes, so the page going for a frame then is not seen.
+     */
     void Fit()
     {
         if (controller == null) return;
+        controller.put_IsVisible(0);
         controller.put_Bounds(new HandNative.RECT { left = 0, top = 0, right = ClientSize.Width, bottom = ClientSize.Height });
         controller.NotifyParentWindowPositionChanged();
+        controller.put_IsVisible(1);
+        if (keyboard) controller.MoveFocus(0); // hiding it took the focus out of the page, and a sheet's box had it
     }
 
     // ------------------------------------------------------------------ commands
