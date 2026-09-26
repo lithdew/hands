@@ -32,12 +32,12 @@ export interface Drive {
   click(it: Item, screen: Screen): Promise<string>;
   /** Press a control the app exposes but does not show, by its key in `screen.offscreen`. */
   offscreen(key: string, screen: Screen): Promise<string>;
-  /** Put text in a field: its value when it takes one, else keys posted to the window. Returns which way ran, as fillField does. */
+  /** Put text in a field: its value when it takes one (see took), else keys posted to the window. Returns which way ran, as fillField does. */
   fill(field: Field, text: string): Promise<string>;
-  /** The field as it is now, for checking what was typed; null when that cannot be read. */
-  reread(field: Field): Field | null;
-  /** Return or Escape, posted to the window. */
-  key(name: "return" | "escape"): Promise<void>;
+  /** What the field holds now, for checking what was typed; null when that cannot be read. */
+  reread(field: Field): string | null;
+  /** Return or Escape, posted to the window. The line for the history: "pressed Return", or one marked failed. */
+  key(name: "return" | "escape"): Promise<string>;
   /** A page of the window up (positive) or down. */
   scroll(lines: number): Promise<void>;
 }
@@ -49,6 +49,14 @@ export const isNoop = (description: string): boolean => NOOP_MARKERS.some((marke
 /** Text compared the way a field keeps it: any run of white space as one space, ends trimmed, case aside. */
 const flat = (text: string): string => text.replace(/\s+/g, " ").trim().toLowerCase();
 const brief = (text: string, limit = 80): string => (text.length > limit ? `${text.slice(0, limit)}…` : text);
+
+/**
+ * Whether a value set through accessibility took: the field reads back with the text at its end, or reads otherwise
+ * than it did before (a phone, date or card field formats what it is given). Only a field that reads as it did, or
+ * cannot be read, ignored the value, and only then are keys typed: into a field that took it, they would add the text
+ * a second time.
+ */
+export const took = (before: string, after: string | null, text: string): boolean => after !== null && (flat(after).endsWith(flat(text)) || flat(after) !== flat(before));
 
 /** Do what the decision says. A kind with nothing to act on is refused, as a line the loop reads as a no-op: never an exception. */
 export async function perform(decision: Decision, screen: Screen, items: Item[], ctx: Context): Promise<string> {
@@ -95,18 +103,20 @@ export function pressOffscreen(key: string, screen: Screen): string {
 }
 
 /**
- * Put text in the focused field, by value if the element accepts one and keystrokes otherwise.
+ * Put text in a field, by value if the element accepts one and keystrokes otherwise.
  *
  * Setting the value is one message instead of one per character, and it cannot be stolen by a
- * page that moves the focus mid-word. It is also widely ignored, so the value is read back and
- * only a field that really holds the text counts. Returns which path ran, for the history.
+ * page that moves the focus mid-word. It is also widely ignored, so the value is read back, and
+ * keystrokes follow only when the field did not change (see took). Keystrokes go wherever the
+ * focus is: `focus`, when given, puts it in the field first. Returns which path ran, for the history.
  */
-export async function fillField(field: Field, text: string): Promise<string> {
+export async function fillField(field: Field, text: string, focus?: () => Promise<unknown>): Promise<string> {
   void hand.cue("write", `typing ${quote(text)}`);
   if (field.ref !== undefined) {
     macos.axFocus(field.ref);
-    if (macos.axSetValue(field.ref, text) && macos.axValue(field.ref)?.endsWith(text)) return "via accessibility";
+    if (macos.axSetValue(field.ref, text) && took(field.value, macos.axValue(field.ref), text)) return "via accessibility";
   }
+  await focus?.();
   await macos.typeText(text);
   return "via keystrokes";
 }
@@ -135,10 +145,32 @@ const useBrowser: Handler = async (decision, _screen, _items, ctx) => {
   return `use_browser failed: opened ${url} but ${ctx.browser} did not come to the front`;
 };
 
+/** Whether a field is the one that had the keyboard's focus when the screen was read: the same element, or the same place. */
+const isFocused = (field: Field, screen: Screen): boolean => {
+  const focused = screen.field;
+  if (!focused) return false;
+  if (field.ref !== undefined && field.ref === focused.ref) return true;
+  return Math.abs(focused.x - field.x) < 2 && Math.abs(focused.y - field.y) < 2 && Math.abs(focused.w - field.w) < 2;
+};
+
+/**
+ * Return in a field just filled: its own confirm action when it has one, which reaches it wherever the focus is (and
+ * works from behind in a browser on the Mac, where keys cannot be posted); else the key, from behind or on the seat.
+ * The history line's tail: "pressed Return", or one marked failed.
+ */
+async function submit(field: Field, ctx: Context): Promise<string> {
+  void hand.cue("key", "press return");
+  if (field.ref !== undefined && macos.axPerform(field.ref, "AXConfirm")) return "pressed Return";
+  if (ctx.drive) return ctx.drive.key("return");
+  await macos.press("return");
+  return "pressed Return";
+}
+
 /**
  * Type into the field the field question chose, then press Return when the submit answer says so. The text is the
  * hand's own when it gave one, the user's email for type_email, and else the writer's. What the field holds afterwards
- * is checked here, in code: a field that reads back without the text is a failure, and nothing is submitted.
+ * is read back from the field itself (the focused one only when it has no element) and checked here, in code: a field
+ * that reads back without the text is a failure, and nothing is submitted.
  */
 const typeInto =
   (email: boolean): Handler =>
@@ -159,23 +191,31 @@ const typeInto =
       const clicked = await ctx.drive.click(it, screen);
       if (isNoop(clicked)) return `${kind} failed: ${clicked}`;
     }
-    const how = ctx.drive ? await ctx.drive.fill(field, text) : await fillField(field, text);
+    // On the seat, keystrokes go to the focused field: a listed field that is not it is clicked before any are typed.
+    const focus = it && !isFocused(field, screen) ? () => clickItem(it, screen) : undefined;
+    const how = ctx.drive ? await ctx.drive.fill(field, text) : await fillField(field, text, focus);
     if (how.includes("failed")) return `${kind} failed: ${repr(field.label)} ${how}`;
     const shown = email ? "the email address" : repr(text);
-    const now = ctx.drive ? ctx.drive.reread(field) : macos.focusedField();
-    if (now && !flat(now.value).includes(flat(text))) return `${kind} failed: typed ${shown} into ${repr(field.label)} ${how}, but it holds ${repr(brief(now.value))}`;
+    const now = ctx.drive ? ctx.drive.reread(field) : readBack(field);
+    if (now !== null && !flat(now).includes(flat(text))) return `${kind} failed: typed ${shown} into ${repr(field.label)} ${how}, but it holds ${repr(brief(now))}`;
     const typed = `typed ${shown} into ${repr(field.label)} ${how}`;
     if ((decision.extra.submit ?? 0) < SUBMIT_AT) return typed;
-    void hand.cue("key", "press return");
-    await (ctx.drive ? ctx.drive.key("return") : macos.press("return"));
-    return `${typed}, and pressed Return`;
+    const pressed = await submit(field, ctx);
+    return isNoop(pressed) ? `${typed}, but ${pressed}` : `${typed}, and ${pressed}`;
   };
+
+/** What a field holds now, on the seat: read from its element when it has one, else from the focused field; null when neither can be read. */
+function readBack(field: Field): string | null {
+  if (field.ref !== undefined) return macos.axValue(field.ref);
+  return macos.focusedField()?.value ?? null;
+}
 
 const key =
   (name: "return" | "escape", description: string): Handler =>
   async (_decision, _screen, _items, ctx) => {
     void hand.cue("key", `press ${name}`);
-    await (ctx.drive ? ctx.drive.key(name) : macos.press(name));
+    if (ctx.drive) return ctx.drive.key(name);
+    await macos.press(name);
     return description;
   };
 const scroll =

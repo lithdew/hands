@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { APIConnectionError, APITimeoutError, BadRequestError, type ChoiceQuestion } from "@typesafe-ai/sdk";
-import { SITES } from "../src/config.ts";
+import { MAX_OPTIONS, SITES } from "../src/config.ts";
 import { chosenField, combine, Decision, failure, itemLine, kindCriteria, NONE, type Offer, readAnswers, request, siteCriteria, tooLarge } from "../src/decide.ts";
 import { type AxNode, item, type Item } from "../src/models.ts";
 import { offscreenFor } from "../src/perception.ts";
@@ -128,6 +128,26 @@ test("typing is asked about only with a field and text: a field question of bare
   expect(req.questions.submit?.type).toBe("noul");
   expect(req.state.text_to_type).toBe("Grace Hopper");
   expect(criteria(req.questions.kind)).toHaveProperty("type_text");
+});
+
+test("the user's email is offered only for a goal that asks for it, and never beside text the caller gave", () => {
+  const items = [control(0, "Search", "field", { value: "" }), control(1, "Email address", "field", { value: "" })];
+  const kinds = (goal: string, text: string | null = null) => Object.keys(criteria(request({ goal, screen: screen(), items, history: [], email: "user@example.com", text }).questions.kind));
+  expect(kinds("search the site for headphones", "headphones")).not.toContain("type_email"); // a newsletter box is no place for it
+  expect(kinds("search the site for headphones")).not.toContain("type_email");
+  expect(kinds("sign in with my email", "hunter")).not.toContain("type_email");
+  for (const goal of ["sign in with my email", "enter my e-mail address", "log in to GitHub", "type my username", "sign up for the newsletter"]) expect(kinds(goal)).toContain("type_email");
+  expect(request({ goal: "log in", screen: screen(), items, history: [], email: "user@example.com" }).questions).toHaveProperty("field");
+});
+
+test("a form with more fields than a Choice takes offers those that share most words with the goal and the text", () => {
+  const items = Array.from({ length: 300 }, (_, i) => control(i, i === 280 ? "Arrival date" : `Cell ${i}`, "field", { value: "" }));
+  const req = request({ goal: "enter the arrival date", screen: screen(), items, history: [], text: "21 September" });
+  const labels = Object.keys(criteria(req.questions.field));
+  expect(labels).toHaveLength(MAX_OPTIONS - 1); // every one it offers, and none_of_these
+  expect(labels).toContain("280");
+  expect(labels.at(-1)).toBe(NONE);
+  expect(req.state.elements).toHaveLength(300); // the list in state stays whole
 });
 
 test("off-screen controls: at most 40, those sharing most words with the goal, with labels cut to 80 and ids of their own", () => {

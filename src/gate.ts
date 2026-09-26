@@ -1,9 +1,10 @@
 /**
  * Jev's look at a click's consequences before the clicker makes it, after the teammate's gate (D:/projects/puk/jev
  * gate.ts: 36 of 36 on its fixtures, about 365 ms a look). Five yes/no questions about the exact action, each one plain
- * condition. Only a click whose label reads like a commitment (send, buy, delete...) is asked about, so an ordinary step
- * stays one request; at GATE_AT on any of the five the run stops and hands the action back, for the hand to put to the
- * user or to do itself. The state holds the goal and the action alone: no page text that could argue for it.
+ * condition. Only a click whose label reads like a commitment (send, buy, delete...), typing that Return submits, and
+ * Return itself are asked about (src/runner.ts commitment), so an ordinary step stays one request; at GATE_AT on any of
+ * the five the run stops and hands the action back, for the hand to put to the user or to do itself. The state holds
+ * the goal and the action alone: no page text that could argue for it.
  */
 
 import { noul, type TypeSafeClient } from "@typesafe-ai/sdk";
@@ -16,8 +17,31 @@ export interface Risk {
   level: number;
 }
 
-/** A label that reads like it commits something. Anything else is a step the next one can take back. */
-const COMMITS = /\b(send|buy|pay|order|book|delete|remove|post|submit|confirm)(s|ed|ing)?\b/i;
+/**
+ * A label that reads like it commits something, in any of its forms (Send, Sent, Deleting, Submitted, Checkout).
+ * Anything else is a step the next one can take back.
+ */
+const COMMITS = new RegExp(
+  "\\b(" +
+    [
+      "send(s|ing)?|sent",
+      "buy(s|ing)?|bought",
+      "pay(s|ing)?|paid",
+      "order(s|ed|ing)?",
+      "book(s|ed|ing)?",
+      "delet(e|es|ed|ing)",
+      "remov(e|es|ed|ing)",
+      "post(s|ed|ing)?",
+      "submit(s|ted|ting)?",
+      "confirm(s|ed|ing)?",
+      "publish(es|ed|ing)?",
+      "purchas(e|es|ed|ing)",
+      "check[ -]?out",
+      "transfer(s|red|ring)?",
+    ].join("|") +
+    ")\\b",
+  "i",
+);
 export const consequential = (label: string): boolean => COMMITS.test(label);
 
 // The teammate's questions, word for word but for off_goal, which here has no `avoid` list to read.

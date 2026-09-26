@@ -20,7 +20,7 @@ import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
 import { StringEnum } from "@earendil-works/pi-ai";
 import sharp from "sharp";
 import { type TSchema, Type } from "typebox";
-import { type Drive, pressOffscreen } from "./actions.ts";
+import { type Drive, pressOffscreen, took } from "./actions.ts";
 import * as config from "./config.ts";
 import { jevClient } from "./decide.ts";
 import { hand, quote } from "./hand.ts";
@@ -524,17 +524,23 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
     async fill(field, text) {
       void hand.cue("write", `typing ${quote(text)}`);
       try {
-        if (field.ref !== undefined && macos.axSetValue(field.ref, text) && flat(macos.axValue(field.ref) ?? "").endsWith(flat(text))) return touched("via accessibility");
+        // A value that took, even one the field reformatted, is left for the loop to read back: keys now would add the text again.
+        if (field.ref !== undefined && macos.axSetValue(field.ref, text) && took(field.value, macos.axValue(field.ref), text)) return touched("via accessibility");
         await seat.typeIn(keysTo(), text);
         return touched("via keys posted to the window");
       } catch (error) {
         return failed(error, "typing");
       }
     },
-    reread: (field) => (field.ref === undefined ? null : { ...field, value: macos.axValue(field.ref) ?? "" }),
+    reread: (field) => (field.ref === undefined ? null : macos.axValue(field.ref)),
     async key(name) {
-      await seat.pressIn(keysTo(), name);
-      touched("");
+      const what = name === "return" ? "Return" : "Escape";
+      try {
+        await seat.pressIn(keysTo(), name);
+        return touched(`pressed ${what}`);
+      } catch (error) {
+        return failed(error, `pressing ${what}`);
+      }
     },
     async scroll(lines) {
       const { pid } = mine();
@@ -902,12 +908,15 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
     tool(
       "clicker",
       "Hand one small goal in the window you are working in to Jev, TypeSafe's fast classifier: each step it reads the window and picks the " +
-        "next press, typing, key or scroll, in under a second and for a fraction of a cent, and acts from behind as you do. It stops the moment " +
-        "its choice is not clear-cut, so give it a single visible target (`open the Pricing page`, `choose 21 September in the date picker`, " +
-        "`dismiss the cookie banner`, `search the site for noise-cancelling headphones` with text=`noise-cancelling headphones`), never a " +
-        "compound goal, a comparison, or a judgement: those split its vote and it stops without acting. Give `text` whenever it is to type " +
-        "something. It cannot draw, drag, use key chords, open a page, or open an app. Returns one line on what it did and why it stopped " +
-        "(with its leading picks when it was unsure), then the window as `screen` lists it: act on that listing directly.",
+        "next press, typing, key or scroll, for a fraction of a cent, and acts from behind as you do. Jev decides in about a third of a second; " +
+        "a step, with its look at the window, takes a few seconds. It stops the moment its choice is not clear-cut, so give it a single visible " +
+        "target (`open the Pricing page`, `choose 21 September in the date picker`, `dismiss the cookie banner`, `search the site for " +
+        "noise-cancelling headphones` with text=`noise-cancelling headphones`), never a compound goal, a comparison, or a judgement: those " +
+        "split its vote and it stops without acting. Give `text` whenever it is to type something; it types the user's email address only " +
+        "when the goal asks for it and `text` is not given. A click, or a Return, that could send, buy, delete or submit something stops the " +
+        "run as needs approval, for you to put to the user. It cannot draw, drag, use key chords, open a page, or open an app. Returns one " +
+        "line on what it did and why it stopped (with its leading picks when it was unsure), then the window as `screen` lists it: act on " +
+        "that listing directly.",
       Type.Object({
         goal: Type.String({ description: "One plain-English goal, with every detail it needs: it sees nothing of this conversation." }),
         text: Type.Optional(Type.String({ description: "The exact text to type, when the goal types something (a search, a name, a date): Jev types it as it is. Without it, a model writes the text." })),

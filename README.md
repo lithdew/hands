@@ -93,7 +93,7 @@ The language model goes through [pi-ai](https://github.com/earendil-works/pi/tre
 | `HANDS_SERVICE_TIER` | `priority` | sent as `service_tier`; `off` sends none |
 | `CLICKER_WRITER_MODEL`, `CLICKER_ANSWER_MODEL` | `HANDS_MODEL` | the clicker's per-step writer, and the reader of its last screen |
 | `CLICKER_BROWSER` | `Google Chrome` | any Chromium browser with Chrome's scripting dictionary |
-| `CLICKER_EMAIL` | none | enables the clicker's `type_email` action |
+| `CLICKER_EMAIL` | none | enables the clicker's `type_email` action, offered only for a goal that asks for an email, a username or a sign-in, and no text given |
 | `OPENAI_API_KEY` | required by `bun live` | the voice |
 | `HANDS_LIVE_MODEL`, `HANDS_LIVE_VOICE`, `HANDS_LIVE_BACKEND` | `gpt-live-1`, `marin`, `gpt-5.6-luna` | the voice, how it sounds, and the Responses model behind it that turns what was said into tool calls |
 | `HANDS_WORK`, `HANDS_PROFILE` | `~/Documents/Hands`, `~/.hands/profile.md` | where `bun live`'s hands work, and what the voice knows of you (names as they are spelled), which it adds to |
@@ -118,7 +118,7 @@ bun clicker "log in" --act --steps 20 --delay 3      # longer and slower
 bun clicker-inspect "any goal"                       # 3-2-1, capture, open the annotated screen + payload
 ```
 
-**Stopping a live run.** Ctrl-C, or slam the mouse into the top-left corner of whichever screen it is on. The clicker also stops itself once the screen shows the goal met (Jev's `goal_met` at 0.8, or 0.5 when it also says `done`), on `none` or a pick it is unsure of (the kind under `--min-confidence`, 0.4; the item under 0.5; the field under 0.3), on a loop (the same action three times with no change on screen, four actions of any kind without one, or two refused in a row), on a click whose label commits something (send, buy, delete...) that Jev's consequence check flags, on a blank page, or at `--steps`. In `bun live`, Ctrl-C dismisses every hand first.
+**Stopping a live run.** Ctrl-C, or slam the mouse into the top-left corner of whichever screen it is on. The clicker also stops itself once the screen shows the goal met (Jev's `goal_met` at 0.8, or 0.5 when it also says `done`), on `none` or a pick it is unsure of (the kind under `--min-confidence`, 0.4; the item under 0.5; the field under 0.3), on a loop (the same action three times with no change on screen, four actions of any kind without one, or two refused in a row), on a click whose label commits something (send, buy, delete...), typing that Return submits, or Return itself, when Jev's consequence check flags it, on a blank page, or at `--steps`. In `bun live`, Ctrl-C dismisses every hand first.
 
 **One mode: behind first, the seat when needed.** A hand works behind your windows, and everything it does names its window (see [Behind your windows](#behind-your-windows)), so your mouse, keyboard and focus stay yours. What cannot be done from there borrows the seat, your real mouse and keyboard, for that one action, and gives it back: a right click; on Windows also a shortcut, a drag outside a web page, and typing into Office (see [Windows](#windows)); and an action retried with `seat=true` because from behind it had no effect. `--background` is still accepted, and changes nothing. `bun clicker` is the exception: like the original, it works the screen in front of you with your own mouse and keyboard, so leave it alone while it runs.
 

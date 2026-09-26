@@ -4,8 +4,8 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { type TypeSafeClient, TypeSafeError } from "@typesafe-ai/sdk";
 import { type Context, isNoop, perform } from "./actions.ts";
-import { DEFAULT_DELAY, DEFAULT_MIN_CONFIDENCE, DEFAULT_STEPS, GATE_AT, MAX_ITEMS, RETRY_ITEMS, STUCK_AFTER, STUCK_AT } from "./config.ts";
-import { type Decision, failure, type Look, newClient, OFFSCREEN_PREFIX, type Request, request, send, tooLarge, warm } from "./decide.ts";
+import { DEFAULT_DELAY, DEFAULT_MIN_CONFIDENCE, DEFAULT_STEPS, GATE_AT, MAX_ITEMS, RETRY_ITEMS, STUCK_AFTER, STUCK_AT, SUBMIT_AT } from "./config.ts";
+import { chosenField, type Decision, failure, type Look, newClient, OFFSCREEN_PREFIX, type Request, request, send, tooLarge, warm } from "./decide.ts";
 import { assessRisk, consequential } from "./gate.ts";
 import { platform as macos } from "./platform.ts";
 import { Abort, fieldRecord, type Item, repr, roleWord, type Screen } from "./models.ts";
@@ -19,15 +19,23 @@ export const LOOP = 3; // the same action this many times, the screen unchanged 
 export const MAX_IDLE = 4; // actions in a row, of any kind, after which the screen had not changed
 const STOP_POLL_MS = 100; // how often a request out to Jev looks for the user's stop
 
-// The outcomes that end with an answer, each in words the writer can pass on. A dry run took no
-// action and an abort is the user's own stop, so neither has anything to report.
+// The outcomes that end with an answer, each in words the writer can pass on, by the outcome's words before any
+// colon ("needs approval: click button 'Send'" is "needs approval"). A dry run took no action and an abort is the
+// user's own stop, so neither has anything to report.
 export const STOPPED: Record<string, string> = {
   done: "the classifier judged the goal already achieved on this screen",
   "nothing helps": "the classifier found nothing on this screen that helps with the goal",
   "low confidence": "the classifier was not confident enough in any next action",
+  unsure: "the classifier could not settle on a next action, or on what it would act on",
   stalled: "the last actions changed nothing",
   "step limit": "the run used every step it was allowed",
+  blank: "the page showed nothing that could be read",
+  "needs approval": "the next action could commit something (send, buy, delete, submit) and was left for the user to approve",
+  "classifier failed": "the classifier could not be asked, so the run stopped",
 };
+
+/** The words the writer is given for how a run ended, or undefined for an ending with nothing to report. */
+export const stoppedFor = (outcome: string): string | undefined => STOPPED[outcome.split(":")[0]!];
 
 /** Why a run ends as blank, which only the browser's own setting mends for good. */
 export const BLANK =
@@ -154,7 +162,7 @@ export async function run(config: RunConfig, ctxFactory: (typesafe: TypeSafeClie
  * screen is captured again, and saved so the answer can be checked against what it was read from.
  */
 async function conclude(cfg: Config, ctx: Context, state: RunState, log: Log): Promise<void> {
-  const stopped = STOPPED[state.outcome];
+  const stopped = stoppedFor(state.outcome);
   if (stopped === undefined) return;
   if (!ctx.writer) return log("\nno answer: the writer is disabled (no credentials for the writer model; run `pi` and /login)");
   const started = performance.now();
@@ -364,8 +372,15 @@ function report(step: number, screen: Screen, items: Item[], decision: Decision,
   if (nouls.length) log(`  ${nouls.join("  ")}`);
 }
 
-/** The click a decision makes, in words, when its label reads like a commitment (src/gate.ts); null for anything else. */
-function commitment(decision: Decision, screen: Screen, items: Item[]): string | null {
+/**
+ * The action a decision takes, in words, when it may commit something (src/gate.ts): a click whose label reads like a
+ * commitment, typing that Return then submits, and Return itself. A message box sends on Return as surely as on its
+ * Send button, so no submit goes unasked. Null for anything else. The words follow the teammate's describeAction
+ * (D:/projects/puk/jev cua.ts). Measured with them (jev-1.13.0, one look each): a search typed and submitted 0.05,
+ * a date 0.15, Return after a search 0.17; a chat message typed and submitted 0.88, Return after one 0.80, and the
+ * user's email submitted in a search 0.95 (off goal).
+ */
+function commitment(decision: Decision, screen: Screen, items: Item[], ctx: Context): string | null {
   if (decision.clicking) {
     const it = items.find((candidate) => String(candidate.index) === decision.chosen);
     return it && consequential(it.text) ? `click ${it.role || "text"} ${repr(it.text)}` : null;
@@ -373,6 +388,17 @@ function commitment(decision: Decision, screen: Screen, items: Item[]): string |
   if (decision.pressingOffscreen) {
     const node = screen.offscreen[Number(decision.chosen.slice(OFFSCREEN_PREFIX.length))];
     return node && consequential(node.label) ? `press ${roleWord(node)} ${repr(node.label)}` : null;
+  }
+  if (decision.typing && (decision.extra.submit ?? 0) >= SUBMIT_AT) {
+    const field = chosenField(decision, screen, items);
+    if (!field) return null; // refused before anything is typed
+    const text = decision.kind.choice === "type_email" ? "the user's email address" : ctx.text ? repr(ctx.text) : "text a writing model composes for `goal`";
+    return `type ${text} into text field ${repr(field.label)}, then press Enter`;
+  }
+  if (decision.kind.choice === "press_enter") {
+    const last = ctx.history.at(-1);
+    const filled = last?.startsWith("typed ") ? last : undefined; // what Return would submit, when the step before filled it
+    return `press Enter (submit the focused form, confirm the default button, run a search)${filled ? `, after: ${filled.replace(/ -> .*$/, "")}` : ""}`;
   }
   return null;
 }
@@ -406,7 +432,7 @@ async function resolve(
     return false;
   }
 
-  const commits = cfg.gate ? commitment(decision, screen, items) : null;
+  const commits = cfg.gate ? commitment(decision, screen, items, ctx) : null;
   if (commits) {
     try {
       const risk = await phase(timing, "gate", () => stoppable((signal) => assessRisk(ctx.typesafe, { goal: cfg.goal, action: commits, app: screen.app, url: screen.url }, signal)));

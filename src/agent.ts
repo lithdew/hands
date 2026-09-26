@@ -99,7 +99,7 @@ ${MENUS}
 ${KEYS}
 - ${IN_THE_BROWSER} by pressing its links and controls, and keep \`browser\` open for getting to a site in the first place, or for a URL that saves many steps (search results, filters and dates usually live in the query string).
 ${SEAT}
-- \`clicker\` hands one small, concrete step in your window to Jev, a fast classifier that acts from behind as you do, under a second a step: a click-through (open a page from its menu, pick a date, dismiss a banner, fill and submit one search box, with \`text\` set to what to type). Prefer it for such steps and give it one goal it can see through. It returns the window's listing, so act on that directly; when it stops unsure, its leading picks are listed for you to click.
+- \`clicker\` hands one small, concrete step in your window to Jev, a fast classifier that acts from behind as you do (it decides in about a third of a second; a step, with its look at the window, takes a few seconds): a click-through (open a page from its menu, pick a date, dismiss a banner, fill and submit one search box, with \`text\` set to what to type). Prefer it for such steps and give it one goal it can see through. It returns the window's listing, so act on that directly; when it stops unsure, its leading picks are listed for you to click.
 - The clipboard is the user's too: do not copy or paste through it. Put text in with \`type\`, and move files with the shell.
 - Indexes only describe the capture they came from, so look again after anything that changes the window, and before you report what it shows. Ask for the screenshot when text is not enough.
 - You may issue several tool calls in one turn when you already know the sequence; they run in order.${SHELL}

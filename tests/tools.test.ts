@@ -555,15 +555,19 @@ test("the clicker hands a step to Jev and acts from behind: a press through acce
   });
 });
 
-test("the clicker types from behind: into the field Jev chose, the hand's own text, then Return when Jev says the field submits", async () => {
+const safe = () => Object.fromEntries(["irreversible", "spends_money", "destroys_data", "handles_secret", "off_goal"].map((flag) => [flag, { type: "noul", noul: 0.03 }]));
+
+test("the clicker types from behind: into the field Jev chose, the hand's own text, then Return when Jev says the field submits and the gate lets it", async () => {
   desk({ nodes: [field("Search", 300, 50, { value: "" }), button("Go", 420, 50)] });
   const values = new Map<unknown, string>();
   spyOn(macos, "axSetValue").mockImplementation((ref, text) => (values.set(ref, text), true));
   spyOn(macos, "axValue").mockImplementation((ref) => values.get(ref) ?? "");
+  const confirm = spyOn(macos, "axPerform").mockImplementation(() => false); // no confirm action: Return is posted to the window
   const keys = spyOn(seat, "pressIn").mockImplementation(async () => {});
   const typed = spyOn(seat, "typeIn").mockImplementation(async () => {});
   const sent = jev(
     (state) => ({ kind: jevAnswer("type_text"), field: jevAnswer(idOf(state, "Search"), 0.62), submit: { type: "noul", noul: 0.91 }, goal_met: { type: "noul", noul: 0.01 } }),
+    safe,
     () => finished,
   );
   await withKey(async () => {
@@ -572,26 +576,74 @@ test("the clicker types from behind: into the field Jev chose, the hand's own te
     const told = await call("clicker", { goal: "search the site for noise-cancelling headphones", text: "noise-cancelling headphones" });
     expect(told).toContain("1. typed 'noise-cancelling headphones' into 'Search' via accessibility, and pressed Return");
     expect([...values.values()]).toEqual(["noise-cancelling headphones"]);
+    expect(confirm.mock.calls).toEqual([[{ label: "Search" }, "AXConfirm"]]);
     expect(keys.mock.calls).toEqual([[{ pid: PID, windowId: WINDOW }, "return"]]);
     expect(typed).not.toHaveBeenCalled();
     expect(sent[0]!.state.text_to_type).toBe("noise-cancelling headphones");
     expect(Object.keys(sent[0]!.questions.field!.criteria!)).toEqual([idOf(sent[0]!.state, "Search"), "none_of_these"]);
+    expect(sent[1]!.state as unknown).toMatchObject({ action: "type 'noise-cancelling headphones' into text field 'Search', then press Enter" });
   });
 });
 
-test("a field that reads back without the text is a failure the next step sees, and nothing is submitted", async () => {
-  desk({ nodes: [field("Search", 300, 50, { value: "" })] });
+test("a field that took the text but reads back otherwise is a failure the next step sees: nothing is typed again, and nothing is submitted", async () => {
+  desk({ nodes: [field("Phone", 300, 50, { value: "" })] });
   spyOn(macos, "axSetValue").mockImplementation(() => true);
-  spyOn(macos, "axValue").mockImplementation(() => "noise");
+  spyOn(macos, "axValue").mockImplementation(() => "(555) 123-4567"); // a field that formats what it is given
   const keys = spyOn(seat, "pressIn").mockImplementation(async () => {});
-  spyOn(seat, "typeIn").mockImplementation(async () => {});
-  const sent = jev((state) => ({ kind: jevAnswer("type_text"), field: jevAnswer(idOf(state, "Search")), submit: { type: "noul", noul: 0.9 }, goal_met: { type: "noul", noul: 0 } }), () => finished);
+  const typed = spyOn(seat, "typeIn").mockImplementation(async () => {});
+  const sent = jev((state) => ({ kind: jevAnswer("type_text"), field: jevAnswer(idOf(state, "Phone")), submit: { type: "noul", noul: 0.9 }, goal_met: { type: "noul", noul: 0 } }), safe, () => finished);
   await withKey(async () => {
     const { call } = hands();
     await call("open_app", { name: "TextEdit" });
-    await call("clicker", { goal: "search for headphones", text: "headphones" });
-    expect(sent[1]!.state).toMatchObject({ already_tried_on_this_screen: ["type_text failed: typed 'headphones' into 'Search' via keys posted to the window, but it holds 'noise' -> no visible change"] });
+    await call("clicker", { goal: "enter the phone number", text: "5551234567" });
+    expect(sent[2]!.state).toMatchObject({ already_tried_on_this_screen: ["type_text failed: typed '5551234567' into 'Phone' via accessibility, but it holds '(555) 123-4567' -> no visible change"] });
+    expect(typed).not.toHaveBeenCalled(); // keys now would add the number to what the field holds
     expect(keys).not.toHaveBeenCalled();
+  });
+});
+
+test("in the Mac's browser window the clicker submits through the field's own confirm action, and a Return it cannot send is said, not thrown", async () => {
+  desk({ app: "Google Chrome", nodes: [field("Search", 300, 50, { value: "" })] });
+  spyOn(macos, "openBackgroundWindow").mockImplementation(async () => ({ pid: PID, windowId: WINDOW, scripted: String(WINDOW) }));
+  spyOn(macos, "stageWindow").mockImplementation(async () => {});
+  spyOn(macos, "browserLoading").mockImplementation(async () => false);
+  spyOn(macos, "browserUrl").mockImplementation(async () => "https://example.com/");
+  spyOn(macos, "browserTabs").mockImplementation(async () => []);
+  const values = new Map<unknown, string>();
+  spyOn(macos, "axSetValue").mockImplementation((ref, text) => (values.set(ref, text), true));
+  spyOn(macos, "axValue").mockImplementation((ref) => values.get(ref) ?? "");
+  const confirm = spyOn(macos, "axPerform").mockImplementation(() => true);
+  const keys = spyOn(seat, "pressIn").mockImplementation(async () => {});
+  const typing = (state: JevState) => ({ kind: jevAnswer("type_text"), field: jevAnswer(idOf(state, "Search")), submit: { type: "noul", noul: 0.9 }, goal_met: { type: "noul", noul: 0 } });
+  jev(typing, safe, () => finished);
+  await withKey(async () => {
+    const { call } = hands();
+    await call("browser", { action: "open", url: "https://example.com" });
+    expect(await call("clicker", { goal: "search for headphones", text: "headphones" })).toContain("1. typed 'headphones' into 'Search' via accessibility, and pressed Return");
+    expect(confirm.mock.calls).toEqual([[{ label: "Search" }, "AXConfirm"]]);
+    // A field with no confirm action: Return would be posted, and the Mac's browser takes no keys from behind.
+    confirm.mockImplementation(() => false);
+    values.clear();
+    jev(typing, safe, () => finished);
+    expect(await call("clicker", { goal: "search for headphones", text: "headphones" })).toContain(
+      "1. typed 'headphones' into 'Search' via accessibility, but pressing Return failed: keys cannot be sent to Google Chrome from behind here",
+    );
+    expect(keys).not.toHaveBeenCalled();
+  });
+});
+
+test("a field that ignored the value it was given is typed into with keys posted to the window", async () => {
+  desk({ nodes: [field("Search", 300, 50, { value: "" })] });
+  spyOn(macos, "axSetValue").mockImplementation(() => true);
+  let holds = "";
+  spyOn(macos, "axValue").mockImplementation(() => holds);
+  const typed = spyOn(seat, "typeIn").mockImplementation(async (_to, text) => void (holds = text));
+  jev((state) => ({ kind: jevAnswer("type_text"), field: jevAnswer(idOf(state, "Search")), submit: { type: "noul", noul: 0.1 }, goal_met: { type: "noul", noul: 0 } }), () => finished);
+  await withKey(async () => {
+    const { call } = hands();
+    await call("open_app", { name: "TextEdit" });
+    expect(await call("clicker", { goal: "search for headphones", text: "headphones" })).toContain("1. typed 'headphones' into 'Search' via keys posted to the window");
+    expect(typed).toHaveBeenCalledTimes(1);
   });
 });
 

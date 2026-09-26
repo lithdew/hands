@@ -20,10 +20,10 @@ import {
   type Questions,
   TypeSafeClient,
 } from "@typesafe-ai/sdk";
-import { CLICK_AT, DONE_AGREED, DONE_AT, FIELD_AT, HISTORY_SHOWN, ITEM_CHARS, JEV_RETRIES, JEV_TIMEOUT_MS, jevModel, OFFSCREEN_CHARS, PER_CHOICE, SITES } from "./config.ts";
+import { CLICK_AT, DONE_AGREED, DONE_AT, FIELD_AT, HISTORY_SHOWN, ITEM_CHARS, JEV_RETRIES, JEV_TIMEOUT_MS, jevModel, MAX_OPTIONS, OFFSCREEN_CHARS, PER_CHOICE, SITES } from "./config.ts";
 import { dateHints, nowContext } from "./dates.ts";
 import { type Field, fieldSummary, fromAx, isText, type Item, region, repr, roleWord, type Screen } from "./models.ts";
-import { offscreenFor } from "./perception.ts";
+import { mostShared, offscreenFor } from "./perception.ts";
 
 export type ChoiceAnswer = ChoiceResponse;
 export const OFFSCREEN_PREFIX = "offscreen:";
@@ -127,7 +127,17 @@ export function itemLine(screen: Screen, it: Item, hint?: string): string {
 }
 
 /** The fields among the items: controls the app says take text. */
-const fieldItems =(items: Item[]): Item[] => items.filter((it) => fromAx(it) && it.role === "field");
+const fieldItems = (items: Item[]): Item[] => items.filter((it) => fromAx(it) && it.role === "field");
+
+/** At most this many fields go in the field question, with none_of_these and focused_field, under the Choice ceiling. */
+export const FIELDS_SHOWN = MAX_OPTIONS - 2;
+
+/**
+ * A goal that asks for the user's email address to be typed: one that names an email or a username, or signing in,
+ * up or on. The user's address is offered (type_email) only for such a goal, and only when the caller gave no text of
+ * its own: otherwise any page's newsletter box is a field it could land in.
+ */
+export const EMAIL_GOAL = /\b(e-?mails?|usernames?|user names?|log ?(in|on)|sign ?(in|up|on)|register)\b/i;
 
 /** Everything one request is built from. */
 export interface Look {
@@ -158,7 +168,9 @@ export interface Request {
 export function request(look: Look): Request {
   const { goal, screen, items } = look;
   const hints = dateHints(items, screen);
-  const fields = fieldItems(items);
+  const all = fieldItems(items);
+  // A long form or a grid can hold more fields than one Choice takes: those that share most words with the goal and the text go.
+  const fields = all.length > FIELDS_SHOWN ? mostShared(all.map((it) => it.text), `${goal} ${look.text ?? ""}`, FIELDS_SHOWN).map((i) => all[i]!) : all;
   const focused = screen.field && isText(screen.field) ? screen.field : null; // `bun clicker` only: from behind no field has the focus
   const shown = look.offscreen === false ? [] : offscreenFor(screen.offscreen, goal);
   const offer: Offer = {
@@ -166,7 +178,7 @@ export function request(look: Look): Request {
     fields: fields.length > 0 || focused !== null,
     text: look.text ?? null,
     write: look.write ?? false,
-    email: look.email ?? null,
+    email: look.email && !look.text && EMAIL_GOAL.test(goal) ? look.email : null,
     offscreen: shown.length > 0,
     browse: look.browse ?? null,
   };

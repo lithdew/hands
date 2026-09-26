@@ -7,7 +7,7 @@ import sharp from "sharp";
 import type { Context, Drive } from "../src/actions.ts";
 import * as macos from "../src/macos.ts";
 import { Abort, type AxNode, type Screen } from "../src/models.ts";
-import { BLANK, type RunConfig, run } from "../src/runner.ts";
+import { BLANK, type RunConfig, run, stoppedFor } from "../src/runner.ts";
 import type { Writer } from "../src/writer.ts";
 import { guardMachine } from "./helpers.ts";
 
@@ -78,8 +78,8 @@ function drive(did: string[] = []): Drive {
     click: async (it) => (did.push(`click ${it.text}`), `pressed '${it.text}' via accessibility`),
     offscreen: async (key) => (did.push(`offscreen ${key}`), `pressed off-screen control ${key}`),
     fill: async (field, text) => (did.push(`fill ${field.label}=${text}`), "via accessibility"),
-    reread: (field) => ({ ...field, value: did.findLast((line) => line.startsWith(`fill ${field.label}=`))?.split("=")[1] ?? "" }),
-    key: async (name) => void did.push(`key ${name}`),
+    reread: (field) => did.findLast((line) => line.startsWith(`fill ${field.label}=`))?.split("=")[1] ?? "",
+    key: async (name) => (did.push(`key ${name}`), `pressed ${name === "return" ? "Return" : "Escape"}`),
     scroll: async (lines) => void did.push(`scroll ${lines}`),
   };
 }
@@ -256,14 +256,61 @@ test("the first step can start from a capture the caller holds: no look of its o
   expect(fresh.listed).toHaveLength(1); // the connection opens while the first capture is taken
 });
 
-test("typing goes into the field Jev chose with the hand's own text, then Return when it says the field submits", async () => {
+const SAFE = { irreversible: noul(0.03), spends_money: noul(0.01), destroys_data: noul(0.01), handles_secret: noul(0.01), off_goal: noul(0.02) };
+const SENDS = { ...SAFE, irreversible: noul(0.94) };
+
+test("typing goes into the field Jev chose with the hand's own text, then Return, once the gate has looked at the submit", async () => {
   controls = [control("Search", "AXTextField", { value: "" }), control("Go")];
-  const { client } = jev((state, _questions, n) =>
-    n === 1 ? { kind: choice("type_text"), field: choice(idOf(state, "Search"), 0.35), submit: noul(0.8), goal_met: noul(0) } : { kind: choice("done"), goal_met: noul(0.9) },
+  const confirm = spyOn(macos, "axPerform").mockImplementation(() => false); // the field has no confirm action: Return is posted
+  const { client, sent } = jev((state, questions, n) =>
+    "irreversible" in questions ? SAFE : n === 1 ? { kind: choice("type_text"), field: choice(idOf(state, "Search"), 0.35), submit: noul(0.8), goal_met: noul(0) } : { kind: choice("done"), goal_met: noul(0.9) },
   );
   const { state, did } = await behind(client, {}, { text: "Grace Hopper" });
   expect(did).toEqual(["fill Search=Grace Hopper", "key return"]);
   expect(state.history[0]).toStartWith("typed 'Grace Hopper' into 'Search' via accessibility, and pressed Return");
+  expect(sent[1]!.state as unknown).toMatchObject({ action: "type 'Grace Hopper' into text field 'Search', then press Enter" });
+  expect(confirm.mock.calls).toEqual([[{ label: "Search" }, "AXConfirm"]]);
+});
+
+test("Return goes to the field's own confirm action when it has one, and a Return that cannot be sent is said, not thrown", async () => {
+  controls = [control("Search", "AXTextField", { value: "" })];
+  const reply = (state: State, questions: Questions, n: number) =>
+    "irreversible" in questions ? SAFE : n === 1 ? { kind: choice("type_text"), field: choice(idOf(state, "Search")), submit: noul(0.9), goal_met: noul(0) } : { kind: choice("done"), goal_met: noul(0.9) };
+  spyOn(macos, "axPerform").mockImplementation(() => true);
+  const confirmed = await behind(jev(reply).client, {}, { text: "Grace Hopper" });
+  expect(confirmed.did).toEqual(["fill Search=Grace Hopper"]); // no key posted
+  expect(confirmed.state.history[0]).toStartWith("typed 'Grace Hopper' into 'Search' via accessibility, and pressed Return");
+  // No confirm action, and no keys to the window from behind (a browser on the Mac): the run goes on, told.
+  spyOn(macos, "axPerform").mockImplementation(() => false);
+  const refused = { ...drive(), key: async () => "pressing Return failed: keys cannot be sent to Google Chrome from behind here" };
+  const { state } = await behind(jev(reply).client, {}, { text: "Grace Hopper", drive: refused });
+  expect(state.history[0]).toStartWith("typed 'Grace Hopper' into 'Search' via accessibility, but pressing Return failed: keys cannot be sent to Google Chrome from behind here");
+  expect(state.outcome).toBe("done");
+});
+
+test("a Return that could send something goes to the gate first: typing that submits, and Return itself", async () => {
+  controls = [control("Message", "AXTextField", { value: "" })];
+  const { client, sent } = jev((state, questions) =>
+    "irreversible" in questions ? SENDS : { kind: choice("type_text"), field: choice(idOf(state, "Message")), submit: noul(0.86), goal_met: noul(0) },
+  );
+  const { state, did } = await behind(client, { goal: "reply running late to Sam" }, { text: "running late" });
+  expect(state.outcome).toBe("needs approval: type 'running late' into text field 'Message', then press Enter");
+  expect(state.reason).toBe("irreversible 0.94");
+  expect(did).toEqual([]); // nothing typed, nothing sent
+  expect(sent[1]!.state as unknown).toEqual({ goal: "reply running late to Sam", action: "type 'running late' into text field 'Message', then press Enter", app: "Google Chrome", url: "https://shop.example.com/" });
+  // Typed without Return, then Return on its own: the gate hears what was typed before it.
+  controls = [control("Message", "AXTextField", { value: "" })];
+  const later = jev((state, questions, n) => {
+    if ("irreversible" in questions) return SENDS;
+    return n === 1 ? { kind: choice("type_text"), field: choice(idOf(state, "Message")), submit: noul(0.1), goal_met: noul(0) } : { kind: choice("press_enter"), goal_met: noul(0) };
+  });
+  const after = await behind(later.client, { goal: "reply running late to Sam" }, { text: "running late" });
+  expect(after.did).toEqual(["fill Message=running late"]);
+  expect(later.sent.map((request) => ("irreversible" in request.questions ? "gate" : "step"))).toEqual(["step", "step", "gate"]); // typing alone is not asked about
+  expect((later.sent[2]!.state as unknown as { action: string }).action).toBe(
+    "press Enter (submit the focused form, confirm the default button, run a search), after: typed 'running late' into 'Message' via accessibility",
+  );
+  expect(after.state.outcome).toStartWith("needs approval: press Enter");
 });
 
 test("without a writer's answer asked for, none is written", async () => {
@@ -274,4 +321,10 @@ test("without a writer's answer asked for, none is written", async () => {
   const out = mkdtempSync(join(dir, "run-"));
   await run({ goal: "g", out, act: true, delay: 0, answer: false, typesafe: client, look: async () => window() }, (typesafe, history) => ({ goal: "g", browser: "Google Chrome", email: null, typesafe, writer, history, drive: drive() }));
   expect(asked).toEqual([]);
+});
+
+test("every ending with a screen to read has words for the writer, looked up by what comes before a colon; a dry run, a stop and a crash have none", () => {
+  for (const outcome of ["done", "unsure", "blank", "stalled", "needs approval: click button 'Send'", "classifier failed: 429"]) expect(stoppedFor(outcome)).toBeString();
+  expect(stoppedFor("needs approval: press Enter")).toContain("approve");
+  for (const outcome of ["dry run", "aborted (Ctrl-C)", "crashed"]) expect(stoppedFor(outcome)).toBeUndefined();
 });
