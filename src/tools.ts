@@ -587,7 +587,7 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
     async click(it, screen) {
       const at = spot(screen, it);
       const what = repr(it.text);
-      await hand.cue("press", `click ${quote(it.text)}`, at);
+      void hand.cue("press", `click ${quote(it.text)}`, at); // the hand glides there as the click goes, as the click tool's does: nothing waits for it
       const ref = screen.axRefs.get(it.index);
       try {
         if (ref !== undefined && macos.axPress(ref)) return touched(`pressed ${what} via accessibility`);

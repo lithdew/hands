@@ -270,6 +270,8 @@ export const native = {
     let reply: string | undefined;
     for (let attempt = 0; reply === undefined; attempt++) {
       if (!helper) {
+        // A test that reaches the real machine by mistake fails here instead of building and starting the helper.
+        if (process.env.NODE_ENV === "test" && !process.env.HANDS_NATIVE_TESTS) throw new Error(`${command}: the Windows helper is not started under bun test (HANDS_NATIVE_TESTS=1 allows it)`);
         try {
           helper = new Helper((kernel ??= bindKernel()), helperPath());
           helperFailure = undefined;
