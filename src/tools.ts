@@ -119,6 +119,8 @@ export type Outcome = "done" | "needs_you" | "could_not";
 export interface Finish {
   outcome: Outcome;
   summary: string;
+  /** What the user is told: the run ends with the finish, so the answer rides in it instead of costing another turn. */
+  answer?: string;
   /** The hand left pages or files open for the user: its browser windows stay when it is dismissed (src/agent.ts). */
   keep_open?: boolean;
 }
@@ -969,18 +971,21 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
       name: "finish",
       label: "finish",
       description:
-        "End the task: say how it went, then give the user your short answer. done: it is done, and you saw it done. needs_you: the next " +
+        "End the task: say how it went, with your answer to the user in it. Nothing after it is read: it ends your turn. done: it is done, and you saw it done. needs_you: the next " +
         "step is one only the user can take (a login, a payment, a CAPTCHA, a choice that is theirs): say exactly what they must do. " +
         "could_not: it cannot be done from here: say why. keep_open says whether you left pages or files open for the user to see" +
         (onWindows() ? ": your browser window stays for them when you are dismissed only if it is true." : "."),
       parameters: Type.Object({
         outcome: StringEnum(["done", "needs_you", "could_not"] as const),
         summary: Type.String({ description: "One sentence: what was done, what the user must do, or why it could not be done." }),
+        answer: Type.String({ description: "Your short plain answer to the user, as you would say it: what you found or did (the numbers, names, dates), and where any file you made lives. One to three sentences, no markdown." }),
         keep_open: Type.Boolean({ description: "true when you left pages or files open for the user (results in tabs, a page to log in on); false when nothing you opened is for them." }),
       }),
       execute: async (_id, params): Promise<Result> => {
-        const { outcome, summary, keep_open } = params as Finish;
-        return { content: [{ type: "text", text: `recorded: ${outcome}. Now give the user your short answer.` }], details: { finish: { outcome, summary, keep_open: keep_open === true } } };
+        const { outcome, summary, answer, keep_open } = params as Finish;
+        const finish: Finish = { outcome, summary, keep_open: keep_open === true, ...(answer?.trim() ? { answer: answer.trim() } : {}) };
+        // terminate: the run ends here, unless the user said something meanwhile, which pi still hands the model.
+        return { content: [{ type: "text", text: `recorded: ${outcome}.` }], details: { finish }, terminate: true };
       },
     },
   ];

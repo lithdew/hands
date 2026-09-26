@@ -106,7 +106,7 @@ ${SEAT}
 
 # Finishing
 - Keep going until the task is actually done. A step that fails or a page that surprises you is a reason to look again (with the screenshot) and take another route.
-- End every task by calling \`finish\`, then give a short plain answer: what you found or did, and where any file you made lives. done means you saw it done. When a step cannot be done, finish with needs_you and exactly what the user must do (a login, a payment, a CAPTCHA, a choice that is theirs), or with could_not and why: never with done for something that did not happen.
+- End every task by calling \`finish\` with your short plain answer in it: what you found or did, and where any file you made lives. It ends your turn: nothing you write after it is read. done means you saw it done. When a step cannot be done, finish with needs_you and exactly what the user must do (a login, a payment, a CAPTCHA, a choice that is theirs), or with could_not and why: never with done for something that did not happen.
 - Never say a message was sent, a booking made or a file saved unless you saw it: the message in the chat, the confirmation on the page, the file where it belongs.
 - Never tell the user to restart you, to run you another way, or to change how you work: there is no other way. Say what stood in the way in plain words.
 
@@ -172,7 +172,7 @@ export function ending(messages: AgentMessage[], from: number, asked: "pause" | 
   if (asked === "pause") return { status: "paused", answer: said, reason: "" };
   const finish = verdict(messages.slice(from));
   if (finish) {
-    const answer = said || finish.summary;
+    const answer = said || finish.answer || finish.summary; // a finish ends the run, so its answer is usually the last word
     if (finish.outcome === "could_not") return { status: "failed", answer, reason: finish.summary };
     return { status: finish.outcome === "needs_you" ? "needs_you" : "done", answer, reason: "" };
   }
@@ -548,6 +548,7 @@ async function main(argv: string[]): Promise<void> {
     const from = agent.state.messages.length;
     await ask(agent, prompt, () => stopping);
     const ended = ending(agent.state.messages, from, stopping ? "stop" : null);
+    if (agent.state.messages.at(-1)?.role === "toolResult" && ended.answer) console.log(ended.answer); // it ended with finish: its answer was never streamed
     record(`[status] ${ended.status}${ended.reason ? `: ${ended.reason}` : ""}`);
     if (ended.status !== "done") console.log(`(${ended.status.replace("_", " ")}${ended.reason ? `: ${ended.reason}` : ""})`);
     await hand.cue(POSE_AT_END[ended.status], ended.status.replace("_", " "));

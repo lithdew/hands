@@ -584,6 +584,10 @@ test("finish records the outcome for the run to report, and whether the hand lef
   expect(result.details).toEqual({ finish: { outcome: "needs_you", summary: "Sign in to WhatsApp on the phone.", keep_open: true } });
   expect((await find("finish").execute("call", { outcome: "done", summary: "Did it." })).details).toEqual({ finish: { outcome: "done", summary: "Did it.", keep_open: false } });
   expect(find("finish").parameters.required).toContain("keep_open");
+  const ended = await find("finish").execute("call", { outcome: "done", summary: "Found it.", answer: " Babbage was born in 1791. ", keep_open: false });
+  expect(ended.details).toEqual({ finish: { outcome: "done", summary: "Found it.", answer: "Babbage was born in 1791.", keep_open: false } });
+  expect(ended.terminate).toBe(true); // the answer rides in the finish: no turn after it
+  expect(find("finish").parameters.required).toContain("answer");
 });
 
 test("a window the user minimized is looked at all the same on Windows: the capture brings it back, and it is not taken for closed", async () => {

@@ -105,6 +105,12 @@ test("a run ends as its finish says: done, needs you, or could not, which is a f
   expect(run("done", "")).toEqual({ status: "done", answer: "One line.", reason: "" }); // no words after the finish: its summary is the answer
 });
 
+test("a finish ends the run, and its answer is what the user is told", () => {
+  const answered: ToolResultMessage = { ...finished("done", "Found it."), details: { finish: { outcome: "done", summary: "Found it.", answer: "Babbage was born in 1791." } } };
+  expect(ending([asked("do it"), said("Looking."), answered], 0, null)).toEqual({ status: "done", answer: "Babbage was born in 1791.", reason: "" });
+  expect(ending([asked("do it"), answered, said("In 1791.")], 0, null).answer).toBe("In 1791."); // words after it, when the model wrote some anyway
+});
+
 test("a finish from an earlier task, or one the user has spoken after, does not decide this one", () => {
   const earlier = [asked("first"), finished("could_not", "No."), said("No.")];
   expect(ending([...earlier, asked("second"), said("Done now.")], earlier.length, null).status).toBe("done");
