@@ -52,6 +52,7 @@ export interface HandView {
   pose?: PoseName; // the on-screen hand's pose now
   taps?: number; // how many presses it has made, so the picture can ripple on each new one
   glide?: number; // how long its latest move takes, in ms, so the picture's hand lands when the real one does
+  checked?: number; // a done hand's last screen, as Jev read it: how likely it shows the answer is so, 0 to 1 (src/reflex.ts). Absent when nothing was checked
 }
 
 export interface VoiceView {
@@ -73,4 +74,5 @@ export type ClientMessage =
   | { cmd: "clear" } // close every hand that has finished
   | { cmd: "visible"; hands: string[]; hot?: string | null; big?: string | null } // the hands whose card shows a picture now: only they are filmed; hot: the one under the pointer, filmed first; big: the one watched large, filmed sharper
   | { cmd: "open"; url: string } // open a lookup's source in the user's own browser: only a URL some card lists is opened
+  | { cmd: "ask"; text: string } // what the user typed into the dock: a new task, or a word to a hand, as Jev reads it (src/intent.ts)
   | { cmd: "focus"; on: boolean };

@@ -1372,6 +1372,7 @@ function show(hand: Hand): void {
 
 /** What the panel's buttons and its box ask for. */
 export function command(message: ClientMessage): void {
+  if (message.cmd === "ask") return; // the dock's typed ask: src/intent.ts, next
   if (process.env.HANDS_DEBUG) console.error(`[panel] ${JSON.stringify(message)}`);
   if (message.cmd === "size") {
     const room = shell?.panel.room();
