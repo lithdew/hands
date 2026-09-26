@@ -34,6 +34,7 @@ export function speak(voice: VoiceView, hands: HandView[], talkKey: string): voi
   state = voice.state === "connecting" ? "listening" : voice.state;
   if (state === "listening" || state === "thinking" || state === "speaking") spoken = true;
   if (was === "speaking" && state === "idle" && voice.said.trim()) {
+    if (lingering) clearTimeout(lingering.timer);
     const timer = setTimeout(() => {
       lingering = null;
       if (last) speak(...last);
