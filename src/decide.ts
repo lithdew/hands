@@ -26,12 +26,11 @@ import { type Field, fieldSummary, fromAx, isText, type Item, region, repr, role
 import { offscreenFor } from "./perception.ts";
 
 export type ChoiceAnswer = ChoiceResponse;
-export const STOP_KINDS = ["done", "none"];
 export const OFFSCREEN_PREFIX = "offscreen:";
 export const NONE = "none_of_these";
 export const FOCUSED = "focused_field";
 /** The question each kind that lands somewhere takes its target from. */
-export const TARGETS: Record<string, "item" | "field" | "offscreen" | "site"> = {
+const TARGETS: Record<string, "item" | "field" | "offscreen" | "site"> = {
   click_item: "item",
   press_offscreen: "offscreen",
   type_text: "field",
@@ -128,7 +127,7 @@ export function itemLine(screen: Screen, it: Item, hint?: string): string {
 }
 
 /** The fields among the items: controls the app says take text. */
-export const fieldItems = (items: Item[]): Item[] => items.filter((it) => fromAx(it) && it.role === "field");
+const fieldItems =(items: Item[]): Item[] => items.filter((it) => fromAx(it) && it.role === "field");
 
 /** Everything one request is built from. */
 export interface Look {
@@ -299,10 +298,6 @@ export class Decision {
   get targetless(): boolean {
     const needs = TARGETS[this.kind.choice];
     return needs !== undefined && needs !== "site" && this.targetAnswer === null;
-  }
-
-  get stops(): boolean {
-    return STOP_KINDS.includes(this.kind.choice);
   }
 }
 

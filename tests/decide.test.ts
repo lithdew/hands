@@ -17,7 +17,6 @@ test("decision click uses item and min confidence", () => {
   expect(d.chosen).toBe("12");
   expect(d.target).toBe("12");
   expect(d.confidence).toBe(0.6);
-  expect(d.stops).toBe(false);
 });
 
 test("decision fixed action ignores item", () => {
