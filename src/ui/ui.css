@@ -501,8 +501,7 @@ html.windows .name {
     opacity var(--t-quick) var(--ease-out),
     translate var(--t-quick) var(--ease-out);
 }
-.card:hover .tools,
-.card[data-status="needs_you"] .tools {
+.card:hover .tools {
   opacity: 1;
   translate: 0 0;
   pointer-events: auto;
@@ -611,6 +610,49 @@ html:not(.windows) [data-cmd="show"] {
 }
 .card[data-status="needs_you"] .said {
   font-weight: 600;
+}
+/* answered from the card: see its window, or say it is done and let the hand carry on */
+.ask {
+  display: none;
+}
+.card[data-status="needs_you"] .ask {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.ask button {
+  height: 26px;
+  padding: 0 11px;
+}
+.ask [data-cmd="show"]::after {
+  content: " ↗";
+  white-space: pre;
+}
+.ask [data-say] {
+  background: var(--ink);
+  color: var(--sheet);
+}
+.ask [data-say]:hover {
+  color: var(--ink);
+}
+/* and its glyph wears a badge, in the header, where a folded card shows it too */
+.card[data-status="needs_you"] .who {
+  position: relative;
+  overflow: visible;
+}
+.card[data-status="needs_you"] .who::after {
+  content: "!";
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--alarm);
+  color: var(--sheet);
+  box-shadow: 0 0 0 1.5px var(--ink);
+  font: 800 10px/15px var(--face);
+  text-align: center;
 }
 
 /* the sheet: what the hand was asked, what it did, what it said, and a box to tell it something */
@@ -854,7 +896,31 @@ html:not(.windows) [data-cmd="show"] {
 
 /* rested: a palm in the corner, which opens out under the pointer and whenever the key goes down */
 #dock.compact {
+  position: relative;
   width: 60px;
+}
+/* and on it, how many hands need you */
+#dock.compact[data-needs]:not([data-needs=""])::after {
+  content: attr(data-needs);
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: var(--alarm);
+  color: var(--sheet);
+  box-shadow: 0 0 0 1.5px var(--ink);
+  font: 700 10px/16px var(--face);
+  text-align: center;
+  animation: stamp 437ms var(--spring);
+}
+@keyframes stamp {
+  from {
+    scale: 0.6;
+  }
 }
 #dock.compact .words {
   visibility: hidden;
@@ -1013,6 +1079,7 @@ html:not(.windows) [data-cmd="show"] {
   .card header::after,
   .card header::before,
   .chip.state,
+  #dock::after,
   #dock.thinking .palm i {
     animation: none !important;
   }

@@ -57,10 +57,14 @@ export function speak(voice: VoiceView, hands: HandView[], talkKey: string): voi
   notice.hidden = !trouble;
   notice.textContent = trouble;
 
+  // Hands that need you are counted on the palm, even when it rests small, and named in the hint.
+  const needy = hands.filter((hand) => hand.status === "needs_you");
+  dock.dataset.needs = needy.length ? String(needy.length) : "";
+
   const heard = voice.heard.trim();
   const said = voice.said.trim();
   if (state === "idle" && lingering) write("said", lingering.said);
-  else if (state === "idle" || state === "offline") hint(talkKey, hands.length > 0);
+  else if (state === "idle" || state === "offline") hint(talkKey, hands.length > 0, needy[0]?.name);
   else if (state === "speaking") write("said", said || "…", !said);
   // Only while the key is held does it say "Listening…": the transcript trails the speech, and a dock still saying so after the key is up looks like one that has not let go.
   else write("heard", heard || (state === "listening" ? "Listening…" : "…"), !heard);
@@ -84,15 +88,16 @@ function write(whose: string, text: string, waiting = false): void {
   showing = whose;
 }
 
-/** What the idle dock says: which key to hold, and what for. */
-function hint(key: string, hands: boolean): void {
-  const rest = hands ? " to steer, stop or ask" : " and ask for a hand";
-  if (showing !== `hint ${key}${rest}`) {
+/** What the idle dock says: which key to hold, and what for; first, when one does, which hand needs you. */
+function hint(key: string, hands: boolean, needs?: string): void {
+  const lead = needs ? `${needs} needs you · Hold ` : "Hold ";
+  const rest = needs ? " to answer" : hands ? " to steer, stop or ask" : " and ask for a hand";
+  if (showing !== `hint ${lead}${key}${rest}`) {
     const cap = document.createElement("kbd");
     cap.textContent = key;
-    words.replaceChildren("Hold ", cap, rest);
-    if (!showing.startsWith("hint")) settle(words);
-    showing = `hint ${key}${rest}`;
+    words.replaceChildren(lead, cap, rest);
+    if (!showing.startsWith("hint") || needs) settle(words);
+    showing = `hint ${lead}${key}${rest}`;
   }
   words.classList.remove("waiting");
 }

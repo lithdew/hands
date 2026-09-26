@@ -125,13 +125,16 @@ test("a picture shrinks so the card that wants room most can unfold, but only so
 test("finished hands give up their two lines, oldest first, before the hand that needs you stays folded", () => {
   const hands = [hand("lefty", "done", 1), hand("righty", "done", 2), hand("index", "needs_you", 3)];
   const two = folded({ status: "done" }, WIDE);
-  const least = unfolded(WIDE, LEAST) - two;
-  const room = BASE + 3 * SIZE.gap + 3 * two + least - 10;
+  const needs = folded({ status: "needs_you" }, WIDE); // two lines, and the buttons that answer it
+  expect(needs).toBe(two + SIZE.ask);
+  const least = unfolded(WIDE, LEAST, { status: "needs_you" }) - needs;
+  const room = BASE + 3 * SIZE.gap + 2 * two + needs + least - 10;
   const layout = arrange(hands, shapes("lefty", "righty", "index"), room, null);
   expect([...layout.bare]).toEqual(["lefty"]);
   expect([...layout.unfolded]).toEqual(["index"]);
   expect(layout.picture).toBe(LEAST - 10 + (two - SIZE.strip)); // what Lefty gave up, less the 10 it was short
-  const hopeless = arrange(hands, shapes("lefty", "righty", "index"), BASE + 3 * SIZE.gap + 3 * two + 20, null);
+  expect(unfolded(WIDE, LEAST, { status: "needs_you" })).toBe(unfolded(WIDE, LEAST) + SIZE.ask);
+  const hopeless = arrange(hands, shapes("lefty", "righty", "index"), BASE + 3 * SIZE.gap + 2 * two + needs + 20, null);
   expect(hopeless.bare.size).toBe(0); // no room to be had: nobody gives theirs up for nothing
 });
 

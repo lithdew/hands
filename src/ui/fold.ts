@@ -23,6 +23,7 @@ export const SIZE = {
   subtitle: 20, // under that task, what a hand at work is doing, until its picture comes
   mini: 70, // a finished hand's small picture, beside its answer
   receipt: 5, // lines of a finished hand's answer
+  ask: 34, // under what a hand that needs you says, the buttons that answer it
   dock: 100, // the dock at its tallest, three lines of words: kept free, so that no card folds because the voice is talking
   sheet: 96, // an open card's box and buttons, without its transcript
   log: [96, 300], // an open card's transcript, at least and at most
@@ -66,7 +67,11 @@ const said = (shape: Shape, most: number): number => (shape.words ? Math.min(mos
  * A folded card: its header, and under it two lines of what came of a hand that has stopped, or of what a hand at
  * work is doing with the user's mouse and keyboard (unless it is bare, header only). card.ts keeps the same words.
  */
-export const folded = (hand: Of, shape: Shape, bare = false): number => SIZE.strip + (shape.words && !bare && (!busy(hand.status) || !!hand.seat) ? SIZE.pad + said(shape, 2) : 0);
+export const folded = (hand: Of, shape: Shape, bare = false): number =>
+  SIZE.strip + (shape.words && !bare && (!busy(hand.status) || !!hand.seat) ? SIZE.pad + said(shape, 2) + asks(hand) : 0);
+
+/** The buttons under the words of a hand that needs you. */
+const asks = (hand?: Of): number => (hand?.status === "needs_you" ? SIZE.ask : 0);
 
 /**
  * An unfolded card: its header, its picture, and three lines of words. When `hand` says whose it is: a hand at work
@@ -79,7 +84,7 @@ export const unfolded = (shape: Shape, most: number = SIZE.picture[1], hand?: Of
     return SIZE.strip + (body ? SIZE.pad + body : 0);
   }
   const picture = shape.ratio ? tall(shape, most) : SIZE.brief + (hand?.status === "working" ? SIZE.subtitle : 0);
-  return SIZE.strip + SIZE.rule + picture + (shape.words ? SIZE.pad + said(shape, 3) : 0);
+  return SIZE.strip + SIZE.rule + picture + (shape.words ? SIZE.pad + said(shape, 3) + asks(hand) : 0);
 };
 
 export interface Layout {

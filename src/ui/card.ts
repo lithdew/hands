@@ -80,6 +80,13 @@ export function build(id: string, act: (message: ClientMessage) => void, toggle:
       if (cmd === "show" && !card.root.classList.contains("open")) brought(card);
     });
   }
+  // A hand that needs you is answered from its card: what the button says is said to it, as the box would.
+  for (const button of root.querySelectorAll<HTMLButtonElement>("button[data-say]")) {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      act({ cmd: "steer", hand: id, text: button.dataset.say! });
+    });
+  }
   return card;
 }
 
