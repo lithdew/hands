@@ -5,7 +5,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import * as config from "./config.ts";
-import * as macos from "./macos.ts";
+import { PERMISSION, platform as macos } from "./platform.ts";
 import { repr } from "./models.ts";
 import { capture, perceive } from "./perception.ts";
 import { annotate, axCount, renderPayload } from "./report.ts";
@@ -56,7 +56,7 @@ async function main(argv: string[]): Promise<void> {
   const goal = positionals.join(" ");
   if (values.help || !goal) return void console.log(USAGE);
   if (!process.env.TYPESAFE_API_KEY) fail("TYPESAFE_API_KEY is not set (export it or put it in .env)");
-  if (values.act && !macos.accessibilityTrusted()) fail("this terminal lacks Accessibility permission; grant it in System Settings > Privacy & Security");
+  if (values.act && !macos.accessibilityTrusted()) fail(PERMISSION);
   const writer = await makeWriter();
   if (!writer) console.log("writer disabled: no credentials for the writer model; type_text, writer-proposed URLs and the final answer need it");
 

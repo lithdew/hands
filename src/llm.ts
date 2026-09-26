@@ -15,8 +15,25 @@ export async function resolveModel(spec: string) {
   return model;
 }
 
-/** pi-ai's simple options carry no service tier, so it rides on the request body. */
-export const onPayload = (payload: unknown): unknown => {
+/** The APIs whose request body takes OpenAI's prompt_cache_key. */
+const CACHE_KEYED = new Set(["openai-responses", "azure-openai-responses", "openai-codex-responses"]);
+let cacheKey: string | null = null;
+
+/**
+ * The key OpenAI routes this process's requests by for its prompt cache. pi keys each agent by a session id of its
+ * own, so no two hands ever shared a cached prompt: every new hand's first turn read its 5k-token prefix afresh. Keyed
+ * by the hand's name, each new Lefty finds the last Lefty's prefix (measured: 5 of 6 first turns read it from the
+ * cache, median 1.74 s against 2.0 s, without the 2.7 s tail), and the load of several hands at once is spread over
+ * their names rather than piled on one key. The system prompt keeps what changes (the time) at its end for this.
+ */
+export function shareCache(key: string | null): void {
+  cacheKey = key;
+}
+
+/** pi-ai's simple options carry no service tier, so it rides on the request body, as does the cache key where the API takes one. */
+export const onPayload = (payload: unknown, model?: { api?: string }): unknown => {
   const tier = serviceTier();
-  return tier === "off" ? undefined : { ...(payload as object), service_tier: tier };
+  const keyed = cacheKey && model?.api && CACHE_KEYED.has(model.api) ? { prompt_cache_key: cacheKey } : null;
+  if (tier === "off" && !keyed) return undefined;
+  return { ...(payload as object), ...(tier === "off" ? {} : { service_tier: tier }), ...keyed };
 };

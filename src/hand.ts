@@ -13,13 +13,15 @@
 
 import { toArrayBuffer } from "bun:ffi";
 import * as macos from "./macos.ts";
+import { onWindows, platform, rendererCommand } from "./platform.ts";
 import type { Frame, Point } from "./models.ts";
 
 export type Pose = "wave" | "point" | "press" | "write" | "draw" | "key" | "scroll" | "look" | "go" | "wait" | "think" | "done" | "stop";
 
 /**
  * What the hand rides on. A window is followed by id wherever it goes, and the hand is stacked right above
- * it, so whatever covers the window covers the hand. Without one it is a spot on a display, above everything.
+ * it, so whatever covers the window covers the hand. Without one it is a spot on a display, above everything;
+ * on Windows only while it acts there, since it lies over the user's own windows: at rest it fades away.
  */
 export interface Subject {
   window?: number;
@@ -40,13 +42,20 @@ export interface Cue {
   ms?: number; // how long the glide to `at` takes; without it the hand is simply there
   count?: number; // taps
   swipe?: Point; // which way the fingers go in a scroll
+  seat?: { state: "waiting" | "holding" | "free"; why: string }; // borrowing the user's mouse and keyboard (src/seat.ts): the hand shows it, and so does its card
 }
 
 const REST_MS = 400; // how long a pose is held once its action is over, before the hand goes back to thinking
+const SEAT_ACK_MS = 150; // how long a seat cue waits to hear that the renderer has taken it in: a renderer that has died or hung costs this, not the borrow
 const LABEL_CHARS = 30;
 
-/** A glide's length in time: brisk along a row of buttons, and never a crawl across a display. */
-export const glideMs = (from: Point, to: Point): number => Math.round(Math.min(520, Math.max(160, 120 + 0.45 * Math.hypot(to[0] - from[0], to[1] - from[1]))));
+/**
+ * A glide's length in time: brisk along a row of buttons, and never a crawl across a display. It is measured in points,
+ * so `perPoint` says how many of the subject's pixels make one: on the Mac they are points already, and on Windows
+ * they are physical pixels, one and a half to the point at 150%, as the renderer says (`listen`).
+ */
+export const glideMs = (from: Point, to: Point, perPoint = 1): number =>
+  Math.round(Math.min(520, Math.max(160, 120 + (0.45 * Math.hypot(to[0] - from[0], to[1] - from[1])) / perPoint)));
 
 /** A colour as the command line gives it: `4f8cff`, `#4f8cff`, `#48f`. Null for anything else. */
 export const tintOf = (hex: string): Tint | null => {
@@ -64,45 +73,90 @@ export const quote = (text: string): string => {
 
 let renderer: Bun.Subprocess<"pipe", "pipe", "inherit"> | null = null;
 const shyAcks: (() => void)[] = []; // who is waiting to hear that the hand is out of captures
+const seatAcks: (() => void)[] = []; // who is waiting to hear that the hand shows the seat's new state
 let riding = "";
+let size: Point = [0, 0]; // how big the subject was at the last look
 let last: Point = [0, 0];
+let perPoint = 1; // the subject's pixels to a point, as the renderer last said
 let resting: ReturnType<typeof setTimeout> | undefined;
+let cues = 0; // cues struck so far: a glide's pose is not struck over a later cue's
+let via = ""; // who is acting for the hand just now (Jev, while the clicker runs): its labels say so
 
+/** No renderer will answer those waiting on one now: they go on at once, as they would once they had waited long enough. */
+function unanswered(): void {
+  for (const heard of [...shyAcks.splice(0), ...seatAcks.splice(0)]) heard();
+}
+
+/** Whether anyone is watching the hand: a renderer drawing it, or an orchestrator drawing its picture elsewhere. */
+const watched = (): boolean => renderer !== null || hand.onCue !== null;
+
+/**
+ * A cue goes to whoever runs the hand from outside first, and then to the renderer, if one is drawing. The two are
+ * apart on purpose: the orchestrator learns which window the hand is in, how big it is and whether it holds the
+ * user's mouse and keyboard only from these cues, and a renderer that has died must not take that away.
+ */
 function send(cue: Cue): void {
+  hand.onCue?.(cue);
+  const to = renderer;
+  if (!to) return;
+  const gone = () => renderer === to && (renderer = null); // the renderer is gone: the run carries on unseen
   try {
-    renderer?.stdin.write(`${JSON.stringify(cue)}\n`);
-    renderer?.stdin.flush();
-    if (renderer) hand.onCue?.(cue);
+    to.stdin.write(`${JSON.stringify(cue)}\n`);
+    const flushed = to.stdin.flush();
+    if (flushed instanceof Promise) flushed.catch(gone); // a write still under way when the renderer dies fails later, not here
   } catch {
-    renderer = null; // the renderer is gone: the run carries on unseen
+    gone();
   }
 }
 
-/** What the renderer says back, a line at a time: an empty line once it is out of captures, `click` when the hand is clicked. */
+/**
+ * What the renderer says back, a line at a time: an empty line once it is out of captures, `seat` once it shows a
+ * seat cue (and so lets a held seat's clicks through), `click` when the hand is clicked, and `scale 1.5` when the
+ * display under the hand has that many pixels to a point (Windows only).
+ */
 async function listen(replies: ReadableStream<Uint8Array>): Promise<void> {
   let pending = "";
   const decoder = new TextDecoder();
   for await (const chunk of replies) {
     const lines = (pending + decoder.decode(chunk, { stream: true })).split("\n");
     pending = lines.pop() ?? "";
-    for (const line of lines) line === "click" ? hand.onClick?.() : shyAcks.shift()?.();
+    for (const line of lines) {
+      if (line === "click") hand.onClick?.();
+      else if (line === "seat") seatAcks.shift()?.();
+      else if (line.startsWith("scale ")) perPoint = Number(line.slice(6)) || 1;
+      else shyAcks.shift()?.();
+    }
   }
 }
 
-/** Every call is a no-op until `start`, so the tools pose without asking whether anyone is watching. */
+/**
+ * Every call is a no-op until the hand is started or someone outside listens, so the tools pose without asking whether
+ * anyone is watching. A hand whose renderer has gone keeps telling `onCue` everything, and only stops waiting for glides.
+ */
 export const hand = {
   /** Whoever runs the hand from outside (the orchestrator's picture of it) hears every cue it is sent, and every click on it. */
   onCue: null as ((cue: Cue) => void) | null,
   onClick: null as (() => void) | null,
 
-  /** Come on screen: top right of the main display, where the system says hello too. Without a colour the hand is the emoji's own yellow. */
+  /**
+   * Come on screen: top right of the main display, where the system says hello too. Without a colour the hand is the
+   * emoji's own yellow. In `hands live` on Windows (HANDS_SLOT is set) it shows first where it first looks instead:
+   * every hand would wave at the same spot, above everything, and that is where the panel's cards are.
+   */
   start(name: string, color?: Tint): void {
-    const spawned = (renderer = Bun.spawn([process.execPath, import.meta.path], { stdin: "pipe", stdout: "pipe", stderr: "inherit" }));
+    unanswered();
+    const spawned = (renderer = Bun.spawn(rendererCommand(), { stdin: "pipe", stdout: "pipe", stderr: "inherit" }));
     spawned.unref();
     void listen(spawned.stdout).catch(() => {});
-    void spawned.exited.then(() => renderer === spawned && (renderer = null));
-    const [x, y, width] = macos.displays()[0]?.frame ?? [0, 0, 1440, 900];
+    void spawned.exited.then(() => {
+      if (renderer !== spawned) return;
+      renderer = null;
+      unanswered();
+    });
     riding = "";
+    perPoint = 1;
+    if (onWindows() && process.env.HANDS_SLOT !== undefined) return send({ name, color, pose: "wave", label: "" });
+    const [x, y, width] = platform.displays()[0]?.frame ?? [0, 0, 1440, 900];
     last = [width - 260, 150];
     send({ name, color, subject: { origin: [x, y] }, at: last, pose: "wave", label: "" });
   },
@@ -123,35 +177,64 @@ export const hand = {
     }
   },
 
-  /** The agent is about to read this window, or this display: ride on it, and look. */
+  /** The agent is about to read this window, or this display: ride on it, and look. A window that has changed size since is told so, and ridden as before. */
   look(subject: Subject, [width, height]: Point): void {
-    if (!renderer) return;
+    if (!watched()) return;
     const key = String(subject.window ?? subject.origin);
     if (key !== riding) send({ subject, size: [width, height], at: (last = [width / 2, height / 2]) });
+    else if (width !== size[0] || height !== size[1]) send({ size: [width, height] });
     riding = key;
+    size = [width, height];
     void hand.cue("look", "looking");
   },
 
-  /** Strike a pose, gliding to `at` first when the action has a place. Resolves once the hand is there, so that what it presses answers to it. */
+  /**
+   * Strike a pose, gliding to `at` first when the action has a place. Resolves once the hand is there; with no renderer
+   * drawing the glide there is nothing to wait for. A click or typing does not wait for it (src/tools.ts): the pose then
+   * comes as the glide ends, unless another cue has come meanwhile, which the hand is showing by then.
+   */
   async cue(pose: Pose, label: string, at?: Point, extra: Pick<Cue, "count" | "swipe"> = {}): Promise<void> {
-    if (!renderer) return;
+    if (!watched()) return;
     clearTimeout(resting);
+    const mine = ++cues;
+    if (via && label) label = `${via} › ${label}`;
     if (at) {
-      const ms = glideMs(last, at);
+      const ms = glideMs(last, at, perPoint);
       send({ pose: pose === "draw" ? pose : "point", label, at: (last = at), ms }); // a pen stays a pen between strokes
-      await Bun.sleep(ms);
+      if (renderer) await Bun.sleep(ms);
+      if (mine !== cues) return;
     }
     send({ pose, label, ...extra });
   },
 
+  /**
+   * The hand is waiting to borrow the user's mouse and keyboard, holding them, or has given them back. Resolves once
+   * the renderer shows it: a hand that holds the seat lets every click through from then on, so the borrow's own click
+   * cannot land on a hand the user's pointer had left hovered while it waited. A silent renderer is not waited for long.
+   */
+  seat(state: "waiting" | "holding" | "free", why = ""): Promise<void> {
+    if (!watched()) return Promise.resolve();
+    send({ seat: { state, why } });
+    if (!renderer) return Promise.resolve();
+    return Promise.race([new Promise<void>((heard) => seatAcks.push(heard)), Bun.sleep(SEAT_ACK_MS)]);
+  },
+
+  /**
+   * Who acts for the hand from now on, until it is cleared with "": every label it shows then reads `Jev › click
+   * “Pricing”`, on the tag under the hand, on its card, and in what the voice hears of its recent actions.
+   */
+  via(who: string): void {
+    via = who;
+  },
+
   /** Where the pointer is this instant, in the middle of a drag. */
   at(point: Point): void {
-    if (renderer) send({ at: (last = point) });
+    if (watched()) send({ at: (last = point) });
   },
 
   /** The action is over. Its pose stays a moment, then the hand goes back to thinking, unless the next action comes first. */
   rest(): void {
-    if (!renderer) return;
+    if (!watched()) return;
     clearTimeout(resting);
     resting = setTimeout(() => send({ pose: "think", label: "thinking" }), REST_MS);
   },
@@ -445,6 +528,7 @@ async function render(): Promise<void> {
     if (cue.subject) follow();
     call(cls("CATransaction"), "flush"); // no run loop here to commit for us
     if (cue.shy) process.stdout.write("\n"); // the window server has it: a capture from here on leaves the hand out
+    if (cue.seat) process.stdout.write("seat\n"); // this hand draws nothing for the seat (its card does), so a seat cue is taken in as it arrives
   };
 
   setInterval(() => pooled(follow), FOLLOW_MS);
@@ -465,7 +549,8 @@ async function render(): Promise<void> {
   await Bun.sleep(350);
 }
 
-if (import.meta.main) {
+if (import.meta.main && !onWindows()) {
+  // The Mac renderer; on Windows rendererCommand() names the native overlay, and this half never runs.
   process.on("SIGINT", () => {}); // Ctrl-C reaches the whole process group; the agent decides when this ends, by closing the pipe
   await render();
   process.exit(0);

@@ -214,6 +214,17 @@ describe("the end of a run", () => {
     expect((fake.requests[0]?.packet as { why_the_run_stopped: string }).why_the_run_stopped).toContain("already achieved");
   });
 
+  test("a run that stops unsure is answered too, from the screen it stopped on", async () => {
+    read = [["$129.99", 1, [20, 20, 120, 40]]];
+    const fake = fakeWriter({ achieved: true, answer: "It costs $129.99." });
+
+    const { state } = await finish("click_item", 0.9, {}, fake.writer);
+
+    expect(state.outcome).toBe("unsure");
+    expect(state.answer).toEqual({ text: "It costs $129.99.", achieved: true });
+    expect((fake.requests[0]?.packet as { why_the_run_stopped: string }).why_the_run_stopped).toContain("could not settle");
+  });
+
   test("the screen is captured again when an action made the last capture stale", async () => {
     read = [["TICKETS", 1, [20, 20, 120, 40]]];
     const scrolled = spyOn(macos, "scroll").mockImplementation(async () => {});
@@ -246,6 +257,7 @@ describe("the end of a run", () => {
     ["done", 0.9, "done"],
     ["none", 0.9, "nothing helps"],
     ["scroll_down", 0.2, "low confidence"],
+    ["click_item", 0.9, "unsure"], // no item answer, and nothing to click
     ["scroll_down", 0.9, "dry run"],
   ];
 

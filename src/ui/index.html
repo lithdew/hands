@@ -6,13 +6,95 @@
     <link rel="stylesheet" href="./ui.css" />
   </head>
   <body>
-    <main id="column">
+    <main id="column" hidden>
       <div id="deck"></div>
-      <section id="dock" class="idle" aria-live="polite">
-        <div class="palm" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
-        <p class="words"></p>
-      </section>
+      <div id="base">
+        <button id="clear" type="button" hidden>Clear done <b></b></button>
+        <section id="dock" class="idle">
+          <p class="banner" hidden><span class="who"></span><span class="what"></span></p>
+          <p class="notice" hidden></p>
+          <div class="talk">
+            <div class="palm" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+            <p class="words" aria-live="polite"></p>
+            <form class="box" hidden><input type="text" autocomplete="off" spellcheck="false" enterkeyhint="send" maxlength="500" aria-label="Ask hands" placeholder="Ask hands…" /><kbd aria-hidden="true">↵</kbd></form>
+            <button class="type" type="button" aria-label="Type to hands" title="Type instead"><svg viewBox="0 0 20 14" aria-hidden="true"><rect x="1" y="1" width="18" height="12" rx="2.6" /><path d="M4.6 4.8h.8M7.8 4.8h.8M11 4.8h.8M14.2 4.8h1.2M4.6 7.4h1.6M8.6 7.4h.8M11.8 7.4h.8M14.6 7.4h.8M6.6 10h6.8" /></svg></button>
+          </div>
+        </section>
+      </div>
     </main>
+
+    <template id="card">
+      <article class="card">
+        <header>
+          <span class="who"></span>
+          <b class="name"></b>
+          <span class="chip jev" hidden>Jev<b></b></span>
+          <span class="doing"></span>
+          <span class="chip front">in front</span>
+          <span class="chip state"></span>
+          <time></time>
+          <span class="ticks" aria-hidden="true"></span>
+        </header>
+        <div class="fold">
+          <div class="clip">
+            <div class="view">
+              <div class="screen">
+                <img alt="" /><img alt="" />
+                <i class="crumb" hidden></i><i class="crumb" hidden></i><i class="crumb" hidden></i><i class="tap"></i>
+                <span class="marker"></span>
+                <span class="live" hidden><i></i><b>LIVE</b></span>
+              </div>
+              <p class="brief"></p>
+              <p class="subtitle" hidden></p>
+              <p class="caption" hidden></p>
+              <p class="flash" aria-live="polite">Brought to the front ↗</p>
+              <div class="tools">
+                <button type="button" data-cmd="pause" title="Pause" aria-label="Pause"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="2.5" width="3.2" height="11" rx="1" /><rect x="9.3" y="2.5" width="3.2" height="11" rx="1" /></svg></button>
+                <button type="button" data-cmd="resume" title="Carry on" aria-label="Carry on"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3.1v9.8c0 .8.9 1.3 1.6.8l7.3-4.9c.6-.4.6-1.2 0-1.6L6.1 2.3c-.7-.5-1.6 0-1.6.8z" /></svg></button>
+                <button type="button" data-cmd="stop" title="Stop" aria-label="Stop"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="1.6" /></svg></button>
+                <button type="button" data-cmd="show" title="Bring its window to you">Show</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tell">
+          <div class="clip">
+            <div class="now">
+              <img class="mini" alt="" />
+              <div class="text">
+                <p class="said"></p>
+                <div class="foot">
+                  <p class="tally"></p>
+                  <p class="seen" hidden title="Jev read its window when it finished, and saw the answer there"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.4 6.4l2.3 2.3 4.9-5.2" /></svg>Jev saw it</p>
+                </div>
+                <div class="sources"></div>
+                <div class="ask">
+                  <button type="button" data-cmd="show">Show me</button>
+                  <button type="button" data-say="I've done what you needed. Carry on.">Done — carry on</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="sheet" inert>
+          <div class="clip">
+            <div class="paper">
+              <ol class="log"></ol>
+              <form><input type="text" autocomplete="off" spellcheck="false" /><button class="send">Send</button></form>
+              <div class="controls">
+                <button type="button" data-cmd="pause">Pause</button>
+                <button type="button" data-cmd="resume">Resume</button>
+                <button type="button" data-cmd="stop">Stop</button>
+                <button type="button" data-cmd="show">Show</button>
+                <button type="button" data-cmd="close">Close</button>
+                <span class="keys"><kbd>Esc</kbd> back <kbd class="close-key"></kbd> close <kbd class="move-key"></kbd> hands<span class="hold"> <kbd class="hold-key"></kbd> <span class="hold-word"></span></span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </template>
+
     <script type="module" src="./ui.ts"></script>
   </body>
 </html>

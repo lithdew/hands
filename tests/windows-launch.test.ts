@@ -1,0 +1,370 @@
+import { afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { Frame } from "../src/models.ts";
+import * as windows from "../src/windows.ts";
+import { windowsSeat } from "../src/windows-seat.ts";
+
+// Starting an app, or a document, for a window of the hand's own. The helper is a script of replies, as in
+// tests/windows.test.ts.
+
+type Args = Record<string, unknown>;
+type Reply = ((args: Args) => unknown) | object | null;
+let calls: [string, Args][];
+const HOUSEKEEPING: Record<string, Reply> = { displays: [{ index: 0, frame: [0, 0, 2560, 1600] }], foreground: { hwnd: 11, pid: 100 }, sink: { ok: true }, processes: [], late: { late: [] } }; // prettier-ignore
+
+function helper(replies: Record<string, Reply>): void {
+  spyOn(windows.native, "call").mockImplementation((command: string, args: Args = {}) => {
+    calls.push([command, args]);
+    const reply = replies[command] ?? HOUSEKEEPING[command];
+    if (reply === undefined) throw new Error(`the test did not expect the helper to be asked for ${JSON.stringify(command)}`);
+    return typeof reply === "function" ? (reply as (args: Args) => unknown)(args) : reply;
+  });
+}
+const asked = (command: string) => calls.filter(([c]) => c === command).map(([, args]) => args);
+
+const terminal = { hwnd: 11, pid: 100, cls: "CASCADIA_HOSTING_WINDOW_CLASS", title: "bun hands", frame: [0, 0, 900, 600] as Frame, core: 0, exe: "WindowsTerminal.exe", caption: true };
+const window = (hwnd: number, pid: number, exe: string, extra: object = {}) => ({ hwnd, pid, cls: "App", title: `Window ${hwnd}`, frame: [0, 0, 800, 600] as Frame, core: 0, exe, caption: true, ...extra });
+
+let lockRoot: string;
+beforeEach(() => {
+  calls = [];
+  windows.pace.persistMs = 0;
+  windows.pace.seatWatchMs = 0;
+  windows.pace.browserWatchMs = 0;
+  lockRoot = mkdtempSync(join(tmpdir(), "hands-test-locks-"));
+  windows.locks.root = lockRoot;
+  spyOn(process, "kill").mockImplementation(() => {
+    throw new Error("no such process"); // an app is looked for afresh each time
+  });
+});
+afterEach(() => {
+  windows.releaseDesktop();
+  mock.restore();
+  rmSync(lockRoot, { recursive: true, force: true });
+});
+
+test("a window of anyone else's that appears during a launch is never taken for the app's", async () => {
+  const strangers = window(77, 900, "explorer.exe", { cls: "CabinetWClass", title: "Documents - File Explorer" });
+  let launched = false;
+  helper({ windows: () => (launched ? [terminal, strangers] : [terminal]), launch: () => ((launched = true), { pid: 0 }) });
+  await expect(windows.runInBackground("Paint", 0.3)).rejects.toThrow("Paint opened no window");
+  expect(asked("sink")).toEqual([]);
+  expect(windows.mainWindowId(900)).toBe(77); // nothing of the stranger's became the hand's
+});
+
+test("a splash screen, a message box and a window that comes and goes are passed over for the app's main window", async () => {
+  const splash = window(71, 500, "EXCEL.EXE", { cls: "MsoSplash", popup: true, caption: false });
+  const box = window(72, 500, "EXCEL.EXE", { cls: "#32770", title: "Microsoft Excel" });
+  const main = window(73, 500, "EXCEL.EXE", { cls: "XLMAIN", title: "Book1 - Excel" });
+  let asks = 0;
+  helper({ windows: () => [terminal, ...(asks++ === 1 ? [splash, box, window(74, 500, "EXCEL.EXE")] : asks > 2 ? [splash, box, main] : [])], launch: { pid: 0 } });
+  windows.pace.persistMs = 1; // 74 shows for one look only
+  expect(await windows.runInBackground("Excel")).toBe(500);
+  expect(windows.mainWindowId(500)).toBe(73);
+  expect(asked("launch")).toEqual([{ file: "EXCEL.EXE", args: "", show: 4 }]);
+});
+
+test("a window is known for the app by the process the shell started or its children, by a shortcut's target, or by the package of an AppID", async () => {
+  let launched = "";
+  const list: Record<string, object[]> = {
+    kid: [window(81, 610, "helper-host.exe")], // a launcher that hands over to a child process with another name
+    lnk: [window(82, 620, "Code.exe")],
+    appid: [window(83, 630, "claude.exe", { package: "Claude_pzs8sxrjxfjjc" })],
+  };
+  helper({
+    windows: () => [terminal, ...(list[launched] ?? [])],
+    launch: ({ file }) => {
+      launched = String(file).endsWith(".lnk") ? "lnk" : String(file).startsWith("shell:") ? "appid" : "kid";
+      return { pid: launched === "kid" ? 600 : 0, exe: launched === "kid" ? "launcher.exe" : "", target: launched === "lnk" ? "Code.exe" : "" };
+    },
+    children: ({ pid }) => (pid === 600 ? [610] : []),
+  });
+  expect(await windows.runInBackground("C:\\Tools\\launcher.exe")).toBe(610);
+  expect(await windows.runInBackground("C:\\Users\\me\\Desktop\\Code.lnk")).toBe(620);
+  expect(await windows.runInBackground("Claude_pzs8sxrjxfjjc!Claude")).toBe(630);
+  expect(asked("launch").map((a) => a.file)).toEqual(["C:\\Tools\\launcher.exe", "C:\\Users\\me\\Desktop\\Code.lnk", "shell:AppsFolder\\Claude_pzs8sxrjxfjjc!Claude"]);
+  expect(asked("processes")).toEqual([{ exe: "launcher.exe" }]); // by the file name, not the path; nothing for a shortcut or an AppID
+});
+
+test("the launch is made under the lock every hand shares, and whoever had the keyboard gets it back from an app that takes it", async () => {
+  let front = { hwnd: 11, pid: 100 };
+  let launched = false;
+  let locked = false;
+  helper({
+    windows: () => (launched ? [window(55, 500, "Notepad.exe"), terminal] : [terminal]),
+    foreground: () => front,
+    launch: () => {
+      locked = existsSync(join(lockRoot, "hands-open-window.lock"));
+      launched = true;
+      front = { hwnd: 55, pid: 500 }; // Notepad takes the foreground as it appears (measured)
+      return { pid: 0 };
+    },
+    activate: ({ hwnd }) => ((front = { hwnd: hwnd as number, pid: 100 }), { ok: true }),
+  });
+  expect(await windows.runInBackground("Notepad")).toBe(500);
+  expect(locked).toBe(true);
+  expect(existsSync(join(lockRoot, "hands-open-window.lock"))).toBe(false);
+  expect(asked("activate")).toEqual([{ hwnd: 11 }]);
+  expect(asked("sink")).toEqual([{ hwnd: 55 }]);
+});
+
+test("an app that opens no window of the hand's own is handed back its pid, its window is the user's, and the keyboard goes back even so", async () => {
+  const spotify = window(66, 500, "Spotify.exe", { title: "Spotify" });
+  let front = { hwnd: 11, pid: 100 };
+  helper({
+    processes: [{ pid: 500, cmd: '"C:\\spotify.exe"' }],
+    windows: [spotify, terminal],
+    foreground: () => front,
+    launch: () => ((front = { hwnd: 66, pid: 500 }), { pid: 0 }), // a single-instance app brings its window forward instead
+    activate: ({ hwnd }) => ((front = { hwnd: hwnd as number, pid: 100 }), { ok: true }),
+  });
+  expect(await windows.runInBackground("Spotify", 0.2)).toBe(500);
+  expect(front.hwnd).toBe(11);
+  expect(asked("sink")).toEqual([]); // a window of the user's is never put anywhere
+  expect(windowsSeat.workingWindow(500)).toEqual({ windowId: 66, dialog: null, theirs: true });
+});
+
+test("a window the user brings forward during a launch is theirs, and stays in front", async () => {
+  const theirs = window(66, 700, "WINWORD.EXE", { title: "Report - Word" });
+  let front = { hwnd: 11, pid: 100 };
+  let launched = false;
+  helper({
+    windows: () => (launched ? [theirs, window(55, 500, "Notepad.exe"), terminal] : [theirs, terminal]),
+    foreground: () => front,
+    launch: () => ((launched = true), (front = { hwnd: 66, pid: 700 }), { pid: 0 }), // the user clicked into Word
+    activate: () => ({ ok: true }),
+  });
+  expect(await windows.runInBackground("Notepad")).toBe(500);
+  expect(asked("activate")).toEqual([]);
+});
+
+test("a document is opened by the shell as a window of the hand's own, known by the app that opens its kind or by its name in the title", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "hands-test-doc-"));
+  const file = join(dir, "Model 2026.xlsx");
+  writeFileSync(file, "");
+  let launched = false;
+  helper({
+    windows: () => (launched ? [window(90, 900, "EXCEL.EXE", { cls: "XLMAIN", title: "Model 2026.xlsx - Excel" }), terminal] : [terminal]),
+    assoc: ({ ext }) => ({ exe: ext === ".xlsx" ? "EXCEL.EXE" : "" }),
+    launch: () => ((launched = true), { pid: 0 }),
+  });
+  try {
+    expect(await windowsSeat.openFile(file)).toEqual({ pid: 900, windowId: 90 });
+    expect(asked("launch")).toEqual([{ file, args: "", show: 4 }]);
+    expect(asked("sink")).toEqual([{ hwnd: 90 }]);
+    expect(windowsSeat.workingWindow(900)).toEqual({ windowId: 90, dialog: null, theirs: false });
+    await expect(windowsSeat.openFile(join(dir, "missing.txt"))).rejects.toThrow("there is no file");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a window of another app that carries the document's name is never taken for the document's, nor has its foreground taken back", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "hands-test-doc-"));
+  const file = join(dir, "notes.txt");
+  writeFileSync(file, "");
+  let front = { hwnd: 11, pid: 100 };
+  let launched = false;
+  const users = window(77, 900, "OUTLOOK.EXE", { title: "RE: notes - Message" }); // the user opens a mail about the notes meanwhile
+  const notepad = window(78, 500, "Notepad.exe", { title: "notes.txt - Notepad" });
+  helper({
+    windows: () => (launched ? [users, notepad, terminal] : [terminal]),
+    assoc: { exe: "Notepad.exe" },
+    foreground: () => front,
+    launch: () => ((launched = true), (front = { hwnd: 77, pid: 900 }), { pid: 0 }),
+    activate: ({ hwnd }) => ((front = { hwnd: hwnd as number, pid: 100 }), { ok: true }),
+  });
+  try {
+    expect(await windowsSeat.openFile(file)).toEqual({ pid: 500, windowId: 78 });
+    expect(asked("activate")).toEqual([]); // the user's mail keeps the foreground they gave it
+    expect(front.hwnd).toBe(77);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a new browser window is handed back from, and only it: a window the user opens meanwhile keeps the foreground", async () => {
+  let front = { hwnd: 11, pid: 100 };
+  let launched = false;
+  const chrome = window(46, 400, "chrome.exe", { cls: "Chrome_WidgetWin_1", title: "Example - Google Chrome" });
+  const explorer = window(77, 900, "explorer.exe", { cls: "CabinetWClass", title: "Documents" });
+  helper({
+    processes: ({ exe }) => (exe === "chrome.exe" ? [{ pid: 400, cmd: '"C:\\chrome.exe"' }] : []),
+    windows: () => (launched ? [explorer, chrome, terminal] : [terminal]),
+    foreground: () => front,
+    launch: () => ((launched = true), (front = { hwnd: 77, pid: 900 }), { pid: 0 }), // the user opened Explorer as the browser started
+    activate: ({ hwnd }) => ((front = { hwnd: hwnd as number, pid: 100 }), { ok: true }),
+    reg: { value: null },
+  });
+  spyOn(process, "kill").mockImplementation(() => true);
+  expect((await windows.openBackgroundWindow("Google Chrome", "https://example.com/")).windowId).toBe(46);
+  expect(asked("activate")).toEqual([]);
+  expect(front.hwnd).toBe(77);
+});
+
+/** The helper's own watch of an opening (Opening in windows.cs), as a script: what it was asked to watch, and until when. */
+type Watch = { asked?: Args; until?: number };
+
+/**
+ * The helper's "opening": a watch asked for goes on until its time is up, or until the window it watches is brought
+ * forward on purpose (an "activate" of one of its roots, which the helper takes for Bun's own move: its Quiet).
+ */
+const openingScript = (watch: Watch) => ({
+  opening: (args: Args) => (args.seat !== undefined ? ((watch.asked = args), (watch.until = performance.now() + (args.ms as number)), { ok: true }) : { watching: performance.now() < (watch.until ?? 0) }),
+  quiet: (hwnd: number) => void ((watch.asked?.roots as number[] | undefined)?.includes(hwnd) && (watch.until = 0)),
+});
+
+/** A Chrome whose new window appears as it is launched, and the window in front `state.front` says; `state.keeps` makes a handback fail. */
+function chromeOpening(state: { front: { hwnd: number; pid: number }; takes?: boolean; keeps?: boolean }, watch: Watch = {}) {
+  let launched = false;
+  const chrome = window(46, 400, "chrome.exe", { cls: "Chrome_WidgetWin_1", title: "Example - Google Chrome" });
+  const { opening, quiet } = openingScript(watch);
+  helper({
+    processes: ({ exe }) => (exe === "chrome.exe" ? [{ pid: 400, cmd: '"C:\\chrome.exe"' }] : []),
+    windows: () => (launched ? [chrome, terminal] : [terminal]),
+    foreground: () => state.front,
+    launch: () => ((launched = true), state.takes && (state.front = { hwnd: 46, pid: 400 }), { pid: 0 }),
+    activate: ({ hwnd }) => (quiet(hwnd as number), !state.keeps && (state.front = { hwnd: hwnd as number, pid: 100 }), { ok: !state.keeps }),
+    opening,
+    reg: { value: null },
+  });
+  spyOn(process, "kill").mockImplementation(() => true);
+}
+
+test("a new window nothing brings forward lets the opening go on after a moment; the rest of the watch is the helper's, on a thread of its own, and the open lock is kept until it is over", async () => {
+  windows.pace.browserWatchMs = 1500;
+  const state = { front: { hwnd: 11, pid: 100 } };
+  const watch: Watch = {};
+  chromeOpening(state, watch);
+  const lock = join(lockRoot, "hands-open-window.lock");
+  const began = performance.now();
+  expect((await windows.openBackgroundWindow("Google Chrome", "https://example.com/")).windowId).toBe(46);
+  const took = performance.now() - began;
+  expect(took).toBeGreaterThanOrEqual(550); // it watched a moment first
+  expect(took).toBeLessThan(1200); // not the whole watch
+  expect(asked("activate")).toEqual([]);
+  // The helper watches the rest: the new window and what it brings up over itself, given back to the user's window, the
+  // seat's lock read for another hand's borrow.
+  expect(watch.asked).toMatchObject({ seat: 11, window: 46, roots: [46], lock: join(lockRoot, windows.SEAT_LOCK, "owner"), me: process.pid });
+  expect(watch.asked!.ms as number).toBeGreaterThan(800);
+  expect(watch.asked!.ms as number).toBeLessThanOrEqual(900);
+  // The look that follows an opening keeps this process busy a second and more at a time (capture, OCR, tree read), in
+  // which no round of a watch here could run: none is made here, and a late take is the helper's to give back.
+  const rounds = asked("foreground").length;
+  Bun.sleepSync(500);
+  await Bun.sleep(100);
+  expect(asked("foreground")).toHaveLength(rounds);
+  expect(existsSync(lock)).toBe(true); // no other hand opens a window while this one's can still take the seat
+  for (const end = performance.now() + 3000; existsSync(lock) && performance.now() < end; ) await Bun.sleep(50);
+  expect(existsSync(lock)).toBe(false); // let go once the helper's watch was over
+  expect(performance.now() - began).toBeGreaterThanOrEqual(1400);
+});
+
+test("a new window that takes the seat as it opens holds the opening until the handback has been watched a moment past, as before", async () => {
+  windows.pace.browserWatchMs = 1500;
+  const state = { front: { hwnd: 11, pid: 100 }, takes: true };
+  chromeOpening(state);
+  const began = performance.now();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect(performance.now() - began).toBeGreaterThanOrEqual(750); // 800 ms past the handback, for a second take
+  expect(asked("activate")).toEqual([{ hwnd: 11 }]);
+  expect(state.front.hwnd).toBe(11);
+  expect(asked("opening")).toEqual([]); // watched here to its end
+  expect(asked("sink")).toContainEqual({ hwnd: 46 }); // behind the user's windows
+});
+
+test("a new window that keeps the keyboard however it is handed back from is not sunk as the watch ends: the user would type into a window they cannot see", async () => {
+  windows.pace.browserWatchMs = 1500;
+  const state = { front: { hwnd: 11, pid: 100 }, takes: true, keeps: true };
+  chromeOpening(state);
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect(state.front.hwnd).toBe(46);
+  // Each round gives the seat back and sinks the window; the watch's last round is followed by a look at the window in
+  // front, and no sink of the window that has it.
+  const names = calls.map(([command]) => command);
+  const last = names.lastIndexOf("activate");
+  expect(names.slice(last, last + 3)).toEqual(["activate", "sink", "foreground"]);
+  expect(names.slice(last + 3)).not.toContain("sink");
+});
+
+test("a window shown to the user while its opening's watch goes on is theirs: the helper's watch ends there, and so does the open lock", async () => {
+  windows.pace.browserWatchMs = 1500;
+  const state = { front: { hwnd: 11, pid: 100 } };
+  chromeOpening(state);
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect(windows.present(46)).toBe(true); // Show, from the panel
+  const shown = performance.now();
+  const lock = join(lockRoot, "hands-open-window.lock");
+  for (const end = performance.now() + 3000; existsSync(lock) && performance.now() < end; ) await Bun.sleep(20);
+  expect(performance.now() - shown).toBeLessThan(400); // at the next ask, not when the watch's time was up
+  expect(asked("activate")).toEqual([{ hwnd: 46 }]); // the user's Show, and no handback after it
+  expect(state.front.hwnd).toBe(46);
+  expect(asked("sink")).not.toContainEqual({ hwnd: 46 });
+});
+
+test("an app's launch hands the rest of its watch of the seat to the helper, which knows the app's windows as the launch does: what it started and its children, its executables, its package", async () => {
+  windows.pace.seatWatchMs = 1500;
+  let launched = false;
+  const watch: Watch = {};
+  const excel = window(73, 500, "EXCEL.EXE", { cls: "XLMAIN", title: "Book1 - Excel" });
+  helper({ windows: () => [terminal, ...(launched ? [excel] : [])], launch: () => ((launched = true), { pid: 480, exe: "EXCEL.EXE" }), opening: openingScript(watch).opening });
+  const began = performance.now();
+  expect(await windows.runInBackground("Excel")).toBe(500);
+  expect(performance.now() - began).toBeLessThan(1200); // not the whole watch: Excel can take the seat 1.7 s in, and is given back from there
+  expect(watch.asked).toMatchObject({ seat: 11, pid: 480, children: true, exes: ["excel.exe"], package: null, me: process.pid });
+  expect(watch.asked!.window).toBeUndefined(); // where the app's window goes is the caller's to say
+  expect(watch.asked!.ms as number).toBeGreaterThan(800);
+  const lock = join(lockRoot, "hands-open-window.lock");
+  for (const end = performance.now() + 3000; existsSync(lock) && performance.now() < end; ) await Bun.sleep(50);
+  expect(existsSync(lock)).toBe(false); // let go once the helper's watch was over, and nothing asked of the helper after the test
+});
+
+test("a document that opens no window of the hand's own is an error", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "hands-test-doc-"));
+  const file = join(dir, "notes.txt");
+  writeFileSync(file, "");
+  helper({ windows: [terminal], assoc: { exe: "Notepad.exe" }, launch: { pid: 0 } });
+  const clock = spyOn(performance, "now");
+  let now = 0;
+  clock.mockImplementation(() => (now += 1000));
+  try {
+    await expect(windowsSeat.openFile(file)).rejects.toThrow("notes.txt opened no window of its own");
+  } finally {
+    clock.mockRestore();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("an app's name is what the shell is handed: a known name, a URI, an AppID, a shortcut, a path", () => {
+  expect(windows.appSpec("Settings")).toEqual({ file: "ms-settings:", exe: "SystemSettings.exe", package: null });
+  expect(windows.appSpec("ms-settings:batterysaver")).toEqual({ file: "ms-settings:batterysaver", exe: "SystemSettings.exe", package: null });
+  expect(windows.appSpec("Word")).toEqual({ file: "WINWORD.EXE", exe: "WINWORD.EXE", package: null });
+  expect(windows.appSpec("Microsoft Excel").exe).toBe("EXCEL.EXE");
+  expect(windows.appSpec("PowerPoint").exe).toBe("POWERPNT.EXE");
+  expect(windows.appSpec("Microsoft.YourPhone_8wekyb3d8bbwe!App")).toEqual({ file: "shell:AppsFolder\\Microsoft.YourPhone_8wekyb3d8bbwe!App", exe: null, package: "Microsoft.YourPhone_8wekyb3d8bbwe" });
+  expect(windows.appSpec("shell:AppsFolder\\Claude_pzs8sxrjxfjjc!Claude").package).toBe("Claude_pzs8sxrjxfjjc");
+  expect(windows.appSpec("powercfg.cpl")).toMatchObject({ file: "powercfg.cpl", dialogs: true });
+  expect(windows.appSpec("devmgmt.msc")).toEqual({ file: "devmgmt.msc", exe: "mmc.exe", package: null });
+  expect(windows.appSpec("C:\\Program Files\\WindowsApps\\Claude\\claude.exe")).toEqual({ file: "C:\\Program Files\\WindowsApps\\Claude\\claude.exe", exe: "claude.exe", package: null });
+  expect(windows.appSpec("C:\\Users\\me\\Desktop\\Code.lnk")).toEqual({ file: "C:\\Users\\me\\Desktop\\Code.lnk", exe: null, package: null });
+  expect(windows.appSpec("PhoneExperienceHost")).toEqual({ file: "PhoneExperienceHost.exe", exe: "PhoneExperienceHost.exe", package: null });
+});
+
+test("an app not on the PATH is found by its Start Menu shortcut, else among the shell's packaged apps", () => {
+  const menu = mkdtempSync(join(tmpdir(), "hands-test-menu-"));
+  mkdirSync(join(menu, "Microsoft Office"));
+  writeFileSync(join(menu, "Microsoft Office", "Excel.lnk"), "");
+  writeFileSync(join(menu, "Excellent Notes.lnk"), "");
+  const packaged = (): [string, string][] => [["Claude", "Claude_pzs8sxrjxfjjc!Claude"], ["Spotify Music", "SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify"]];
+  try {
+    expect(windows.installedApp("excel", [menu], packaged)).toBe(join(menu, "Microsoft Office", "Excel.lnk"));
+    expect(windows.installedApp("excellent", [menu], packaged)).toBe(join(menu, "Excellent Notes.lnk")); // a name the shortcut starts with
+    expect(windows.installedApp("Claude", [menu], packaged)).toBe("shell:AppsFolder\\Claude_pzs8sxrjxfjjc!Claude");
+    expect(windows.installedApp("spotify", [menu], packaged)).toBe("shell:AppsFolder\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify");
+    expect(windows.installedApp("nothing", [menu, join(menu, "absent")], packaged)).toBeNull();
+  } finally {
+    rmSync(menu, { recursive: true, force: true });
+  }
+});

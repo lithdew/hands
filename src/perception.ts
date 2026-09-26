@@ -1,11 +1,12 @@
 /** Turn the display into clickable items: OCR text blocks and accessibility controls. */
 
 import sharp from "sharp";
-import { MAX_OPTIONS, MIN_OCR_CONFIDENCE } from "./config.ts";
+import { MAX_OPTIONS, MIN_OCR_CONFIDENCE, OFFSCREEN_SHOWN } from "./config.ts";
 import { hand } from "./hand.ts";
-import * as macos from "./macos.ts";
-import { type AxNode, type Box, type Capture, type Frame, fromAx, type Item, item, type Point, roleWord, type Screen, sizePt, toPoints } from "./models.ts";
+import { onWindows, platform as macos } from "./platform.ts";
+import { type AxNode, type Box, type Capture, center, type Frame, fromAx, type Item, item, type Point, roleWord, type Screen, sizePt, toPoints } from "./models.ts";
 import { OCR_RECTS, OCR_REGION_PCT, phase, type Timing } from "./timing.ts";
+import * as windows from "./windows.ts";
 
 export type Line = [text: string, confidence: number, box: Box];
 export const ECHO_CHARS = 24;
@@ -20,6 +21,10 @@ export const REGION_MARGIN_PT = 8.0; // slack around the window, for the shadow 
 export const THUMB_DIVISOR = 8; // the change detector works on a 1/8 scale grayscale copy
 export const TILE_PX = 256.0; // tile side in capture pixels
 export const TILE_DIFF = 6.0; // mean absolute 8-bit difference that counts a tile as changed
+// A line of text coming or going moves a tile's mean by only 2 or 3 (measured on Notepad: a deleted line stayed in the
+// listing for six captures), so a tile also counts as changed when a few of its pixels changed sharply.
+export const SPOT_DIFF = 32.0; // an 8-bit difference that is text, not compression noise, on an averaged-down pixel
+export const SPOT_PIXELS = 2; // how many such pixels a tile needs
 export const REOCR_FRACTION = 0.6; // above this share of changed tiles, reading the whole region is cheaper
 export const MAX_REOCR_RECTS = 4; // past this, the per-call overhead outweighs the pixels another rectangle saves
 
@@ -32,6 +37,12 @@ export interface CaptureOptions {
   url?: string;
   browser?: string;
   timing?: Timing;
+  /**
+   * The display is looked at only to read it (a hand with nothing of its own open, answering what is on the user's
+   * screen): the hand shows it is looking without riding the display, where it would sit over the user's windows, in
+   * their way and clickable, after the look was long over.
+   */
+  onlyToRead?: boolean;
 }
 
 /**
@@ -53,7 +64,8 @@ export async function capture(options: CaptureOptions = {}): Promise<Screen> {
   });
   const window = await phase(timing, "window", () => (replay ? null : macos.frontmostWindowBounds(pid)));
   const display = macos.displayFor(window);
-  if (!replay) hand.look({ origin: [display.frame[0], display.frame[1]] }, [display.frame[2], display.frame[3]]);
+  if (!replay && options.onlyToRead) void hand.cue("look", "looking");
+  else if (!replay) hand.look({ origin: [display.frame[0], display.frame[1]] }, [display.frame[2], display.frame[3]]);
   const image = await phase(timing, "screenshot", () => {
     if (imagePath) return macos.captureAt(imagePath);
     if (!options.out) throw new Error("capture needs somewhere to write the screenshot");
@@ -80,14 +92,26 @@ export async function capture(options: CaptureOptions = {}): Promise<Screen> {
  * One window, read where it lies. The capture is the window and nothing else, so its origin is the
  * window's own corner and everything downstream works unchanged. There is no focused field: the
  * keyboard focus belongs to whatever the user is doing.
+ *
+ * A window the user minimized is not among an app's windows. On Windows the capture restores it first,
+ * without activation, and puts one of the hand's own back behind the user's windows (src/windows.ts
+ * screenshotWindow), so it is captured all the same and found where it came back; only a window that
+ * is really gone is said to be.
  */
 async function captureWindow(target: { pid: number; windowId: number }, { out, url, timing }: CaptureOptions): Promise<Screen> {
   macos.releaseElements();
-  const window = await phase(timing, "window", () => macos.appWindows(target.pid).find((w) => w.id === target.windowId)?.frame ?? null);
-  if (!window) throw new Error("the window is gone: closed, minimized, or on another desktop");
+  const frameOf = () => macos.appWindows(target.pid).find((w) => w.id === target.windowId)?.frame ?? null;
+  const gone = () => new Error("the window is gone: closed, minimized, or on another desktop");
+  let window = await phase(timing, "window", frameOf);
+  if (!window && !onWindows()) throw gone();
   if (!out) throw new Error("capture needs somewhere to write the screenshot");
-  hand.look({ window: target.windowId, origin: [window[0], window[1]] }, [window[2], window[3]]);
+  if (window) hand.look({ window: target.windowId, origin: [window[0], window[1]] }, [window[2], window[3]]);
   const image = await phase(timing, "screenshot", () => macos.screenshotWindow(target.windowId, out));
+  if (!window) {
+    window = frameOf();
+    if (!window) throw gone();
+    hand.look({ window: target.windowId, origin: [window[0], window[1]] }, [window[2], window[3]]);
+  }
   return {
     image,
     scale: image.width / window[2],
@@ -132,8 +156,15 @@ export function isEcho(value: string, echoes: Set<string>): boolean {
  */
 export async function perceive(screen: Screen, budget: number, goal: string, timing?: Timing, cache?: OcrCache): Promise<Item[]> {
   const blocks = await phase(timing, "ocr", () => ocr(screen, budget, goal, cache, timing));
-  const [nodes, hidden] = await phase(timing, "ax", () => axNodes(screen, budget));
-  const merged = mergeWithOrigins(blocks, toAxItems(nodes, screen.scale, screen.origin), budget);
+  const [found, hidden] = await phase(timing, "ax", () => axNodes(screen, budget));
+  // What the listing leaves out: anything whose centre lies off the capture, and a browser window's own tab strip,
+  // toolbar and bookmarks, which its header sums up as its tabs.
+  const all = toAxItems(found, screen.scale, screen.origin);
+  const top = screen.tabs ? pageTop(all) : null;
+  const shown = (it: Item) => onCapture(screen, it) && (top === null || center(it)[1] >= top);
+  const kept = all.flatMap((it, i) => (shown(it) ? [i] : []));
+  const nodes = kept.map((i) => found[i]!);
+  const merged = mergeWithOrigins(blocks.filter(shown), kept.map((i) => all[i]!), budget);
   screen.axRefs.clear();
   for (const [it, origin] of merged) if (origin !== null && nodes[origin]!.ref) screen.axRefs.set(it.index, nodes[origin]!.ref);
   const items = merged.map(([it]) => it);
@@ -216,7 +247,8 @@ export async function ocrLines(screen: Screen, cache?: OcrCache): Promise<[lines
   const region = ocrRegion(screen);
   const area = Math.max(1, screen.image.width * screen.image.height);
   const readPct = (rects: Box[]) => (100 * rects.reduce((sum, rect) => sum + areaOf(rect), 0)) / area;
-  if (!cache) return [ocrCrop(screen.image, region), readPct([region]), 0];
+  // A picture that may be old never changes, so a cache would keep its first text for good: its text is read afresh (on Windows, from the page itself).
+  if (!cache || screen.image.stale) return [ocrCrop(screen.image, region), readPct([region]), 0];
 
   const readRegion = (): [Line[], number, number] => {
     const lines = ocrCrop(screen.image, region);
@@ -265,11 +297,62 @@ export function ocrRegion(screen: Screen): Box {
 /** OCR one rectangle of the capture. Boxes come back in full-capture pixels, so nothing downstream knows a crop happened. */
 export const ocrCrop = (image: Capture, rect: Box): Line[] => macos.recognizeText(image.path, rect);
 
-/** A grayscale copy at 1/divisor scale. Averaged down, which smooths away the compression noise that would otherwise read as a change. */
+/**
+ * A grayscale copy at 1/divisor scale. Averaged down, which smooths away the compression noise that would otherwise read
+ * as a change. On Windows the helper makes it with the capture, from the picture it has in hand (src/windows.ts
+ * captureThumb); decoding the file again is for a capture it did not make one for.
+ */
 export async function thumbnail(image: Capture, divisor = THUMB_DIVISOR): Promise<Thumb> {
   const [width, height] = [Math.max(1, Math.floor(image.width / divisor)), Math.max(1, Math.floor(image.height / divisor))];
+  const made = onWindows() ? windows.captureThumb(image.path, divisor) : null;
+  if (made && made.width === width && made.height === height) return made;
   const data = await sharp(image.path).greyscale().resize(width, height, { fit: "fill", kernel: "linear" }).raw().toBuffer();
   return { data, width, height };
+}
+
+// ------------------------------------------------------------------ telling when a window has settled
+
+const GLANCE_PX = 320; // the long side of a glance: enough to see a page change, small enough to take every 150 ms
+const GLANCE_TILE = 32; // glance pixels per side of the patches compared
+const BARE_SHARE = 0.96; // how much of a glance one grey takes up before it is taken for a page not painted yet (see bare)
+const BLANK: Thumb = { data: new Uint8Array(1), width: 1, height: 1 };
+
+/**
+ * A small grey picture of one window, to tell whether it is still changing: the panel's own thumbnail where the
+ * platform makes one without a file (a window drawing nothing is one black pixel), else a capture written to
+ * `scratch`. Null when there is nothing to look at: the window is minimized or gone.
+ */
+export async function glance(windowId: number, scratch: string): Promise<Thumb | null> {
+  const small = onWindows() ? windows.thumbnail(windowId, GLANCE_PX) : null;
+  if (small && "jpeg" in small) {
+    const { data, info } = await sharp(small.jpeg).greyscale().raw().toBuffer({ resolveWithObject: true });
+    return { data, width: info.width, height: info.height };
+  }
+  if (small) return "blank" in small ? BLANK : null;
+  try {
+    const shot = await macos.screenshotWindow(windowId, scratch);
+    return await thumbnail(shot, Math.max(1, Math.round(Math.max(shot.width, shot.height) / GLANCE_PX)));
+  } catch {
+    return null;
+  }
+}
+
+/** Two glances show the same picture: the same size, and no patch of it changed past the tile threshold. */
+export const stillAs = (now: Thumb, before: Thumb): boolean =>
+  now.width === before.width && now.height === before.height && changedTiles(now, before, tilesIn([0, 0, now.width, now.height], GLANCE_TILE), 1).length === 0;
+
+/**
+ * Whether a glance shows next to nothing under its top eighth (a browser's toolbar): all but 4% of it within a few
+ * levels of one grey, as a page is between its address changing and its first paint (a blank page between two others
+ * came to 97.8% and to 99.0%, and example.com, a few lines in a box, to 94.0%: measured). A window that draws nothing
+ * (BLANK) is bare.
+ */
+export function bare(thumb: Thumb): boolean {
+  const levels = new Uint32Array(64);
+  const from = Math.floor(thumb.height / 8) * thumb.width;
+  for (let i = from; i < thumb.data.length; i++) levels[thumb.data[i]! >> 2]!++;
+  const total = thumb.data.length - from;
+  return total <= 0 || Math.max(...levels) >= BARE_SHARE * total;
 }
 
 /** The region cut into tiles aligned to its own origin. The last row and column are short. */
@@ -281,8 +364,9 @@ export function tilesIn(region: Box, tile = TILE_PX): Box[] {
 }
 
 /**
- * True when the tile's mean absolute pixel difference clears the threshold. A tile whose patch
- * cannot be compared counts as changed, so a doubt is always paid for with a re-read.
+ * True when the tile's mean absolute pixel difference clears the threshold, or when a few of its pixels changed
+ * sharply (a line of text is a small part of a tile). A tile whose patch cannot be compared counts as changed, so a
+ * doubt is always paid for with a re-read.
  */
 export function tileChanged(thumb: Thumb, previous: Thumb, tile: Box, divisor = THUMB_DIVISOR, threshold = TILE_DIFF): boolean {
   if (thumb.width !== previous.width || thumb.height !== previous.height) return true;
@@ -290,9 +374,13 @@ export function tileChanged(thumb: Thumb, previous: Thumb, tile: Box, divisor = 
   const [right, bottom] = [Math.min(thumb.width, Math.max(x2, x1 + 1)), Math.min(thumb.height, Math.max(y2, y1 + 1))];
   const [left, top] = [Math.max(0, x1), Math.max(0, y1)];
   if (right <= left || bottom <= top) return true;
-  let sum = 0;
+  let [sum, spots] = [0, 0];
   for (let y = top; y < bottom; y++) {
-    for (let i = y * thumb.width + left, end = y * thumb.width + right; i < end; i++) sum += Math.abs(thumb.data[i]! - previous.data[i]!);
+    for (let i = y * thumb.width + left, end = y * thumb.width + right; i < end; i++) {
+      const difference = Math.abs(thumb.data[i]! - previous.data[i]!);
+      sum += difference;
+      if (difference > SPOT_DIFF && ++spots >= SPOT_PIXELS) return true;
+    }
   }
   return sum / ((right - left) * (bottom - top)) > threshold;
 }
@@ -482,19 +570,83 @@ export function offscreenControls(nodes: AxNode[], items: Item[]): AxNode[] {
   });
 }
 
-/** Controls as items, converted from global screen points to pixels on the captured display. */
+const PLAIN_WORDS = new Set("a an and are as at be by for from go in into is it its me my now of on open or page please the then this to with".split(" "));
+/** The words of a text worth matching on: lower case, a plural's s dropped, and the small ones left out. */
+const wordsOf = (text: string): Set<string> =>
+  new Set((text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter((word) => word.length > 1 && !PLAIN_WORDS.has(word)).map((word) => (word.length > 3 ? word.replace(/s$/, "") : word)));
+
+/**
+ * Which off-screen controls to offer the classifier for a goal: the `cap` that share the most words with it, as their
+ * positions in `nodes`, in the order the app gave them. A long page keeps a hundred or more of them out of view (a
+ * footer, a table of contents, one with a label of 300 characters), and each one it reads is one more distractor.
+ */
+export const offscreenFor = (nodes: AxNode[], goal: string, cap = OFFSCREEN_SHOWN): number[] => mostShared(nodes.map((node) => node.label), goal, cap);
+
+/** The `cap` labels that share the most words with a goal, as their positions, in the order given; the earlier ones on a tie. */
+export function mostShared(labels: string[], goal: string, cap: number): number[] {
+  const wanted = wordsOf(goal);
+  const shared = (label: string) => [...wordsOf(label)].filter((word) => wanted.has(word)).length;
+  return labels
+    .map((label, i): [number, number] => [i, shared(label)])
+    .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+    .slice(0, cap)
+    .map(([i]) => i)
+    .sort((a, b) => a - b);
+}
+
+/** Controls as items, converted from global screen points to pixels on the captured display. A field's value comes along. */
 export const toAxItems = (nodes: AxNode[], scale: number, origin: Point = [0, 0]): Item[] =>
   nodes.map((node, i) => {
     const [x, y] = [node.x - origin[0], node.y - origin[1]];
-    return item(i, node.label, 1.0, [x * scale, y * scale, (x + node.w) * scale, (y + node.h) * scale], roleWord(node), "ax");
+    const it = item(i, node.label, 1.0, [x * scale, y * scale, (x + node.w) * scale, (y + node.h) * scale], roleWord(node), "ax");
+    return node.value === undefined ? it : { ...it, value: node.value };
   });
+
+/** Whether an item's centre lies on the capture: a control scrolled above a window's top edge has a place, but nothing to click there. */
+export const onCapture = (screen: Screen, it: Item): boolean => {
+  const [x, y] = center(it);
+  return x >= 0 && y >= 0 && x < screen.image.width && y < screen.image.height;
+};
+
+// A browser's address bar, and the buttons that only its bookmarks bar carries, as Chrome and Edge name them.
+const ADDRESS_BAR = /^address and search bar$/i;
+const BOOKMARKS_BAR = /^(all bookmarks|other bookmarks|mobile bookmarks|other favorites|unnamed bookmark for )/i;
+
+/**
+ * Where a browser window's page begins, in capture pixels: under its toolbar, and under its bookmarks bar when one
+ * shows, which is the row just below the toolbar with a bookmark button in it. Null when there is no address bar
+ * to go by, and then nothing is taken for the browser's own.
+ */
+export function pageTop(controls: Item[]): number | null {
+  const bar = controls.find((it) => it.role === "field" && ADDRESS_BAR.test(it.text));
+  if (!bar) return null;
+  const within = (it: Item, y: number, reach: number) => Math.abs(center(it)[1] - y) < reach;
+  const mark = controls.find((it) => BOOKMARKS_BAR.test(it.text) && center(it)[1] > bar.y2 && within(it, bar.y2, 2 * (bar.y2 - bar.y1)));
+  if (!mark) return bar.y2;
+  return Math.max(bar.y2, ...controls.filter((it) => within(it, center(mark)[1], (mark.y2 - mark.y1) / 2)).map((it) => it.y2));
+}
 
 /** The frontmost app's labelled on-screen controls as items on the capture. */
 export const axItems = (screen: Screen, budget: number): Item[] => toAxItems(axNodes(screen, budget)[0], screen.scale, screen.origin);
 
+/**
+ * Windows OCR reads an icon as a letter or two ('x' on Close, 'c' on Reload) and garbles the words beside one ('Ifi
+ * Home', 'B open'), where the accessibility label is clean. So there a control keeps its own label, and a fragment
+ * lying on an icon-sized control is dropped. Short text inside a big control (a count in a list row, a day in a
+ * calendar, a price on a card, a line in a document) is real, and stays. The Mac's OCR does neither, and keeps the
+ * longer label, which is often the fuller one.
+ */
+const NOISY_OCR = onWindows();
+const FRAGMENT_CHARS = 2;
+const ICON_SPAN = 6; // an icon's control is at most this many of its glyph's heights across, whatever the display's scale
+
+export interface MergeOptions {
+  noisyOcr?: boolean;
+}
+
 /** One item per thing. An accessibility control that sits on the OCR block naming it replaces both. */
-export const mergeSources = (ocrItems: Item[], controls: Item[], budget = MAX_OPTIONS): Item[] =>
-  mergeWithOrigins(ocrItems, controls, budget).map(([it]) => it);
+export const mergeSources = (ocrItems: Item[], controls: Item[], budget = MAX_OPTIONS, options: MergeOptions = {}): Item[] =>
+  mergeWithOrigins(ocrItems, controls, budget, options).map(([it]) => it);
 
 /**
  * The merge, each item paired with the position of the control it came from, or null for plain text.
@@ -502,7 +654,7 @@ export const mergeSources = (ocrItems: Item[], controls: Item[], budget = MAX_OP
  * The pairing survives the budget cut and the renumbering, which is the only way back from a
  * final item to the accessibility element behind it.
  */
-export function mergeWithOrigins(ocrItems: Item[], controls: Item[], budget = MAX_OPTIONS): [Item, number | null][] {
+export function mergeWithOrigins(ocrItems: Item[], controls: Item[], budget = MAX_OPTIONS, { noisyOcr = NOISY_OCR }: MergeOptions = {}): [Item, number | null][] {
   const taken = new Set<number>();
   const merged: [Item, number | null][] = [];
   controls.forEach((control, origin) => {
@@ -515,10 +667,14 @@ export function mergeWithOrigins(ocrItems: Item[], controls: Item[], budget = MA
     if (best < 0) return void merged.push([control, origin]);
     const block = ocrItems[best]!;
     taken.add(best);
-    const label = control.text.length >= block.text.length ? control.text : block.text;
-    merged.push([{ ...block, text: label, role: control.role, source: "ax+ocr" }, origin]);
+    const label = noisyOcr ? control.text || block.text : control.text.length >= block.text.length ? control.text : block.text;
+    const value = control.value === undefined ? {} : { value: control.value };
+    merged.push([{ ...block, text: label, role: control.role, source: "ax+ocr", ...value }, origin]);
   });
-  ocrItems.forEach((block, i) => void (taken.has(i) || merged.push([block, null])));
+  const iconSized = (control: Item, block: Item) => Math.max(control.x2 - control.x1, control.y2 - control.y1) <= ICON_SPAN * Math.max(1, block.y2 - block.y1);
+  const fragment = (block: Item) =>
+    noisyOcr && block.text.trim().length <= FRAGMENT_CHARS && controls.some((control) => boxOverlap(control, block) >= MIN_BOX_OVERLAP && iconSized(control, block));
+  ocrItems.forEach((block, i) => void (taken.has(i) || fragment(block) || merged.push([block, null])));
   const kept = keptByBudget(merged.map(([it]) => it), budget).map((i) => merged[i]!);
   return readingOrder(kept.map(([it]) => it)).map((j, i) => [{ ...kept[j]![0], index: i }, kept[j]![1]]);
 }

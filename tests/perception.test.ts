@@ -1,6 +1,12 @@
-import { expect, test } from "bun:test";
+import { expect, mock, spyOn, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import sharp from "sharp";
 import { type Item, item } from "../src/models.ts";
-import { goalEchoes, isEcho, type Line, mergeBlocks, mergeSources, orderItems, toItems } from "../src/perception.ts";
+import { bare, goalEchoes, isEcho, type Line, mergeBlocks, mergeSources, onCapture, orderItems, pageTop, stillAs, type Thumb, thumbnail, toAxItems, toItems } from "../src/perception.ts";
+import * as windows from "../src/windows.ts";
+import { screen } from "./helpers.ts";
 
 const line = (text: string, x1: number, y1: number, x2: number, y2: number, conf = 1): Line => [text, conf, [x1, y1, x2, y2]];
 
@@ -119,10 +125,94 @@ test("budget falls back to dropping controls when only controls remain", () => {
   expect(mergeSources([], controls, 2)).toHaveLength(2);
 });
 
+test("where OCR is noisy, a control keeps its own label and a glyph read off its icon is dropped", () => {
+  const blocks = [ocrItem(0, "Ifi Home", 100, 100, 300, 130), ocrItem(1, "x", 905, 102, 915, 128), ocrItem(2, "OK", 600, 400, 640, 430)];
+  const controls = [axItem(0, "Home", 110, 102, 290, 128, "tab"), axItem(1, "Close", 900, 100, 930, 130)];
+  const noisy = mergeSources(blocks, controls, 255, { noisyOcr: true }).map((it) => [it.text, it.source]);
+  expect(noisy).toEqual([["Home", "ax+ocr"], ["Close", "ax"], ["OK", "ocr"]]); // a short word off every control stays
+  const clean = mergeSources(blocks, controls, 255, { noisyOcr: false }).map((it) => it.text);
+  expect(clean).toEqual(["Ifi Home", "Close", "x", "OK"]); // the Mac: the longer label, and every block
+});
+
+test("where OCR is noisy, short text inside a big control is real and stays: a count in a row, a line in a document", () => {
+  const blocks = [ocrItem(0, "5", 560, 210, 572, 234), ocrItem(1, "42", 60, 300, 84, 324), ocrItem(2, "c", 1004, 12, 1016, 30)];
+  const controls = [axItem(0, "Inbox", 40, 200, 600, 244, "row"), axItem(1, "Text editor", 40, 120, 1200, 900, "textarea"), axItem(2, "Reload", 995, 5, 1025, 37)];
+  const kept = mergeSources(blocks, controls, 255, { noisyOcr: true }).map((it) => [it.text, it.source]);
+  expect(kept).toContainEqual(["5", "ocr"]);
+  expect(kept).toContainEqual(["42", "ocr"]);
+  expect(kept).not.toContainEqual(["c", "ocr"]); // the glyph read off the Reload icon still goes
+});
+
+test("a field's value survives the merge", () => {
+  const control = { ...axItem(0, "Search", 100, 100, 300, 130, "field"), value: "cheap flights" };
+  expect(mergeSources([ocrItem(0, "Search", 100, 100, 300, 130)], [control])[0]).toMatchObject({ text: "Search", value: "cheap flights" });
+  const node = { role: "AXTextField", label: "To", x: 10, y: 20, w: 100, h: 20, pressable: true, value: "Julia" };
+  expect(toAxItems([node], 2)[0]).toMatchObject({ text: "To", role: "field", value: "Julia" });
+});
+
+test("a browser's page begins under its toolbar, and under its bookmarks bar when it shows one", () => {
+  const address = axItem(0, "Address and search bar", 200, 80, 900, 110, "field");
+  const toolbar = [axItem(1, "Back", 20, 80, 60, 110), address, axItem(2, "Extensions", 1000, 80, 1040, 110)];
+  const bookmarks = [axItem(3, "Unnamed bookmark for https://github.com", 20, 125, 60, 155), axItem(4, "All Bookmarks", 1000, 125, 1100, 155)];
+  const page = [axItem(5, "Sign in", 900, 200, 980, 230), axItem(6, "Bookmarks", 20, 130, 120, 150, "link")];
+  expect(pageTop([...toolbar, ...bookmarks, ...page])).toBe(155);
+  expect(pageTop([...toolbar, page[0]!, page[1]!])).toBe(110); // a page's own "Bookmarks" link is not the bar
+  expect(pageTop(page)).toBeNull(); // no address bar: nothing is taken for the browser's own
+});
+
+test("an item whose centre lies off the capture is not on it", () => {
+  const live = screen(); // 2000x1200
+  expect(onCapture(live, ocrItem(0, "in", 10, 10, 50, 30))).toBe(true);
+  expect(onCapture(live, ocrItem(0, "above", 10, -80, 50, -40))).toBe(false);
+  expect(onCapture(live, ocrItem(0, "right", 1990, 10, 2100, 30))).toBe(false);
+});
+
+test("two glances are alike unless a patch of them changed", () => {
+  const grey = (width: number, height: number, value = 128): Thumb => ({ data: new Uint8Array(width * height).fill(value), width, height });
+  const [before, after] = [grey(64, 64), grey(64, 64)];
+  expect(stillAs(after, before)).toBe(true);
+  after.data.fill(255, 0, 64 * 8); // the top rows lit: a banner came down
+  expect(stillAs(after, before)).toBe(false);
+  expect(stillAs(grey(64, 32), before)).toBe(false); // the window was resized
+});
+
+test("a glance of one grey under its top eighth is bare, as a page is before its first paint; a few lines on it are not", () => {
+  const grey = (width: number, height: number, value = 250): Thumb => ({ data: new Uint8Array(width * height).fill(value), width, height });
+  const page = grey(40, 40);
+  expect(bare(page)).toBe(true);
+  page.data.fill(0, 0, 40 * 5); // the browser's toolbar, above the page: it does not count
+  expect(bare(page)).toBe(true);
+  page.data.fill(60, 40 * 20, 40 * 20 + 80); // two rows of text: 5% of the page
+  expect(bare(page)).toBe(false);
+  expect(bare({ data: new Uint8Array(1), width: 1, height: 1 })).toBe(true); // a window that draws nothing
+});
+
 test("order items renumbers rows then columns", () => {
   const items = [ocrItem(7, "right", 800, 100, 900, 130), ocrItem(2, "left", 100, 105, 200, 135)];
   expect(orderItems(items).map((it) => [it.index, it.text])).toEqual([
     [0, "left"],
     [1, "right"],
   ]);
+});
+
+test("on Windows the OCR cache's grey copy of a capture is the one the helper made with it; the file is decoded only for a capture it made none for", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "hands-thumb-"));
+  const saved = process.env.HANDS_PLATFORM;
+  process.env.HANDS_PLATFORM = "windows";
+  try {
+    const file = join(dir, "shot.png");
+    await sharp({ create: { width: 80, height: 48, channels: 3, background: "#808080" } }).png().toFile(file);
+    const made: Thumb = { data: new Uint8Array(10 * 6).fill(7), width: 10, height: 6 };
+    const helped = spyOn(windows, "captureThumb").mockImplementation((path) => (path === file ? made : null));
+    expect(await thumbnail({ path: file, width: 80, height: 48 })).toBe(made);
+    expect(helped).toHaveBeenCalledWith(file, 8);
+    helped.mockImplementation(() => null); // a capture the helper made no copy for: decoded, as on the Mac
+    const decoded = await thumbnail({ path: file, width: 80, height: 48 });
+    expect([decoded.width, decoded.height, decoded.data[0]]).toEqual([10, 6, 128]);
+  } finally {
+    if (saved === undefined) delete process.env.HANDS_PLATFORM;
+    else process.env.HANDS_PLATFORM = saved;
+    mock.restore();
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
