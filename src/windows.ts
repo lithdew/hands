@@ -904,6 +904,8 @@ export function releaseDesktop(): void {
   parked.clear();
   tabsSeen.clear();
   touchedAt.clear();
+  unsettled.clear();
+  frontBefore = 0;
   givenUp.clear();
   seenBehind.clear();
   popups.length = 0;
@@ -1316,6 +1318,7 @@ async function guarded<T>(hwnd: number, web: boolean, work: () => Promise<T>): P
         if (sink) adoptPopups(ended.popups ?? [], parked.has(hwnd)); // a window the user's own page opens is theirs
       } finally {
         guarding = false;
+        touch(hwnd); // a tab the click opens is the hand's, however long the wait for the user to pause was
       }
     }
   });
@@ -1445,6 +1448,7 @@ export async function borrow<T>(target: KeyTarget, since: number, work: () => Pr
   } finally {
     borrowed = null;
     borrowedRoot = 0;
+    touch(target.windowId); // a tab the borrowed keys opened (ctrl+t, a link's Enter) is the hand's
     if (seatAbandoned === out) seatAbandoned = null; // put back already
     else {
       if (seatOut === out) seatOut = null;
@@ -1771,9 +1775,14 @@ function viewOf(hwnd: number): BrowserView {
     view = native.call("browser", { hwnd }) as BrowserView; // UI Automation's cache races a tab that has just opened (IndexOutOfRangeException): asked once more
   }
   if (browserWindows.has(hwnd)) {
+    // A tab more than the hand last saw is its own while the window is unsettled, and a link of the user's after (see
+    // "a link of the user's in a window of the hand's"). A count SETTLE_MS after the hand's last input settles it.
     const seen = tabsSeen.get(hwnd);
-    if (seen !== undefined && view.tabs.length > seen && !openedByTheHand(hwnd)) giveUp(hwnd); // a link of the user's (see openedByTheHand)
-    else tabsSeen.set(hwnd, view.tabs.length);
+    if (seen !== undefined && view.tabs.length > seen && !unsettled.has(hwnd)) giveUp(hwnd);
+    else {
+      tabsSeen.set(hwnd, view.tabs.length);
+      if (performance.now() - (touchedAt.get(hwnd) ?? Number.NEGATIVE_INFINITY) >= SETTLE_MS) unsettled.delete(hwnd);
+    }
   }
   return view;
 }
@@ -1806,7 +1815,18 @@ export function safeUrl(url: string): string {
 /** A URL as an omnibox holds it, for comparison: no trailing slash, case aside. */
 const plainUrl = (url: string): string => url.trim().replace(/\/+$/, "").toLowerCase();
 
-const fullUrl = (view: BrowserView): string | null => view.url ?? (view.omniboxValue ? (/^[a-z]+:/i.test(view.omniboxValue) ? view.omniboxValue : `https://${view.omniboxValue}`) : null);
+const SCHEMED = /^(https?|file|ftp|view-source|chrome|chrome-extension|edge|about|data|blob|javascript):/i; // "localhost:8080" is a host, not a scheme
+const LOCAL_HOST = /^(localhost|127(\.\d{1,3}){3}|\[::1\]|10(\.\d{1,3}){3}|192\.168(\.\d{1,3}){2}|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2})(:\d+)?([/?#]|$)/i;
+/**
+ * A window's URL: its page's own, or else the omnibox's, which leaves the scheme out for http and https alike. A site
+ * is taken to be https; a server on this PC or the local network, http, which is what they nearly all are.
+ */
+const fullUrl = (view: BrowserView): string | null => {
+  const shown = view.omniboxValue;
+  if (view.url) return view.url;
+  if (!shown) return null;
+  return SCHEMED.test(shown) ? shown : `${LOCAL_HOST.test(shown) ? "http" : "https"}://${shown}`;
+};
 
 export async function browserTabs(browser: string): Promise<Tab[]> {
   const pid = await userInstance(browser);
@@ -2270,6 +2290,7 @@ const act = (ref: unknown, action: string): boolean => {
   const run = () => {
     try {
       const done = native.call("act", { id: ref, action, ...(web ? { sink: webRefs.get(ref) } : {}) }) as { ok: boolean; popups?: number[] };
+      if (refWindows.has(ref)) touch(refWindows.get(ref)!); // after the wait for the user to pause: a tab the press opens is the hand's
       if (webRefs.get(ref)) adoptPopups(done.popups ?? [], parked.size > 0); // a press in the hand's page that opened a window: the hand's, as for a click
       return Boolean(done.ok);
     } catch {
@@ -2328,7 +2349,11 @@ export function axSetValue(ref: unknown, value: string): boolean {
   if (refWindows.has(ref)) refuseTheirs(refWindows.get(ref)!);
   const front = frontWindow();
   const web = webRefs.has(ref);
-  const set = () => native.call("setValue", { id: ref, text: value, ...(web ? { sink: webRefs.get(ref) } : {}) }) as { ok: boolean; posted?: boolean; why?: string };
+  const set = () => {
+    const reply = native.call("setValue", { id: ref, text: value, ...(web ? { sink: webRefs.get(ref) } : {}) }) as { ok: boolean; posted?: boolean; why?: string };
+    if (refWindows.has(ref)) touch(refWindows.get(ref)!); // after the wait for the user to pause: a tab a submit opens is the hand's
+    return reply;
+  };
   try {
     const { ok: taken, posted, why } = web ? pausedSync(set, "typing into the field") : set();
     if (!taken && why?.startsWith("busy:")) throw new SeatBusy(why.slice("busy:".length).trim()); // the user went back to work between the clicks
@@ -2826,6 +2851,12 @@ function holdsUnseenTabs(windowId: number): boolean {
 // happen but their app losing the keyboard, and the hand's next action would have been in the user's tab. So that
 // window is the user's from then on: it comes onto a screen, nothing more is sent into it, it is never closed with the
 // hand's windows, and the hand is told, and opens another.
+//
+// Whose a new tab is, is told by when it came. Every input the hand sends into a browser window of its leaves that
+// window unsettled, and a tab that comes in an unsettled window is the hand's (a link its click opened in a new tab,
+// its own `browser` new_tab). The window settles when its tabs are counted SETTLE_MS after the hand's last input, which
+// the watcher sees to within a second, awake or not: a tab that comes after that is not the hand's. A link of the
+// user's that lands in those few seconds after the hand's own input there is taken for the hand's, the one case missed.
 
 /** Said to the model when a window of its has been given up to the user; the tools say it too, as they forget the window. */
 export const LINK_LANDED =
@@ -2838,38 +2869,51 @@ export function isGivenUp(windowId: number): boolean {
   return givenUp.has(windowId);
 }
 
-const TOUCH_MS = 5000; // a tab that comes this soon after the hand's last input into its window may be the hand's (a link its click opened in a new tab)
-const touchedAt = new Map<number, number>(); // when the hand last sent anything into each browser window of its
+const SETTLE_MS = 3000; // how long after the hand's input into its window a tab of its own may still come
+const touchedAt = new Map<number, number>(); // when the hand last sent input into each browser window of its
+const unsettled = new Set<number>(); // browser windows the hand has sent input into whose tabs have not been counted since, SETTLE_MS on
+let frontBefore = 0; // the window in front at the watcher's last look
 
-/** Whether a window is in front with nothing the hand is doing now having brought it there: a borrow and a guarded click do. */
-const forwardByItself = (hwnd: number): boolean => borrowed === null && !guarding && frontWindow() === hwnd;
-
-/**
- * Whether a tab more than the hand last saw in a browser window of its is the hand's own: the hand sent input into the
- * window lately (a link its click opened in a new tab), and the window has not come forward since, but by the hand's
- * last action (see takeBack). A tab that came any other way is a link of the user's: the browser brings the window
- * forward for one when it may, and flashes it on the taskbar when it may not (both measured).
- */
-function openedByTheHand(hwnd: number): boolean {
-  const now = performance.now();
-  if (now - (touchedAt.get(hwnd) ?? Number.NEGATIVE_INFINITY) > TOUCH_MS) return false;
-  return !forwardByItself(hwnd) || (handBack !== null && now <= handBack.until);
+/** The hand is sending input into a window, or has just sent it (after any wait for the user to pause): a tab that comes in it for SETTLE_MS is the hand's. */
+function touch(hwnd: number): void {
+  if (!browserWindows.has(hwnd)) return;
+  touchedAt.set(hwnd, performance.now());
+  unsettled.add(hwnd);
 }
 
 /**
- * A browser window of the hand's in front that nothing the hand is doing brought there: the browser brought it forward
+ * Count a browser window's tabs (viewOf): what came while the window was unsettled becomes the hand's, and the window
+ * settles once SETTLE_MS have gone since the hand's last input; a tab more than that is a link of the user's, and the
+ * window is given up. Nothing here throws.
+ */
+function countTabs(hwnd: number): void {
+  try {
+    viewOf(hwnd);
+  } catch {
+    // busy, or gone: counted next time
+  }
+}
+
+/**
+ * Settle the windows the hand acted in, once their tabs have had SETTLE_MS to come. Then the window in front: when a
+ * browser window of the hand's has come forward that nothing the hand is doing brought there, the browser brought it
  * for a link of the user's, or the user did (its taskbar button, Alt+Tab). One that holds a tab the hand did not open
  * is given up to the user. Any other is theirs to look at, as Show makes it: back on a screen from where it was parked,
- * and left in front (see keepOnDesktop), unless the hand's last action may have brought it up, which takeBack sees to.
- * Asked by the watcher every second, and before anything is sent into a browser window of the hand's.
+ * and left in front (see keepOnDesktop); unless it came up by itself, the hand's last action's doing or no one's, which
+ * takeBack and keepOnDesktop see to. Asked by the watcher every second, and before anything is sent into a browser
+ * window of the hand's.
  */
 function watchLinks(): void {
   if (browserWindows.size === 0 || borrowed !== null || guarding) return;
-  const front = frontWindow();
-  if (!browserWindows.has(front)) return;
-  if (holdsUnseenTabs(front) && !openedByTheHand(front)) return giveUp(front);
   const now = performance.now();
-  if (handBack && now <= handBack.until) return;
+  for (const hwnd of [...unsettled]) if (now - (touchedAt.get(hwnd) ?? 0) >= SETTLE_MS) countTabs(hwnd);
+  const front = frontWindow();
+  const came = front !== frontBefore;
+  frontBefore = front;
+  if (!came || !browserWindows.has(front)) return;
+  countTabs(front);
+  if (givenUp.has(front)) return;
+  if ((handBack && now <= handBack.until) || cameByItself(front, now)) return;
   if (unpark(front)) inFront.set(front, now);
 }
 
@@ -2880,6 +2924,7 @@ function giveUp(hwnd: number): void {
   browserWindows.delete(hwnd);
   tabsSeen.delete(hwnd);
   touchedAt.delete(hwnd);
+  unsettled.delete(hwnd);
   seenBehind.delete(hwnd);
   inFront.set(hwnd, performance.now());
   try {
@@ -2892,22 +2937,16 @@ function giveUp(hwnd: number): void {
 
 /**
  * Before anything is sent into a window: LINK_LANDED, when it is a browser window of the hand's that a link of the
- * user's has landed in. Its tabs are counted again first when the hand has left it alone a while, since a link that
- * the browser could only flash on the taskbar may have landed unseen.
+ * user's has landed in. A settled window's tabs are counted first, since a link that the browser could only flash on
+ * the taskbar lands with nothing in front to say so. The window is then unsettled by the input (touch).
  */
 function refuseTheirs(hwnd: number): void {
   if (browserWindows.has(hwnd)) {
     watchLinks();
-    if (!givenUp.has(hwnd) && performance.now() - (touchedAt.get(hwnd) ?? Number.NEGATIVE_INFINITY) > TOUCH_MS) {
-      try {
-        viewOf(hwnd);
-      } catch {
-        // the window is busy or gone: the action says so
-      }
-    }
+    if (!givenUp.has(hwnd) && !unsettled.has(hwnd)) countTabs(hwnd);
   }
   if (givenUp.has(hwnd)) throw new Error(LINK_LANDED);
-  if (browserWindows.has(hwnd)) touchedAt.set(hwnd, performance.now());
+  touch(hwnd);
 }
 
 /**

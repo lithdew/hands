@@ -462,13 +462,14 @@ test("a link the user opened from another app lands in the hand's parked window:
   // The browser puts the link in its last active window, the hand's, as a new tab, and brings the window forward (measured).
   state.tabs = 2;
   state.front = { hwnd: 46, pid: 400 };
-  expect(await windows.browserTabs("Google Chrome")).toHaveLength(2); // a look meanwhile does not take the tab for the hand's
   calls = [];
+  expect(await windows.browserTabs("Google Chrome")).toHaveLength(2); // the next look finds it: no input from the hand there since it settled
+  expect(windows.isGivenUp(46)).toBe(true);
+  expect(asked("unpark")).toEqual([{ hwnd: 46, keep: false }]);
+  expect(window.chrome.frame.slice(0, 2)).toEqual([50, 60]); // back on the screen where it was, in front: the user sees their page
+  expect(asked("sink")).toEqual([]); // left in front, where the browser brought it
   await expect(windows.windowPointer({ pid: 400, windowId: 46, frame: window.chrome.frame, web: true }, [[100, 100]])).rejects.toThrow(windows.LINK_LANDED);
   expect(asked("post")).toEqual([]); // nothing went into the user's tab
-  expect(window.chrome.frame.slice(0, 2)).toEqual([50, 60]); // back on the screen where it was, in front: the user sees their page
-  expect(asked("sink")).toEqual([]);
-  expect(windows.isGivenUp(46)).toBe(true);
   await expect(windows.pressIn({ pid: 400, windowId: 46 }, "a")).rejects.toThrow(windows.LINK_LANDED);
   windows.release(false);
   expect(asked("close")).toEqual([]);
@@ -485,7 +486,7 @@ test("a tab the hand's own click opened is the hand's; its window brought forwar
   state.tabs = 2; // the hand's click opened a page in a new tab, in its window behind the user's
   await windows.browserTabs("Google Chrome");
   expect(windows.isGivenUp(46)).toBe(false);
-  const later = performance.now() + 3000; // past the click's handback, when a window that comes up is taken for the click's doing
+  const later = performance.now() + 4000; // past the click's handback, when a window that comes up is taken for the click's doing
   const clock = spyOn(performance, "now").mockImplementation(() => later);
   state.front = { hwnd: 46, pid: 400 }; // the user brings it forward: its taskbar button, Alt+Tab
   calls = [];
@@ -497,6 +498,46 @@ test("a tab the hand's own click opened is the hand's; its window brought forwar
   expect(asked("post").length).toBeGreaterThan(0);
   windows.release(false);
   expect(asked("close")).toEqual([{ hwnd: 46 }]);
+});
+
+test("a tab the hand's own click opened stays the hand's however long the model takes to look again; one that comes after its window settled is the user's", async () => {
+  const state = { tabs: 1, front: { hwnd: 11, pid: 100 } };
+  const window = linkBrowser(state);
+  spyOn(console, "error").mockImplementation(() => {});
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  const target = { pid: 400, windowId: 46, frame: window.chrome.frame, web: true };
+  await windows.windowPointer(target, [[100, 100]]); // a link with target=_blank
+  state.tabs = 2;
+  const start = performance.now();
+  const clock = spyOn(performance, "now").mockImplementation(() => start + 6000); // the model thinks, then looks
+  await windows.browserTabs("Google Chrome");
+  expect(windows.isGivenUp(46)).toBe(false); // counted, and settled: the hand's
+  state.tabs = 3; // then a link of the user's
+  await windows.browserTabs("Google Chrome");
+  clock.mockRestore();
+  expect(windows.isGivenUp(46)).toBe(true);
+});
+
+test("while the user watches the hand's window (Show), a tab the hand's click opens there is still the hand's", async () => {
+  const state = { tabs: 1, front: { hwnd: 11, pid: 100 } };
+  const window = linkBrowser(state);
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect(windows.present(46)).toBe(true); // in front, for the user to watch
+  const target = { pid: 400, windowId: 46, frame: window.chrome.frame, web: true };
+  await windows.windowPointer(target, [[100, 100]]);
+  state.tabs = 2;
+  const start = performance.now();
+  const clock = spyOn(performance, "now");
+  for (const at of [2500, 5000, 9000]) {
+    clock.mockImplementation(() => start + at); // past the click's handback, and on
+    await windows.browserTabs("Google Chrome");
+    expect(windows.isGivenUp(46)).toBe(false);
+  }
+  await windows.windowPointer(target, [[120, 100]]);
+  clock.mockRestore();
+  expect(windows.isGivenUp(46)).toBe(false);
 });
 
 test("a link of the user's that the browser could only flash on the taskbar is found at the hand's next action there, and that window is brought onto a screen behind theirs", async () => {

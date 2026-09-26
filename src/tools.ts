@@ -13,7 +13,7 @@
  * at scale 1, and a point of the window on the Mac, where the screenshot the model sees is drawn at one pixel a point.
  */
 
-import { readdirSync } from "node:fs";
+import { readdirSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, join, resolve, win32 } from "node:path";
 import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
@@ -438,10 +438,15 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort }: ToolOpti
       return listing({ ...screen, field: null, readOnly: true }, screenshot);
     }
     const { app, pid, pinned } = target;
-    if (pinned && onWindows() && windows.isGivenUp(pinned.windowId)) {
+    // A link of the user's landed in the hand's browser window (src/windows.ts): the window is let go, and nothing of
+    // the user's tab goes to the model. Asked again after every read of the window's tabs, which is where it is found.
+    const givenUp = (shot?: string): void => {
+      if (!(pinned && onWindows() && windows.isGivenUp(pinned.windowId))) return;
+      if (shot) rmSync(shot, { force: true });
       forgetWindow();
       throw new Error(windows.LINK_LANDED);
-    }
+    };
+    givenUp();
     if (pinned && !alive(pinned)) {
       forgetWindow();
       throw new Error("your browser window was closed: `browser` open a url for a new one");
@@ -451,9 +456,11 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort }: ToolOpti
     if (!working) throw new Error(onWindows() ? `${app} has no window open: \`open_app\` it again for a window of your own` : `${app} has no window open. Its \`menu\` can make one (File > New...).`);
     await settled(working.windowId, pinned?.scripted);
     const url = pinned ? ((await macos.browserUrl(browser, pinned.scripted)) ?? undefined) : undefined;
+    givenUp();
     const screen = await capture({ target: { pid, windowId: working.windowId }, out: nextCapture(), url });
     Object.assign(screen, { dialog: working.dialog, theirs: working.theirs });
     if (pinned && !working.dialog) screen.tabs = await tabsOf(pinned, screen.url);
+    givenUp(screen.image.path);
     return listing(screen, screenshot);
   }
   const look = async (screenshot: boolean): Promise<Result> => (await see(screenshot))[0];

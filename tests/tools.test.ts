@@ -483,6 +483,15 @@ test("on Windows, a browser window that a link of the user's landed in is theirs
     givenUp.add(77);
     await expect(call("screen", {})).rejects.toThrow(windows.LINK_LANDED); // or at the next look, which forgets it
     await expect(call("browser", { action: "back" })).rejects.toThrow("no page is open yet: `browser` open a url first");
+    // Found in the middle of a look (its read of the window's tabs): no listing or picture of the user's tab comes back.
+    made.mockImplementation(async () => ({ pid: PID, windowId: 78, scripted: "78" }));
+    spyOn(macos, "appWindows").mockImplementation((pid) => (pid === PID ? [{ id: 78, frame: FRAME }] : []));
+    await call("browser", { action: "open", url: "https://example.com" });
+    spyOn(macos, "browserUrl").mockImplementation(async () => {
+      givenUp.add(78);
+      return "https://example.com/";
+    });
+    await expect(call("screen", {})).rejects.toThrow(windows.LINK_LANDED);
   });
 });
 
