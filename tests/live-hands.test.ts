@@ -98,6 +98,7 @@ beforeEach(() => {
   [hands, commands, sessions, answering, stubborn] = [[], [], [], true, false];
   runs = mkdtempSync(join(scratch, "runs-"));
   process.env.HANDS_WORK = join(scratch, "Documents", "Hands");
+  process.env.HANDS_PROFILE = join(scratch, "profile.md");
   spyOn(live.outside, "spawn").mockImplementation((command) => {
     const fake = fakeHand(stubborn);
     hands.push(fake);
@@ -118,6 +119,7 @@ afterEach(async () => {
   live.hangUp();
   mock.restore();
   delete process.env.HANDS_WORK;
+  delete process.env.HANDS_PROFILE;
 });
 
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
@@ -341,4 +343,15 @@ test("a new session is told the conversation so far: the tool calls, what the vo
   expect(told).toContain('Backend: stop_hands {"hands":["Righty"]} -> {"hand":"Righty","state":"stop requested","result":"pending"}');
   expect(told).toContain("You: Stopping it.");
   expect(told).toContain("- Righty [done] task: open Notepad");
+});
+
+test("a fact the backend remembers goes in the user's profile, and every later session is told it", async () => {
+  expect(live.dispatch("remember", { fact: "Kartikay (not Kartike) is a colleague." }, runs)).toEqual({ state: "remembered" });
+  expect(readFileSync(process.env.HANDS_PROFILE!, "utf8")).toContain("- Kartikay (not Kartike) is a colleague.\n");
+  live.dispatch("start_hands", { tasks: ["open Paint"] }, runs);
+  hands[0]!.say({ type: "status", status: "done", answer: "Paint is open." });
+  await Bun.sleep(5);
+  const start = sessions.at(-1)!.sent[0]!.session;
+  expect(start.instructions).toContain("Kartikay (not Kartike) is a colleague.");
+  expect(start.delegation.responses.instructions).toContain("Kartikay (not Kartike) is a colleague.");
 });

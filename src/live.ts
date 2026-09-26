@@ -12,7 +12,7 @@
  */
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import OpenAI from "openai";
 import { LiveWS } from "openai/resources/live/ws";
@@ -50,6 +50,7 @@ const TASK_CHARS = 150;
 const ANSWER_CHARS = 200;
 const SUMMARY_CHARS = 300; // what the voice is given to say of a hand's answer
 const STEER_CHARS = 200;
+const PROFILE_CHARS = 2000;
 const MIC_SILENT = 16; // of 32767: a press whose loudest sample stayed under this was heard by a microphone that gives nothing
 const CHUNK_MS = 40;
 
@@ -489,6 +490,7 @@ Every task is carried out by operating the user's ${MACHINE}, and that is the po
 - steer_hand: the user adds to, corrects, or redirects what a hand is doing, answers a hand that needs them, or gives a finished or stopped hand something new. Phrase it as an instruction to that hand. "Carry on" resumes a paused hand.
 - stop_hands halts hands but keeps them, so they can still be asked about or steered. close_hands dismisses them for good.
 - get_hands: read it before answering anything about progress or results.
+- remember: when the user says how a name or word is spelled, or who someone is, keep it as one short line, so it is known in every later conversation.
 Hands are referred to by name; "all" means every hand.
 
 Never tell a hand how to work: which tools, which windows, foreground or background. It knows its own way. Never tell a hand or the user to restart anything.
@@ -502,6 +504,7 @@ const TOOLS = [
   { type: "function", name: "stop_hands", strict: true, description: "Halt hands where they are. They stay, and can be steered again.", parameters: { type: "object", additionalProperties: false, required: ["hands"], properties: { hands: { type: "array", items: WHICH } } } },
   { type: "function", name: "close_hands", strict: true, description: "Dismiss hands for good.", parameters: { type: "object", additionalProperties: false, required: ["hands"], properties: { hands: { type: "array", items: WHICH } } } },
   { type: "function", name: "get_hands", strict: true, description: "Every hand, the ones still at it first: its status, task, what it is doing, and what came of it, each cut short. An answer already told to the user is marked so.", parameters: { type: "object", additionalProperties: false, required: [], properties: {} } },
+  { type: "function", name: "remember", strict: true, description: "Keep a fact about the user for every later conversation: how a name or word they use is spelled, who a contact is.", parameters: { type: "object", additionalProperties: false, required: ["fact"], properties: { fact: { type: "string", description: "One short line, such as: Kartikay (not Kartike) is a colleague." } } } },
 ]; // prettier-ignore
 
 /** One tool call from the backend, done. What comes back is what is known, and no more: a hand that has been asked has not yet done anything. */
@@ -515,6 +518,7 @@ export function dispatch(name: string, args: Record<string, unknown>, runs: stri
     });
   }
   if (name === "get_hands") return hands.size ? ordered(hands.values()).map((one) => brief(one)) : "No hands are out.";
+  if (name === "remember") return remember(String(args.fact ?? ""));
   const found = named(hands.values(), [args[name === "steer_hand" ? "hand" : "hands"]].flat().map(String));
   if (!found.length) return { error: `no such hand. Out now: ${[...hands.values()].map((h) => h.name).join(", ") || "none"}` };
   const outcomes = found.map((one) => {
@@ -535,8 +539,31 @@ export function dispatch(name: string, args: Record<string, unknown>, runs: stri
   return outcomes.length === 1 ? outcomes[0] : outcomes;
 }
 
+let known = ""; // what the user's profile says, as last read: when a session starts, and after the backend adds to it
+
+function readProfile(): string {
+  try {
+    return readFileSync(config.profilePath(), "utf8").trim().slice(-PROFILE_CHARS);
+  } catch {
+    return ""; // there is none yet
+  }
+}
+
+/** The backend's `remember`: a line added to the user's profile, which every later session is given. */
+function remember(fact: string): unknown {
+  const line = cap(fact, 200);
+  if (!line) return { error: "nothing to remember" };
+  const path = config.profilePath();
+  mkdirSync(dirname(path), { recursive: true });
+  appendFileSync(path, `- ${line}\n`);
+  known = readProfile();
+  return { state: "remembered" };
+}
+
+const aboutUser = (): string => (known ? `\n\nAbout the user (names and words as they are spelled, however they sound):\n${known}` : "");
+const frontendPrompt = (): string => `${FRONTEND}${aboutUser()}`;
 /** The backend's standing picture of the hands: who is out and on what. What each is doing this minute it gets from get_hands. */
-const backendPrompt = (): string => `${BACKEND}\n\nHands out right now:\n${ordered(hands.values()).map((one) => `- ${one.name} [${one.status}]: ${cap(one.task, TASK_CHARS)}`).join("\n") || "none"}`;
+const backendPrompt = (): string => `${BACKEND}${aboutUser()}\n\nHands out right now:\n${ordered(hands.values()).map((one) => `- ${one.name} [${one.status}]: ${cap(one.task, TASK_CHARS)}`).join("\n") || "none"}`;
 let toldBackend = "";
 let runsDir = "";
 
@@ -782,13 +809,14 @@ function connect(): Promise<void> {
     sendLive({ type: "response.create" });
   });
 
+  known = readProfile();
   const told = context(turns, hands.size ? snapshot(hands.values()) : "");
   const start = {
     type: "session.start",
     session: {
       model: config.liveModel(),
       audio: { format: { type: "audio/pcm", rate: 24000 }, output: { voice: config.liveVoice() } },
-      instructions: FRONTEND,
+      instructions: frontendPrompt(),
       // A session started again, after an idle one was closed, is told what was said and how things stand; the hands outlive sessions.
       input: told ? [{ type: "message", role: "developer", content: [{ type: "input_text", text: told }] }] : undefined,
       delegation: { type: "responses", responses: { model: config.liveBackend(), instructions: (toldBackend = backendPrompt()), tools: TOOLS, parallel_tool_calls: true, reasoning: { effort: "low" } } },

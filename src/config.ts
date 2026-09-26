@@ -43,3 +43,5 @@ export const liveVoice = (): string => process.env.HANDS_LIVE_VOICE || "marin";
 export const liveBackend = (): string => process.env.HANDS_LIVE_BACKEND || "gpt-5.6-luna";
 /** Where the hands `hands live` sends out keep what they make: Documents\Hands in the user's folder (~/Documents/Hands on a Mac), or HANDS_WORK. */
 export const workFolder = (): string => process.env.HANDS_WORK || join(homedir(), "Documents", "Hands");
+/** What the voice knows about the user, one line each (names, contacts, words it would mishear): ~/.hands/profile.md, or HANDS_PROFILE. */
+export const profilePath = (): string => process.env.HANDS_PROFILE || join(homedir(), ".hands", "profile.md");
