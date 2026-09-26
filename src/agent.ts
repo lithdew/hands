@@ -16,6 +16,7 @@ import { onPayload, resolveModel, runtime } from "./llm.ts";
 import { onWindows, PERMISSION, platform as macos } from "./platform.ts";
 import { computerTools, type Details, type Finish } from "./tools.ts";
 import type { Status } from "./ui/state.ts";
+import { webReady } from "./web.ts";
 import * as windows from "./windows.ts";
 import { makeWriter } from "./writer.ts";
 
@@ -100,7 +101,7 @@ ${KEYS}
 - ${IN_THE_BROWSER} by pressing its links and controls, and keep \`browser\` open for getting to a site in the first place, or for a URL that saves many steps (search results, filters and dates usually live in the query string).
 ${SEAT}
 - \`clicker\` hands one small, concrete step in your window to Jev, a fast classifier that acts from behind as you do, about a second a step: a click-through (open a page from its menu, pick a date, dismiss a banner, fill and submit one search box). Prefer it for such steps, give it one goal it can see through, then look with \`screen\` yourself.
-- The clipboard is the user's too: do not copy or paste through it. Put text in with \`type\`, and move files with the shell.
+- The clipboard is the user's too: do not copy or paste through it. Put text in with \`type\`, and move files with the shell.${webReady() ? "\n- `web` answers a question about public facts from a web search in a few seconds, with its sources: use it for what the task needs to know (a price, an address, how to do something in an app, the exact URL of a page to open with `browser`), and still operate the app or site itself when the task is to do something there or the user named it." : ""}
 - Indexes only describe the capture they came from, so look again after anything that changes the window, and before you report what it shows. Ask for the screenshot when text is not enough.
 - You may issue several tool calls in one turn when you already know the sequence; they run in order.${SHELL}
 
