@@ -8,7 +8,7 @@
 
 import { finished } from "./fold.ts";
 import { EASE_OUT, ms, settle, still } from "./motion.ts";
-import { driver, moved, says, searching, sentence, type Step, sight, site, stale, steps, tally } from "./rules.ts";
+import { type Control, controls, driver, hold, moved, says, searching, sentence, type Step, sight, site, stale, steps, tally } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, Status } from "./state.ts";
 import { blocks } from "./text.ts";
 
@@ -29,9 +29,6 @@ const REACT: Partial<Record<Status, Keyframe[]>> = {
   needs_you: [{ scale: 1 }, { scale: 1.18 }, { scale: 1 }],
   failed: [{ translate: "0 0" }, { translate: "-3px 0" }, { translate: "3px 0" }, { translate: "0 0" }],
 };
-
-/** What each state lets the user do, from the sheet and from the tools on the picture. */
-const CONTROLS: Record<Status, string[]> = { starting: ["stop"], working: ["pause", "stop", "show"], paused: ["resume", "stop", "show"], needs_you: ["show", "close"], done: ["show", "close"], failed: ["show", "close"], stopped: ["show", "close"] };
 
 export const busy = (hand: Pick<HandView, "status">): boolean => hand.status === "working" || hand.status === "starting";
 
@@ -104,13 +101,13 @@ export function build(id: string, act: (message: ClientMessage) => void, asks: A
     const text = box.value.trim();
     // An empty line to a paused hand means: carry on.
     if (text) act({ cmd: "steer", hand: id, text });
-    else if (card.view?.status === "paused") act({ cmd: "resume", hand: id });
+    else if (card.view && hold(card.view) === "resume") act({ cmd: "resume", hand: id });
     box.value = "";
   });
   for (const button of root.querySelectorAll<HTMLButtonElement>("button[data-cmd]")) {
     button.addEventListener("click", (event) => {
       event.stopPropagation(); // the picture's tools are on the picture, which has a click of its own
-      const cmd = button.dataset.cmd as "pause" | "resume" | "stop" | "show" | "close";
+      const cmd = button.dataset.cmd as Control;
       act({ cmd, hand: id });
       if (cmd === "show" && !card.root.classList.contains("open")) brought(card);
     });
@@ -193,12 +190,15 @@ export function paint(card: Card, hand: HandView, place: { folded: boolean; bare
   picture(card);
   mini(card);
 
-  // The same table decides the sheet's buttons and the picture's tools. A lookup has no window, and is not paused.
-  const allowed = CONTROLS[hand.status];
+  // The same rule (rules.ts, controls) decides the sheet's buttons, the picture's tools and Ctrl+. (ui.ts).
+  const allowed = controls(hand);
   for (const button of root.querySelectorAll<HTMLButtonElement>("button[data-cmd]")) {
-    const cmd = button.dataset.cmd!;
-    button.hidden = !allowed.includes(cmd) || (cmd === "show" && !shown(card)) || (hand.kind === "lookup" && (cmd === "pause" || cmd === "resume"));
+    const cmd = button.dataset.cmd as Control;
+    button.hidden = !allowed.includes(cmd) || (cmd === "show" && !shown(card));
   }
+  const held = hold(hand);
+  part(card, ".hold").hidden = !held;
+  put(part(card, ".hold-word"), held ?? "");
   const box = part<HTMLInputElement>(card, "input");
   box.placeholder = busy(hand) ? `Tell ${hand.name} what to change` : hand.status === "paused" ? `Tell ${hand.name} what to change, or ↵ to carry on` : hand.status === "needs_you" ? `Answer ${hand.name}, or tell it what to do` : `Give ${hand.name} something else to do`;
   part(card, ".sheet").inert = !place.open;

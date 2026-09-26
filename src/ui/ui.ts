@@ -11,7 +11,7 @@ import { build, busy, type Card, elapsed, frame, fresh, paint, part, track, writ
 import { extra, level, speak } from "./dock.ts";
 import { arrange, finished, lines, order, type Shape } from "./fold.ts";
 import { deal, glide, sweep, where } from "./motion.ts";
-import { anew, closes, neighbour, says, shortcut } from "./rules.ts";
+import { anew, closes, hold, neighbour, says, shortcut } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, ServerMessage } from "./state.ts";
 
 const column = document.getElementById("column") as HTMLElement;
@@ -230,9 +230,10 @@ document.addEventListener("keydown", (event) => {
     if (!key || !card?.view) return;
     event.preventDefault();
     if (key === "hold") {
-      // Pause a hand at work, or let a paused one carry on; the sheet stays out, and so does the keyboard.
-      if (busy(card.view)) send({ cmd: "pause", hand: card.id });
-      else if (card.view.status === "paused") send({ cmd: "resume", hand: card.id });
+      // Pause a hand at work, or let a paused one carry on, as its buttons would (rules.ts, hold): a hand starting,
+      // or a lookup, offers neither. The sheet stays out, and so does the keyboard.
+      const cmd = hold(card.view);
+      if (cmd) send({ cmd, hand: card.id });
       return;
     }
     const next = neighbour(order(last.hands).map((hand) => hand.id), card.id, key === "next" ? 1 : -1);

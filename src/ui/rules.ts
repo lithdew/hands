@@ -1,10 +1,10 @@
 /**
  * The page's small decisions about what it is sent and what it is asked, made without a page, so they are tested
- * without one: what a card says, which lines start a new hand under a name a card still has, what becomes of a
- * picture when its hand moves to another window, and which keys close a hand.
+ * without one: what a card says, what the user can ask of its hand, which lines start a new hand under a name a card
+ * still has, what becomes of a picture when its hand moves to another window, and which keys close a hand.
  */
 
-import type { HandView, LogEntry } from "./state.ts";
+import type { HandView, LogEntry, Status } from "./state.ts";
 import { gist } from "./text.ts";
 
 /** Starts with a capital, as a sentence does: "click “Search”" becomes "Click “Search”". */
@@ -23,6 +23,23 @@ export function says(hand: Pick<HandView, "status" | "seat" | "seatWhy" | "answe
   if (hand.status === "failed") return hand.reason || gist(hand.answer) || "It ran into an error and stopped.";
   if (hand.status === "working" || hand.status === "starting") return "";
   return gist(hand.answer); // done or stopped: the chip says which, and this says what came of it, if anything did
+}
+
+/** What the user can ask of a hand from its card: the sheet's buttons, the tools on its picture, and Ctrl+. */
+export type Control = "pause" | "resume" | "stop" | "show" | "close";
+
+/** What each state lets the user do. */
+const CONTROLS: Record<Status, Control[]> = { starting: ["stop"], working: ["pause", "stop", "show"], paused: ["resume", "stop", "show"], needs_you: ["show", "close"], done: ["show", "close"], failed: ["show", "close"], stopped: ["show", "close"] };
+
+/** What the user can ask of a hand now. A lookup has no window, and is not paused. (Show wants a picture as well: card.ts.) */
+export function controls(hand: Pick<HandView, "status" | "kind">): Control[] {
+  return CONTROLS[hand.status].filter((control) => hand.kind !== "lookup" || (control !== "pause" && control !== "resume"));
+}
+
+/** What Ctrl+. in a sheet asks: a hand at work pauses, a paused one carries on, and one that offers neither is left as it is. */
+export function hold(hand: Pick<HandView, "status" | "kind">): "pause" | "resume" | null {
+  const can = controls(hand);
+  return can.includes("pause") ? "pause" : can.includes("resume") ? "resume" : null;
 }
 
 /**

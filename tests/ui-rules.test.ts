@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { anew, closes, driver, moved, neighbour, type Press, STALE_MS, says, searching, shortcut, sight, site, stale, steps, tally } from "../src/ui/rules.ts";
+import { anew, closes, controls, driver, hold, moved, neighbour, type Press, STALE_MS, says, searching, shortcut, sight, site, stale, steps, tally } from "../src/ui/rules.ts";
 import type { HandView } from "../src/ui/state.ts";
 
 const view = (extra: Partial<HandView>): HandView => ({ id: "lefty", name: "Lefty", color: "4f8cff", task: "Book a table", status: "working", action: "", glyph: "👆", at: null, size: null, viewing: false, answer: "", reason: "", seat: "", seatWhy: "", picture: "none", since: 0, ...extra }); // prettier-ignore
@@ -38,6 +38,20 @@ test("a step for each tool call, settled by its result; the clicker's are Jev's,
   expect(steps([{ kind: "tool", text: 'clicker {"goal":"x"}' }, { kind: "result", text: '{ "outcome": "done", "goal_achieved": true }' }])[0]!.ok).toBe(true);
   // A result with no call waiting for it changes nothing.
   expect(steps([{ kind: "result", text: "stray" }])).toEqual([]);
+});
+
+test("the sheet's buttons, the picture's tools and Ctrl+. follow one table: a starting hand and a lookup never pause", () => {
+  expect(controls({ status: "working" })).toEqual(["pause", "stop", "show"]);
+  expect(controls({ status: "working", kind: "lookup" })).toEqual(["stop", "show"]);
+  expect(controls({ status: "starting" })).toEqual(["stop"]);
+  expect(controls({ status: "done" })).toEqual(["show", "close"]);
+  expect(hold({ status: "working" })).toBe("pause");
+  expect(hold({ status: "paused" })).toBe("resume");
+  expect(hold({ status: "starting" })).toBeNull();
+  expect(hold({ status: "working", kind: "lookup" })).toBeNull();
+  expect(hold({ status: "paused", kind: "lookup" })).toBeNull();
+  expect(hold({ status: "needs_you" })).toBeNull();
+  expect(hold({ status: "done" })).toBeNull();
 });
 
 test("a receipt's tally counts each of Jev's moves as a step of its own, and the time it took", () => {
