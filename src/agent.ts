@@ -47,9 +47,9 @@ export function pruneScreens(messages: AgentMessage[]): AgentMessage[] {
 
 // The Mac prompt says what the Mac does; these are the lines where the platforms differ.
 const MACHINE = onWindows() ? "Windows PC" : "Mac";
-const OPEN_VISIBILITY = onWindows()
-  ? "`browser` open in your own window is invisible to the user too, except that making the window the first time takes their keyboard for a fraction of a second before it is handed back. So move through a site"
-  : "`browser` open is too when the user has allowed JavaScript from Apple Events in their browser; when they have not, it takes the keyboard from whatever they are doing for about a fifth of a second before it is handed back. You cannot tell which, so move through a site";
+const IN_THE_BROWSER = onWindows()
+  ? "In the browser, pressing a link or a button shows the user no more than a flash of your window, and so does `browser` open, except that making the window the first time takes their keyboard for a fraction of a second before it is handed back. So move through a site"
+  : "In the browser, pressing a link or a button is invisible to the user. `browser` open is too when the user has allowed JavaScript from Apple Events in their browser; when they have not, it takes the keyboard from whatever they are doing for about a fifth of a second before it is handed back. You cannot tell which, so move through a site";
 const PRESSING = onWindows()
   ? "- `click` presses an item with a role (button, link, field, popup, tab, cell...) through accessibility. In a native app that is the sure way; on a web page, or in an app drawn like one (Claude, WhatsApp, Teams), it is a click at the item's centre, so check the next capture. When the thing you want shows up only as text, look for the control that carries it, often listed right beside it or in the off-screen list."
   : "- `click` presses an item with a role (button, link, field, popup, tab, cell...) through accessibility, which is the sure way: prefer it, and when the thing you want shows up only as text, look for the control that carries it, often listed right beside it or in the off-screen list.";
@@ -57,7 +57,7 @@ const MENUS = onWindows()
   ? "- Menus exist only in classic apps (Notepad, Paint, Explorer), where `menu` chooses a command by its path and the menu shows on screen for a moment. Office has a ribbon instead: its tabs (File, Home, Insert...) and its buttons are items in the listing, pressed with `click`, and File opens a page whose commands (New, Open, Save As) are items too. An app drawn like a web page has neither."
   : "- `menu` chooses a command from the app's menu bar by its path, without the menu ever opening. It is the way to make a new document or note, save, select all, change a view. Give a partial path to see what a menu holds before guessing a name.";
 const KEYS = onWindows()
-  ? "- `key` and `type` without an item go to your window, to wherever its own cursor is, the browser included, so make sure its cursor is where you mean (press the field, or make the new document) first. `type` with an item sets a field's value outright. A shortcut with ctrl, alt, shift or win cannot be sent to a window from behind, so `key` presses it with the user's keyboard for a moment: when a button or a ribbon item does the same, press that instead. A line break typed into a page would send what is written so far: write a message on one line."
+  ? "- `key` and `type` without an item go to your window, to wherever its own cursor is, the browser included, so make sure its cursor is where you mean (press the field, or make the new document) first. `type` with an item sets a field's value outright. A shortcut with ctrl, alt, shift or win cannot be sent to a window from behind, so `key` presses it with the user's keyboard for a moment: when a button or a ribbon item does the same, press that instead. A line break typed into a page would send what is written so far: write a message on one line. Do not walk a page from control to control with Tab: past the last one it reaches the browser's own toolbar, where the next Enter presses the browser's buttons (it once bookmarked a page in the user's profile). Click the field you want instead."
   : "- In an app, `key` and `type` without an item send keys to that app's process, to wherever its own cursor is, so make sure its cursor is where you mean (press the field, or make the new document) first. `type` with an item sets a field's value outright. The browser takes neither: its keys would land in whichever of its windows the user is in, so submit a web form with `type` submit=true or by pressing its button.";
 const OPENING = onWindows()
   ? "`open_app` starts an app in a window of your own without bringing it forward, or opens a document in its app (file=...)"
@@ -88,7 +88,7 @@ Now: ${now.local_time} (${now.timezone}). Home: ${homedir()}. Browser: ${browser
 ${PRESSING} Anything else, a canvas, a toolbox with no labels, a bare x,y, gets a pointer of your own: \`click\` with x,y and \`drag\` send pointer events addressed to your window alone, so the user's cursor never moves. A browser only hands those to a page it thinks can be seen, so the first time you use them your browser window is slid until a strip of it shows at a screen edge. Use the screenshot to aim, and again to check what you drew.
 ${MENUS}
 ${KEYS}
-- In the browser, pressing a link or a button is invisible to the user. ${OPEN_VISIBILITY} by pressing its links and controls, and keep \`browser\` open for getting to a site in the first place, or for a URL that saves many steps (search results, filters and dates usually live in the query string).
+- ${IN_THE_BROWSER} by pressing its links and controls, and keep \`browser\` open for getting to a site in the first place, or for a URL that saves many steps (search results, filters and dates usually live in the query string).
 - A few things cannot be done from behind the user's windows (${BORROWS}). For those the tools borrow the user's real mouse and keyboard for a moment, once the user pauses, and give them back; the user sees it happen. When something you did from behind had no effect (a click that changed nothing, a drag the app ignored), do it once more with seat=true. Borrow for nothing else.
 - The clipboard is the user's too: do not copy or paste through it. Put text in with \`type\`, and move files with the shell.
 - Indexes only describe the capture they came from, so look again after anything that changes the window, and before you report what it shows. Ask for the screenshot when text is not enough.
@@ -188,10 +188,13 @@ export async function createAgent(options: { cwd: string; runDir: string; model?
   return agent;
 }
 
-/** The run folder's log: one record per call, each stamped with the time it was written. */
-export function logTo(runDir: string): (line: string) => void {
+/** The run folder's log. Every line of a record starts with the time it was written, so any line of a listing can be placed. */
+export function logTo(runDir: string): (record: string) => void {
   const file = join(runDir, "agent.log");
-  return (line) => appendFileSync(file, `${new Date().toISOString()} ${line}\n`);
+  return (record) => {
+    const now = new Date().toISOString();
+    appendFileSync(file, `${record.split("\n").map((line) => `${now} ${line}`).join("\n")}\n`);
+  };
 }
 
 /**

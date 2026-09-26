@@ -117,6 +117,7 @@ export interface Capture {
   path: string;
   width: number;
   height: number;
+  stale?: boolean; // the picture may be older than the window: a covered Chromium window keeps its last visible frame (measured)
 }
 
 /** Everything captured about one display at one instant. */

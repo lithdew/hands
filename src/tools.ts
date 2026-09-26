@@ -58,7 +58,10 @@ const KEYS = onWindows()
 const OPENS = onWindows()
   ? "Open a Windows application in a window of your own, behind the user's windows, and work in it from here on"
   : "Start a macOS application without bringing it forward, and work in its current window from here on";
-const SHELL_KEYS = onWindows() ? " Keys that act on the whole desktop (the Windows key, alt+tab, ctrl+escape, alt+f4) are never pressed." : "";
+const SHELL_KEYS = onWindows()
+  ? " Keys that act on the whole desktop (the Windows key, alt+tab, ctrl+escape, alt+f4) are never pressed. In a page, do not walk from control to " +
+    "control with `tab`: past the last one it reaches the browser's own toolbar, where `return` presses the browser's buttons."
+  : "";
 const SEAT_DESCRIPTION ="Borrow the user's real mouse and keyboard for this one action, once they pause: only when doing it from behind had no effect.";
 const BORROWED = " (borrowed the user's mouse and keyboard for a moment, and gave them back)";
 // Office takes posted characters badly (the first of a cell is lost, a formula's = with it), so its typing borrows the seat.
@@ -713,6 +716,10 @@ export function describe(screen: Screen, items: Item[]): string {
   if (screen.dialog) lines.push(`a dialog is open: ${repr(screen.dialog)}. It is what this capture shows, and the window behind it waits until it is answered or closed.`);
   if (screen.theirs) lines.push(`this ${screen.app} window is the user's own, not one of yours (${screen.app} opened no second window): act in it only as far as the task asks, and leave the rest of it as it is.`);
   if (screen.tabs) lines.push(`tabs: ${screen.tabs.count} (active: ${screen.tabs.active})`);
+  if (screen.image.stale) lines.push("the picture may be out of date: the window is covered, and its browser stops painting it there. Items with a role are read live; plain text may be old.");
+  // Notepad opens the tabs of its earlier sessions in a new window too (measured), and those are nobody's work of this task.
+  const tabs = items.filter((it) => it.role === "tab").length;
+  if (/^notepad$/i.test(screen.app) && tabs > 1) lines.push(`this window has ${tabs} tabs: Notepad reopens the tabs of earlier sessions, so any but the one you made may be the user's.`);
   if (screen.window && screen.windowId === undefined) {
     const [x, y, w, h] = screen.window.map(Math.round) as [number, number, number, number];
     lines.push(`window: x=${x - screen.origin[0]} y=${y - screen.origin[1]} w=${w} h=${h}`);

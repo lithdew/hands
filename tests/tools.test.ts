@@ -114,6 +114,15 @@ test("an app with no window left says to open it again", async () => {
   await expect(hands().call("open_app", { name: "TextEdit" })).rejects.toThrow("TextEdit has no window open");
 });
 
+test("a picture the platform says may be old is said to be, and so are a Notepad window's tabs from earlier sessions", async () => {
+  const tab = (label: string, x: number): AxNode => ({ role: "AXTab", label, x, y: 60, w: 100, h: 20, pressable: true, ref: { label } });
+  desk({ app: "Notepad", nodes: [tab("Untitled", 110), tab("notes from Tuesday.txt", 220)] });
+  spyOn(macos, "screenshotWindow").mockImplementation(async () => ({ path: picture, width: 800, height: 600, stale: true }));
+  const listing = await hands().call("open_app", { name: "Notepad" });
+  expect(listing).toContain("the picture may be out of date");
+  expect(listing).toContain("this window has 2 tabs: Notepad reopens the tabs of earlier sessions");
+});
+
 test("a field's current value is listed with it", async () => {
   desk({ nodes: [field("Search", 150, 80, { value: "flights to Tokyo" })] });
   const listing = await hands().call("open_app", { name: "TextEdit" });

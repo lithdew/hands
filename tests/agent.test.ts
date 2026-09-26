@@ -1,7 +1,10 @@
 import { expect, test } from "bun:test";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Agent, AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, StopReason, ToolResultMessage } from "@earendil-works/pi-ai";
-import { ending, managed, pruneScreens, staleCount, systemPrompt } from "../src/agent.ts";
+import { ending, logTo, managed, pruneScreens, staleCount, systemPrompt } from "../src/agent.ts";
 import type { Outcome } from "../src/tools.ts";
 
 const STUB = "[an earlier screen; call `screen` for the current one]";
@@ -231,6 +234,21 @@ test("close gives back what the hand opened, keeping the browser only when asked
     [false, "asked to"],
     [true, "asked to"],
   ]);
+});
+
+test("every line of the log starts with the time it was written", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hands-log-"));
+  try {
+    const record = logTo(folder);
+    record("[prompt] open the calculator");
+    record("[result] took=812ms Calculator, the window you are working in\n0 button 'Seven' @40,300");
+    const lines = readFileSync(join(folder, "agent.log"), "utf8").trimEnd().split("\n");
+    expect(lines).toHaveLength(3);
+    for (const line of lines) expect(line).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z /);
+    expect(lines[2]).toEndWith(" 0 button 'Seven' @40,300");
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
 });
 
 test("the prompt is one prompt: no modes, no flags, and every task ends with finish", () => {
