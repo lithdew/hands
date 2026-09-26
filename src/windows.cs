@@ -1077,16 +1077,22 @@ static class Uia
                     if (key != null && visited.Contains(key)) continue; // an island the window's own tree already reached
                 }
                 using (Request(Wanted, Automation.ControlViewCondition, true).Activate()) top = AutomationElement.FromHandle(root);
-                Walk(top, -1, false, hwnd, chromium, nodes, visited, cap, clock, ms, ref capped);
+                Walk(top, -1, false, hwnd, chromium, nodes, visited, cap, ref capped);
             }
             catch (Exception) { /* a child window with no provider, or one that went away */ }
         }
         return new Dictionary<string, object> { { "nodes", nodes }, { "capped", capped }, { "ms", clock.ElapsedMilliseconds } };
     }
 
-    static void Walk(AutomationElement el, int parent, bool inMenuBar, IntPtr root, bool chromium, List<object> nodes, HashSet<string> visited, int cap, Stopwatch clock, int ms, ref bool capped)
+    /**
+     * One window's tree, already fetched whole into the cache: walking it asks the app nothing more, so only the node cap
+     * stops it. The time the walk may take is spent fetching (see Tree), and is only looked at before another window's
+     * tree is fetched: a Save As dialog took 700 ms to fetch, and a clock looked at here gave it back with no nodes at
+     * all, every one of them already in hand (measured).
+     */
+    static void Walk(AutomationElement el, int parent, bool inMenuBar, IntPtr root, bool chromium, List<object> nodes, HashSet<string> visited, int cap, ref bool capped)
     {
-        if (nodes.Count >= cap || clock.ElapsedMilliseconds > ms) { capped = true; return; }
+        if (nodes.Count >= cap) { capped = true; return; }
         string key = Key(el);
         if (key != null && !visited.Add(key)) return;
         ControlType type = el.GetCachedPropertyValue(AutomationElement.ControlTypeProperty, true) as ControlType;
@@ -1116,7 +1122,7 @@ static class Uia
             if (value != label) node["value"] = value;
         }
         nodes.Add(node);
-        foreach (AutomationElement child in el.CachedChildren) Walk(child, id, type == ControlType.MenuBar, root, chromium, nodes, visited, cap, clock, ms, ref capped);
+        foreach (AutomationElement child in el.CachedChildren) Walk(child, id, type == ControlType.MenuBar, root, chromium, nodes, visited, cap, ref capped);
     }
 
     /** The element with the keyboard focus, wherever it is: role, label, placeholder (its help text), value and frame. */
@@ -2533,7 +2539,19 @@ static class Win
 
     [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr ctx);
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT p);
-    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll", EntryPoint = "GetForegroundWindow")] static extern IntPtr ForegroundAsSaid();
+    /**
+     * The window in front, as the top-level window it is part of. A WinUI app can hold the focus in a child window of
+     * its own, and the system then names that child as the foreground: with Notepad's Save As open, an invisible,
+     * empty InputSiteWindowClass inside Notepad's window was in front for seconds at a time (measured), which no list
+     * of windows has, so the hand never saw it as its own and never gave the user the keyboard back.
+     */
+    public static IntPtr GetForegroundWindow()
+    {
+        IntPtr front = ForegroundAsSaid();
+        IntPtr root = front == IntPtr.Zero ? IntPtr.Zero : GetAncestor(front, 2); // GA_ROOT: the window itself when it is not a child
+        return root == IntPtr.Zero ? front : root;
+    }
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool attach);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
