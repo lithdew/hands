@@ -47,8 +47,13 @@ export interface Cue {
 const REST_MS = 400; // how long a pose is held once its action is over, before the hand goes back to thinking
 const LABEL_CHARS = 30;
 
-/** A glide's length in time: brisk along a row of buttons, and never a crawl across a display. */
-export const glideMs = (from: Point, to: Point): number => Math.round(Math.min(520, Math.max(160, 120 + 0.45 * Math.hypot(to[0] - from[0], to[1] - from[1]))));
+/**
+ * A glide's length in time: brisk along a row of buttons, and never a crawl across a display. It is measured in points,
+ * so `perPoint` says how many of the subject's pixels make one: on the Mac they are points already, and on Windows
+ * they are physical pixels, one and a half to the point at 150%, as the renderer says (`listen`).
+ */
+export const glideMs = (from: Point, to: Point, perPoint = 1): number =>
+  Math.round(Math.min(520, Math.max(160, 120 + (0.45 * Math.hypot(to[0] - from[0], to[1] - from[1])) / perPoint)));
 
 /** A colour as the command line gives it: `4f8cff`, `#4f8cff`, `#48f`. Null for anything else. */
 export const tintOf = (hex: string): Tint | null => {
@@ -67,27 +72,40 @@ export const quote = (text: string): string => {
 let renderer: Bun.Subprocess<"pipe", "pipe", "inherit"> | null = null;
 const shyAcks: (() => void)[] = []; // who is waiting to hear that the hand is out of captures
 let riding = "";
+let size: Point = [0, 0]; // how big the subject was at the last look
 let last: Point = [0, 0];
+let perPoint = 1; // the subject's pixels to a point, as the renderer last said
 let resting: ReturnType<typeof setTimeout> | undefined;
 
 function send(cue: Cue): void {
+  const to = renderer;
+  if (!to) return;
+  const gone = () => renderer === to && (renderer = null); // the renderer is gone: the run carries on unseen
   try {
-    renderer?.stdin.write(`${JSON.stringify(cue)}\n`);
-    renderer?.stdin.flush();
-    if (renderer) hand.onCue?.(cue);
+    to.stdin.write(`${JSON.stringify(cue)}\n`);
+    const flushed = to.stdin.flush();
+    if (flushed instanceof Promise) flushed.catch(gone); // a write still under way when the renderer dies fails later, not here
+    hand.onCue?.(cue);
   } catch {
-    renderer = null; // the renderer is gone: the run carries on unseen
+    gone();
   }
 }
 
-/** What the renderer says back, a line at a time: an empty line once it is out of captures, `click` when the hand is clicked. */
+/**
+ * What the renderer says back, a line at a time: an empty line once it is out of captures, `click` when the hand is
+ * clicked, and `scale 1.5` when the display under the hand has that many pixels to a point (Windows only).
+ */
 async function listen(replies: ReadableStream<Uint8Array>): Promise<void> {
   let pending = "";
   const decoder = new TextDecoder();
   for await (const chunk of replies) {
     const lines = (pending + decoder.decode(chunk, { stream: true })).split("\n");
     pending = lines.pop() ?? "";
-    for (const line of lines) line === "click" ? hand.onClick?.() : shyAcks.shift()?.();
+    for (const line of lines) {
+      if (line === "click") hand.onClick?.();
+      else if (line.startsWith("scale ")) perPoint = Number(line.slice(6)) || 1;
+      else shyAcks.shift()?.();
+    }
   }
 }
 
@@ -97,14 +115,20 @@ export const hand = {
   onCue: null as ((cue: Cue) => void) | null,
   onClick: null as (() => void) | null,
 
-  /** Come on screen: top right of the main display, where the system says hello too. Without a colour the hand is the emoji's own yellow. */
+  /**
+   * Come on screen: top right of the main display, where the system says hello too. Without a colour the hand is the
+   * emoji's own yellow. In `hands live` on Windows (HANDS_SLOT is set) it shows first where it first looks instead:
+   * every hand would wave at the same spot, above everything, and that is where the panel's cards are.
+   */
   start(name: string, color?: Tint): void {
     const spawned = (renderer = Bun.spawn(rendererCommand(), { stdin: "pipe", stdout: "pipe", stderr: "inherit" }));
     spawned.unref();
     void listen(spawned.stdout).catch(() => {});
     void spawned.exited.then(() => renderer === spawned && (renderer = null));
-    const [x, y, width] = platform.displays()[0]?.frame ?? [0, 0, 1440, 900];
     riding = "";
+    perPoint = 1;
+    if (onWindows() && process.env.HANDS_SLOT !== undefined) return send({ name, color, pose: "wave", label: "" });
+    const [x, y, width] = platform.displays()[0]?.frame ?? [0, 0, 1440, 900];
     last = [width - 260, 150];
     send({ name, color, subject: { origin: [x, y] }, at: last, pose: "wave", label: "" });
   },
@@ -125,12 +149,14 @@ export const hand = {
     }
   },
 
-  /** The agent is about to read this window, or this display: ride on it, and look. */
+  /** The agent is about to read this window, or this display: ride on it, and look. A window that has changed size since is told so, and ridden as before. */
   look(subject: Subject, [width, height]: Point): void {
     if (!renderer) return;
     const key = String(subject.window ?? subject.origin);
     if (key !== riding) send({ subject, size: [width, height], at: (last = [width / 2, height / 2]) });
+    else if (width !== size[0] || height !== size[1]) send({ size: [width, height] });
     riding = key;
+    size = [width, height];
     void hand.cue("look", "looking");
   },
 
@@ -139,7 +165,7 @@ export const hand = {
     if (!renderer) return;
     clearTimeout(resting);
     if (at) {
-      const ms = glideMs(last, at);
+      const ms = glideMs(last, at, perPoint);
       send({ pose: pose === "draw" ? pose : "point", label, at: (last = at), ms }); // a pen stays a pen between strokes
       await Bun.sleep(ms);
     }
