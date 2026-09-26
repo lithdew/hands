@@ -544,6 +544,41 @@ test("before a capture, a covered Chromium window of the hand's own is slid unti
   windows.releaseDesktop();
 });
 
+test("a covered page that cannot be given a strip of screen is read from its accessibility tree, not from its old picture", async () => {
+  // The terminal (11) covers the whole screen, so no strip of the hand's Chrome window (46) can show.
+  const cover = { hwnd: 11, pid: 100, cls: "X", title: "", frame: DISPLAY, core: 0, exe: "WindowsTerminal.exe" };
+  const chrome = { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Example", frame: [100, 100, 1000, 700], core: 0, exe: "chrome.exe", caption: true };
+  let launched = false;
+  let front = { hwnd: 11, pid: 100 };
+  spyOn(process, "kill").mockImplementation(() => true);
+  const text = (id: number, label: string, frame: number[] | null) => ({ id, parent: -1, role: "AXStaticText", label, frame, actions: [] });
+  helper({
+    processes: [{ pid: 400, cmd: '"C:\\chrome.exe"' }],
+    windows: () => (launched ? [cover, chrome] : [cover]),
+    foreground: () => front,
+    launch: () => ((launched = true), (front = { hwnd: 46, pid: 400 }), { pid: 400 }),
+    activate: ({ hwnd }) => ((front = { hwnd: hwnd as number, pid: 100 }), { ok: true }),
+    move: { ok: true },
+    capture: { width: 1000, height: 700 },
+    reg: { value: null },
+    // Two runs of the page's text on screen, one scrolled out below the window, and a button that is not text.
+    tree: { nodes: [text(1, "Ada Lovelace", [150, 160, 200, 30]), text(2, "born 10 December 1815", [150, 300, 300, 20]), text(3, "References", [150, 2000, 100, 20]), { ...text(4, "Search", [900, 120, 60, 20]), role: "AXButton" }], capped: false },
+    ocr: () => {
+      throw new Error("an old picture is not read");
+    },
+  });
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  const shot = await windows.screenshotWindow(46, "w.png");
+  expect(shot.stale).toBe(true);
+  expect(windows.recognizeText("w.png")).toEqual([
+    ["Ada Lovelace", 1, [50, 60, 250, 90]],
+    ["born 10 December 1815", 1, [50, 200, 350, 220]],
+  ]);
+  expect(windows.recognizeText("w.png", [0, 150, 1000, 700])).toEqual([["born 10 December 1815", 1, [50, 200, 350, 220]]]); // a crop reads its part alone
+  windows.releaseDesktop();
+});
+
 test("staging moves a window into the cascade on HANDS_SCREEN, and does nothing without it", async () => {
   helper({ displays: [{ index: 0, frame: DISPLAY }, { index: 1, frame: [2560, 0, 1920, 1080] }], move: { ok: true } });
   const saved = { screen: process.env.HANDS_SCREEN, slot: process.env.HANDS_SLOT };
@@ -888,6 +923,20 @@ test("a navigation from behind that never goes is false, and a switch to a tab t
   await expect(windows.tabCommand("Google Chrome", "switch_tab", "45", 2, true)).rejects.toThrow("did not become the active tab");
   await expect(windows.openUrl("Google Chrome", "https://c.example/", { background: true, window: "99" })).rejects.toThrow("window is gone");
 }, 15_000); // it waits out the omnibox twice and the tab twice, as the real thing would
+
+test("a navigation that redirects is seen to go, though the page keeps its old URL a while and never shows it loading", async () => {
+  // As measured on a covered window: after Enter the document keeps the old URL, then has none, then the omnibox shows where the search redirected.
+  let steps = 0;
+  let typed = "";
+  const view = () => {
+    const after = steps > 0 ? steps++ : 0;
+    const [url, omniboxValue] = after === 0 ? [typed ? "https://en.wikipedia.org/wiki/Main_Page" : null, typed || "en.wikipedia.org/wiki/Main_Page"] : after < 4 ? ["https://en.wikipedia.org/wiki/Main_Page", "en.wikipedia.org/w/index.php?search=Ada+Lovelace"] : [null, after < 6 ? "en.wikipedia.org/w/index.php?search=Ada+Lovelace" : "en.wikipedia.org/wiki/Ada_Lovelace"]; // prettier-ignore
+    return { tabs: [{ title: "Wikipedia", active: true, frame: [200, 150, 200, 40], close: null }], url, omnibox: [438, 227, 545, 37], omniboxValue, buttons: {}, loading: false };
+  };
+  spyOn(process, "kill").mockImplementation(() => true);
+  helper({ processes: [{ pid: 400, cmd: '"C:\\chrome.exe"' }], windows: [{ hwnd: 45, pid: 400, cls: "Chrome_WidgetWin_1", title: "Wikipedia", frame: [0, 0, 1200, 800], core: 0, exe: "chrome.exe" }], browser: view, post: { ok: true }, chars: ({ text }) => ((typed = `${text}`), { ok: true }), vkey: ({ vk }) => (vk === 0x0d && (steps = 1), { ok: true }) }); // prettier-ignore
+  expect(await windows.openUrl("Google Chrome", "https://en.wikipedia.org/w/index.php?search=Ada+Lovelace", { background: true, window: "45", newTab: false })).toBe(true);
+});
 
 test("with no browser running there are no tabs and no URL, and nothing is launched to ask", async () => {
   helper({ processes: [] });

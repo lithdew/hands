@@ -1767,7 +1767,12 @@ async function browserWindow(browser: string, window?: WindowSelector): Promise<
 
 /** A view of one browser window as it is now. For a window of the hand's, how many tabs it had is remembered (see release). */
 function viewOf(hwnd: number): BrowserView {
-  const view = native.call("browser", { hwnd }) as BrowserView;
+  let view: BrowserView;
+  try {
+    view = native.call("browser", { hwnd }) as BrowserView;
+  } catch {
+    view = native.call("browser", { hwnd }) as BrowserView; // UI Automation's cache races a tab that has just opened (IndexOutOfRangeException): asked once more
+  }
   if (browserWindows.has(hwnd)) tabsSeen.set(hwnd, view.tabs.length);
   return view;
 }
@@ -1857,11 +1862,24 @@ async function navigateBehind(hwnd: number, url: string): Promise<boolean> {
   }
   if (!typed) return false;
   native.call("vkey", { hwnd, vk: 0x0d, direct: true });
+  // Measured on a covered window: after Enter the page's own URL stays the old one for over a second, then reads as
+  // none while the next page loads, and the toolbar never shows it loading. So the page has gone when its document
+  // lets go of the old URL, or shows another, or the omnibox shows neither the old URL nor the one typed (a redirect).
+  let seenOld = false;
   return until(() => {
     const now = viewOf(hwnd);
-    return now.loading || (now.url !== null && now.url !== was);
-  }, 2000);
+    if (now.loading) return true;
+    if (now.url !== null) {
+      if (plainUrl(now.url) !== plainUrl(was ?? "")) return true;
+      seenOld = true;
+      return false;
+    }
+    if (seenOld) return true;
+    const shown = plainUrl(fullUrl(now) ?? "");
+    return shown !== "" && shown !== plainUrl(was ?? "") && shown !== plainUrl(url);
+  }, NAVIGATE_MS);
 }
+const NAVIGATE_MS = 5000; // how long a page may take to show it has gone, after Enter
 
 /** The exe and the arguments that open `url` in the user's browser: its single instance takes them over and opens the window. After `--`, nothing is read as a switch. */
 const browserCommand = (browser: string, url: string, newWindow: boolean, starting = false) => {
@@ -2123,6 +2141,9 @@ export async function screenshot(display: Display, path: string): Promise<Captur
 
 const REPAINT_MS = 300; // how long a page given a strip of screen takes to paint again
 const stale = new Set<number>(); // windows whose latest capture may be an old picture (see captureMayBeStale)
+const staleShots = new Map<string, { windowId: number; origin: Point; size: Point }>(); // such a capture, by its path, and where its window lay: its text is read from the page (see pageText)
+const PAGE_TEXT_NODES = 3000;
+const PAGE_TEXT_MS = 1500;
 
 /**
  * One window as a PNG, cropped to its visible frame. DWM renders it whole even when other windows cover it; a
@@ -2142,7 +2163,33 @@ export async function screenshotWindow(windowId: number, path: string): Promise<
   const reply = native.call("capture", { hwnd: windowId, path, format: "png" }) as { width: number; height: number; gone?: boolean };
   if (reply.gone) throw new Error("the window is gone; look again");
   if (entry?.iconic && isOwn(entry, list)) native.call("sink", { hwnd: rootOf(entry, list).hwnd });
+  for (const [shot, of] of staleShots) if (of.windowId === windowId || shot === path) staleShots.delete(shot);
+  if (stale.has(windowId) && entry) staleShots.set(path, { windowId, origin: [entry.frame[0], entry.frame[1]], size: [reply.width, reply.height] });
   return { path, width: reply.width, height: reply.height, ...(stale.has(windowId) ? { stale: true } : {}) };
+}
+
+/**
+ * The text of a page whose picture may be old, read from its accessibility tree instead, which the browser keeps
+ * current whether or not the window shows: each run of text with its rectangle in the capture's pixels, as OCR gives
+ * it, for what lies in the capture (and in `rect`, when one is given). Nothing when the tree cannot be read.
+ */
+function pageText({ windowId, origin: [ox, oy], size: [width, height] }: { windowId: number; origin: Point; size: Point }, rect?: Box): OcrLine[] {
+  let reply: { nodes: TreeNode[] };
+  try {
+    reply = native.call("tree", { hwnd: windowId, cap: PAGE_TEXT_NODES, ms: PAGE_TEXT_MS }) as { nodes: TreeNode[] };
+  } catch {
+    return [];
+  }
+  const [rx1, ry1, rx2, ry2] = rect ?? [0, 0, width, height];
+  const lines: OcrLine[] = [];
+  for (const node of reply.nodes) {
+    if (node.role !== "AXStaticText" || !node.label || !node.frame) continue;
+    const [x, y, w, h] = node.frame;
+    const box: Box = [x - ox, y - oy, x - ox + w, y - oy + h];
+    const [cx, cy] = [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2];
+    if (cx >= rx1 && cy >= ry1 && cx < rx2 && cy < ry2) lines.push([node.label, 1, box]);
+  }
+  return lines;
 }
 
 /** Whether the latest capture of a window may show an old picture: a Chromium page covered on every side, which could not be given a strip of screen. Its accessibility items are current all the same. */
@@ -2159,6 +2206,8 @@ export function captureAt(path: string): Capture {
  * knows a crop happened. The engine reports no confidence, so every line is 1.
  */
 export function recognizeText(path: string, rect?: Box): OcrLine[] {
+  const shot = staleShots.get(path);
+  if (shot) return pageText(shot, rect); // an old picture's text would be old too: the page says what it holds now
   const [x1, y1] = rect ? rect.map(Math.round) : [0, 0];
   const lines = native.call("ocr", { path, rect: rect?.map(Math.round) }) as [string, number, Box][];
   return lines.map(([text, confidence, [bx1, by1, bx2, by2]]) => [text, confidence, [x1! + bx1, y1! + by1, x1! + bx2, y1! + by2]]);

@@ -875,7 +875,7 @@ export function describe(screen: Screen, items: Item[]): string {
     lines.push(`this ${screen.app} window is the user's own, not one of yours (${why}): act in it only as far as the task asks, and leave the rest of it as it is.`);
   }
   if (screen.tabs) lines.push(`tabs: ${screen.tabs.count} (active: ${screen.tabs.active})`);
-  if (screen.image.stale) lines.push("the picture may be out of date: the window is covered, and its browser stops painting it there. Items with a role are read live; plain text may be old.");
+  if (screen.image.stale) lines.push("the screenshot may be out of date: the window is covered, and its browser stops painting it there. This listing is read from the page itself and is current; trust it over the picture.");
   // Notepad opens the tabs of its earlier sessions in a new window too (measured), and those are nobody's work of this task.
   const tabs = items.filter((it) => it.role === "tab").length;
   if (/^notepad$/i.test(screen.app) && tabs > 1) lines.push(`this window has ${tabs} tabs: Notepad reopens the tabs of earlier sessions, so any but the one you made may be the user's.`);

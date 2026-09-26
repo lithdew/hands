@@ -129,7 +129,8 @@ test("a picture the platform says may be old is said to be, and so are a Notepad
   desk({ app: "Notepad", nodes: [tab("Untitled", 110), tab("notes from Tuesday.txt", 220)] });
   spyOn(macos, "screenshotWindow").mockImplementation(async () => ({ path: picture, width: 800, height: 600, stale: true }));
   const listing = await hands().call("open_app", { name: "Notepad" });
-  expect(listing).toContain("the picture may be out of date");
+  expect(listing).toContain("the screenshot may be out of date");
+  expect(listing).toContain("This listing is read from the page itself and is current");
   expect(listing).toContain("this window has 2 tabs: Notepad reopens the tabs of earlier sessions");
 });
 

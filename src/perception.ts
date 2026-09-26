@@ -247,7 +247,8 @@ export async function ocrLines(screen: Screen, cache?: OcrCache): Promise<[lines
   const region = ocrRegion(screen);
   const area = Math.max(1, screen.image.width * screen.image.height);
   const readPct = (rects: Box[]) => (100 * rects.reduce((sum, rect) => sum + areaOf(rect), 0)) / area;
-  if (!cache) return [ocrCrop(screen.image, region), readPct([region]), 0];
+  // A picture that may be old never changes, so a cache would keep its first text for good: its text is read afresh (on Windows, from the page itself).
+  if (!cache || screen.image.stale) return [ocrCrop(screen.image, region), readPct([region]), 0];
 
   const readRegion = (): [Line[], number, number] => {
     const lines = ocrCrop(screen.image, region);
