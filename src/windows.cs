@@ -173,6 +173,7 @@ static class Program
             case "launch": return Launch(Str("file"), Str("args"), Has("show") ? Int("show") : 4);
             case "activate": { bool ok = Activate(Hwnd()); return new Dictionary<string, object> { { "ok", ok }, { "foreground", Win.GetForegroundWindow().ToInt64() } }; }
             case "move": return Move();
+            case "unmaximize": return Unmaximize();
             case "park": return Parking.Park(Hwnd());
             case "unpark": return Parking.Unpark(Hwnd(), Bool("keep"));
             case "show": Win.ShowWindow(Hwnd(), Win.IsIconic(Hwnd()) ? 4 : 8); return Ok();
@@ -367,6 +368,15 @@ static class Program
         return Win.GetForegroundWindow() == hwnd;
     }
 
+    /** A maximized window made an ordinary one, at x, y, w, h, without activating it: restored (SW_SHOWNOACTIVATE), then placed. */
+    static object Unmaximize()
+    {
+        IntPtr h = Hwnd();
+        if (Win.IsZoomed(h)) Win.ShowWindow(h, 4);
+        bool ok = Win.SetWindowPos(h, IntPtr.Zero, Int("x"), Int("y"), Int("w"), Int("h"), 0x0004 | 0x0010); // NOZORDER | NOACTIVATE
+        return new Dictionary<string, object> { { "ok", ok && !Win.IsZoomed(h) } };
+    }
+
     static object Move()
     {
         uint flags = 0x0004 | 0x0010; // NOZORDER | NOACTIVATE
@@ -497,7 +507,7 @@ static class Desk
             outp.Add(new Dictionary<string, object> {
                 { "hwnd", h.ToInt64() }, { "pid", e.pid }, { "cls", cls }, { "title", e.title },
                 { "frame", new object[] { r.L, r.T, r.R - r.L, r.B - r.T } }, { "core", e.core.ToInt64() }, { "cloaked", cloaked != 0 },
-                { "owner", Win.GetWindow(h, 4).ToInt64() }, { "enabled", Win.IsWindowEnabled(h) }, { "iconic", iconic },
+                { "owner", Win.GetWindow(h, 4).ToInt64() }, { "enabled", Win.IsWindowEnabled(h) }, { "iconic", iconic }, { "zoomed", !iconic && Win.IsZoomed(h) },
                 { "caption", (style & 0x00C00000L) == 0x00C00000L }, { "popup", (style & 0x80000000L) != 0 },
                 { "exe", process[0] }, { "package", process[1] },
             });
@@ -2562,6 +2572,7 @@ static class Win
     [DllImport("user32.dll")] public static extern bool IsChild(IntPtr parent, IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool GetWindowPlacement(IntPtr hwnd, ref WINDOWPLACEMENT p);

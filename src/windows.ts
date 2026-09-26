@@ -542,6 +542,7 @@ interface WindowEntry {
   owner?: number; // the window that owns it (a dialog's, its window's); 0 for none
   enabled?: boolean; // false under a modal dialog
   iconic?: boolean; // minimized
+  zoomed?: boolean; // maximized
   caption?: boolean; // has a title bar
   popup?: boolean; // a bare popup (WS_POPUP): with no title bar, a splash screen or a flyout
   exe?: string; // its process's executable, "EXCEL.EXE"
@@ -2058,6 +2059,7 @@ async function openWindowAlone(browser: string, url: string): Promise<PinnedWind
   // user's screen to that desktop and back (measured), and a browser window is brought forward by every posted click.
   adopt(opened.windowId, opened.pid);
   browserWindows.set(opened.windowId, opened.pid);
+  unmaximize(opened.windowId);
   try {
     viewOf(opened.windowId); // its tabs counted from the start: a link of the user's can land in it before the hand first looks
   } catch {
@@ -2065,6 +2067,27 @@ async function openWindowAlone(browser: string, url: string): Promise<PinnedWind
   }
   if (!process.env.HANDS_SCREEN && (await browserUnoccluded(browser))) park(opened.windowId);
   return opened;
+}
+
+/**
+ * A browser window of the hand's that opened maximized (the browser opens a new window as the last one was) is made an
+ * ordinary one, most of its screen's size, where it is. Maximized, it covers the whole screen behind the user's
+ * windows, where it can be neither given a strip of screen nor parked, and Chrome stops drawing its page (measured: a
+ * blank page, which the clicker could do nothing with). Nothing here throws.
+ */
+function unmaximize(windowId: number): void {
+  try {
+    const entry = windowList().find((w) => w.hwnd === windowId);
+    if (!entry?.zoomed) return;
+    const [cx, cy] = [entry.frame[0] + entry.frame[2] / 2, entry.frame[1] + entry.frame[3] / 2];
+    const screen = displays().find(({ frame: [x, y, w, h] }) => cx >= x && cy >= y && cx < x + w && cy < y + h) ?? displays()[0];
+    if (!screen) return;
+    const [x, y, w, h] = screen.frame;
+    const [width, height] = [Math.round(w * 0.62), Math.round(h * 0.78)];
+    native.call("unmaximize", { hwnd: windowId, x: x + Math.round((w - width) / 2), y: y + Math.round((h - height) / 3), w: width, h: height });
+  } catch {
+    // the window went away, or the helper would not: it is read as it is
+  }
 }
 
 /** A browser window's view when it is one (it has an omnibox, which a profile picker has not), else null. */
