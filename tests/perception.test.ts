@@ -1,6 +1,11 @@
-import { expect, test } from "bun:test";
+import { expect, mock, spyOn, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import sharp from "sharp";
 import { type Item, item } from "../src/models.ts";
-import { goalEchoes, isEcho, type Line, mergeBlocks, mergeSources, onCapture, orderItems, pageTop, stillAs, type Thumb, toAxItems, toItems } from "../src/perception.ts";
+import { bare, goalEchoes, isEcho, type Line, mergeBlocks, mergeSources, onCapture, orderItems, pageTop, stillAs, type Thumb, thumbnail, toAxItems, toItems } from "../src/perception.ts";
+import * as windows from "../src/windows.ts";
 import { screen } from "./helpers.ts";
 
 const line = (text: string, x1: number, y1: number, x2: number, y2: number, conf = 1): Line => [text, conf, [x1, y1, x2, y2]];
@@ -169,6 +174,17 @@ test("two glances are alike unless a patch of them changed", () => {
   after.data.fill(255, 0, 64 * 8); // the top rows lit: a banner came down
   expect(stillAs(after, before)).toBe(false);
   expect(stillAs(grey(64, 32), before)).toBe(false); // the window was resized
+});
+
+test("a glance of one grey under its top eighth is bare, as a page is before its first paint; a few lines on it are not", () => {
+  const grey = (width: number, height: number, value = 250): Thumb => ({ data: new Uint8Array(width * height).fill(value), width, height });
+  const page = grey(40, 40);
+  expect(bare(page)).toBe(true);
+  page.data.fill(0, 0, 40 * 5); // the browser's toolbar, above the page: it does not count
+  expect(bare(page)).toBe(true);
+  page.data.fill(60, 40 * 20, 40 * 20 + 80); // two rows of text: 5% of the page
+  expect(bare(page)).toBe(false);
+  expect(bare({ data: new Uint8Array(1), width: 1, height: 1 })).toBe(true); // a window that draws nothing
 });
 
 test("order items renumbers rows then columns", () => {

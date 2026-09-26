@@ -908,6 +908,7 @@ export function releaseDesktop(): void {
   parked.clear();
   tabsSeen.clear();
   touchedAt.clear();
+  countedAt.clear();
   unsettled.clear();
   frontBefore = 0;
   givenUp.clear();
@@ -1833,6 +1834,7 @@ function viewOf(hwnd: number): BrowserView {
     if (seen !== undefined && view.tabs.length > seen && !unsettled.has(hwnd)) giveUp(hwnd);
     else {
       tabsSeen.set(hwnd, view.tabs.length);
+      countedAt.set(hwnd, performance.now());
       if (performance.now() - (touchedAt.get(hwnd) ?? Number.NEGATIVE_INFINITY) >= SETTLE_MS) unsettled.delete(hwnd);
     }
   }
@@ -1895,6 +1897,26 @@ export async function browserUrl(browser: string, window?: WindowSelector): Prom
   return at ? fullUrl(at.view) : null;
 }
 
+/** What one read of a browser window says of its page: where it is, whether it is loading, and the window's tabs. */
+export interface BrowserPage {
+  url: string | null;
+  loading: boolean;
+  tabs: Tab[];
+}
+
+/**
+ * One window's page, its loading state and its tabs, all from one read of that window alone (browserTabs reads every
+ * window of the browser, which in the user's browser is all of theirs). What a look at the hand's own window asks.
+ * Null when the window is gone, or the browser is not running.
+ */
+export async function browserPage(browser: string, window: WindowSelector): Promise<BrowserPage | null> {
+  const at = await browserWindow(browser, window).catch(() => null);
+  if (!at) return null;
+  const url = fullUrl(at.view);
+  const tabs = at.view.tabs.map((tab, t) => ({ scripted: String(at.hwnd), window: at.index + 1, tab: t + 1, active: tab.active, title: tab.title, url: tab.active ? (url ?? "") : "" }));
+  return { url, loading: at.view.loading, tabs };
+}
+
 /** A posted click at the center of a frame in a browser window: it lands there whether or not the window is in front, which it then is for a moment (see guarded). */
 async function postClick(hwnd: number, frame: Frame, count = 1): Promise<void> {
   const [x, y] = [Math.round(frame[0] + frame[2] / 2), Math.round(frame[1] + frame[3] / 2)];
@@ -1911,15 +1933,18 @@ async function postClick(hwnd: number, frame: Frame, count = 1): Promise<void> {
 }
 
 /**
- * Navigate one window from behind: a click selects the omnibox's whole text, and the URL replaces it, as characters
- * posted to the browser's window itself (whose own focus is then the omnibox; its thread's focus can be in the user's
- * window, or in the page). Enter goes only once the omnibox holds exactly the URL: the characters are typed once more
- * when it does not, and a suggestion the browser completed it with is deleted. True once the page has gone: its URL
- * changed, or it started loading, within two seconds.
+ * Navigate one window from behind: a triple click selects the omnibox's whole text, and the URL replaces it, as
+ * characters posted to the browser's window itself (whose own focus is then the omnibox; its thread's focus can be in
+ * the user's window, or in the page). One click selects it all only when the omnibox is not focused yet: in a window
+ * just opened it can be, and the URL went in at the caret, after the old one (measured: a new window's first
+ * navigation failed three times of three). Enter goes only once the omnibox holds exactly the URL: the characters are
+ * typed once more when it does not, and a suggestion the browser completed it with is deleted. True once the page has
+ * gone: its URL changed, or it started loading, within two seconds. `read` is a read of the window just made, which
+ * saves one here.
  */
-async function navigateBehind(hwnd: number, url: string): Promise<boolean> {
-  let view: BrowserView | null = null;
-  if (!(await until(() => Boolean((view = viewOf(hwnd)).omnibox), 3000))) return false;
+async function navigateBehind(hwnd: number, url: string, read?: BrowserView): Promise<boolean> {
+  let view: BrowserView | null = read?.omnibox ? read : null;
+  if (!view && !(await until(() => Boolean((view = viewOf(hwnd)).omnibox), 3000))) return false;
   const was = fullUrl(view!);
   if (was !== null && plainUrl(was) === plainUrl(url)) return true; // already there: typing it again would only reload it, and the URL would not change to say so
   const holds = () => {
@@ -1930,7 +1955,7 @@ async function navigateBehind(hwnd: number, url: string): Promise<boolean> {
   };
   let typed = false;
   for (let attempt = 0; attempt < 2 && !typed; attempt++) {
-    await postClick(hwnd, viewOf(hwnd).omnibox ?? view!.omnibox!);
+    await postClick(hwnd, (attempt > 0 ? viewOf(hwnd).omnibox : null) ?? view!.omnibox!, 3); // where it was a moment ago, the first time
     native.call("chars", { hwnd, text: url, direct: true });
     typed = await until(holds, 1500);
   }
@@ -1984,15 +2009,18 @@ export async function openUrl(
   }
   const at = options.newWindow ? null : await browserWindow(browser, options.window);
   if (!at) throw new Error(`that ${browser} window is gone: open a new one`);
+  let read: BrowserView | undefined = at.view; // handed on to the navigation, which would otherwise read the window again at once
   if (options.tab !== undefined) {
     const tab = at.view.tabs[options.tab - 1];
     if (tab?.frame) await postClick(at.hwnd, tab.frame);
+    read = undefined;
   } else if (fresh && at.view.buttons["New Tab"]) {
     const tabs = at.view.tabs.length;
     await postClick(at.hwnd, at.view.buttons["New Tab"]);
-    await until(() => viewOf(at.hwnd).tabs.length > tabs, 1500); // typed into the new tab's omnibox, not the old one's
+    read = undefined;
+    await until(() => (read = viewOf(at.hwnd)).tabs.length > tabs, 1500); // typed into the new tab's omnibox, not the old one's
   }
-  return navigateBehind(at.hwnd, href);
+  return navigateBehind(at.hwnd, href, read);
 }
 
 const SEAT_QUIET_MS = 600; // how long an opening's watch of the seat must see nothing take it before the opening goes on, the watch behind it
@@ -3069,7 +3097,9 @@ export function isGivenUp(windowId: number): boolean {
 }
 
 const SETTLE_MS = 3000; // how long after the hand's input into its window a tab of its own may still come
+const RECOUNT_MS = 300; // a settled window whose tabs were counted this lately is not counted again before input goes into it
 const touchedAt = new Map<number, number>(); // when the hand last sent input into each browser window of its
+const countedAt = new Map<number, number>(); // when each browser window of the hand's last had its tabs counted
 const unsettled = new Set<number>(); // browser windows the hand has sent input into whose tabs have not been counted since, SETTLE_MS on
 let frontBefore = 0; // the window in front at the watcher's last look
 
@@ -3123,6 +3153,7 @@ function giveUp(hwnd: number): void {
   browserWindows.delete(hwnd);
   tabsSeen.delete(hwnd);
   touchedAt.delete(hwnd);
+  countedAt.delete(hwnd);
   unsettled.delete(hwnd);
   seenBehind.delete(hwnd);
   inFront.set(hwnd, performance.now());
@@ -3137,12 +3168,13 @@ function giveUp(hwnd: number): void {
 /**
  * Before anything is sent into a window: LINK_LANDED, when it is a browser window of the hand's that a link of the
  * user's has landed in. A settled window's tabs are counted first, since a link that the browser could only flash on
- * the taskbar lands with nothing in front to say so. The window is then unsettled by the input (touch).
+ * the taskbar lands with nothing in front to say so, unless they were counted a moment ago (RECOUNT_MS: a navigation
+ * reads the window just before its click on the omnibox). The window is then unsettled by the input (touch).
  */
 function refuseTheirs(hwnd: number): void {
   if (browserWindows.has(hwnd)) {
     watchLinks();
-    if (!givenUp.has(hwnd) && !unsettled.has(hwnd)) countTabs(hwnd);
+    if (!givenUp.has(hwnd) && !unsettled.has(hwnd) && !(performance.now() - (countedAt.get(hwnd) ?? Number.NEGATIVE_INFINITY) < RECOUNT_MS)) countTabs(hwnd);
   }
   if (givenUp.has(hwnd)) throw new Error(LINK_LANDED);
   touch(hwnd);

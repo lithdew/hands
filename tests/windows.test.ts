@@ -1036,9 +1036,10 @@ test("the browser's tabs, URL and loading state are read off its windows, and a 
   expect(await windows.browserUrl("Google Chrome", "45")).toBe("https://flights.example.com");
   expect(await windows.browserLoading("Google Chrome")).toBe(false);
   expect(await windows.browserLoading("Google Chrome", 2)).toBe(true);
-  // Behind: a tab is navigated by a click on the omnibox, the URL as characters to the window itself, and Enter; nothing is activated.
+  // Behind: a tab is navigated by a triple click on the omnibox, the URL as characters to the window itself, and Enter; nothing is activated.
   expect(await windows.openUrl("Google Chrome", "https://example.com/", { background: true, window: "45", newTab: false })).toBe(true);
-  expect(asked("post").map((a) => [a.hwnd, a.kind, a.x, a.y])).toEqual([[45, "move", 711, 246], [45, "down", 711, 246], [45, "up", 711, 246]]);
+  const click = (kind: string) => [45, kind, 711, 246];
+  expect(asked("post").map((a) => [a.hwnd, a.kind, a.x, a.y])).toEqual([click("move"), click("down"), click("up"), click("down"), click("up"), click("down"), click("up")]); // the whole of what it holds selected, focused or not
   expect(asked("chars")).toEqual([{ hwnd: 45, text: "https://example.com/", direct: true }]);
   expect(asked("vkey")).toEqual([{ hwnd: 45, vk: 0x0d, direct: true }]);
   expect(asked("guard")).toEqual([{ begin: true, hwnd: 45, sink: false }, { hwnd: 45, sink: false }]); // the click brings Chrome forward for a moment, and it goes straight back
@@ -1047,6 +1048,37 @@ test("the browser's tabs, URL and loading state are read off its windows, and a 
   expect(await windows.tabCommand("Google Chrome", "close_tab", "44", 1, true)).toBe("Inbox | ");
   expect(asked("post").at(-1)).toEqual({ hwnd: 44, kind: "up", x: 390, y: 170 });
   expect(asked("activate")).toEqual([]);
+});
+
+test("a look at one browser window reads that window alone, once, for its URL, loading state and tabs; a navigation clicks the omnibox where the read that found the window saw it", async () => {
+  let typed = "";
+  const view = (hwnd: number) => ({
+    tabs: [{ title: hwnd === 44 ? "The user's mail" : "Flights", active: true, frame: [200, 150, 200, 40], close: null }, ...(hwnd === 45 ? [{ title: "Hotels", active: false, frame: [400, 150, 200, 40], close: null }] : [])],
+    url: hwnd === 45 && !typed ? "https://flights.example.com/" : null, omnibox: [438, 227, 545, 37], omniboxValue: hwnd === 45 && typed ? typed : "flights.example.com", buttons: {}, loading: hwnd === 45 && typed !== "",
+  }); // prettier-ignore
+  spyOn(process, "kill").mockImplementation(() => true);
+  helper({
+    processes: [{ pid: 400, cmd: '"C:\\chrome.exe"' }],
+    windows: [{ hwnd: 44, pid: 400, cls: "Chrome_WidgetWin_1", title: "Mail - Google Chrome", frame: [0, 0, 1200, 800], core: 0, exe: "chrome.exe" }, { hwnd: 45, pid: 400, cls: "Chrome_WidgetWin_1", title: "Flights - Google Chrome", frame: [50, 50, 1200, 800], core: 0, exe: "chrome.exe" }],
+    browser: ({ hwnd }) => view(hwnd as number),
+    post: { ok: true },
+    chars: ({ text }) => ((typed = `${text}`), { ok: true }),
+    vkey: { ok: true },
+  });
+  expect(await windows.browserPage("Google Chrome", "45")).toEqual({
+    url: "https://flights.example.com/",
+    loading: false,
+    tabs: [
+      { scripted: "45", window: 2, tab: 1, active: true, title: "Flights", url: "https://flights.example.com/" },
+      { scripted: "45", window: 2, tab: 2, active: false, title: "Hotels", url: "" },
+    ],
+  });
+  expect(asked("browser")).toEqual([{ hwnd: 45 }]); // never the user's window 44, whose tabs are theirs
+  expect(await windows.browserPage("Google Chrome", "99")).toBeNull();
+  calls = [];
+  expect(await windows.openUrl("Google Chrome", "https://example.com/", { background: true, window: "45", newTab: false })).toBe(true);
+  const order = calls.map(([c]) => c).filter((c) => c === "browser" || c === "post" || c === "chars");
+  expect(order.slice(0, 3)).toEqual(["browser", "post", "post"]); // the read that found the window, and straight to the click
 });
 
 test("a navigation from behind that never goes is false, and a switch to a tab that never becomes active is an error", async () => {

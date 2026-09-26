@@ -560,6 +560,30 @@ test("a link of the user's that the browser could only flash on the taskbar is f
   expect(quiet).toHaveBeenCalledTimes(1);
 });
 
+test("a settled window of the hand's has its tabs counted before input goes into it, unless a read counted them a moment ago", async () => {
+  const state = { tabs: 1, front: { hwnd: 11, pid: 100 } };
+  const window = linkBrowser(state);
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/"); // its one tab counted as it opens
+  const target = { pid: 400, windowId: 46, frame: window.chrome.frame, web: true };
+  const start = performance.now();
+  const clock = spyOn(performance, "now").mockImplementation(() => start + 1000);
+  const readsBeforeClick = () => calls.slice(0, calls.findIndex(([c]) => c === "post")).filter(([c]) => c === "browser").length;
+  try {
+    calls = [];
+    await windows.windowPointer(target, [[100, 100]]);
+    expect(readsBeforeClick()).toBe(1); // counted a second ago: counted again
+    clock.mockImplementation(() => start + 5000);
+    await windows.browserTabs("Google Chrome"); // a look, past the click's SETTLE_MS: it settles the window, and counts its tabs
+    calls = [];
+    await windows.windowPointer(target, [[120, 100]]);
+    expect(readsBeforeClick()).toBe(0); // counted just now: not again
+  } finally {
+    clock.mockRestore();
+  }
+  expect(windows.isGivenUp(46)).toBe(false);
+});
+
 test("a hand whose process ends without a close still puts back what it had out: its parked windows come back on screen, kept", async () => {
   let launched = 0;
   let chrome = { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Example - Google Chrome", frame: [50, 60, 1200, 800] as Frame, core: 0, exe: "chrome.exe", caption: true };

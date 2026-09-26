@@ -1930,7 +1930,9 @@ static class Input
             if (c == '\n') Key(target, 0x0D);
             else if (c == '\t') Key(target, 0x09);
             else if (c != '\r') Win.PostMessage(target, 0x0102, new IntPtr(c), new IntPtr(1));
-            Thread.Sleep(12);
+            // A page's field is given its characters a beat apart, as a person types them; the omnibox takes them all at
+            // once (a URL of 42 characters cost 690 ms at 16 a character, measured), and Bun reads back what it holds.
+            if (!direct) Thread.Sleep(12);
         }
         return new Dictionary<string, object> { { "ok", true }, { "target", target.ToInt64() } };
     }

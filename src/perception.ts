@@ -308,6 +308,7 @@ export async function thumbnail(image: Capture, divisor = THUMB_DIVISOR): Promis
 
 const GLANCE_PX = 320; // the long side of a glance: enough to see a page change, small enough to take every 150 ms
 const GLANCE_TILE = 32; // glance pixels per side of the patches compared
+const BARE_SHARE = 0.96; // how much of a glance one grey takes up before it is taken for a page not painted yet (see bare)
 const BLANK: Thumb = { data: new Uint8Array(1), width: 1, height: 1 };
 
 /**
@@ -333,6 +334,20 @@ export async function glance(windowId: number, scratch: string): Promise<Thumb |
 /** Two glances show the same picture: the same size, and no patch of it changed past the tile threshold. */
 export const stillAs = (now: Thumb, before: Thumb): boolean =>
   now.width === before.width && now.height === before.height && changedTiles(now, before, tilesIn([0, 0, now.width, now.height], GLANCE_TILE), 1).length === 0;
+
+/**
+ * Whether a glance shows next to nothing under its top eighth (a browser's toolbar): all but 4% of it within a few
+ * levels of one grey, as a page is between its address changing and its first paint (a blank page between two others
+ * came to 97.8% and to 99.0%, and example.com, a few lines in a box, to 94.0%: measured). A window that draws nothing
+ * (BLANK) is bare.
+ */
+export function bare(thumb: Thumb): boolean {
+  const levels = new Uint32Array(64);
+  const from = Math.floor(thumb.height / 8) * thumb.width;
+  for (let i = from; i < thumb.data.length; i++) levels[thumb.data[i]! >> 2]!++;
+  const total = thumb.data.length - from;
+  return total <= 0 || Math.max(...levels) >= BARE_SHARE * total;
+}
 
 /** The region cut into tiles aligned to its own origin. The last row and column are short. */
 export function tilesIn(region: Box, tile = TILE_PX): Box[] {
