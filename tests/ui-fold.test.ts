@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { arrange, folded, order, SIZE, type Shape, tall, unfolded } from "../src/ui/fold.ts";
+import { arrange, folded, lines, order, SIZE, type Shape, tall, unfolded } from "../src/ui/fold.ts";
 import type { Status } from "../src/ui/state.ts";
 
 const hand = (id: string, status: Status, since: number, viewing = false) => ({ id, status, since, viewing });
@@ -19,6 +19,34 @@ test("a picture is as tall as the column makes it, and a tall window's no taller
   expect(tall({ ratio: 320 / 520, words: false }, 180)).toBe(180);
   expect(tall({ ratio: null, words: false })).toBe(SIZE.brief);
   expect(unfolded(WIDE)).toBe(SIZE.strip + SIZE.rule + 235 + SIZE.pad + 3 * SIZE.line);
+});
+
+test("a finished hand unfolds as a receipt, never a full picture, and working hands get the room", () => {
+  // Its answer, five lines at most, beside a small picture; with neither, its header alone.
+  expect(unfolded(WIDE, MOST, { status: "done" })).toBe(SIZE.strip + SIZE.pad + SIZE.receipt * SIZE.line);
+  expect(unfolded({ ...WIDE, lines: 1 }, MOST, { status: "failed" })).toBe(SIZE.strip + SIZE.pad + SIZE.mini);
+  expect(unfolded({ ratio: null, words: true, lines: 2 }, MOST, { status: "done" })).toBe(SIZE.strip + SIZE.pad + 2 * SIZE.line);
+  expect(unfolded({ ratio: 1.6, words: false }, MOST, { status: "stopped" })).toBe(SIZE.strip + SIZE.pad + SIZE.mini);
+  expect(unfolded({ ratio: null, words: false }, MOST, { status: "stopped" })).toBe(SIZE.strip);
+  // A hand still at work keeps its picture.
+  expect(unfolded(WIDE, MOST, { status: "working" })).toBe(unfolded(WIDE));
+  // Two done and one at work, with room for the receipts and a middling picture: the picture takes the rest.
+  const hands = [hand("lefty", "done", 1), hand("righty", "working", 2), hand("thumbs", "done", 3)];
+  const short: Shape = { ratio: 16 / 10, words: true, lines: 1 };
+  const receipt = SIZE.strip + SIZE.pad + SIZE.mini;
+  const room = BASE + 3 * SIZE.gap + 2 * receipt + SIZE.strip + SIZE.rule + 200 + SIZE.pad + SIZE.line;
+  const layout = arrange(hands, new Map(hands.map((one) => [one.id, short])), room, null);
+  expect([...layout.unfolded].sort()).toEqual(["lefty", "righty", "thumbs"]);
+  expect(layout.picture).toBe(200);
+});
+
+test("the lines words take are counted long: a line breaks between words, so it holds fewer than fit", () => {
+  expect(lines("", 30)).toBe(0);
+  expect(lines("Done.", 30)).toBe(1);
+  expect(lines("a".repeat(31), 30)).toBe(2);
+  expect(lines("Opened Notepad and wrote the haiku:\nLunch waits in warm light\nA quiet bowl, a shared pause\nAfternoon begins", 28)).toBe(5);
+  expect(folded({ status: "done" }, { ...WIDE, lines: 1 })).toBe(SIZE.strip + SIZE.pad + SIZE.line);
+  expect(unfolded({ ...WIDE, lines: 1 })).toBe(SIZE.strip + SIZE.rule + 235 + SIZE.pad + SIZE.line);
 });
 
 test("folded, a hand at work is its header; one that has stopped keeps two lines of what came of it", () => {

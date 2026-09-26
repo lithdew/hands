@@ -480,9 +480,38 @@ html:not(.windows) [data-cmd="show"] {
 
 /* what it is doing, or what came of it: the clamp is on the words, so no half line shows in the padding */
 .now {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
   padding: 8px 13px 10px;
   background: var(--ink);
   color: var(--sheet);
+}
+.text {
+  flex: 1;
+  min-width: 0;
+}
+/* over: a receipt, the answer first and the window's last picture small beside it; its big picture folds away */
+.mini {
+  display: none;
+}
+.card.receipt .fold {
+  grid-template-rows: 0fr;
+}
+.card.receipt .mini[src] {
+  display: block;
+  flex: none;
+  width: 112px;
+  height: 70px;
+  object-fit: cover;
+  object-position: top left;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1.5px var(--glove);
+  filter: contrast(0.97); /* as the big picture: no pixel of it is ever the key colour */
+  cursor: zoom-in;
+}
+.card.receipt .said {
+  -webkit-line-clamp: 5;
 }
 .said {
   margin: 0;

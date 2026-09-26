@@ -9,7 +9,7 @@
 
 import { build, busy, type Card, elapsed, frame, paint, part, says, track, write } from "./card.ts";
 import { extra, level, speak } from "./dock.ts";
-import { arrange, finished, order, type Shape } from "./fold.ts";
+import { arrange, finished, lines, order, type Shape } from "./fold.ts";
 import { deal, glide, sweep, where } from "./motion.ts";
 import { anew, closes } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, ServerMessage } from "./state.ts";
@@ -23,6 +23,10 @@ const dock = document.getElementById("dock") as HTMLElement;
 const windows = /Windows/.test(navigator.userAgent);
 document.documentElement.classList.toggle("windows", windows);
 const CLOSE_KEY = windows ? "Ctrl+W" : "⌘W";
+
+// How many characters of a card's words fit on a line, counted short: across the card, and beside a receipt's picture.
+const CARD_CHARS = 44;
+const RECEIPT_CHARS = 28;
 
 const cards = new Map<string, Card>();
 const logs = new Map<string, LogEntry[]>();
@@ -134,7 +138,9 @@ function update(): void {
     if (card) track(card, hand); // first: a picture of a window the hand has left may go, and change the card's shape
     // A picture's shape is the last frame's; before the first, the window's own, when the hand has one.
     const ratio = card?.url ? card.ratio : hand.size ? hand.size[0] / hand.size[1] : null;
-    shapes.set(hand.id, { ratio, words: says(hand) !== "" });
+    const said = says(hand);
+    // A receipt's words stand beside its small picture, where fewer of them fit on a line.
+    shapes.set(hand.id, { ratio, words: said !== "", lines: lines(said, finished(hand.status) && card?.url ? RECEIPT_CHARS : CARD_CHARS) });
   }
   const layout = arrange(hands, shapes, room - extra(), open);
   // Crowded past folding: the column stops at the room and the cards scroll inside it, so the top ones stay reachable.

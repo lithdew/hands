@@ -6,6 +6,7 @@
  * came from the hand, and so often from a web page, is set as text, never as HTML.
  */
 
+import { finished } from "./fold.ts";
 import { ms, settle } from "./motion.ts";
 import { sight } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, Status } from "./state.ts";
@@ -61,7 +62,7 @@ const sentence = (text: string): string => text.charAt(0).toUpperCase() + text.s
 
 export function build(id: string, act: (message: ClientMessage) => void, toggle: (id: string) => void, closeKey: string): Card {
   const root = (template.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
-  const card: Card = { id, root, view: null, frames: [...root.querySelectorAll("img")], url: "", frame: 0, ratio: null, of: undefined, clock: "", leaving: false };
+  const card: Card = { id, root, view: null, frames: [...root.querySelectorAll<HTMLImageElement>(".screen img")], url: "", frame: 0, ratio: null, of: undefined, clock: "", leaving: false };
   for (const selector of ["header", ".fold", ".tell"]) part(card, selector).addEventListener("click", () => toggle(id));
   part(card, ".close-key").textContent = closeKey;
   part<HTMLFormElement>(card, "form").addEventListener("submit", (event) => {
@@ -119,9 +120,13 @@ export function paint(card: Card, hand: HandView, place: { folded: boolean; bare
 
   const said = says(hand);
   put(part(card, ".said"), said);
-  root.classList.toggle("quiet", !said || place.open || place.bare || (place.folded && busy(hand) && !hand.seat));
+  // Over, and unfolded: a receipt, its answer first and a small picture of its window beside it.
+  const receipt = finished(hand.status) && !place.folded && !place.open;
+  root.classList.toggle("receipt", receipt);
+  root.classList.toggle("quiet", !(said || (receipt && shown(card))) || place.open || place.bare || (place.folded && busy(hand) && !hand.seat));
   put(part(card, ".brief"), hand.task);
   picture(card);
+  mini(card);
 
   const allowed = CONTROLS[hand.status];
   for (const button of root.querySelectorAll<HTMLButtonElement>(".controls button[data-cmd]")) {
@@ -136,6 +141,15 @@ export function paint(card: Card, hand: HandView, place: { folded: boolean; bare
 
 /** Whether the card has a picture of its hand's window to show: the last good frame, even when the window has stopped drawing. */
 const shown = (card: Card): boolean => card.url !== "";
+
+/** A receipt's small picture: the frame in front, the same one the big picture shows. */
+function mini(card: Card): void {
+  const image = part<HTMLImageElement>(card, ".mini");
+  const url = card.root.classList.contains("receipt") ? card.url : "";
+  if (image.getAttribute("src") === (url || null)) return;
+  if (url) image.src = url;
+  else image.removeAttribute("src");
+}
 
 /** Keeps the picture honest about which window it is of (rules.ts, sight): a frame of a window the hand has left goes, and the task stands in its place. */
 export function track(card: Card, hand: HandView): void {
@@ -152,6 +166,7 @@ function forget(card: Card): void {
   card.url = "";
   card.ratio = null;
   card.of = undefined;
+  mini(card);
 }
 
 /** The picture, or the task where it will be; a quiet word over the last good frame when the window is not drawing; and the hand, where it is. */
@@ -209,6 +224,7 @@ export async function frame(card: Card, jpeg: Uint8Array<ArrayBuffer>): Promise<
   const old = card.url;
   card.frames = [back, front];
   card.url = url;
+  mini(card); // before the last frame is let go of
   if (first && card.view) picture(card);
   if (!reshaped) await back.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ms(120), easing: "linear" }).finished.catch(() => {});
   URL.revokeObjectURL(old);
