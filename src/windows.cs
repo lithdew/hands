@@ -1432,31 +1432,33 @@ static class Uia
 
     static readonly AutomationProperty[] BrowserWanted = { AutomationElement.NameProperty, AutomationElement.ControlTypeProperty, AutomationElement.BoundingRectangleProperty, SelectionItemPattern.IsSelectedProperty, ValuePattern.ValueProperty, AutomationElement.IsValuePatternAvailableProperty };
 
-    /**
-     * What a Chromium window shows of itself: its tabs (title, selected, frame, close button), the active page's URL
-     * from the Document's value, the omnibox, the toolbar buttons, and whether it is loading (the reload button reads Stop).
-     */
-    public static object Browser(IntPtr hwnd)
+    /** The browser's own controls, and the page: what a read of its toolbar keeps, the rest of the tree between them left out. */
+    static readonly Condition BrowserParts = new OrCondition(
+        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TabItem), new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button),
+        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit), new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Document));
+
+    /** What one read of a Chromium window's own controls finds, gathered as the read goes. */
+    class BrowserRead
     {
-        Condition filter = new OrCondition(
-            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TabItem), new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button),
-            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit), new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Document));
-        AutomationElement top;
-        using (Request(BrowserWanted, filter, true).Activate()) top = AutomationElement.FromHandle(hwnd);
-        List<object> tabs = new List<object>();
-        Dictionary<string, object> buttons = new Dictionary<string, object>();
-        string url = null;
-        object[] omnibox = null;
-        string omniboxValue = "";
-        bool loading = false;
-        List<AutomationElement> queue = new List<AutomationElement>();
-        queue.Add(top);
-        for (int i = 0; i < queue.Count; i++)
+        public readonly List<object> tabs = new List<object>();
+        public readonly Dictionary<string, object> buttons = new Dictionary<string, object>();
+        public string url; // the page's own
+        public string anyUrl; // any other page's, a side panel's say: the URL when the page gives none
+        public object[] omnibox;
+        public string omniboxValue = "";
+        public bool loading;
+
+        /**
+         * One control, and, unless it is a tab or a page, what its cached children hold: a tab's close button is taken with
+         * it, and a page's own tabs and buttons are not the browser's. `page` is where the window shows its page: the
+         * Document over its middle is the page, and gives the URL.
+         */
+        public void Take(AutomationElement el, System.Windows.Rect page, List<AutomationElement> queue)
         {
-            AutomationElement el = queue[i];
             ControlType type = el.GetCachedPropertyValue(AutomationElement.ControlTypeProperty, true) as ControlType;
             string name = Clean(Text(el, AutomationElement.NameProperty));
-            object[] frame = FrameOf(el.GetCachedPropertyValue(AutomationElement.BoundingRectangleProperty, true));
+            object box = el.GetCachedPropertyValue(AutomationElement.BoundingRectangleProperty, true);
+            object[] frame = FrameOf(box);
             if (type == ControlType.TabItem)
             {
                 object[] close = null;
@@ -1466,7 +1468,7 @@ static class Uia
                 }
                 int cut = name.IndexOf(" - Memory usage - ", StringComparison.Ordinal);
                 tabs.Add(new Dictionary<string, object> { { "title", cut > 0 ? name.Substring(0, cut) : name }, { "active", Flag(el, SelectionItemPattern.IsSelectedProperty) }, { "frame", frame }, { "close", close } });
-                continue; // the close button was taken above
+                return; // the close button was taken above
             }
             if (type == ControlType.Button && frame != null)
             {
@@ -1476,22 +1478,146 @@ static class Uia
             else if (type == ControlType.Edit && name == "Address and search bar") { omnibox = frame; omniboxValue = Text(el, ValuePattern.ValueProperty); }
             else if (type == ControlType.Document)
             {
-                if (url == null && Flag(el, AutomationElement.IsValuePatternAvailableProperty)) { string v = Text(el, ValuePattern.ValueProperty); if (v.Length > 0) url = v; }
-                continue; // the page's own tabs and buttons are not the browser's
+                string v = Flag(el, AutomationElement.IsValuePatternAvailableProperty) ? Text(el, ValuePattern.ValueProperty) : "";
+                bool over = box is System.Windows.Rect && !page.IsEmpty && ((System.Windows.Rect)box).Contains(new System.Windows.Point(page.X + page.Width / 2, page.Y + page.Height / 2));
+                if (v.Length > 0 && over && url == null) url = v;
+                else if (v.Length > 0 && anyUrl == null) anyUrl = v;
+                return; // the page's own tabs and buttons are not the browser's
             }
-            foreach (AutomationElement kid in el.CachedChildren) queue.Add(kid);
+            if (queue != null) foreach (AutomationElement kid in el.CachedChildren) queue.Add(kid);
         }
-        // A window whose page tree is not on yet has no Document with a value; touching the render widget's window switches it on.
+
+        public object Reply()
+        {
+            return new Dictionary<string, object> { { "tabs", tabs }, { "url", url ?? anyUrl }, { "omnibox", omnibox }, { "omniboxValue", omniboxValue }, { "buttons", buttons }, { "loading", loading } };
+        }
+    }
+
+    /** Where a Chromium window shows its page, on screen: its largest visible render widget. False when it has none. */
+    static bool PageRect(IntPtr root, out System.Windows.Rect page)
+    {
+        Win.RECT best = new Win.RECT();
+        long area = 0;
+        Win.EnumChildWindows(root, delegate (IntPtr c, IntPtr l)
+        {
+            if (!Win.IsWindowVisible(c) || Desk.ClassOf(c) != "Chrome_RenderWidgetHostHWND") return true;
+            Win.RECT r;
+            Win.GetWindowRect(c, out r);
+            long a = (long)(r.R - r.L) * (r.B - r.T);
+            if (a > area) { area = a; best = r; }
+            return true;
+        }, IntPtr.Zero);
+        page = area > 0 ? new System.Windows.Rect(best.L, best.T, best.R - best.L, best.B - best.T) : System.Windows.Rect.Empty;
+        return area > 0;
+    }
+
+    /**
+     * What a Chromium window shows of itself: its tabs (title, selected, frame, close button), the active page's URL
+     * from the Document's value, the omnibox, the toolbar buttons, and whether it is loading (the reload button reads Stop).
+     *
+     * Read around the page: the page's tree is the bulk of the window's, and nothing the browser shows of itself lies
+     * in it (a long article's thousands of nodes made a whole read cost 210 to 310 ms; a read around the page costs 35
+     * to 60, measured). So the tree is fetched a level at a time down the parts that lie over the page, and each part
+     * that lies clear of it (the tab strip, the toolbar, the window's buttons) whole, in one fetch; the page's Document
+     * gives its URL without its descendants. The levels over the page are read in the control view, so a button the
+     * browser keeps out of it there (a hidden side panel's, a closed vertical tab strip's) is not read, where a whole
+     * read found it. A window with no page to go round, or whose read around it finds no omnibox, is read whole.
+     */
+    public static object Browser(IntPtr hwnd)
+    {
+        System.Windows.Rect page;
+        if (PageRect(hwnd, out page))
+        {
+            try
+            {
+                BrowserRead around = Around(hwnd, page);
+                if (around.omnibox != null) return Finish(hwnd, around);
+            }
+            catch (Exception) { /* a part that went away under the read, or a tree shaped otherwise: read it whole */ }
+        }
+        return Whole(hwnd);
+    }
+
+    const int AroundDepth = 16; // levels down the parts over the page: Chrome's page lies 7 down (measured)
+
+    static BrowserRead Around(IntPtr hwnd, System.Windows.Rect page)
+    {
+        BrowserRead read = new BrowserRead();
+        CacheRequest level = Request(BrowserWanted, Automation.ControlViewCondition, false);
+        level.TreeScope = TreeScope.Element | TreeScope.Children;
+        CacheRequest part = Request(BrowserWanted, BrowserParts, true);
+        AutomationElement top;
+        using (level.Activate()) top = AutomationElement.FromHandle(hwnd);
+        List<AutomationElement> spine = new List<AutomationElement>();
+        List<int> depths = new List<int>();
+        spine.Add(top);
+        depths.Add(0);
+        for (int i = 0; i < spine.Count; i++)
+        {
+            AutomationElement el = spine[i];
+            read.Take(el, page, null);
+            foreach (AutomationElement kid in el.CachedChildren)
+            {
+                ControlType type = kid.GetCachedPropertyValue(AutomationElement.ControlTypeProperty, true) as ControlType;
+                object box = kid.GetCachedPropertyValue(AutomationElement.BoundingRectangleProperty, true);
+                bool over = box is System.Windows.Rect && Overlap((System.Windows.Rect)box, page);
+                if (type == ControlType.Document) { read.Take(kid, page, null); continue; } // the page, or a page of the browser's own: its URL, never its tree
+                if (over && depths[i] < AroundDepth)
+                {
+                    spine.Add(kid.GetUpdatedCache(level));
+                    depths.Add(depths[i] + 1);
+                    continue;
+                }
+                // Clear of the page (or with no place at all): everything the browser has there, in one fetch.
+                AutomationElement whole = kid.GetUpdatedCache(part);
+                List<AutomationElement> queue = new List<AutomationElement>();
+                queue.Add(whole);
+                for (int j = 0; j < queue.Count; j++) read.Take(queue[j], page, queue);
+            }
+        }
+        return read;
+    }
+
+    /** Whether two rectangles share some area, not only an edge. */
+    static bool Overlap(System.Windows.Rect a, System.Windows.Rect b)
+    {
+        System.Windows.Rect both = System.Windows.Rect.Intersect(a, b);
+        return !both.IsEmpty && both.Width > 0 && both.Height > 0;
+    }
+
+    /** The window's tree fetched whole, as it was read before the read around the page. */
+    static object Whole(IntPtr hwnd)
+    {
+        System.Windows.Rect page;
+        PageRect(hwnd, out page);
+        AutomationElement top;
+        using (Request(BrowserWanted, BrowserParts, true).Activate()) top = AutomationElement.FromHandle(hwnd);
+        BrowserRead read = new BrowserRead();
+        List<AutomationElement> queue = new List<AutomationElement>();
+        queue.Add(top);
+        for (int i = 0; i < queue.Count; i++) read.Take(queue[i], page, queue);
+        return Finish(hwnd, read);
+    }
+
+    /** The read as Bun takes it, with the page's URL from its render widget when the page's tree is not on yet. */
+    static object Finish(IntPtr hwnd, BrowserRead read)
+    {
+        string url = read.url ?? read.anyUrl;
+        // A window whose page tree is not on yet has no Document with a value; touching the render widget's window switches it
+        // on. Only its nearest Documents are fetched: the page under them is the bulk of the tree (a loading article's cost
+        // a read 150 ms, measured), and the page's URL is its Document's.
         if (url == null)
         {
             List<IntPtr> children = new List<IntPtr>();
             Win.EnumChildWindows(hwnd, delegate (IntPtr c, IntPtr l) { if (Desk.ClassOf(c) == "Chrome_RenderWidgetHostHWND") children.Add(c); return true; }, IntPtr.Zero);
+            CacheRequest nearest = Request(BrowserWanted, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Document), false);
+            nearest.TreeScope = TreeScope.Element | TreeScope.Children;
             foreach (IntPtr child in children)
             {
                 try
                 {
                     AutomationElement island;
-                    using (Request(BrowserWanted, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Document), true).Activate()) island = AutomationElement.FromHandle(child);
+                    using (nearest.Activate()) island = AutomationElement.FromHandle(child);
                     List<AutomationElement> docs = new List<AutomationElement>();
                     docs.Add(island);
                     for (int i = 0; i < docs.Count && url == null; i++)
@@ -1505,7 +1631,8 @@ static class Uia
                 if (url != null) break;
             }
         }
-        return new Dictionary<string, object> { { "tabs", tabs }, { "url", url }, { "omnibox", omnibox }, { "omniboxValue", omniboxValue }, { "buttons", buttons }, { "loading", loading } };
+        read.url = url;
+        return read.Reply();
     }
 
     // ------------------------------------------------------------ menus and scrolling
