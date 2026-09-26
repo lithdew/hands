@@ -73,7 +73,7 @@ test("one streaming call: the searches as they run, the pages it opens, then the
   const found = await webAnswer("What is the weather in Hong Kong today?", { client, onQuery: (query) => queries.push(query), onPage: (url) => pages.push(url) });
   expect(queries).toEqual(["weather Hong Kong today", "Hong Kong weather warning"]);
   expect(pages).toEqual(["https://www.hko.gov.hk/en/wxinfo/fnd.htm"]);
-  expect(found.text).toBe("It is **26°C** and sunny in Hong Kong this afternoon.\n\nA Very Hot Weather Warning is in force; see the Observatory's forecast for the week.");
+  expect(found.text).toBe("It is 26°C and sunny in Hong Kong this afternoon.\n\nA Very Hot Weather Warning is in force; see the Observatory's forecast for the week.");
   expect(found.sources).toEqual([
     { title: "Current Weather", url: "https://www.hko.gov.hk/en/wxinfo/currwx/current.htm" },
     { title: "9-day Weather Forecast", url: "https://www.hko.gov.hk/en/wxinfo/fnd.htm" },
@@ -161,6 +161,17 @@ test("a hand is offered the web only with a key to search with, and lookups not 
   expect(webReady()).toBe(true);
   process.env.HANDS_WEB = "off";
   expect(webReady()).toBe(false);
+});
+
+test("plain: Markdown's bold, italics, headings and bullets go, and numbers, dates, sums and names with marks in them stay", () => {
+  expect(plain("About **14,303,513 people** lived there on 1 July 2024.")).toBe("About 14,303,513 people lived there on 1 July 2024.");
+  expect(plain("**14,303,513 people**")).toBe("14,303,513 people");
+  expect(plain("It is *about* 3 km, or two miles, _roughly_.")).toBe("It is about 3 km, or two miles, roughly.");
+  expect(plain("## Opening hours\n\n- Mon to Fri: 09:00-18:00\n* Sat: 10:00-14:00\n  + Sun: closed")).toBe("Opening hours\n\nMon to Fri: 09:00-18:00\nSat: 10:00-14:00\nSun: closed");
+  expect(plain("1. Open Settings\n2. Choose *Display*")).toBe("1. Open Settings\n2. Choose Display");
+  expect(plain("2 * 3 * 4 = 24, and 5*6 is 30; my_var_name and __init__ stay.")).toBe("2 * 3 * 4 = 24, and 5*6 is 30; my_var_name and __init__ stay.");
+  expect(plain("-5 °C tonight, and 2024-07-01 is a date.")).toBe("-5 °C tonight, and 2024-07-01 is a date.");
+  expect(plain("***Very*** important.")).toBe("Very important.");
 });
 
 test("plain: a citation in brackets goes, several in one pair too, a link in a sentence keeps its words, and a URL with brackets in it is one URL", () => {
