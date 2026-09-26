@@ -2657,7 +2657,7 @@ const primed = new Map<number, string>(); // Chromium windows of the hand's whos
 const unlifted = new Map<number, { address: string; lifts: number }>(); // lifts that brought no page back, for the address they were made at
 const LIFTS_PER_PAGE = 2; // a page that stays blank through this many lifts (about:blank, a page with nothing on it) is not lifted again
 const LIFT_POLL_MS = 100;
-const LIFT_POLL_CAP_MS = 500; // how long a lifted window is read again for its page to come up: Chrome may not notice at once that it shows
+const LIFT_POLL_CAP_MS = 500; // how long a page a lift did not bring up is read again, behind the user's windows, for a tree Chrome began while it showed
 const PRIME_NODES = 600; // enough of a tree to reach past the browser's toolbar into the page
 const PAGE_ROLES = new Set(["AXStaticText", "AXLink", "AXTextField", "AXTextArea", "AXComboBox", "AXCheckBox", "AXRadioButton", "AXRow", "AXCell", "AXImage"]);
 const OMNIBOX = /^address and search bar$/i;
@@ -2677,20 +2677,32 @@ function pageShown(nodes: TreeNode[]): boolean {
 }
 
 /**
- * A read of a window of the hand's held over the user's windows for a moment, topmost and without activation, which is
- * what makes Chrome build a page's tree (measured: 54 ms, the seat untouched); read again every LIFT_POLL_MS until the
- * page comes up or LIFT_POLL_CAP_MS pass; and put back behind their windows.
+ * One read of a window of the hand's held over the user's windows for a moment, topmost and without activation, which
+ * is what makes Chrome build a page's tree (measured: 54 ms, the seat untouched), and put back behind their windows.
+ * The lift lasts that one read and no longer: a click of the user's in that moment would land in the hand's page, and
+ * the pause it waits for (FLASH_QUIET_MS) was sized for a moment this short, as a guarded click's is.
  */
 function liftedRead(hwnd: number, read: () => TreeReply): TreeReply {
   native.call("topmost", { hwnd, on: true });
   try {
-    let reply = read();
-    for (const end = performance.now() + LIFT_POLL_CAP_MS; !pageShown(reply.nodes) && performance.now() < end; reply = read()) Bun.sleepSync(LIFT_POLL_MS);
-    return reply;
+    return read();
   } finally {
     native.call("topmost", { hwnd, on: false });
     native.call("sink", { hwnd }); // NOTOPMOST would leave it over the user's windows: back behind them
   }
+}
+
+/**
+ * A page its lift's one read did not bring up, read again as it lies every LIFT_POLL_MS until it comes up or
+ * LIFT_POLL_CAP_MS pass: Chrome may have begun its tree while the window showed and send it on after. Nothing is over
+ * the user's windows meanwhile, and the seat's lock is not held.
+ */
+function awaitPage(reply: TreeReply, read: () => TreeReply): TreeReply {
+  for (const end = performance.now() + LIFT_POLL_CAP_MS; !pageShown(reply.nodes) && performance.now() < end; ) {
+    Bun.sleepSync(LIFT_POLL_MS);
+    reply = read();
+  }
+  return reply;
 }
 
 /** A lift's result kept: the address a page came back at, or one more lift that brought none. */
@@ -2712,17 +2724,20 @@ function liftFor(hwnd: number, address: string): boolean {
 
 /**
  * Show a page of the hand's that reads as blank to its browser (the clicker, src/runner.ts): its window is lifted over
- * the user's for a moment, once they pause, whether or not it was lifted before, and its tree read until the page comes
- * up. True when the page's own nodes came back. False, having done nothing, for a window that is not a browser window
- * of the hand's own or is on the hand's own desktop, and when the user did not pause.
+ * the user's for one read, once they pause, whether or not it was lifted before, and its tree read again behind their
+ * windows for a moment until the page comes up. True when the page's own nodes came back, and, having done nothing,
+ * for a window that shows already (the user may be watching it): the browser draws that page, and neither a lift nor a
+ * borrow would show it any more. False, having done nothing, for a window that is not a browser window of the hand's
+ * own or is on the hand's own desktop, and when the user did not pause.
  */
 export function primePage(windowId: number): boolean {
   const list = windowList();
   const window = list.find((w) => w.hwnd === windowId);
   if (!window || !window.cls.startsWith("Chrome_WidgetWin") || window.cloaked || !isOwn(window, list)) return false;
+  if (showing(windowId)) return true;
   const read = () => native.call("tree", { hwnd: windowId, cap: PRIME_NODES }) as TreeReply;
   try {
-    const reply = pausedSync(() => liftedRead(windowId, read), "showing the page to the browser");
+    const reply = awaitPage(pausedSync(() => liftedRead(windowId, read), "showing the page to the browser"), read);
     const shown = pageShown(reply.nodes);
     lifted(windowId, addressIn(reply.nodes), shown);
     return shown;
@@ -2779,12 +2794,12 @@ function tidy(found: AxNode[], tree: Map<number, TreeNode>, window: WindowEntry 
  * cut the walk short. `display` is the captured display's frame. The window named by id is walked alone, wherever it
  * sits in the stack; without one, the app's front-most window. Chrome builds a page's tree only once the page has
  * shown, so a covered Chromium window of the hand's own whose page reads with no tree (it loaded unseen, or was
- * navigated to) is lifted (without activation) and read until its page comes up (see liftedRead), once per address that
- * a lift brings a page back at. Never a window of the user's, and not one on the hand's own
- * desktop (a lift shows nothing there, and a browser is only taken there when it needs none). The lifted window lies
- * over the user's for the walk, where their click would land in it: so the lift waits, a moment, for the user to pause,
- * under the seat's lock, and when they do not, the page is read without it (and looked at again next time). A field's
- * value comes with it, when the helper read one.
+ * navigated to) is lifted (without activation) for one read (see liftedRead), and read again behind the user's windows
+ * for a moment when that read came too early (awaitPage), once per address that a lift brings a page back at. Never a
+ * window of the user's, and not one on the hand's own desktop (a lift shows nothing there, and a browser is only taken
+ * there when it needs none). The lifted window lies over the user's for the walk, where their click would land in it:
+ * so the lift waits, a moment, for the user to pause, under the seat's lock, and when they do not, the page is read
+ * without it (and looked at again next time). A field's value comes with it, when the helper read one.
  */
 export function actionableElements(pid: number, display: Frame, options: WalkOptions<number> & { windowId?: number } = {}): [AxNode[], AxNode[], boolean] {
   const { windowId, ...walk } = options;
@@ -2800,7 +2815,7 @@ export function actionableElements(pid: number, display: Frame, options: WalkOpt
   if (web && window !== undefined && !window.cloaked && isOwn(window, list) && !pageShown(reply.nodes) && liftFor(hwnd, addressIn(reply.nodes)) && !showing(hwnd)) {
     const address = addressIn(reply.nodes);
     try {
-      reply = pausedSync(() => liftedRead(hwnd, read), "the first read of the page", FLASH_QUIET_MS, LIFT_WAIT_MS);
+      reply = awaitPage(pausedSync(() => liftedRead(hwnd, read), "the first read of the page", FLASH_QUIET_MS, LIFT_WAIT_MS), read);
       lifted(hwnd, address, pageShown(reply.nodes));
     } catch (error) {
       if (!(error instanceof SeatBusy)) throw error; // the user is busy: read as it lies, and lifted another time
