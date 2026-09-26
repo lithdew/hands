@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Agent, AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, StopReason, ToolResultMessage } from "@earendil-works/pi-ai";
-import { ending, keptOpen, letGo, logTo, managed, pruneScreens, scrubbed, staleCount, systemPrompt } from "../src/agent.ts";
+import { ending, keptOpen, letGo, logTo, managed, prestartHelper, pruneScreens, scrubbed, staleCount, systemPrompt } from "../src/agent.ts";
+import { onWindows } from "../src/platform.ts";
 import type { Outcome } from "../src/tools.ts";
 
 const STUB = "[an earlier screen; call `screen` for the current one]";
@@ -400,4 +401,21 @@ test("the Windows prompt says what Windows does", () => {
   expect(prompt).toContain("They reach your window wherever it lies");
   expect(prompt).not.toContain("slid until a strip of it shows");
   expect(prompt).toContain("Never press a second time a button that sends");
+});
+
+test("the Windows helper is started once, a moment after the first request to the model goes, and a failure there throws nothing", async () => {
+  const started: number[] = [];
+  const early = prestartHelper(() => void started.push(performance.now()));
+  const asked = performance.now();
+  early();
+  early();
+  expect(started).toEqual([]); // not in the request's way: after it
+  await Bun.sleep(120);
+  expect(started.length).toBe(onWindows() ? 1 : 0);
+  if (onWindows()) expect(started[0]! - asked).toBeGreaterThanOrEqual(40);
+  const failing = prestartHelper(() => {
+    throw new Error("no helper");
+  });
+  failing();
+  await Bun.sleep(80); // nothing thrown out of the timer
 });

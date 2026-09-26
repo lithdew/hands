@@ -204,11 +204,32 @@ export function scrubbed(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return Object.fromEntries(Object.entries(env).filter(([name]) => !SECRET.test(name)));
 }
 
+/**
+ * On Windows the helper takes about 1.2 s to start, and blocks while it does (src/windows.ts Helper). Started just after
+ * the first request to the model is on its way, it starts while the model thinks, instead of when the first action
+ * asks for it. Nothing here throws: an action that finds no helper starts one as before.
+ */
+export function prestartHelper(start: () => void = () => void windows.native.call("foreground")): () => void {
+  let done = !onWindows();
+  return () => {
+    if (done) return;
+    done = true;
+    setTimeout(() => {
+      try {
+        start();
+      } catch {
+        // the first action starts it, and says why if it cannot
+      }
+    }, 50);
+  };
+}
+
 export async function createAgent(options: { cwd: string; runDir: string; model?: string; thinking?: string }) {
   mkdirSync(options.cwd, { recursive: true });
   mkdirSync(options.runDir, { recursive: true });
   if (process.env.TYPESAFE_API_KEY) warm(jevClient()); // Jev's connection opened while the hand starts: a first clicker step on a cold one waits half a second more
   const models = await runtime();
+  const helperEarly = prestartHelper();
   const shell = { bash: { spawnHook: (spawn: BashSpawnContext): BashSpawnContext => ({ ...spawn, env: scrubbed(spawn.env) }) } };
   const agent: Agent = new Agent({
     initialState: {
@@ -218,7 +239,10 @@ export async function createAgent(options: { cwd: string; runDir: string; model?
       tools: [...createCodingTools(options.cwd, shell), ...computerTools({ runDir: options.runDir, cwd: options.cwd, onAbort: () => agent.abort(), writer: await makeWriter() })],
     },
     streamFn: models.streamSimple.bind(models),
-    onPayload,
+    onPayload: (payload) => {
+      helperEarly();
+      return onPayload(payload);
+    },
     transformContext: async (messages) => pruneScreens(messages),
     sessionId: crypto.randomUUID(),
   });
