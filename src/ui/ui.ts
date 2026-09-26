@@ -128,7 +128,9 @@ function update(): void {
   const shapes = new Map<string, Shape>();
   for (const hand of hands) {
     const card = cards.get(hand.id);
-    shapes.set(hand.id, { ratio: card?.url ? card.ratio : null, words: says(hand) !== "" });
+    // A picture's shape is the last frame's; before the first, the window's own, when the hand has one.
+    const ratio = card?.url ? card.ratio : hand.size ? hand.size[0] / hand.size[1] : null;
+    shapes.set(hand.id, { ratio, words: says(hand) !== "" });
   }
   const layout = arrange(hands, shapes, room - extra(), open);
   for (const [index, hand] of order(hands).entries()) {

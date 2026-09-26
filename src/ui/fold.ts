@@ -13,6 +13,8 @@ export const SIZE = {
   column: 380, // a card's width, its border included
   strip: 46, // a folded card: its header in its border
   gap: 10, // under each card
+  edge: 20, // the column's own margin, above and below: room for the shadows and the listening ring
+  rule: 2, // the line over a picture
   line: 20, // a line of a card's words
   pad: 18, // above and below those words
   picture: [150, 240], // a picture on a card whose sheet is not out: at 240 a landscape window fills the width, and it shrinks as far as 150 before a card stays folded for want of room
@@ -26,8 +28,8 @@ export const SIZE = {
 export const finished = (status: Status): boolean => status === "done" || status === "failed" || status === "stopped";
 const busy = (status: Status): boolean => status === "working" || status === "starting";
 
-/** Which hands want the room most: one that needs you, then the ones at work, then one waiting to go on. */
-const ATTENTION: Record<Status, number> = { needs_you: 0, working: 1, starting: 1, paused: 2, failed: 3, done: 4, stopped: 5 };
+/** Which hands want the room most: one that needs you, then the ones at work (a picture before a task still waiting for one), then one waiting to go on. */
+const ATTENTION: Record<Status, number> = { needs_you: 0, working: 1, starting: 2, paused: 3, failed: 4, done: 5, stopped: 6 };
 
 /** Top to bottom: the hands that need you, then the rest in the order they were sent out, so the newest stands by the dock. */
 export const order = <T extends Pick<HandView, "status">>(hands: T[]): T[] => [...hands.filter((hand) => hand.status === "needs_you"), ...hands.filter((hand) => hand.status !== "needs_you")];
@@ -45,7 +47,7 @@ export const tall = (shape: Shape, most: number = SIZE.picture[1]): number => (s
 export const folded = (hand: Pick<HandView, "status">, shape: Shape, bare = false): number => SIZE.strip + (shape.words && !busy(hand.status) && !bare ? SIZE.pad + 2 * SIZE.line : 0);
 
 /** An unfolded card: its header, its picture, and three lines of words. */
-export const unfolded = (shape: Shape, most: number = SIZE.picture[1]): number => SIZE.strip + tall(shape, most) + (shape.words ? SIZE.pad + 3 * SIZE.line : 0);
+export const unfolded = (shape: Shape, most: number = SIZE.picture[1]): number => SIZE.strip + SIZE.rule + tall(shape, most) + (shape.words ? SIZE.pad + 3 * SIZE.line : 0);
 
 export interface Layout {
   unfolded: Set<string>;
@@ -64,12 +66,12 @@ export function arrange(hands: Hand[], shapes: Map<string, Shape>, room: number,
   const shape = (hand: Hand): Shape => shapes.get(hand.id) ?? { ratio: null, words: false };
   const opened = open ? hands.find((hand) => hand.id === open) : undefined;
   const bare = new Set(opened ? hands.filter((hand) => hand !== opened).map((hand) => hand.id) : []);
-  const cost = () => hands.reduce<number>((sum, hand) => sum + folded(hand, shape(hand), bare.has(hand.id)) + SIZE.gap, SIZE.dock);
+  const cost = () => hands.reduce<number>((sum, hand) => sum + folded(hand, shape(hand), bare.has(hand.id)) + SIZE.gap, SIZE.edge + SIZE.dock);
   const oldest = hands.filter((hand) => finished(hand.status) && !bare.has(hand.id)).sort((a, b) => a.since - b.since);
   // Too many to fold even to two lines each: the oldest finished hands go down to their headers.
   while (oldest.length && cost() > room) bare.add(oldest.shift()!.id);
   if (opened) {
-    const left = room - cost() + folded(opened, shape(opened), bare.has(opened.id)) - SIZE.strip - SIZE.sheet;
+    const left = room - cost() + folded(opened, shape(opened), bare.has(opened.id)) - SIZE.strip - SIZE.rule - SIZE.sheet;
     const [fewest, most] = SIZE.log;
     const ideal = tall(shape(opened), SIZE.open[1]);
     const log = Math.min(most, Math.max(fewest, left - ideal));
@@ -90,14 +92,18 @@ export function arrange(hands: Hand[], shapes: Map<string, Shape>, room: number,
       bare.add(hand.id);
     }
   }
-  let left = room - cost();
-  let picture: number = SIZE.picture[1];
-  if (first && shape(first).ratio && more(first, picture) > left) picture = Math.max(SIZE.picture[0], left - more(first, 0));
-  const unfolding = new Set<string>();
+  // As many cards unfold as fit with their pictures at the smallest, the ones that want it most first: more hands
+  // in sight beats fewer, larger. Then the pictures grow together, as far as the room lets them.
+  const left = room - cost();
+  const unfolding: Hand[] = [];
+  let least = 0;
   for (const hand of wanted) {
-    if (more(hand, picture) > left) continue;
-    left -= more(hand, picture);
-    unfolding.add(hand.id);
+    if (least + more(hand, SIZE.picture[0]) > left) continue;
+    least += more(hand, SIZE.picture[0]);
+    unfolding.push(hand);
   }
-  return { unfolded: unfolding, bare, picture, log: SIZE.log[0] };
+  const taken = (most: number) => unfolding.reduce((sum, hand) => sum + more(hand, most), 0);
+  let picture: number = SIZE.picture[0];
+  while (picture < SIZE.picture[1] && taken(picture + 1) <= left) picture++;
+  return { unfolded: new Set(unfolding.map((hand) => hand.id)), bare, picture, log: SIZE.log[0] };
 }
