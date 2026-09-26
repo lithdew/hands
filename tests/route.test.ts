@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { APITimeoutError, AuthenticationError } from "@typesafe-ai/sdk";
-import { decided, NAMED, route, ROUTE_MS, SURE, THEIRS, WAY, WAYS } from "../src/route.ts";
+import { APITimeoutError, AuthenticationError, TypeSafeClient } from "@typesafe-ai/sdk";
+import { decided, jev as typesafe, NAMED, route, ROUTE_MS, SURE, THEIRS, WAY, WAYS } from "../src/route.ts";
 
 // route.ts against a scripted TypeSafe client: what it asks, and what it makes of the answers. No call here reaches TypeSafe.
 
@@ -9,13 +9,13 @@ type Asked = { request: { state: Record<string, unknown>; questions: Record<stri
 /** A client that answers every request with `reply`, or throws what it throws. */
 function jev(reply: () => unknown) {
   const asked: Asked[] = [];
-  const client = {
+  const fake = {
     systemOne: (request: unknown, options: unknown) => {
       asked.push({ request, options } as Asked);
       return Promise.resolve().then(reply);
     },
   } as never;
-  return { client, asked };
+  return { client: () => fake, asked };
 }
 
 const answers = (choice: string, confidence: number, theirs: number, named: number) => ({
@@ -76,5 +76,18 @@ test("an error, a timeout or no key is a hand, never a throw, and says why", asy
     const got = await route(jev(reply).client, "open Paint", "open paint");
     expect(got).toMatchObject({ way: "computer", probabilities: {} });
     expect(got.why).toStartWith(why);
+  }
+});
+
+test("with no TYPESAFE_API_KEY the client cannot be made at all, and that too is a hand, not a throw", async () => {
+  const key = process.env.TYPESAFE_API_KEY;
+  delete process.env.TYPESAFE_API_KEY;
+  try {
+    expect(() => new TypeSafeClient()).toThrow("No API key was provided"); // at once, not in a promise
+    const got = await route(typesafe, "What is the weather in Hong Kong today?", "what's the weather"); // as live.ts asks: no test makes the client, so none is kept from one with a key
+    expect(got).toMatchObject({ way: "computer", probabilities: {} });
+    expect(got.why).toStartWith("Jev could not be asked: No API key was provided");
+  } finally {
+    if (key !== undefined) process.env.TYPESAFE_API_KEY = key;
   }
 });

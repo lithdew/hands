@@ -72,8 +72,11 @@ export function warmUp(): void {
   } catch {} // no key: routing will say so when it is asked
 }
 
-/** Which way `task` goes. Never throws: whatever goes wrong, the way is the computer, and `why` says what went wrong. */
-export async function route(client: Jev, task: string, userSaid: string, earlier?: Earlier): Promise<Route> {
+/**
+ * Which way `task` goes. `client` gives the TypeSafe client, and is asked for it inside the try: without a key, making
+ * one throws. Never throws: whatever goes wrong, the way is the computer, and `why` says what went wrong.
+ */
+export async function route(client: () => Jev, task: string, userSaid: string, earlier?: Earlier): Promise<Route> {
   const started = performance.now();
   const ms = () => Math.round(performance.now() - started);
   try {
@@ -83,7 +86,7 @@ export async function route(client: Jev, task: string, userSaid: string, earlier
       now: nowContext(),
       ...(earlier ? { follows_a_lookup: { question: earlier.question, answer: earlier.answer.slice(0, 600) || null } } : {}),
     };
-    const { answers } = await client.systemOne(
+    const { answers } = await client().systemOne(
       { state, questions: { way: choice(WAY, WAYS), theirs: noul(THEIRS), named: noul(NAMED) } },
       { timeout: ROUTE_MS, retry: { maxRetries: 0 } },
     );

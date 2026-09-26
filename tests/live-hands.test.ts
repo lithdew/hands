@@ -760,3 +760,176 @@ test("the panel's Stop and Pause stop a lookup, and Resume asks its question aga
   expect(searches.length).toBe(2);
   expect(card()).toMatchObject({ status: "working", kind: "lookup" });
 });
+
+test("Jev that cannot even be asked (no TYPESAFE_API_KEY: making its client throws at once) leaves the task to a hand", async () => {
+  process.env.HANDS_WEB = "jev";
+  spyOn(live.outside, "route").mockImplementation(() => {
+    throw new Error("No API key was provided.");
+  });
+  expect(live.dispatch("start_hands", { tasks: ["open Paint"] }, runs)).toEqual([{ hand: "Lefty", state: "started", result: "pending" }]);
+  await settle();
+  expect(hands.length).toBe(1);
+  expect(hands[0]!.told).toEqual([{ type: "prompt", text: "open Paint" }]);
+  expect(card()).toMatchObject({ kind: "hand", status: "starting" });
+});
+
+test("a card that cannot be given a process fails, saying why, wherever that happens: after Jev, after a failed search, or at once with lookups off", async () => {
+  process.env.HANDS_WEB = "jev";
+  way = "computer";
+  let broken = true;
+  spyOn(live.outside, "spawn").mockImplementation(() => {
+    if (broken) throw new Error("spawn EACCES");
+    const fake = fakeHand(false);
+    hands.push(fake);
+    return fake.proc;
+  });
+  live.dispatch("start_hands", { tasks: ["open Paint"] }, runs);
+  await settle();
+  expect(card()).toMatchObject({ status: "failed", reason: "it could not be started: spawn EACCES" });
+  expect(sessions.at(-1)!.notes("session.commentary.append")).toEqual(["Lefty couldn't finish: it could not be started: spawn EACCES"]);
+
+  way = "web";
+  live.dispatch("start_hands", { tasks: [WEATHER] }, runs);
+  await settle();
+  searches[0]!.fail(new Error("the web search gave no answer in 20 s"));
+  await settle();
+  expect(card("righty")).toMatchObject({ status: "failed", reason: "it could not be started: spawn EACCES" });
+
+  process.env.HANDS_WEB = "off";
+  expect(live.dispatch("start_hands", { tasks: ["open Notepad"] }, runs)).toEqual([{ hand: "Thumbs", error: "it could not be started: spawn EACCES" }]);
+  expect(card("thumbs").status).toBe("failed");
+
+  broken = false; // told something, a card that never started is started again, with the words after its task
+  process.env.HANDS_WEB = "jev";
+  way = "computer";
+  live.dispatch("steer_hand", { hand: "Lefty", message: "the new one" }, runs);
+  await settle();
+  expect(hands.length).toBe(1);
+  expect(hands[0]!.told).toEqual([
+    { type: "prompt", text: "open Paint" },
+    { type: "steer", text: "the new one" },
+  ]);
+  expect(card()).toMatchObject({ kind: "hand", status: "starting" });
+});
+
+test("a steer typed on the panel goes to Jev with the typed words, not what was last said of something else; Resume with none", async () => {
+  process.env.HANDS_WEB = "jev";
+  way = "web";
+  live.voice.heard = "what's the weather";
+  live.dispatch("start_hands", { tasks: [WEATHER] }, runs);
+  await settle();
+  searches[0]!.answer({ text: "It is 26°C." });
+  await settle();
+  live.voice.heard = "open my email and read the latest one";
+  live.command({ cmd: "steer", hand: "lefty", text: "And tomorrow?" });
+  await settle();
+  expect(routes[1]).toMatchObject({ task: "And tomorrow?", userSaid: "And tomorrow?" });
+  searches[1]!.answer({ text: "27°C, with showers." });
+  await settle();
+  live.command({ cmd: "resume", hand: "lefty" });
+  await settle();
+  expect(routes[2]).toMatchObject({ task: "And tomorrow?", userSaid: "", earlier: undefined });
+  searches[2]!.answer({ text: "27°C, with showers." });
+  await settle();
+  live.voice.heard = "and the day after";
+  live.dispatch("steer_hand", { hand: "Lefty", message: "And the day after?" }, runs); // the voice's: what the user said
+  await settle();
+  expect(routes[3]).toMatchObject({ task: "And the day after?", userSaid: "and the day after" });
+});
+
+test("what one response of the backend's asks for is counted across its calls, and words that asked for several things go to Jev with none of them", async () => {
+  const call = (name: string, args: unknown) => ({ name, arguments: JSON.stringify(args) });
+  expect(live.asks([call("start_hands", { tasks: [WEATHER] })])).toBe(1);
+  expect(live.asks([call("start_hands", { tasks: [WEATHER, "open my email"] })])).toBe(2);
+  expect(live.asks([call("start_hands", { tasks: [WEATHER] }), call("start_hands", { tasks: ["open my email"] })])).toBe(2);
+  expect(live.asks([call("start_hands", { tasks: [WEATHER] }), call("steer_hand", { hand: "Lefty", message: "only direct ones" })])).toBe(2);
+  expect(live.asks([{ name: "start_hands", arguments: "{" }])).toBe(1);
+
+  live.dispatch("start_hands", { tasks: ["open Paint"] }, runs); // a note for the voice opens a session to take the backend's calls
+  hands[0]!.say({ type: "status", status: "done", answer: "Paint is open." });
+  await settle();
+  const session = sessions.at(-1)!;
+  const respond = (...calls: [string, unknown][]) => {
+    calls.forEach(([name, args], i) => session.emit("response.event", { event: { type: "response.output_item.done", item: { type: "function_call", call_id: `c${routes.length}-${i}`, name, arguments: JSON.stringify(args) } } }));
+    session.emit("response.event", { event: { type: "response.completed" } });
+  };
+  process.env.HANDS_WEB = "jev";
+  way = "web";
+  live.voice.heard = "what's the weather, and open my email";
+  respond(["start_hands", { tasks: [WEATHER] }], ["start_hands", { tasks: ["Open my email and read the latest one"] }]);
+  await settle();
+  expect(routes.map((one) => one.userSaid)).toEqual(["", ""]);
+  live.voice.heard = "when was the Eiffel Tower finished";
+  respond(["start_hands", { tasks: ["When was the Eiffel Tower completed?"] }]);
+  await settle();
+  expect(routes[2]!.userSaid).toBe("when was the Eiffel Tower finished");
+});
+
+test("a task stopped before anything came of it, then told something, starts again with the words added: it is not a lookup that never ran", async () => {
+  process.env.HANDS_WEB = "jev";
+  way = "computer";
+  live.dispatch("start_hands", { tasks: ["open Paint and draw a circle"] }, runs);
+  live.dispatch("steer_hand", { hand: "Lefty", message: "a red one" }, runs); // while Jev decides
+  live.dispatch("stop_hands", { hands: ["Lefty"] }, runs); // and still deciding
+  await settle();
+  expect(hands).toEqual([]);
+  live.dispatch("steer_hand", { hand: "Lefty", message: "carry on" }, runs);
+  expect(card()).toMatchObject({ status: "starting", task: "open Paint and draw a circle → now: carry on" });
+  await settle();
+  expect(routes.at(-1)).toMatchObject({ task: "open Paint and draw a circle\na red one\ncarry on", earlier: undefined });
+  expect(hands.length).toBe(1);
+  expect(hands[0]!.told).toEqual([
+    { type: "prompt", text: "open Paint and draw a circle" },
+    { type: "steer", text: "a red one" },
+    { type: "steer", text: "carry on" },
+  ]);
+
+  way = "web"; // a lookup stopped before it answered is asked again, the words added, with nothing to follow on from
+  live.dispatch("start_hands", { tasks: [WEATHER] }, runs);
+  await settle();
+  live.dispatch("stop_hands", { hands: ["Righty"] }, runs);
+  live.dispatch("steer_hand", { hand: "Righty", message: "and tomorrow" }, runs);
+  await settle();
+  expect(routes.at(-1)).toMatchObject({ task: `${WEATHER}\nand tomorrow`, earlier: undefined });
+  expect(searches.at(-1)!.question).toBe(`${WEATHER}\nand tomorrow`);
+  expect(searches.at(-1)!.options.context).toBeUndefined();
+});
+
+test("both: facts that come while the hand is paused or waits on the user are told it once it is at work again, and dropped when its run ends", async () => {
+  process.env.HANDS_WEB = "jev";
+  way = "both";
+  const tokyo = "Find flights from Hong Kong to Tokyo and put them in a document";
+  const museum = "Look up the address of the Palace Museum and write it in a new note";
+  live.dispatch("start_hands", { tasks: [tokyo, museum] }, runs);
+  await settle();
+  hands[0]!.say({ type: "status", status: "working" });
+  hands[0]!.say({ type: "status", status: "needs_you", answer: "Which dates?" });
+  hands[1]!.say({ type: "status", status: "working" });
+  hands[1]!.say({ type: "status", status: "paused" });
+  await Bun.sleep(5);
+  expect(searches.map((one) => one.options.signal!.aborted)).toEqual([false, false]);
+  searches[0]!.answer({ text: "Cathay Pacific flies direct at 08:15." });
+  searches[1]!.answer({ text: "8 Museum Drive, West Kowloon." });
+  await settle();
+  expect(hands.map((one) => one.told.length)).toEqual([1, 1]); // not yet
+
+  live.dispatch("steer_hand", { hand: "Lefty", message: "next Friday" }, runs);
+  hands[0]!.say({ type: "status", status: "working" });
+  await Bun.sleep(5);
+  expect(hands[0]!.told.map((one) => one.type)).toEqual(["prompt", "steer", "steer"]);
+  expect((hands[0]!.told[2] as { text: string }).text).toContain("Cathay Pacific flies direct at 08:15.");
+  hands[0]!.say({ type: "status", status: "paused" });
+  hands[0]!.say({ type: "status", status: "working" });
+  await Bun.sleep(5);
+  expect(hands[0]!.told.length).toBe(3); // once
+
+  hands[1]!.say({ type: "status", status: "stopped" });
+  await Bun.sleep(5);
+  live.dispatch("steer_hand", { hand: "Righty", message: "write it in Notepad instead" }, runs); // a new run
+  hands[1]!.say({ type: "status", status: "working" });
+  await Bun.sleep(5);
+  expect(hands[1]!.told).toEqual([
+    { type: "prompt", text: museum },
+    { type: "steer", text: "write it in Notepad instead" },
+  ]);
+});
