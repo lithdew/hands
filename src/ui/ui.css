@@ -282,7 +282,7 @@ kbd {
   background: repeating-linear-gradient(90deg, var(--alarm) 0 2px, transparent 2px 3.5px);
 }
 .card[data-status="working"] .ticks i.run {
-  animation: tick 900ms var(--ease-out) infinite alternate;
+  animation: tick 900ms ease-in-out infinite alternate; /* a pulse: the same both ways */
 }
 .card[data-status="working"] .ticks:not(:has(i.run))::after {
   content: "";
@@ -292,7 +292,7 @@ kbd {
   border-radius: 1px;
   box-shadow: inset 0 0 0 1px rgb(28 20 8 / 0.45);
   transform-origin: bottom;
-  animation: tick 900ms var(--ease-out) infinite alternate;
+  animation: tick 900ms ease-in-out infinite alternate; /* a pulse: the same both ways */
 }
 @keyframes tick {
   to {
@@ -386,7 +386,7 @@ html.windows .name {
   height: 6px;
   border-radius: 50%;
   background: var(--glove);
-  animation: beat 900ms var(--ease-out) infinite alternate;
+  animation: beat 900ms ease-in-out infinite alternate;
 }
 .chip.jev b {
   font-weight: 600;
@@ -1433,7 +1433,12 @@ html:not(.windows) [data-cmd="show"] {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3; /* with the line above it, the three lines the dock keeps room for */
   overflow: hidden;
-  white-space: pre-line;
+}
+.words .reply .line {
+  display: block;
+  white-space: nowrap; /* a line a hand, cut where the dock ends */
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* rested: a palm in the corner, which opens out under the pointer and whenever the key goes down; it rests small

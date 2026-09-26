@@ -64,9 +64,12 @@ input.addEventListener("keydown", (event) => {
   event.stopPropagation();
   shut();
 });
-// The dock opens the box; a click anywhere else puts it away. A click that opens a sheet has put it away already.
+// The dock opens the box, and a click on it with the box out (on the palm, say) gives the box back its caret; a click
+// anywhere else puts it away. A click that opens a sheet has put it away already.
 dock.addEventListener("click", (event) => {
-  if (!box.contains(event.target as Node)) open();
+  if (box.contains(event.target as Node)) return;
+  if (out()) input.focus({ preventScroll: true });
+  else open();
 });
 document.addEventListener("click", (event) => {
   if (out() && !dock.contains(event.target as Node)) shut();

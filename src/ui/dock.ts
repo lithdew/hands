@@ -158,16 +158,29 @@ function write(whose: string, text: string, waiting = false, instant = false): v
   showing = whose;
 }
 
-/** What came of a typed line: the line itself, small, as what was asked, and under it the answer. */
+/**
+ * What came of a typed line: the line itself, small, as what was asked, and under it the answer. An answer of several
+ * lines (a line a hand) keeps each to one line, cut where the dock ends; one of a single line wraps, up to three.
+ */
 function reply(text: string, said: string): void {
   const whose = `answer ${text}\n${said}`;
   if (showing === whose) return;
-  const line = document.createElement("q");
-  line.textContent = text;
+  const asked = document.createElement("q");
+  asked.textContent = text;
   const answer = document.createElement("span");
   answer.className = "reply";
-  answer.textContent = said;
-  words.replaceChildren(line, answer);
+  const lines = said.split("\n");
+  if (lines.length === 1) answer.textContent = said;
+  else
+    answer.replaceChildren(
+      ...lines.map((one) => {
+        const line = document.createElement("span");
+        line.className = "line";
+        line.textContent = one;
+        return line;
+      }),
+    );
+  words.replaceChildren(asked, answer);
   words.classList.remove("waiting");
   settle(words);
   showing = whose;

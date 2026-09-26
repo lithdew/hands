@@ -163,7 +163,8 @@ test("how things are going, in the dock: a line a hand from what the voice knows
   const lefty = { hand: "Lefty", status: "working" as const, minutes: 2, now: "click “Search”" };
   const righty = { hand: "Righty", status: "done" as const, answer: "Wrote the haiku: Lunch waits in warm light." };
   expect(progress([lefty])).toBe("Lefty is working (2 min): click “Search”.");
-  expect(progress([lefty, righty])).toBe("Lefty is working: click “Search”.\nRighty is done: Wrote the haiku…"); // a line each, cut at a word
+  expect(progress([lefty, righty])).toBe("Lefty is working: click “Search”.\nRighty is done: Wrote the haiku: Lunch waits in warm light."); // a line each
+  expect(progress([lefty, { ...righty, answer: "Wrote the haiku, saved it on the desktop as haiku.txt, and left Notepad open for you." }]).split("\n")[1]).toBe("Righty is done: Wrote the haiku, saved it on the desktop as…"); // cut at a word
   expect(progress([{ hand: "Pinky", status: "needs_you", needs: "Sign in to OpenTable." }])).toBe("Pinky needs you: Sign in to OpenTable.");
   expect(progress([{ hand: "Thumbs", status: "failed", reason: "Calculator would not open." }])).toBe("Thumbs couldn't finish: Calculator would not open.");
   expect(progress([{ hand: "Palm", status: "working", lookup: true }])).toBe("Palm is looking it up.");
