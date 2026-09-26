@@ -129,6 +129,13 @@ describe("tiles and change detection", () => {
     expect(changedTiles(await thumbnail(after), await thumbnail(before), tiles)).toHaveLength(tiles.length);
   });
 
+  test("a line of text coming or going changes its tile, though it moves the tile's mean by little", async () => {
+    // A 150x14 run of glyph strokes in a 256 px tile: the Notepad line that stayed in the listing after it was deleted.
+    const strokes: Box[] = Array.from({ length: 12 }, (_, i) => [300 + i * 12, 300, 304 + i * 12, 314]);
+    const [before, after] = [await paint(SMALL, strokes), await paint(SMALL)];
+    expect(changedTiles(await thumbnail(after), await thumbnail(before), tiles)).toEqual([[256, 256, 512, 512]]);
+  });
+
   test("faint noise does not count as a change", async () => {
     const [before, after] = [await paint(SMALL), await paint(SMALL, [], 33)];
     expect(changedTiles(await thumbnail(after), await thumbnail(before), tiles)).toEqual([]);

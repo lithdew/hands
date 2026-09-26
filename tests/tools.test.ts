@@ -133,6 +133,29 @@ test("a picture the platform says may be old is said to be, and so are a Notepad
   expect(listing).toContain("this window has 2 tabs: Notepad reopens the tabs of earlier sessions");
 });
 
+test("a Notepad on Windows that reopens a tab of an earlier session gets a new tab for the hand, once, and the model is told why", async () => {
+  const tab = (label: string, x: number): AxNode => ({ role: "AXTab", label, x, y: 60, w: 100, h: 20, pressable: true, ref: { label } });
+  desk({ app: "Notepad", nodes: [tab("hello from hands.. Modified.", 110), button("Add New Tab", 300, 60)] });
+  const press = spyOn(macos, "axPress").mockImplementation(() => true);
+  await asOnWindows(async () => {
+    const { call } = hands();
+    expect(await call("open_app", { name: "Notepad" })).toContain("a new tab was made for you: work only in it");
+    expect(press.mock.calls.map(([ref]) => (ref as { label: string }).label)).toEqual(["Add New Tab"]);
+    await call("open_app", { name: "Notepad" }); // the same window again: its tabs now include the hand's own
+    expect(press).toHaveBeenCalledTimes(1);
+  });
+});
+
+test("a Notepad that opens on one fresh tab is left as it is", async () => {
+  const tab = (label: string, x: number): AxNode => ({ role: "AXTab", label, x, y: 60, w: 100, h: 20, pressable: true, ref: { label } });
+  desk({ app: "Notepad", nodes: [tab("Untitled. Unmodified.", 110), button("Add New Tab", 300, 60)] });
+  const press = spyOn(macos, "axPress").mockImplementation(() => true);
+  await asOnWindows(async () => {
+    expect(await hands().call("open_app", { name: "Notepad" })).not.toContain("new tab was made");
+  });
+  expect(press).not.toHaveBeenCalled();
+});
+
 test("a field's current value is listed with it", async () => {
   desk({ nodes: [field("Search", 150, 80, { value: "flights to Tokyo" })] });
   const listing = await hands().call("open_app", { name: "TextEdit" });

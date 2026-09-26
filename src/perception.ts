@@ -21,6 +21,10 @@ export const REGION_MARGIN_PT = 8.0; // slack around the window, for the shadow 
 export const THUMB_DIVISOR = 8; // the change detector works on a 1/8 scale grayscale copy
 export const TILE_PX = 256.0; // tile side in capture pixels
 export const TILE_DIFF = 6.0; // mean absolute 8-bit difference that counts a tile as changed
+// A line of text coming or going moves a tile's mean by only 2 or 3 (measured on Notepad: a deleted line stayed in the
+// listing for six captures), so a tile also counts as changed when a few of its pixels changed sharply.
+export const SPOT_DIFF = 32.0; // an 8-bit difference that is text, not compression noise, on an averaged-down pixel
+export const SPOT_PIXELS = 2; // how many such pixels a tile needs
 export const REOCR_FRACTION = 0.6; // above this share of changed tiles, reading the whole region is cheaper
 export const MAX_REOCR_RECTS = 4; // past this, the per-call overhead outweighs the pixels another rectangle saves
 
@@ -338,8 +342,9 @@ export function tilesIn(region: Box, tile = TILE_PX): Box[] {
 }
 
 /**
- * True when the tile's mean absolute pixel difference clears the threshold. A tile whose patch
- * cannot be compared counts as changed, so a doubt is always paid for with a re-read.
+ * True when the tile's mean absolute pixel difference clears the threshold, or when a few of its pixels changed
+ * sharply (a line of text is a small part of a tile). A tile whose patch cannot be compared counts as changed, so a
+ * doubt is always paid for with a re-read.
  */
 export function tileChanged(thumb: Thumb, previous: Thumb, tile: Box, divisor = THUMB_DIVISOR, threshold = TILE_DIFF): boolean {
   if (thumb.width !== previous.width || thumb.height !== previous.height) return true;
@@ -347,9 +352,13 @@ export function tileChanged(thumb: Thumb, previous: Thumb, tile: Box, divisor = 
   const [right, bottom] = [Math.min(thumb.width, Math.max(x2, x1 + 1)), Math.min(thumb.height, Math.max(y2, y1 + 1))];
   const [left, top] = [Math.max(0, x1), Math.max(0, y1)];
   if (right <= left || bottom <= top) return true;
-  let sum = 0;
+  let [sum, spots] = [0, 0];
   for (let y = top; y < bottom; y++) {
-    for (let i = y * thumb.width + left, end = y * thumb.width + right; i < end; i++) sum += Math.abs(thumb.data[i]! - previous.data[i]!);
+    for (let i = y * thumb.width + left, end = y * thumb.width + right; i < end; i++) {
+      const difference = Math.abs(thumb.data[i]! - previous.data[i]!);
+      sum += difference;
+      if (difference > SPOT_DIFF && ++spots >= SPOT_PIXELS) return true;
+    }
   }
   return sum / ((right - left) * (bottom - top)) > threshold;
 }

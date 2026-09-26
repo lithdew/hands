@@ -467,6 +467,24 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort }: ToolOpti
     return { ...seen, content: [{ type: "text", text: typeof text === "string" ? text : text(screen) }, ...seen.content] };
   };
 
+  const notepads = new Set<number>(); // Notepad windows already given a tab of the hand's own
+  /**
+   * Notepad reopens the tabs of its earlier sessions in whichever window opens first, and they can hold the user's
+   * unsaved notes (a hand once cleared one it took for its own: measured). So a Notepad that comes up with any tab that
+   * is not a fresh, empty one gets a new tab for the hand to work in, and the model is told to leave the others alone.
+   */
+  const freshNotepadTab = async (): Promise<Result | null> => {
+    const { screen, items } = current();
+    if (screen.windowId === undefined || notepads.has(screen.windowId)) return null; // looked at once: its other tabs now include the hand's own
+    notepads.add(screen.windowId);
+    const restored = items.filter((it) => it.role === "tab" && !/^untitled\b.*\bunmodified\b/i.test(it.text));
+    const add = items.find((it) => it.role === "button" && /^add new tab$/i.test(it.text.trim()));
+    const ref = add && screen.axRefs.get(add.index);
+    if (!restored.length || ref === undefined || !macos.axPress(ref)) return null;
+    const tabs = restored.length === 1 ? "a tab" : `${restored.length} tabs`;
+    return moved(`Notepad reopened ${tabs} from an earlier session, which may hold the user's own notes, so a new tab was made for you: work only in it, and leave the others as they are.`);
+  };
+
   return [
     tool(
       "screen",
@@ -503,7 +521,8 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort }: ToolOpti
         const whose = BROWSER_APP.test(name.trim())
           ? `: this is the user's own ${name} window, to act in only as far as the task asks. For a page of your own, \`browser\` open url=...`
           : "";
-        return moved(`opened ${name}${whose}${desktopNote()}`);
+        const opened = await moved(`opened ${name}${whose}${desktopNote()}`);
+        return (onWindows() && /^notepad(\.exe)?$/i.test(name.trim()) && (await freshNotepadTab())) || opened;
       },
     ),
     tool(
