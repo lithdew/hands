@@ -924,6 +924,8 @@ export function releaseDesktop(): void {
   tabsSeen.clear();
   touchedAt.clear();
   countedAt.clear();
+  addressRead.clear();
+  inputAddress.clear();
   lateUntil = 0;
   unsettled.clear();
   frontBefore = 0;
@@ -1891,6 +1893,7 @@ function viewOf(hwnd: number): BrowserView {
     view = native.call("browser", { hwnd }) as BrowserView; // UI Automation's cache races a tab that has just opened (IndexOutOfRangeException): asked once more
   }
   if (browserWindows.has(hwnd)) {
+    addressRead.set(hwnd, { url: fullUrl(view), at: performance.now() }); // where its page is, as input may go in next (see touch)
     // A tab more than the hand last saw is its own while the window is unsettled, and a link of the user's after (see
     // "a link of the user's in a window of the hand's"). A count SETTLE_MS after the hand's last input settles it.
     const seen = tabsSeen.get(hwnd);
@@ -2449,6 +2452,7 @@ export async function screenshotWindow(windowId: number, path: string): Promise<
   }
   const reply = native.call("capture", { hwnd: windowId, path, format: "png", thumb: THUMB_DIVISOR }) as CaptureReply;
   keepThumb(path, windowId, reply);
+  inputAddress.delete(windowId); // the next action's first input notes where its page is then
   if (reply.gone) throw new Error("the window is gone; look again");
   if (entry?.iconic && isOwn(entry, list)) native.call("sink", { hwnd: rootOf(entry, list).hwnd });
   for (const [shot, of] of staleShots) if (of.windowId === windowId || shot === path) staleShots.delete(shot);
@@ -3243,12 +3247,39 @@ const countedAt = new Map<number, number>(); // when each browser window of the 
 const unsettled = new Set<number>(); // browser windows the hand has sent input into whose tabs have not been counted since, SETTLE_MS on
 let frontBefore = 0; // the window in front at the watcher's last look
 
-/** The hand is sending input into a window, or has just sent it (after any wait for the user to pause): a tab that comes in it for SETTLE_MS is the hand's. */
+/**
+ * The hand is sending input into a window, or has just sent it (after any wait for the user to pause): a tab that comes
+ * in it for SETTLE_MS is the hand's. The first input into a browser window of the hand's since its last capture also
+ * notes where its page was then (see addressAtInput).
+ */
 function touch(hwnd: number): void {
   acted();
   if (!browserWindows.has(hwnd)) return;
   touchedAt.set(hwnd, performance.now());
   unsettled.add(hwnd);
+  if (!inputAddress.has(hwnd)) {
+    const read = addressRead.get(hwnd);
+    inputAddress.set(hwnd, read && performance.now() - read.at <= ADDRESS_FRESH_MS ? { url: read.url } : null);
+  }
+}
+
+// Where the page of a browser window of the hand's was as an action began, for the tools' settle (src/tools.ts
+// settled): a page at another address after the action went there by the action. The last look's address would take a
+// page that changed its own address since (its search parameters rewritten, a single-page app's route) for a
+// navigation, and a capture taken then would come before a late reaction to the action. A read of the window made just
+// before the action's first input says where it was: the one the link watch makes before input goes into a settled
+// window (refuseTheirs), or a navigation's own; a read older than ADDRESS_FRESH_MS says nothing.
+const ADDRESS_FRESH_MS = 1000;
+const addressRead = new Map<number, { url: string | null; at: number }>(); // each browser window of the hand's: its page's address at its last read, and when
+const inputAddress = new Map<number, { url: string | null } | null>(); // ...: where its page was as the first input since its last capture went in; null when no fresh read said
+
+/**
+ * Where the page of a browser window of the hand's was as the first input since its last capture went into it, from
+ * a read made just before; undefined when nothing has gone into it since, or no read then said.
+ */
+export function addressAtInput(windowId: number): string | null | undefined {
+  const at = inputAddress.get(windowId);
+  return at ? at.url : undefined;
 }
 
 /**
@@ -3295,6 +3326,8 @@ function giveUp(hwnd: number): void {
   tabsSeen.delete(hwnd);
   touchedAt.delete(hwnd);
   countedAt.delete(hwnd);
+  addressRead.delete(hwnd);
+  inputAddress.delete(hwnd);
   unsettled.delete(hwnd);
   seenBehind.delete(hwnd);
   inFront.set(hwnd, performance.now());

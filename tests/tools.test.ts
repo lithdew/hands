@@ -944,6 +944,13 @@ test("after an action that changed nothing yet, the next look waits a while for 
   expect(performance.now() - started).toBeGreaterThanOrEqual(700); // two glances alike at 300 ms are not enough: the old code waited 800 ms
 });
 
+/** A page with something on it (a box on a page), not a page between its address changing and its first paint. */
+const page = (background: string, left: number) =>
+  sharp({ create: { width: 32, height: 24, channels: 3, background } })
+    .composite([{ input: { create: { width: 10, height: 10, channels: 3, background: "#808080" } }, left, top: 8 }])
+    .jpeg()
+    .toBuffer();
+
 test("a navigation the look finds done already, or a window just opened for its page, is a change seen: the look goes on at two glances alike and reads the page once; a window that changed at the same address is no navigation", async () => {
   desk({ app: "Google Chrome" });
   spyOn(macos, "openBackgroundWindow").mockImplementation(async () => ({ pid: PID, windowId: WINDOW, scripted: String(WINDOW) }));
@@ -952,12 +959,8 @@ test("a navigation the look finds done already, or a window just opened for its 
   spyOn(macos, "tabCommand").mockImplementation(async () => "Next | https://example.com/next");
   let url = "https://example.com/";
   const read = spyOn(windows, "browserPage").mockImplementation(async () => ({ url, loading: false, tabs: [] }));
-  // Pages with something on them (a box on a page), not a page between its address changing and its first paint.
-  const page = (background: string, left: number) =>
-    sharp({ create: { width: 32, height: 24, channels: 3, background } })
-      .composite([{ input: { create: { width: 10, height: 10, channels: 3, background: "#808080" } }, left, top: 8 }])
-      .jpeg()
-      .toBuffer();
+  let before: string | null | undefined; // where the page was as the action's first input went in (src/windows.ts)
+  spyOn(windows, "addressAtInput").mockImplementation(() => before);
   const [light, dark] = await Promise.all([page("#ffffff", 4), page("#203040", 18)]);
   let shown = light;
   spyOn(windows, "thumbnail").mockImplementation(() => ({ jpeg: new Uint8Array(shown) })); // the glances that watch the window settle
@@ -967,16 +970,55 @@ test("a navigation the look finds done already, or a window just opened for its 
     let started = performance.now();
     await call("browser", { action: "open", url: "https://example.com" }); // a window just opened for its page
     expect(performance.now() - started).toBeLessThan(700);
-    [shown, url] = [dark, "https://example.com/next"]; // the next page is up by the time the look first glances at the window
+    [shown, before, url] = [dark, url, "https://example.com/next"]; // the next page is up by the time the look first glances at the window
     read.mockClear();
     started = performance.now();
     await call("browser", { action: "open", url: "https://example.com/next" });
     expect(performance.now() - started).toBeLessThan(700); // not the 800 ms a window that shows no change yet is watched
     expect(read).toHaveBeenCalledTimes(1); // once the glances said it was still, not every round
-    shown = light; // the window changes, but the page stays where it was: a late reaction may still come
+    [shown, before] = [light, url]; // the window changes, but the page stays where it was: a late reaction may still come
     started = performance.now();
     await call("browser", { action: "reload" });
     expect(performance.now() - started).toBeGreaterThanOrEqual(700);
+  });
+});
+
+test("where a page was as an action began is the read just before its first input: a page that changed its own address after the last look is no navigation of the action's, and the look waits for a late reaction; one the click took elsewhere is", async () => {
+  desk({ app: "Google Chrome", nodes: [button("Send", 300, 200)] });
+  spyOn(macos, "openBackgroundWindow").mockImplementation(async () => ({ pid: PID, windowId: WINDOW, scripted: String(WINDOW) }));
+  spyOn(macos, "stageWindow").mockImplementation(async () => {});
+  spyOn(macos, "axPress").mockImplementation(() => true);
+  let url = "https://www.google.com/search?q=x";
+  spyOn(windows, "browserPage").mockImplementation(async () => ({ url, loading: false, tabs: [] }));
+  let before: string | null | undefined;
+  spyOn(windows, "addressAtInput").mockImplementation(() => before);
+  const [light, dark] = await Promise.all([page("#ffffff", 4), page("#203040", 18)]);
+  let shown = light;
+  spyOn(windows, "thumbnail").mockImplementation(() => ({ jpeg: new Uint8Array(shown) }));
+  await asOnWindows(async () => {
+    const { call } = hands();
+    const listing = await call("browser", { action: "open", url });
+    const send = Number(/(\d+) button 'Send'/.exec(listing)![1]);
+    settling.unchangedMs = 800;
+    // After the look the page rewrites its own address and repaints; the read made just before the click finds it there.
+    [shown, url] = [dark, "https://www.google.com/search?q=x&ei=abc"];
+    before = url;
+    let started = performance.now();
+    await call("click", { item: send });
+    await call("screen");
+    expect(performance.now() - started).toBeGreaterThanOrEqual(700); // the Send's own reaction may start late: waited for
+    // Nothing said where the page was as the click went in: no navigation is counted either.
+    [shown, url, before] = [light, "https://www.google.com/search?q=y", undefined];
+    started = performance.now();
+    await call("click", { item: send });
+    await call("screen");
+    expect(performance.now() - started).toBeGreaterThanOrEqual(700);
+    // A click that took the page elsewhere, done before the first glance: the look goes on at two glances alike.
+    [shown, before, url] = [dark, url, "https://www.google.com/next"];
+    started = performance.now();
+    await call("click", { item: send });
+    await call("screen");
+    expect(performance.now() - started).toBeLessThan(700);
   });
 });
 

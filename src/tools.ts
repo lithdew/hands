@@ -274,7 +274,7 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
   let lastAction = 0;
   let lastLook = 0;
   let glanced: { windowId: number; thumb: Thumb } | null = null; // the window as the last look that watched it settle left it
-  let lookedAt: string | null = null; // the address of the page the last look saw
+  const looked = new Set<number>(); // the windows a look has captured
   // Only Windows borrows the seat (src/macos-seat.ts): the Mac is not offered seat=true, nor told of it.
   const borrows = onWindows();
   const seatParam: Record<string, TSchema> = borrows ? { seat: Type.Optional(Type.Boolean({ description: SEAT_DESCRIPTION })) } : {};
@@ -421,15 +421,20 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
    * chat's Send, an Office command or a page's update often begins only then, and a capture taken before it would say
    * the action did nothing. A navigation seen is a change, though: when the hand's browser window no longer looks as
    * the last look left it (or is one it has not looked at yet, just opened for its page) and its page is at another
-   * address than the last look saw, the page the action went to is up already (it finished before the first glance),
-   * and nothing is late. A browser window's page is read once, when the glances say it is still, not every round; that
-   * read (its URL and tabs, on Windows) is what the look goes on with. Null when there was nothing to read.
+   * address than it was as the action began, the page the action went to is up already (it finished before the first
+   * glance), and nothing is late. A browser window's page is read once, when the glances say it is still, not every
+   * round; that read (its URL and tabs, on Windows) is what the look goes on with. Null when there was nothing to read.
    */
   async function settled(windowId: number, scripted?: string): Promise<PageRead | null> {
     if (lastAction <= lastLook) return null;
     const since = performance.now() - lastAction;
     if (since < SETTLE_FLOOR_MS) await Bun.sleep(SETTLE_FLOOR_MS - since);
     const last = glanced?.windowId === windowId ? glanced.thumb : null;
+    // Where the page was as the action began: read just before its first input (src/windows.ts addressAtInput), or, in
+    // a window no look has captured yet (just opened for its page), nowhere, so that whatever page it shows is the one
+    // it was opened for. Not known otherwise, and then no navigation is counted: the last look's address would take a
+    // page that changed its own address since for one, and the capture would come before a late reaction to the action.
+    const from = !onWindows() || scripted === undefined ? undefined : looked.has(windowId) ? windows.addressAtInput(windowId) : null;
     let [first, before, changed, asked]: [Thumb | null, Thumb | null, boolean, boolean] = [null, null, false, false];
     for (let end = performance.now() + SETTLE_CAP_MS; ; await Bun.sleep(SETTLE_POLL_MS)) {
       const now = await glance(windowId, scratch);
@@ -442,10 +447,10 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
       let page: PageRead | null = null;
       // Asked once, and only on Windows, where the read says where the page is: whether a navigation has been seen. A page
       // with nothing on it yet (bare) may be the one between the address changing and the first paint, and is waited on.
-      if (alike && !changed && !asked && onWindows() && scripted !== undefined && (last === null || !stillAs(now, last)) && !bare(now) && performance.now() - lastAction < settling.unchangedMs) {
+      if (alike && !changed && !asked && from !== undefined && scripted !== undefined && (last === null || !stillAs(now, last)) && !bare(now) && performance.now() - lastAction < settling.unchangedMs) {
         asked = true;
         page = await readPage(scripted);
-        changed = page.url !== undefined && page.url !== lookedAt;
+        changed = page.url !== undefined && page.url !== from;
       }
       const still = alike && (changed || performance.now() - lastAction >= settling.unchangedMs);
       if (!still && performance.now() < end) continue;
@@ -515,7 +520,7 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
     const url = pinned ? ((read?.url !== undefined ? read.url : await macos.browserUrl(browser, pinned.scripted)) ?? undefined) : undefined;
     givenUp();
     const screen = await capture({ target: { pid, windowId: working.windowId }, out, url, timing });
-    lookedAt = screen.url;
+    looked.add(working.windowId);
     Object.assign(screen, { dialog: working.dialog, theirs: working.theirs });
     if (pinned && !working.dialog) screen.tabs = await tabsOf(pinned, screen.url, read?.tabs);
     givenUp(screen.image.path);
