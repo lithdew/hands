@@ -2,9 +2,10 @@
 /**
  * The dock: the voice. Yellow with your words while you hold the key and it thinks, the same two colours the other
  * way round while it answers, and only the dock is ever that yellow. Its hand's fingers rise with your voice (and
- * a ring around the dock spreads with it), drum while it thinks, and move while it speaks. Above the words, a line
- * when a hand has borrowed your mouse and keyboard or is waiting to, and a line when the voice has a problem. Once
- * you have spoken to it, it rests as a small palm in the corner until the key goes down again.
+ * a ring around the dock spreads with it), drum while it thinks, move while it speaks, and spring up once when a
+ * hand has finished. Above the words, a line when a hand has borrowed your mouse and keyboard or is waiting to, and a
+ * line when the voice has a problem. Once you have spoken to it, it rests as a small palm in the corner until the key
+ * goes down again, counting the hands that need you.
  */
 
 import { identity } from "./card.ts";
@@ -26,6 +27,10 @@ let spoken = false; // the key has been held once: the user knows it, and the id
 let lingering: { said: string; timer: ReturnType<typeof setTimeout> } | null = null;
 let showing = ""; // what the words are now: the hint, or whose words, so a change of speaker is set down afresh
 let last: [VoiceView, HandView[], string] | null = null;
+let done: Set<string> | null = null; // the hands that were done at the last word from the orchestrator
+let cheer = -Infinity; // when one last finished
+
+const CHEER_MS = 260; // how long the fingers are held up for a hand that has finished
 
 /** The dock brought up to date: the voice's state and words, the seat, and any trouble. */
 export function speak(voice: VoiceView, hands: HandView[], talkKey: string): void {
@@ -57,10 +62,18 @@ export function speak(voice: VoiceView, hands: HandView[], talkKey: string): voi
   notice.hidden = !trouble;
   notice.textContent = trouble;
 
+  // Hands that need you are counted on the palm, even when it rests small, and named in the hint.
+  const needy = hands.filter((hand) => hand.status === "needs_you");
+  dock.dataset.needs = needy.length ? String(needy.length) : "";
+  // A hand has just finished: the fingers spring up once, a cheer. Not for the ones already done when the page came.
+  const over = hands.filter((hand) => hand.status === "done").map((hand) => hand.id);
+  if (done && over.some((id) => !done!.has(id))) cheer = performance.now();
+  done = new Set(over);
+
   const heard = voice.heard.trim();
   const said = voice.said.trim();
   if (state === "idle" && lingering) write("said", lingering.said);
-  else if (state === "idle" || state === "offline") hint(talkKey, hands.length > 0);
+  else if (state === "idle" || state === "offline") hint(talkKey, hands.length > 0, needy[0]?.name);
   else if (state === "speaking") write("said", said || "…", !said);
   // Only while the key is held does it say "Listening…": the transcript trails the speech, and a dock still saying so after the key is up looks like one that has not let go.
   else write("heard", heard || (state === "listening" ? "Listening…" : "…"), !heard);
@@ -84,15 +97,16 @@ function write(whose: string, text: string, waiting = false): void {
   showing = whose;
 }
 
-/** What the idle dock says: which key to hold, and what for. */
-function hint(key: string, hands: boolean): void {
-  const rest = hands ? " to steer, stop or ask" : " and ask for a hand";
-  if (showing !== `hint ${key}${rest}`) {
+/** What the idle dock says: which key to hold, and what for; first, when one does, which hand needs you. */
+function hint(key: string, hands: boolean, needs?: string): void {
+  const lead = needs ? `${needs} needs you · Hold ` : "Hold ";
+  const rest = needs ? " to answer" : hands ? " to steer, stop or ask" : " and ask for a hand";
+  if (showing !== `hint ${lead}${key}${rest}`) {
     const cap = document.createElement("kbd");
     cap.textContent = key;
-    words.replaceChildren("Hold ", cap, rest);
-    if (!showing.startsWith("hint")) settle(words);
-    showing = `hint ${key}${rest}`;
+    words.replaceChildren(lead, cap, rest);
+    if (!showing.startsWith("hint") || needs) settle(words);
+    showing = `hint ${lead}${key}${rest}`;
   }
   words.classList.remove("waiting");
 }
@@ -125,9 +139,11 @@ function tick(now: number): void {
   const dt = then ? Math.min(64, now - then) : 16;
   then = now;
   const scale = reduce.matches ? 0.5 : 1;
-  let moving = state === "speaking";
+  const cheering = now - cheer < CHEER_MS;
+  let moving = state === "speaking" || cheering;
   for (const [index, finger] of fingers.entries()) {
-    const goal = state === "listening" ? Math.min(1, input * GAIN[index]!) : state === "speaking" ? 0.35 + 0.3 * Math.sin((now / 1000) * 2 * Math.PI * TALK_HZ[index]!) : 0;
+    const voiced = state === "listening" ? Math.min(1, input * GAIN[index]!) : state === "speaking" ? 0.35 + 0.3 * Math.sin((now / 1000) * 2 * Math.PI * TALK_HZ[index]!) : 0;
+    const goal = cheering ? Math.max(voiced, 0.9) : voiced;
     const was = shown[index]!;
     const next = was + (goal * scale - was) * (1 - Math.exp(-dt / (goal * scale > was ? ATTACK_MS[index]! : RELEASE_MS[index]!)));
     shown[index] = next;

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { arrange, folded, order, SIZE, type Shape, tall, unfolded } from "../src/ui/fold.ts";
+import { arrange, folded, lines, order, SIZE, type Shape, tall, unfolded } from "../src/ui/fold.ts";
 import type { Status } from "../src/ui/state.ts";
 
 const hand = (id: string, status: Status, since: number, viewing = false) => ({ id, status, since, viewing });
@@ -19,6 +19,52 @@ test("a picture is as tall as the column makes it, and a tall window's no taller
   expect(tall({ ratio: 320 / 520, words: false }, 180)).toBe(180);
   expect(tall({ ratio: null, words: false })).toBe(SIZE.brief);
   expect(unfolded(WIDE)).toBe(SIZE.strip + SIZE.rule + 235 + SIZE.pad + 3 * SIZE.line);
+});
+
+test("a finished hand unfolds as a receipt, never a full picture, and working hands get the room", () => {
+  // Its answer, five lines at most, beside a small picture; with neither, its header alone.
+  expect(unfolded(WIDE, MOST, { status: "done" })).toBe(SIZE.strip + SIZE.pad + SIZE.receipt * SIZE.line);
+  expect(unfolded({ ...WIDE, lines: 1 }, MOST, { status: "failed" })).toBe(SIZE.strip + SIZE.pad + SIZE.mini);
+  expect(unfolded({ ratio: null, words: true, lines: 2 }, MOST, { status: "done" })).toBe(SIZE.strip + SIZE.pad + 2 * SIZE.line);
+  expect(unfolded({ ratio: 1.6, words: false }, MOST, { status: "stopped" })).toBe(SIZE.strip + SIZE.pad + SIZE.mini);
+  expect(unfolded({ ratio: null, words: false }, MOST, { status: "stopped" })).toBe(SIZE.strip);
+  // Under the answer, the tally of its steps, when it took any.
+  expect(unfolded({ ...WIDE, tally: true }, MOST, { status: "done" })).toBe(SIZE.strip + SIZE.pad + SIZE.receipt * SIZE.line + SIZE.tally);
+  expect(unfolded({ ratio: 1.6, words: false, tally: true }, MOST, { status: "stopped" })).toBe(SIZE.strip + SIZE.pad + SIZE.mini);
+  // A lookup has no picture: its answer, then its sources; while it searches, its question and what it searches for.
+  expect(unfolded({ ratio: null, words: true, lines: 2, sources: true }, MOST, { status: "done" })).toBe(SIZE.strip + SIZE.pad + 2 * SIZE.line + SIZE.sources);
+  expect(unfolded({ ratio: null, words: false }, MOST, { status: "working" })).toBe(SIZE.strip + SIZE.rule + SIZE.brief + SIZE.subtitle);
+  // A hand still at work keeps its picture; before it has one, what it is doing stands under its task.
+  expect(unfolded(WIDE, MOST, { status: "working" })).toBe(unfolded(WIDE));
+  expect(unfolded({ ratio: null, words: false }, MOST, { status: "working" })).toBe(SIZE.strip + SIZE.rule + SIZE.brief + SIZE.subtitle);
+  expect(unfolded({ ratio: null, words: false }, MOST, { status: "starting" })).toBe(SIZE.strip + SIZE.rule + SIZE.brief);
+  // Two done and one at work, with room for the receipts and a middling picture: the picture takes the rest.
+  const hands = [hand("lefty", "done", 1), hand("righty", "working", 2), hand("thumbs", "done", 3)];
+  const short: Shape = { ratio: 16 / 10, words: true, lines: 1 };
+  const receipt = SIZE.strip + SIZE.pad + SIZE.mini;
+  const room = BASE + 3 * SIZE.gap + 2 * receipt + SIZE.strip + SIZE.rule + 200 + SIZE.pad + SIZE.line;
+  const layout = arrange(hands, new Map(hands.map((one) => [one.id, short])), room, null);
+  expect([...layout.unfolded].sort()).toEqual(["lefty", "righty", "thumbs"]);
+  expect(layout.picture).toBe(200);
+});
+
+test("the lines words take are counted long: a line breaks between words, so it holds fewer than fit", () => {
+  expect(lines("", 30)).toBe(0);
+  expect(lines("Done.", 30)).toBe(1);
+  expect(lines("a".repeat(31), 30)).toBe(2);
+  expect(lines("Opened Notepad and wrote the haiku:\nLunch waits in warm light\nA quiet bowl, a shared pause\nAfternoon begins", 28)).toBe(5);
+  expect(lines("a".repeat(30), 30)).toBe(1);
+  // A word that does not fit goes whole to the next line, leaving the end of the last one empty.
+  expect(lines("abcdef ghijkl mnopqr", 10)).toBe(3);
+  expect(lines("Sign in at https://accounts.google.com/ServiceLogin?hl=en then tell me.", 44)).toBe(3);
+  // One longer than a line starts on a line of its own and takes as many as it needs; what follows goes on after it.
+  expect(lines(`Go to ${"a".repeat(25)} now`, 10)).toBe(4);
+  // Chinese, Japanese and Korean, and emoji, are about twice as wide as a Latin letter.
+  expect(lines("今日は良い天気ですね", 15)).toBe(2);
+  expect(lines("🎉".repeat(8), 15)).toBe(2);
+  expect(lines("é".repeat(15), 15)).toBe(1);
+  expect(folded({ status: "done" }, { ...WIDE, lines: 1 })).toBe(SIZE.strip + SIZE.pad + SIZE.line);
+  expect(unfolded({ ...WIDE, lines: 1 })).toBe(SIZE.strip + SIZE.rule + 235 + SIZE.pad + SIZE.line);
 });
 
 test("folded, a hand at work is its header; one that has stopped keeps two lines of what came of it", () => {
@@ -95,13 +141,16 @@ test("a picture shrinks so the card that wants room most can unfold, but only so
 test("finished hands give up their two lines, oldest first, before the hand that needs you stays folded", () => {
   const hands = [hand("lefty", "done", 1), hand("righty", "done", 2), hand("index", "needs_you", 3)];
   const two = folded({ status: "done" }, WIDE);
-  const least = unfolded(WIDE, LEAST) - two;
-  const room = BASE + 3 * SIZE.gap + 3 * two + least - 10;
+  const needs = folded({ status: "needs_you" }, WIDE); // two lines, and the buttons that answer it
+  expect(needs).toBe(two + SIZE.ask);
+  const least = unfolded(WIDE, LEAST, { status: "needs_you" }) - needs;
+  const room = BASE + 3 * SIZE.gap + 2 * two + needs + least - 10;
   const layout = arrange(hands, shapes("lefty", "righty", "index"), room, null);
   expect([...layout.bare]).toEqual(["lefty"]);
   expect([...layout.unfolded]).toEqual(["index"]);
   expect(layout.picture).toBe(LEAST - 10 + (two - SIZE.strip)); // what Lefty gave up, less the 10 it was short
-  const hopeless = arrange(hands, shapes("lefty", "righty", "index"), BASE + 3 * SIZE.gap + 3 * two + 20, null);
+  expect(unfolded(WIDE, LEAST, { status: "needs_you" })).toBe(unfolded(WIDE, LEAST) + SIZE.ask);
+  const hopeless = arrange(hands, shapes("lefty", "righty", "index"), BASE + 3 * SIZE.gap + 2 * two + needs + 20, null);
   expect(hopeless.bare.size).toBe(0); // no room to be had: nobody gives theirs up for nothing
 });
 
@@ -117,17 +166,57 @@ test("an open card is the only one unfolded, the others are headers, and its tra
   expect([...roomy.unfolded]).toEqual(["lefty"]);
   expect([...roomy.bare]).toEqual(["righty"]);
   expect(roomy.log).toBe(SIZE.log[1]);
-  expect(roomy.picture).toBe(tall(WIDE, SIZE.open[1]));
+  // Open, the card is wide: a landscape picture is as tall as the most an open one may be.
+  expect(roomy.picture).toBe(tall(WIDE, SIZE.open[1], SIZE.wide));
+  expect(roomy.picture).toBe(SIZE.open[1]);
   const room = 700;
   const cramped = arrange(hands, shapes("lefty", "righty"), room, "lefty");
   const left = room - BASE - 2 * SIZE.gap - 2 * SIZE.strip - SIZE.rule - SIZE.sheet;
-  expect(cramped.picture).toBe(tall(WIDE, SIZE.open[1]));
+  expect(cramped.picture).toBe(Math.min(tall(WIDE, SIZE.open[1], SIZE.wide), left - SIZE.log[0]));
   expect(cramped.log).toBe(left - cramped.picture);
   const small = BASE + 2 * SIZE.gap + 2 * SIZE.strip + SIZE.rule + SIZE.sheet + SIZE.open[0] + SIZE.log[0]; // just room for both at their smallest
   const tiny = arrange(hands, shapes("lefty", "righty"), small, "lefty");
   expect(tiny.unfolded.has("lefty")).toBe(true);
   expect(tiny.log).toBe(SIZE.log[0]);
   expect(tiny.picture).toBe(SIZE.open[0]);
+});
+
+test("a watched card is wide and tall, and the others fold for it, down to a point", () => {
+  const hands = [hand("lefty", "working", 1), hand("righty", "working", 2), hand("thumbs", "done", 3)];
+  const ids = hands.map((one) => one.id);
+  const plain: Shape = { ratio: 16 / 10, words: false };
+  const pictures = new Map(ids.map((id) => [id, plain]));
+  // With room, it is as tall as the wide card makes it; the others still unfold.
+  const roomy = arrange(hands, pictures, 2000, null, "lefty");
+  expect(roomy.theater).toBe(tall(plain, SIZE.theater[1], SIZE.wide));
+  expect(roomy.theater).toBe(348);
+  expect([...roomy.unfolded].sort()).toEqual(ids.sort());
+  // Short of room, it keeps its picture and the others fold: it goes first.
+  const headers = BASE + 3 * (SIZE.gap + SIZE.strip);
+  const short = arrange(hands, pictures, headers + SIZE.rule + 300, null, "lefty");
+  expect(short.theater).toBe(300);
+  expect([...short.unfolded]).toEqual(["lefty"]);
+  // A tall window is no taller than the most.
+  expect(arrange(hands, new Map([["lefty", { ratio: 0.5, words: false }]]), 2000, null, "lefty").theater).toBe(SIZE.theater[1]);
+  // Too short even for its smallest picture: it is not watched big, and the column is arranged as ever.
+  const none = arrange(hands, pictures, headers + SIZE.rule + SIZE.theater[0] - 1, null, "lefty");
+  expect(none.theater).toBe(0);
+  expect(none).toEqual(arrange(hands, pictures, headers + SIZE.rule + SIZE.theater[0] - 1, null));
+  // A sheet out wins: nothing is watched big behind it.
+  expect(arrange(hands, pictures, 2000, "righty", "lefty").theater).toBe(0);
+});
+
+test("a finished card watched big shows its picture and its words, and older finished hands give up their lines for it", () => {
+  const hands = [hand("lefty", "done", 1), hand("righty", "done", 2)];
+  const said: Shape = { ratio: 16 / 10, words: true, lines: 2 };
+  const pictures = new Map([["lefty", said], ["righty", said]]);
+  const two = folded({ status: "done" }, said);
+  const chrome = SIZE.rule + SIZE.pad + 2 * SIZE.line - (two - SIZE.strip); // what watching Righty adds, less its picture
+  const room = BASE + 2 * SIZE.gap + 2 * two + chrome + SIZE.theater[0] - 10; // 10 short, until Lefty gives up its lines
+  const layout = arrange(hands, pictures, room, null, "righty");
+  expect([...layout.bare]).toEqual(["lefty"]);
+  expect(layout.theater).toBe(SIZE.theater[0] - 10 + (two - SIZE.strip));
+  expect([...layout.unfolded]).toEqual(["righty"]);
 });
 
 /** How tall the column is drawn with a sheet out: the open card's picture (if it has one), transcript and box, and the others as headers. */

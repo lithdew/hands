@@ -24,6 +24,15 @@ test("a paragraph that ends in a colon brings its list to the card, as bullets",
   expect(gist("It is done.\n- a stray list")).toBe("It is done.");
 });
 
+test("a first paragraph that ends in a colon brings the paragraph it introduces, and only that one", () => {
+  const haiku = "Opened Notepad and wrote the haiku:\n\nLunch waits in warm light\nA quiet bowl, a shared pause\nAfternoon begins\n\nIt is saved as haiku.txt.";
+  expect(gist(haiku)).toBe("Opened Notepad and wrote the haiku:\nLunch waits in warm light\nA quiet bowl, a shared pause\nAfternoon begins");
+  // A second paragraph ending in a colon opens nothing more, and a paragraph after a list still ends the gist.
+  expect(gist("Found two:\n\nThe first is cheaper:\n\nIt leaves at 9.")).toBe("Found two:\nThe first is cheaper:");
+  expect(gist("Found it.\n\nThe price is:\n\n£28.")).toBe("Found it.");
+  expect(gist("## Done\nWrote the haiku:\n\nLunch waits")).toBe("Done\nWrote the haiku:\nLunch waits");
+});
+
 test("a heading leads in, and numbered lists keep their numbers", () => {
   expect(gist("## Lunch pick\nDishoom, King's Cross: **£28** for two.\n\nBooked for 1pm.")).toBe("Lunch pick\nDishoom, King's Cross: £28 for two.");
   expect(gist("1. Opened Kayak\n2) Searched HKG to SFO\n\nCheapest: US$2,378.")).toBe("1. Opened Kayak\n2. Searched HKG to SFO");

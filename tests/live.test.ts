@@ -120,6 +120,27 @@ test("the camera films only cards that show a picture: one alone four times a se
   expect(nextShot(three, new Set([]), 5000)).toBeNull();
 });
 
+test("the card under the pointer is filmed first, four times a second, and the others keep their turns", () => {
+  const card = (id: string, shot: number, extra = {}) => ({ id, window: 1, viewing: false, last: false, shot, ...extra });
+  const two = [card("lefty", 800), card("righty", 0)];
+  expect(nextShot(two, null, 1050, ["lefty"])?.id).toBe("lefty"); // 250 ms since its last: due, ahead of Righty
+  expect(nextShot(two, null, 1000, ["lefty"])?.id).toBe("righty"); // not due yet: Righty, waiting its second, goes
+  expect(nextShot([card("lefty", 800), card("righty", 500)], null, 1000, ["lefty"])).toBeNull();
+  // One that is not shown, or is gone, or is nobody, changes nothing.
+  expect(nextShot(two, new Set(["righty"]), 1050, ["lefty"])?.id).toBe("righty");
+  expect(nextShot(two, null, 1050, [null])?.id).toBe("righty");
+  expect(nextShot([card("lefty", 800, { viewing: true }), card("righty", 900)], null, 1050, ["lefty"])).toBeNull();
+});
+
+test("the card watched big comes before the one under the pointer, and both before the rest", () => {
+  const card = (id: string, shot: number) => ({ id, window: 1, viewing: false, last: false, shot });
+  const three = [card("lefty", 700), card("righty", 800), card("thumbs", 0)];
+  expect(nextShot(three, null, 1050, ["righty", "lefty"])?.id).toBe("righty");
+  expect(nextShot(three, null, 1000, ["righty", "lefty"])?.id).toBe("lefty"); // Righty not due yet: Lefty is
+  expect(nextShot(three, null, 900, ["righty", "lefty"])?.id).toBeUndefined(); // neither due, and Thumbs waits its second
+  expect(nextShot(three, null, 1000, ["righty", null])?.id).toBe("thumbs");
+});
+
 test("a card knows its window is in front only once that has lasted a second, and the same going back", () => {
   const one = { window: 7, viewing: false, front: { value: false, since: 0 } };
   expect(glance(one, 7, 1000)).toBe(false);

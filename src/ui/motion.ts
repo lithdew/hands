@@ -20,6 +20,9 @@ export const GAP = 10; // between cards, as ui.css spaces them
 /** A duration, or none when the user has asked for less motion. */
 export const ms = (duration: number): number => (reduce.matches ? 0 : duration);
 
+/** Whether the user has asked for less motion: for what shows a moment either way, and only moves when it may. */
+export const still = (): boolean => reduce.matches;
+
 /**
  * A new card is dealt: its place opens (so the cards above make way through the layout itself), then it slides
  * in from the right, revealed from its right edge. `wait` staggers cards that arrive together.

@@ -6,6 +6,8 @@ export type Status = "starting" | "working" | "paused" | "needs_you" | "done" | 
 export interface LogEntry {
   kind: "task" | "tool" | "result" | "error" | "say" | "steer" | "status";
   text: string;
+  call?: string; // on a tool call and on its result: the call's id, so a result finds its own call when several run at once
+  moves?: number; // on a clicker call's result: how many moves Jev made in it
 }
 
 /** Whether a hand is borrowing the user's mouse and keyboard: waiting for them to pause, or holding it now. */
@@ -43,6 +45,7 @@ export interface HandView {
   seatWhy: string; // what the borrow is for: "pressing ctrl+s"
   picture: Picture;
   since: number;
+  until?: number; // when its run stopped (paused, needs you, or over), so a card drawn later still says how long it took
   window?: number | null; // which window it works in, as the camera films it: the card tells a new one's picture from the last one's (card.ts, track)
   kind?: Kind; // a hand (the default) or a lookup
   sources?: Source[]; // a lookup's pages, once it has answered

@@ -455,10 +455,10 @@ function panel(url: string): Panel & { refit(): void } {
 
 // ------------------------------------------------------------------ the camera
 
-/** One window of another app, small, through the helper: never a minimized window restored for it, and never a frame that shows nothing. Null when it is gone. */
-function camera(windowId: number): Shot {
+/** One window of another app, small (at most `maxPx` wide), through the helper: never a minimized window restored for it, and never a frame that shows nothing. Null when it is gone. */
+function camera(windowId: number, maxPx = THUMB_PX): Shot {
   try {
-    return thumbnail(windowId, THUMB_PX);
+    return thumbnail(windowId, maxPx);
   } catch {
     return null; // the helper went away with it: the next frame starts another
   }
