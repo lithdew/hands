@@ -135,7 +135,9 @@ export function speak(voice: VoiceView, hands: HandView[], talkKey: string): voi
   else write("heard", heard || (state === "listening" ? "Listening…" : "…"), !heard);
 
   const compact = spoken && state === "idle" && !lingering && !mode && banner.hidden && notice.hidden;
-  const hinting = still && !mode && !(state === "idle" && lingering);
+  // At rest, and saying how to talk to it: it can be clicked to type to, unless a hand has the mouse and keyboard, or
+  // waits to take them (the panel lets every click through then: panel.cs).
+  const hinting = still && !mode && !(state === "idle" && lingering) && banner.hidden;
   dock.className = `${state === "idle" && lingering && !mode ? "idle lingering" : state}${mode ? ` ${mode}` : ""}${hinting ? " hint" : ""}${compact ? " compact" : ""}`;
   // A long sentence keeps its newest words in sight, and its oldest line fades out at the top. What came of a typed
   // line is read from its start.
