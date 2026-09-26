@@ -197,7 +197,7 @@ function personify(agent: Agent): void {
 }
 
 /** What a managed hand is told, a JSON line at a time. A `prompt` to a hand at work is a `steer`. */
-export type Command = { type: "prompt" | "steer"; text: string } | { type: "pause" | "resume" | "stop" | "close" }; // close: give back what the hand opened, then exit
+export type Command = { type: "prompt" | "steer"; text: string } | { type: "pause" | "resume" | "stop" } | { type: "close"; keep?: boolean }; // close: close the browser windows the hand opened (unless keep), leave its other windows, then exit
 
 /**
  * `--json`: the hand as a process that someone else runs, the orchestrator for one. Commands come in on stdin and

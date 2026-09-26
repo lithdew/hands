@@ -53,6 +53,8 @@ export interface SeatPlatform {
   pressIn(target: KeyTarget, key: string, modifiers?: string[]): Promise<void>;
   /** Text to one window from behind, into wherever that window's own cursor is. */
   typeIn(target: KeyTarget, text: string): Promise<void>;
+  /** Open a document in its app as a window of the hand's own, behind the user's windows, and say where it is. Throws when nothing opens. */
+  openFile(path: string): Promise<KeyTarget>;
   /** The window to look at for a hand working in `pid`: `preferred` (or its own window of that app), or a dialog it has opened. Null when the app has no window. */
   workingWindow(pid: number, preferred?: number): WorkingWindow | null;
   /** Milliseconds since the user last touched the mouse or keyboard, not counting input the hands made themselves. */

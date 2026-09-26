@@ -1390,3 +1390,8 @@ export function present(_windowId: number): boolean {
 export function sweepDesktops(): number {
   return 0;
 }
+
+/** A hand is being dismissed: close the browser windows it opened (unless `keepBrowser`), leave its other windows where the user can find them, and take down its desktop. */
+export function release(_keepBrowser: boolean): void {
+  releaseDesktop();
+}

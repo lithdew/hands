@@ -12,6 +12,9 @@ export const macSeat: SeatPlatform = {
   browserKeysFromBehind: false, // keys go to a process, and in the browser that is whichever window the user is in
   pressIn: (target: KeyTarget, key: string, modifiers: string[] = []) => mac.press(key, modifiers, target.pid),
   typeIn: (target: KeyTarget, text: string) => mac.typeText(text, target.pid),
+  async openFile(path: string): Promise<KeyTarget> {
+    throw new Error(`opening a file as a window of its own is not built on the Mac yet: open its app, then the file from there (${path})`);
+  },
   workingWindow(pid: number, preferred?: number) {
     const windowId = preferred ?? mac.mainWindowId(pid);
     return windowId === null || windowId === undefined ? null : { windowId, dialog: null, theirs: false };

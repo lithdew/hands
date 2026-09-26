@@ -11,6 +11,9 @@ export const windowsSeat: SeatPlatform = {
   browserKeysFromBehind: true, // keys are posted to a window, so the hand's own browser window can take them
   pressIn: (target: KeyTarget, key: string, modifiers: string[] = []) => windows.press(key, modifiers, target.pid),
   typeIn: (target: KeyTarget, text: string) => windows.typeText(text, target.pid),
+  async openFile(path: string): Promise<KeyTarget> {
+    throw new Error(`opening a file is not built yet (${path})`);
+  },
   workingWindow(pid: number, preferred?: number) {
     const windowId = preferred ?? windows.mainWindowId(pid);
     return windowId === null ? null : { windowId, dialog: null, theirs: false };
