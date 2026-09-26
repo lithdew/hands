@@ -1232,7 +1232,7 @@ function pausedNow(quietMs: number): { release: (() => void) | null; seat: Idle;
   checkStopped();
   const seat = idle();
   if (!paused(seat, quietMs)) return { release: null, seat, locked: false };
-  const release = tryLock(SEAT_LOCK, LOCK_STALE_MS);
+  const release = ownLinger() ?? tryLock(SEAT_LOCK, LOCK_STALE_MS);
   if (release && interrupted) {
     release();
     checkStopped();
@@ -1265,22 +1265,59 @@ async function flashing<T>(work: () => Promise<T>, why = "clicking in the page")
   try {
     return await work();
   } finally {
-    release();
+    linger(release);
   }
 }
 
 /**
  * flashing, for what the platform makes synchronous (a press, a value, a menu, a first read): the user's pause for
- * `quietMs` under the seat's lock, waited for `waitMs` at most, then SeatBusy. Abort when the hand was stopped.
+ * `quietMs` under the seat's lock, waited for `waitMs` at most, then SeatBusy. Abort when the hand was stopped. A
+ * guarded click (`guarded`) keeps the lock a moment past its answer, as flashing does.
  */
-function pausedSync<T>(work: () => T, what: string, quietMs = FLASH_QUIET_MS, waitMs = FLASH_WAIT_SYNC_MS): T {
+function pausedSync<T>(work: () => T, what: string, quietMs = FLASH_QUIET_MS, waitMs = FLASH_WAIT_SYNC_MS, guarded = false): T {
   if (borrowed !== null) return work();
   const release = whenPausedSync(quietMs, performance.now() + waitMs, what);
   try {
     return work();
   } finally {
-    release();
+    if (guarded) linger(release);
+    else release();
   }
+}
+
+// The helper answers a guarded click as soon as nothing has taken the foreground from it for a moment, and watches the
+// rest of the moment behind its answer (Flash in windows.cs): the seat's lock is kept that much longer, so that no other
+// hand's click or borrow begins while that watch may still give the foreground back. This hand's own next use of the
+// seat takes the lock over (ownLinger) rather than waiting for itself.
+const LINGER_MS = 600;
+let lingering: { path: string; release: () => void; timer: ReturnType<typeof setTimeout> } | null = null;
+
+/** Let the seat's lock go LINGER_MS from now, unless this hand uses the seat again first. */
+function linger(release: () => void): void {
+  endLinger();
+  const timer = setTimeout(() => {
+    if (lingering?.timer !== timer) return;
+    lingering = null;
+    release();
+  }, LINGER_MS);
+  timer.unref?.();
+  lingering = { path: join(locks.root, SEAT_LOCK), release, timer };
+}
+
+/** The seat's lock this hand still holds from its last guarded click, taken over for its next use of the seat; null when there is none. */
+function ownLinger(): (() => void) | null {
+  if (!lingering || lingering.path !== join(locks.root, SEAT_LOCK)) return null;
+  const { release, timer } = lingering;
+  clearTimeout(timer);
+  lingering = null;
+  return release;
+}
+
+/** The lingering lock let go now: the hand is ending, or another click keeps its own. */
+function endLinger(): void {
+  const release = lingering ? (clearTimeout(lingering.timer), lingering.release) : null;
+  lingering = null;
+  release?.();
 }
 
 let guarding = false; // a guarded click is under way: the window it brings forward for a moment is not the user's doing
@@ -1486,6 +1523,7 @@ export async function borrow<T>(target: KeyTarget, since: number, work: () => Pr
  * and nothing is done when nothing is out.
  */
 export function abandonSeat(): void {
+  endLinger();
   if (seatOut === null && !guarding) return;
   seatAbandoned = seatOut;
   seatOut = null;
@@ -2322,7 +2360,7 @@ const act = (ref: unknown, action: string): boolean => {
     }
   };
   try {
-    return action === AX_PRESS && web ? pausedSync(run, "the click") : run();
+    return action === AX_PRESS && web ? pausedSync(run, "the click", FLASH_QUIET_MS, FLASH_WAIT_SYNC_MS, true) : run();
   } catch (error) {
     // The user did not pause in the moment a press can wait here: nothing was done, and the tools' pointer click
     // waits longer, where the wait is shown and a stop is heard (see flashing). A stop is the stop it is.
@@ -2379,7 +2417,7 @@ export function axSetValue(ref: unknown, value: string): boolean {
     return reply;
   };
   try {
-    const { ok: taken, posted, why } = web ? pausedSync(set, "typing into the field") : set();
+    const { ok: taken, posted, why } = web ? pausedSync(set, "typing into the field", FLASH_QUIET_MS, FLASH_WAIT_SYNC_MS, true) : set();
     if (!taken && why?.startsWith("busy:")) throw new SeatBusy(why.slice("busy:".length).trim()); // the user went back to work between the clicks
     // A Chromium field takes the text as posted keystrokes, and its tree shows them a beat later: WhatsApp's composer
     // read back empty when asked at once and full 250 ms on (measured), and a long message takes longer to show. So the

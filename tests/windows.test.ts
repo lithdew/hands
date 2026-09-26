@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Abort, type Frame } from "../src/models.ts";
@@ -359,6 +359,21 @@ test("a click into a Chromium window waits for the user to pause, under the seat
   const order = calls.map(([c, a]) => (c === "guard" ? (a.begin ? "begin" : "end") : c)).filter((c) => c !== "foreground" && c !== "windows");
   expect(order).toEqual(["idle", "idle", "begin", "post", "post", "post", "end"]); // it waited for 400 ms of quiet
   expect(asked("guard").at(-1)).toEqual({ hwnd: 44, sink: false }); // handed back, and not sunk: the window is not the hand's
+});
+
+test("a guarded click keeps the seat's lock a moment past its answer, while the helper still watches behind it; the hand's own next click takes it over at once", async () => {
+  const chrome = { hwnd: 44, pid: 400, cls: "Chrome_WidgetWin_1", title: "Mail", frame: [0, 0, 900, 600], core: 0, exe: "chrome.exe", caption: true };
+  helper({ windows: [chrome], post: { ok: true } });
+  const target = { pid: 400, windowId: 44, frame: [0, 0, 900, 600] as Frame, web: true };
+  const lock = join(lockRoot, windows.SEAT_LOCK);
+  await windows.windowPointer(target, [[150, 150]]);
+  expect(existsSync(lock)).toBe(true); // no other hand's click or borrow begins yet
+  const began = performance.now();
+  await windows.windowPointer(target, [[160, 150]]);
+  expect(performance.now() - began).toBeLessThan(300); // not a wait for itself
+  expect(asked("post")).toHaveLength(6);
+  for (const end = performance.now() + 2000; existsSync(lock) && performance.now() < end; ) await Bun.sleep(50);
+  expect(existsSync(lock)).toBe(false); // let go once the watch is over
 });
 
 test("a click into a Chromium window is refused when the user never pauses, and another hand's lock is waited for", async () => {
