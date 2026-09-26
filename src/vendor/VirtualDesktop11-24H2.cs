@@ -17,7 +17,7 @@ using System.Reflection;
 [assembly:AssemblyConfiguration("")]
 [assembly:AssemblyCompany("MS")]
 [assembly:AssemblyProduct("VirtualDesktop")]
-[assembly:AssemblyCopyright("© Markus Scholtes 2025")]
+[assembly:AssemblyCopyright("ï¿½ Markus Scholtes 2025")]
 [assembly:AssemblyTrademark("")]
 [assembly:AssemblyCulture("")]
 [assembly:AssemblyVersion("1.21.0.0")]
@@ -234,9 +234,11 @@ namespace VirtualDesktop
 	#region COM wrapper
 	internal static class DesktopManager
 	{
+		// Hands: a connection that fails here (another Windows build's interfaces, Explorer not up) is made again on the
+		// next call, instead of failing every call for the life of the process as a type initializer that threw would.
 		static DesktopManager()
 		{
-			Reconnect();
+			try { Reconnect(); } catch (Exception) { }
 		}
 
 		// Hands: refresh Explorer COM interfaces without losing helper window reservations.
