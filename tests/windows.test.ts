@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Abort, type Frame } from "../src/models.ts";
@@ -29,7 +29,7 @@ let calls: [string, Args][];
 const HOUSEKEEPING: Record<string, Reply> = {
   displays: [{ index: 0, frame: DISPLAY }], foreground: { hwnd: 11, pid: 100 }, sink: { ok: true }, desktop: { index: 1, created: true }, send: { ok: true },
   onDesktop: { on: true }, recall: { ok: true }, colours: { colours: 32, blank: false }, removeDesktop: { removed: true }, reg: { value: null },
-  idle: { idleMs: 60_000, held: [], quiet: true, tick: 1000 }, guard: { taken: false, back: true },
+  idle: { idleMs: 60_000, held: [], quiet: true, tick: 1000 }, guard: { taken: false, back: true }, late: { late: [] },
 }; // prettier-ignore
 /** A tree with labels enough for the probe to count the window as working. */
 const LABELLED = { nodes: [node(1, -1, "AXGroup", "Untitled - Notepad"), node(2, 1, "AXMenuItem", "File"), node(3, 1, "AXMenuItem", "Edit"), node(4, 1, "AXTextArea", "Text editor")], capped: false };
@@ -272,6 +272,37 @@ test("a press, a value and a read each name the control by the helper's id; a st
   expect(calls.slice(before).map(([c]) => c)).toEqual(["release"]);
 });
 
+test("a look at a window nothing has touched since its tree was read is given that tree again, its controls live; a changed picture, a moved window or anything sent reads it anew", async () => {
+  let grey = Buffer.from([1, 2, 3, 4, 5, 6]);
+  let frame: Frame = [100, 100, 1000, 700];
+  helper({
+    windows: () => [{ hwnd: 22, pid: 200, cls: "MSPaintApp", title: "Untitled - Paint", frame, core: 0, exe: "mspaint.exe" }],
+    capture: () => ({ width: 24, height: 16, thumb: grey.toString("base64"), thumbWidth: 3, thumbHeight: 2 }),
+    tree: ({ again }) => ({ nodes: [node(1, -1, "AXGroup", "w", { frame: [0, 0, 500, 500] }), node(7, 1, "AXButton", "Save", { actions: ["AXPress"] })], capped: false, ...(again ? { again } : {}) }),
+    act: { ok: true },
+  });
+  const look = async () => {
+    await windows.screenshotWindow(22, "w.png");
+    return windows.actionableElements(200, DISPLAY, { windowId: 22 });
+  };
+  const again = () => asked("tree").at(-1)!.again === true;
+  await look();
+  expect(again()).toBe(false);
+  const [[save]] = await look();
+  expect(again()).toBe(true); // the tree the helper kept: the app is not asked for it
+  expect(windows.axPress(save!.ref)).toBe(true); // and its controls are live again
+  await look();
+  expect(again()).toBe(false); // a press since: read anew
+  await look();
+  expect(again()).toBe(true);
+  grey = Buffer.from([1, 2, 3, 4, 5, 7]); // the picture changed
+  await look();
+  expect(again()).toBe(false);
+  frame = [120, 100, 1000, 700]; // the window moved
+  await look();
+  expect(again()).toBe(false);
+});
+
 test("a control that the helper cannot act on is a refusal, not a crash", () => {
   helper({ focused: { id: 5, role: "AXTextField", label: "To", placeholder: "Recipients", value: "", frame: [10, 20, 300, 30] }, act: () => { throw new Error("act: the element is gone"); }, value: () => { throw new Error("gone"); } }); // prettier-ignore
   const field = windows.focusedField()!;
@@ -359,6 +390,21 @@ test("a click into a Chromium window waits for the user to pause, under the seat
   const order = calls.map(([c, a]) => (c === "guard" ? (a.begin ? "begin" : "end") : c)).filter((c) => c !== "foreground" && c !== "windows");
   expect(order).toEqual(["idle", "idle", "begin", "post", "post", "post", "end"]); // it waited for 400 ms of quiet
   expect(asked("guard").at(-1)).toEqual({ hwnd: 44, sink: false }); // handed back, and not sunk: the window is not the hand's
+});
+
+test("a guarded click keeps the seat's lock a moment past its answer, while the helper still watches behind it; the hand's own next click takes it over at once", async () => {
+  const chrome = { hwnd: 44, pid: 400, cls: "Chrome_WidgetWin_1", title: "Mail", frame: [0, 0, 900, 600], core: 0, exe: "chrome.exe", caption: true };
+  helper({ windows: [chrome], post: { ok: true } });
+  const target = { pid: 400, windowId: 44, frame: [0, 0, 900, 600] as Frame, web: true };
+  const lock = join(lockRoot, windows.SEAT_LOCK);
+  await windows.windowPointer(target, [[150, 150]]);
+  expect(existsSync(lock)).toBe(true); // no other hand's click or borrow begins yet
+  const began = performance.now();
+  await windows.windowPointer(target, [[160, 150]]);
+  expect(performance.now() - began).toBeLessThan(300); // not a wait for itself
+  expect(asked("post")).toHaveLength(6);
+  for (const end = performance.now() + 2000; existsSync(lock) && performance.now() < end; ) await Bun.sleep(50);
+  expect(existsSync(lock)).toBe(false); // let go once the watch is over
 });
 
 test("a click into a Chromium window is refused when the user never pauses, and another hand's lock is waited for", async () => {
@@ -451,6 +497,58 @@ test("a press through accessibility in the hand's page that opens a window makes
   expect(windows.popupsOpened()).toEqual([47]);
   expect(windows.mainWindowId(400)).toBe(47); // the hand's own now, front-most of its windows there
   windows.releaseDesktop();
+});
+
+test("a window a guarded click opens after the helper has answered it is the hand's all the same: told of at the next look, or as the hand is let go, and closed with its windows", async () => {
+  spyOn(process, "kill").mockImplementation(() => true);
+  const chrome = { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Shop", frame: [0, 0, 900, 600], core: 0, exe: "chrome.exe", caption: true };
+  let launched = false;
+  let shown: number[] = []; // the pop-ups up
+  let late: [number, number][] = []; // what the helper's watch behind its answers found, with the window clicked
+  helper({
+    processes: [{ pid: 400, cmd: '"C:\\chrome.exe"' }],
+    windows: () => [...(launched ? [chrome] : []), ...shown.map((hwnd) => ({ ...chrome, hwnd, title: "Sign in" })), ...desk()],
+    launch: () => ((launched = true), { pid: 400 }),
+    post: { ok: true },
+    guard: ({ begin }) => (begin ? { ok: true } : { taken: false, back: true, popups: [] }), // answered before anything came up
+    late: () => ({ late: late.splice(0), behind: false }),
+    capture: { width: 900, height: 600 },
+    close: { ok: true },
+  });
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://shop.example.com/");
+  const target = { pid: 400, windowId: 46, frame: [0, 0, 900, 600] as Frame, web: true };
+  await windows.windowPointer(target, [[150, 150]]);
+  expect(windows.popupsOpened()).toEqual([]);
+  [shown, late] = [[47], [[47, 46]]]; // the sign-in window comes up a moment after the answer
+  await windows.screenshotWindow(46, "w.png"); // the next look
+  expect(windows.popupsOpened()).toEqual([47]);
+  expect(asked("sink")).toContainEqual({ hwnd: 47 }); // kept where its opener is: behind the user's windows
+  await windows.windowPointer(target, [[160, 150]]);
+  [shown, late] = [[47, 48], [[48, 46]]]; // another comes up, and the hand is let go before it looks again
+  windows.release(false);
+  expect(asked("close")).toEqual([{ hwnd: 46 }, { hwnd: 47 }, { hwnd: 48 }]);
+});
+
+test("a value typed into a page keeps the seat's lock a moment past the helper's answer and no longer, though the read-back after it keeps the process busy and no timer can fire", () => {
+  const chrome = { hwnd: 44, pid: 400, cls: "Chrome_WidgetWin_1", title: "Contacts", frame: [0, 0, 900, 600], core: 0, exe: "chrome.exe", caption: true };
+  const lock = join(lockRoot, windows.SEAT_LOCK);
+  let answered = 0;
+  const reads: [number, boolean][] = []; // each read-back of the field: how long after the answer, and whether the lock was held
+  helper({
+    windows: [chrome],
+    exe: { name: "chrome" },
+    tree: { nodes: [node(1, -1, "AXGroup", "w", { frame: [0, 0, 500, 500] }), node(7, 1, "AXTextField", "Phone", { actions: ["AXPress"] })], capped: false },
+    setValue: () => ((answered = performance.now()), { ok: true, posted: true }),
+    value: () => (reads.push([performance.now() - answered, existsSync(lock)]), { value: "(555) 123-4567" }), // the page shows what it was given its own way
+    topmost: { ok: true },
+  });
+  const [[field]] = windows.actionableElements(400, DISPLAY, { windowId: 44 });
+  expect(windows.axSetValue(field!.ref, "5551234567")).toBe(true);
+  expect(reads.at(-1)![0]).toBeGreaterThan(1400); // read back its whole time, the value never the text typed
+  expect(reads.filter(([at]) => at < 450).every(([, held]) => held)).toBe(true); // held while the helper still watches behind its answer
+  expect(reads.filter(([at]) => at > 750).some(([, held]) => held)).toBe(false); // and let go at its time, in the middle of the read-back
+  expect(existsSync(lock)).toBe(false);
 });
 
 test("a press in a page is made only once the user pauses, and gives up quickly for the pointer's longer wait; a value is SeatBusy, not a field that refuses", () => {
@@ -569,8 +667,20 @@ test("captures name the window or the display, and a window that is gone says so
   helper({ capture: ({ hwnd }) => (hwnd === 99 ? { gone: true } : { width: hwnd ? 886 : 2560, height: hwnd ? 593 : 1600 }) });
   expect(await windows.screenshotWindow(22, "w.png")).toEqual({ path: "w.png", width: 886, height: 593 });
   expect(await windows.screenshot({ index: 0, frame: DISPLAY }, "d.png")).toEqual({ path: "d.png", width: 2560, height: 1600 });
-  expect(asked("capture")).toEqual([{ hwnd: 22, path: "w.png", format: "png" }, { display: 0, path: "d.png", format: "png" }]);
+  expect(asked("capture")).toEqual([{ hwnd: 22, path: "w.png", format: "png", thumb: 8 }, { display: 0, path: "d.png", format: "png", thumb: 8 }]);
   await expect(windows.screenshotWindow(99, "w.png")).rejects.toThrow("the window is gone");
+});
+
+test("a capture comes with its grey copy at 1/8 scale, made by the helper from the picture it has in hand, for the OCR cache; only the latest capture's is kept", async () => {
+  const grey = Buffer.from([10, 20, 30, 40, 50, 60]);
+  helper({ capture: ({ hwnd }) => (hwnd === 23 ? { width: 24, height: 16 } : { width: 24, height: 16, thumb: grey.toString("base64"), thumbWidth: 3, thumbHeight: 2 }) });
+  await windows.screenshotWindow(22, "w.png");
+  expect(windows.captureThumb("w.png", 8)).toEqual({ data: new Uint8Array(grey), width: 3, height: 2 });
+  expect(windows.captureThumb("w.png", 4)).toBeNull(); // another scale is made from the file
+  expect(windows.captureThumb("other.png", 8)).toBeNull();
+  await windows.screenshotWindow(23, "x.png"); // a helper that made none
+  expect(windows.captureThumb("x.png", 8)).toBeNull();
+  expect(windows.captureThumb("w.png", 8)).toBeNull();
 });
 
 test("a thumbnail is the helper's JPEG, never restores a minimized window, and says blank or gone rather than sending a black box", () => {
@@ -1021,9 +1131,10 @@ test("the browser's tabs, URL and loading state are read off its windows, and a 
   expect(await windows.browserUrl("Google Chrome", "45")).toBe("https://flights.example.com");
   expect(await windows.browserLoading("Google Chrome")).toBe(false);
   expect(await windows.browserLoading("Google Chrome", 2)).toBe(true);
-  // Behind: a tab is navigated by a click on the omnibox, the URL as characters to the window itself, and Enter; nothing is activated.
+  // Behind: a tab is navigated by a triple click on the omnibox, the URL as characters to the window itself, and Enter; nothing is activated.
   expect(await windows.openUrl("Google Chrome", "https://example.com/", { background: true, window: "45", newTab: false })).toBe(true);
-  expect(asked("post").map((a) => [a.hwnd, a.kind, a.x, a.y])).toEqual([[45, "move", 711, 246], [45, "down", 711, 246], [45, "up", 711, 246]]);
+  const click = (kind: string) => [45, kind, 711, 246];
+  expect(asked("post").map((a) => [a.hwnd, a.kind, a.x, a.y])).toEqual([click("move"), click("down"), click("up"), click("down"), click("up"), click("down"), click("up")]); // the whole of what it holds selected, focused or not
   expect(asked("chars")).toEqual([{ hwnd: 45, text: "https://example.com/", direct: true }]);
   expect(asked("vkey")).toEqual([{ hwnd: 45, vk: 0x0d, direct: true }]);
   expect(asked("guard")).toEqual([{ begin: true, hwnd: 45, sink: false }, { hwnd: 45, sink: false }]); // the click brings Chrome forward for a moment, and it goes straight back
@@ -1032,6 +1143,37 @@ test("the browser's tabs, URL and loading state are read off its windows, and a 
   expect(await windows.tabCommand("Google Chrome", "close_tab", "44", 1, true)).toBe("Inbox | ");
   expect(asked("post").at(-1)).toEqual({ hwnd: 44, kind: "up", x: 390, y: 170 });
   expect(asked("activate")).toEqual([]);
+});
+
+test("a look at one browser window reads that window alone, once, for its URL, loading state and tabs; a navigation clicks the omnibox where the read that found the window saw it", async () => {
+  let typed = "";
+  const view = (hwnd: number) => ({
+    tabs: [{ title: hwnd === 44 ? "The user's mail" : "Flights", active: true, frame: [200, 150, 200, 40], close: null }, ...(hwnd === 45 ? [{ title: "Hotels", active: false, frame: [400, 150, 200, 40], close: null }] : [])],
+    url: hwnd === 45 && !typed ? "https://flights.example.com/" : null, omnibox: [438, 227, 545, 37], omniboxValue: hwnd === 45 && typed ? typed : "flights.example.com", buttons: {}, loading: hwnd === 45 && typed !== "",
+  }); // prettier-ignore
+  spyOn(process, "kill").mockImplementation(() => true);
+  helper({
+    processes: [{ pid: 400, cmd: '"C:\\chrome.exe"' }],
+    windows: [{ hwnd: 44, pid: 400, cls: "Chrome_WidgetWin_1", title: "Mail - Google Chrome", frame: [0, 0, 1200, 800], core: 0, exe: "chrome.exe" }, { hwnd: 45, pid: 400, cls: "Chrome_WidgetWin_1", title: "Flights - Google Chrome", frame: [50, 50, 1200, 800], core: 0, exe: "chrome.exe" }],
+    browser: ({ hwnd }) => view(hwnd as number),
+    post: { ok: true },
+    chars: ({ text }) => ((typed = `${text}`), { ok: true }),
+    vkey: { ok: true },
+  });
+  expect(await windows.browserPage("Google Chrome", "45")).toEqual({
+    url: "https://flights.example.com/",
+    loading: false,
+    tabs: [
+      { scripted: "45", window: 2, tab: 1, active: true, title: "Flights", url: "https://flights.example.com/" },
+      { scripted: "45", window: 2, tab: 2, active: false, title: "Hotels", url: "" },
+    ],
+  });
+  expect(asked("browser")).toEqual([{ hwnd: 45 }]); // never the user's window 44, whose tabs are theirs
+  expect(await windows.browserPage("Google Chrome", "99")).toBeNull();
+  calls = [];
+  expect(await windows.openUrl("Google Chrome", "https://example.com/", { background: true, window: "45", newTab: false })).toBe(true);
+  const order = calls.map(([c]) => c).filter((c) => c === "browser" || c === "post" || c === "chars");
+  expect(order.slice(0, 3)).toEqual(["browser", "post", "post"]); // the read that found the window, and straight to the click
 });
 
 test("a navigation from behind that never goes is false, and a switch to a tab that never becomes active is an error", async () => {

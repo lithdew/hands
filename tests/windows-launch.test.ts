@@ -12,7 +12,7 @@ import { windowsSeat } from "../src/windows-seat.ts";
 type Args = Record<string, unknown>;
 type Reply = ((args: Args) => unknown) | object | null;
 let calls: [string, Args][];
-const HOUSEKEEPING: Record<string, Reply> = { displays: [{ index: 0, frame: [0, 0, 2560, 1600] }], foreground: { hwnd: 11, pid: 100 }, sink: { ok: true }, processes: [] }; // prettier-ignore
+const HOUSEKEEPING: Record<string, Reply> = { displays: [{ index: 0, frame: [0, 0, 2560, 1600] }], foreground: { hwnd: 11, pid: 100 }, sink: { ok: true }, processes: [], late: { late: [] } }; // prettier-ignore
 
 function helper(replies: Record<string, Reply>): void {
   spyOn(windows.native, "call").mockImplementation((command: string, args: Args = {}) => {
@@ -202,6 +202,123 @@ test("a new browser window is handed back from, and only it: a window the user o
   expect((await windows.openBackgroundWindow("Google Chrome", "https://example.com/")).windowId).toBe(46);
   expect(asked("activate")).toEqual([]);
   expect(front.hwnd).toBe(77);
+});
+
+/** The helper's own watch of an opening (Opening in windows.cs), as a script: what it was asked to watch, and until when. */
+type Watch = { asked?: Args; until?: number };
+
+/**
+ * The helper's "opening": a watch asked for goes on until its time is up, or until the window it watches is brought
+ * forward on purpose (an "activate" of one of its roots, which the helper takes for Bun's own move: its Quiet).
+ */
+const openingScript = (watch: Watch) => ({
+  opening: (args: Args) => (args.seat !== undefined ? ((watch.asked = args), (watch.until = performance.now() + (args.ms as number)), { ok: true }) : { watching: performance.now() < (watch.until ?? 0) }),
+  quiet: (hwnd: number) => void ((watch.asked?.roots as number[] | undefined)?.includes(hwnd) && (watch.until = 0)),
+});
+
+/** A Chrome whose new window appears as it is launched, and the window in front `state.front` says; `state.keeps` makes a handback fail. */
+function chromeOpening(state: { front: { hwnd: number; pid: number }; takes?: boolean; keeps?: boolean }, watch: Watch = {}) {
+  let launched = false;
+  const chrome = window(46, 400, "chrome.exe", { cls: "Chrome_WidgetWin_1", title: "Example - Google Chrome" });
+  const { opening, quiet } = openingScript(watch);
+  helper({
+    processes: ({ exe }) => (exe === "chrome.exe" ? [{ pid: 400, cmd: '"C:\\chrome.exe"' }] : []),
+    windows: () => (launched ? [chrome, terminal] : [terminal]),
+    foreground: () => state.front,
+    launch: () => ((launched = true), state.takes && (state.front = { hwnd: 46, pid: 400 }), { pid: 0 }),
+    activate: ({ hwnd }) => (quiet(hwnd as number), !state.keeps && (state.front = { hwnd: hwnd as number, pid: 100 }), { ok: !state.keeps }),
+    opening,
+    reg: { value: null },
+  });
+  spyOn(process, "kill").mockImplementation(() => true);
+}
+
+test("a new window nothing brings forward lets the opening go on after a moment; the rest of the watch is the helper's, on a thread of its own, and the open lock is kept until it is over", async () => {
+  windows.pace.browserWatchMs = 1500;
+  const state = { front: { hwnd: 11, pid: 100 } };
+  const watch: Watch = {};
+  chromeOpening(state, watch);
+  const lock = join(lockRoot, "hands-open-window.lock");
+  const began = performance.now();
+  expect((await windows.openBackgroundWindow("Google Chrome", "https://example.com/")).windowId).toBe(46);
+  const took = performance.now() - began;
+  expect(took).toBeGreaterThanOrEqual(550); // it watched a moment first
+  expect(took).toBeLessThan(1200); // not the whole watch
+  expect(asked("activate")).toEqual([]);
+  // The helper watches the rest: the new window and what it brings up over itself, given back to the user's window, the
+  // seat's lock read for another hand's borrow.
+  expect(watch.asked).toMatchObject({ seat: 11, window: 46, roots: [46], lock: join(lockRoot, windows.SEAT_LOCK, "owner"), me: process.pid });
+  expect(watch.asked!.ms as number).toBeGreaterThan(800);
+  expect(watch.asked!.ms as number).toBeLessThanOrEqual(900);
+  // The look that follows an opening keeps this process busy a second and more at a time (capture, OCR, tree read), in
+  // which no round of a watch here could run: none is made here, and a late take is the helper's to give back.
+  const rounds = asked("foreground").length;
+  Bun.sleepSync(500);
+  await Bun.sleep(100);
+  expect(asked("foreground")).toHaveLength(rounds);
+  expect(existsSync(lock)).toBe(true); // no other hand opens a window while this one's can still take the seat
+  for (const end = performance.now() + 3000; existsSync(lock) && performance.now() < end; ) await Bun.sleep(50);
+  expect(existsSync(lock)).toBe(false); // let go once the helper's watch was over
+  expect(performance.now() - began).toBeGreaterThanOrEqual(1400);
+});
+
+test("a new window that takes the seat as it opens holds the opening until the handback has been watched a moment past, as before", async () => {
+  windows.pace.browserWatchMs = 1500;
+  const state = { front: { hwnd: 11, pid: 100 }, takes: true };
+  chromeOpening(state);
+  const began = performance.now();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect(performance.now() - began).toBeGreaterThanOrEqual(750); // 800 ms past the handback, for a second take
+  expect(asked("activate")).toEqual([{ hwnd: 11 }]);
+  expect(state.front.hwnd).toBe(11);
+  expect(asked("opening")).toEqual([]); // watched here to its end
+  expect(asked("sink")).toContainEqual({ hwnd: 46 }); // behind the user's windows
+});
+
+test("a new window that keeps the keyboard however it is handed back from is not sunk as the watch ends: the user would type into a window they cannot see", async () => {
+  windows.pace.browserWatchMs = 1500;
+  const state = { front: { hwnd: 11, pid: 100 }, takes: true, keeps: true };
+  chromeOpening(state);
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect(state.front.hwnd).toBe(46);
+  // Each round gives the seat back and sinks the window; the watch's last round is followed by a look at the window in
+  // front, and no sink of the window that has it.
+  const names = calls.map(([command]) => command);
+  const last = names.lastIndexOf("activate");
+  expect(names.slice(last, last + 3)).toEqual(["activate", "sink", "foreground"]);
+  expect(names.slice(last + 3)).not.toContain("sink");
+});
+
+test("a window shown to the user while its opening's watch goes on is theirs: the helper's watch ends there, and so does the open lock", async () => {
+  windows.pace.browserWatchMs = 1500;
+  const state = { front: { hwnd: 11, pid: 100 } };
+  chromeOpening(state);
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect(windows.present(46)).toBe(true); // Show, from the panel
+  const shown = performance.now();
+  const lock = join(lockRoot, "hands-open-window.lock");
+  for (const end = performance.now() + 3000; existsSync(lock) && performance.now() < end; ) await Bun.sleep(20);
+  expect(performance.now() - shown).toBeLessThan(400); // at the next ask, not when the watch's time was up
+  expect(asked("activate")).toEqual([{ hwnd: 46 }]); // the user's Show, and no handback after it
+  expect(state.front.hwnd).toBe(46);
+  expect(asked("sink")).not.toContainEqual({ hwnd: 46 });
+});
+
+test("an app's launch hands the rest of its watch of the seat to the helper, which knows the app's windows as the launch does: what it started and its children, its executables, its package", async () => {
+  windows.pace.seatWatchMs = 1500;
+  let launched = false;
+  const watch: Watch = {};
+  const excel = window(73, 500, "EXCEL.EXE", { cls: "XLMAIN", title: "Book1 - Excel" });
+  helper({ windows: () => [terminal, ...(launched ? [excel] : [])], launch: () => ((launched = true), { pid: 480, exe: "EXCEL.EXE" }), opening: openingScript(watch).opening });
+  const began = performance.now();
+  expect(await windows.runInBackground("Excel")).toBe(500);
+  expect(performance.now() - began).toBeLessThan(1200); // not the whole watch: Excel can take the seat 1.7 s in, and is given back from there
+  expect(watch.asked).toMatchObject({ seat: 11, pid: 480, children: true, exes: ["excel.exe"], package: null, me: process.pid });
+  expect(watch.asked!.window).toBeUndefined(); // where the app's window goes is the caller's to say
+  expect(watch.asked!.ms as number).toBeGreaterThan(800);
+  const lock = join(lockRoot, "hands-open-window.lock");
+  for (const end = performance.now() + 3000; existsSync(lock) && performance.now() < end; ) await Bun.sleep(50);
+  expect(existsSync(lock)).toBe(false); // let go once the helper's watch was over, and nothing asked of the helper after the test
 });
 
 test("a document that opens no window of the hand's own is an error", async () => {

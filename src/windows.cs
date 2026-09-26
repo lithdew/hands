@@ -161,7 +161,7 @@ static class Program
             case "ping": return Ok();
             case "cursor": { Win.POINT p; Win.GetCursorPos(out p); return new object[] { p.x, p.y }; }
             case "setCursor": return Seat.SetCursor(Int("x"), Int("y"), Bool("unlessMoved"));
-            case "seat": return Hold.Command(Str("state"));
+            case "seat": if (Str("state") != "free") Flash.Quiet(IntPtr.Zero); return Hold.Command(Str("state")); // a borrow brings its window forward on purpose
             case "idle": return Seat.Idle();
             case "foreground": return Foreground();
             case "displays": return Displays();
@@ -171,20 +171,20 @@ static class Program
             case "exe": return Exe(Int("pid"));
             case "assoc": return Assoc(Str("ext"));
             case "launch": return Launch(Str("file"), Str("args"), Has("show") ? Int("show") : 4);
-            case "activate": { bool ok = Activate(Hwnd()); return new Dictionary<string, object> { { "ok", ok }, { "foreground", Win.GetForegroundWindow().ToInt64() } }; }
+            case "activate": { Flash.Quiet(Hwnd()); Opening.Quiet(Hwnd()); bool ok = Activate(Hwnd()); return new Dictionary<string, object> { { "ok", ok }, { "foreground", Win.GetForegroundWindow().ToInt64() } }; }
             case "move": return Move();
             case "unmaximize": return Unmaximize();
             case "park": return Parking.Park(Hwnd());
-            case "unpark": return Parking.Unpark(Hwnd(), Bool("keep"));
+            case "unpark": Flash.Quiet(IntPtr.Zero); Opening.Quiet(IntPtr.Zero); return Parking.Unpark(Hwnd(), Bool("keep"));
             case "show": Win.ShowWindow(Hwnd(), Win.IsIconic(Hwnd()) ? 4 : 8); return Ok();
             case "close": Win.PostMessage(Hwnd(), 0x0010, IntPtr.Zero, IntPtr.Zero); return Ok();
-            case "topmost": Win.SetWindowPos(Hwnd(), new IntPtr(Bool("on") ? -1 : -2), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); return Ok();
+            case "topmost": if (Bool("on")) Flash.Quiet(IntPtr.Zero); Win.SetWindowPos(Hwnd(), new IntPtr(Bool("on") ? -1 : -2), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); return Ok();
             case "sink": Win.SetWindowPos(Hwnd(), new IntPtr(1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); return Ok(); // HWND_BOTTOM: behind every window of the user's, without activation
             case "capture": return Capture.Take();
             case "colours": return Capture.Colours(Hwnd(), Has("cap") ? Int("cap") : 64);
             case "image": return Capture.Size(Str("path"));
             case "ocr": return Ocr.Read(Str("path"), Arr("rect"));
-            case "tree": return Uia.Tree(Hwnd(), Has("cap") ? Int("cap") : 4000, Has("ms") ? Int("ms") : 600);
+            case "tree": return Uia.Tree(Hwnd(), Has("cap") ? Int("cap") : 4000, Has("ms") ? Int("ms") : 600, Bool("keep"), Bool("again"));
             case "focused": return Uia.Focused();
             case "act": return Uia.Act(Int("id"), Str("action"), !Has("sink") || Bool("sink"));
             case "setValue": return Uia.SetValue(Int("id"), Str("text"), !Has("sink") || Bool("sink"));
@@ -192,10 +192,12 @@ static class Program
             case "release": Uia.Release(); return Ok();
             case "post": return Input.Post(Hwnd(), Str("kind"), Int("x"), Int("y"));
             case "guard": if (Bool("begin")) { Flash.Driven(Hwnd(), !Has("sink") || Bool("sink")); return Ok(); } return Flash.EndDriven();
+            case "late": return Flash.Late();
+            case "opening": return Has("seat") ? Opening.Begin() : Opening.State();
             case "chars": return Input.Chars(Hwnd(), Str("text"), Bool("direct"));
             case "vkey": return Input.VKey(Hwnd(), Int("vk"), Bool("direct"));
             case "wheel": return Input.Wheel(Hwnd(), Int("x"), Int("y"), Int("delta"), Bool("horizontal"));
-            case "input": return Input.Send();
+            case "input": Flash.Quiet(IntPtr.Zero); return Input.Send();
             case "clipboard": return Clipboard(Str("text"));
             case "browser": return Uia.Browser(Hwnd());
             case "web": return new Dictionary<string, object> { { "web", Web.OfProcess((uint)Int("pid")) } };
@@ -266,7 +268,7 @@ static class Program
     }
 
     /** Every process started by `pid`, and by those, as far down as it goes: an app's launcher can hand over to a child. */
-    static object Children(int pid)
+    public static object Children(int pid)
     {
         Dictionary<uint, List<uint>> kids = new Dictionary<uint, List<uint>>();
         IntPtr snap = Win.CreateToolhelp32Snapshot(0x2, 0); // TH32CS_SNAPPROCESS
@@ -455,7 +457,7 @@ static class Desk
     }
 
     /** A process's executable by file name and its package family ("" for an app that is not packaged). */
-    static string[] ProcessOf(uint pid)
+    public static string[] ProcessOf(uint pid)
     {
         IntPtr h = Win.OpenProcess(0x1000, false, pid);
         if (h == IntPtr.Zero) return new string[] { "", "" };
@@ -876,6 +878,8 @@ static class Capture
         try
         {
             using (FileStream file = File.Create(path)) Save(saved, file, format);
+            int divisor = Program.Int("thumb");
+            if (divisor > 0) Thumb(saved, divisor, reply);
         }
         catch (Exception)
         {
@@ -884,6 +888,39 @@ static class Capture
         }
         Keep(path, saved);
         return reply;
+    }
+
+    /**
+     * A grey copy of a capture at 1/`divisor` scale, each pixel the mean of the block it stands for, in the reply as
+     * base64 ("thumb", with "thumbWidth" and "thumbHeight"): what the OCR cache compares captures by, which Bun
+     * otherwise decodes the whole PNG again to make (125 ms a look, measured).
+     */
+    static void Thumb(System.Drawing.Bitmap picture, int divisor, Dictionary<string, object> reply)
+    {
+        int w = Math.Max(1, picture.Width / divisor), h = Math.Max(1, picture.Height / divisor);
+        BitmapData data = picture.LockBits(new System.Drawing.Rectangle(0, 0, picture.Width, picture.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppRgb);
+        byte[] pixels = new byte[data.Stride * picture.Height];
+        try { Marshal.Copy(data.Scan0, pixels, 0, pixels.Length); }
+        finally { picture.UnlockBits(data); }
+        int stride = data.Stride;
+        int bw = Math.Max(1, Math.Min(divisor, picture.Width)), bh = Math.Max(1, Math.Min(divisor, picture.Height));
+        byte[] grey = new byte[w * h];
+        for (int ty = 0; ty < h; ty++)
+        {
+            for (int tx = 0; tx < w; tx++)
+            {
+                long sum = 0;
+                for (int y = ty * bh; y < ty * bh + bh; y++)
+                {
+                    int at = y * stride + tx * bw * 4;
+                    for (int x = 0; x < bw; x++, at += 4) sum += 54 * pixels[at + 2] + 183 * pixels[at + 1] + 19 * pixels[at]; // Rec. 709 luma, out of 256
+                }
+                grey[ty * w + tx] = (byte)Math.Min(255, (sum / (bw * bh) + 128) >> 8);
+            }
+        }
+        reply["thumb"] = Convert.ToBase64String(grey);
+        reply["thumbWidth"] = w;
+        reply["thumbHeight"] = h;
     }
 }
 
@@ -1058,13 +1095,42 @@ static class Uia
 
     public static void Release() { live.Clear(); }
 
+    /** A tree read that Bun asked to be kept (`keep`), with the elements it gave out, for Bun to ask for again (`again`). */
+    class KeptTree { public IntPtr hwnd; public int cap, ms; public Dictionary<string, object> reply; public readonly List<KeyValuePair<int, Node>> nodes = new List<KeyValuePair<int, Node>>(); }
+    static KeptTree kept;
+
     /**
      * The controls of a window as a flat list, one cached fetch per root. A covered WinUI window's tree can stop at the
      * title bar while its child windows still answer, and a UWP frame holds its app in a CoreWindow child, so every child
      * window is read as a root too, once. Chrome switches its page tree on when a client first touches the render widget's
      * window, which reading the children does.
+     *
+     * With `keep`, the read is kept, elements and all, and with `again`, the one kept for this window with the same caps
+     * is given again, its elements live once more under the ids they had, without asking the app anything: Bun asks for
+     * that when the window looks exactly as it did then and nothing has been sent into any window since (the fetch of a
+     * long page's tree cost 500 ms, all of it in the app's answers, measured). {again: true} says it was.
      */
-    public static object Tree(IntPtr hwnd, int cap, int ms)
+    public static object Tree(IntPtr hwnd, int cap, int ms, bool keep, bool again)
+    {
+        if (again && kept != null && kept.hwnd == hwnd && kept.cap == cap && kept.ms == ms)
+        {
+            foreach (KeyValuePair<int, Node> n in kept.nodes) live[n.Key] = n.Value;
+            Dictionary<string, object> reply = new Dictionary<string, object>(kept.reply);
+            reply["again"] = true;
+            return reply;
+        }
+        int first = next;
+        Dictionary<string, object> read = ReadTree(hwnd, cap, ms);
+        if (keep)
+        {
+            kept = new KeptTree();
+            kept.hwnd = hwnd; kept.cap = cap; kept.ms = ms; kept.reply = read;
+            for (int id = first; id < next; id++) { Node n; if (live.TryGetValue(id, out n)) kept.nodes.Add(new KeyValuePair<int, Node>(id, n)); }
+        }
+        return read;
+    }
+
+    static Dictionary<string, object> ReadTree(IntPtr hwnd, int cap, int ms)
     {
         Stopwatch clock = Stopwatch.StartNew();
         bool chromium = IsChromium(hwnd);
@@ -1432,31 +1498,33 @@ static class Uia
 
     static readonly AutomationProperty[] BrowserWanted = { AutomationElement.NameProperty, AutomationElement.ControlTypeProperty, AutomationElement.BoundingRectangleProperty, SelectionItemPattern.IsSelectedProperty, ValuePattern.ValueProperty, AutomationElement.IsValuePatternAvailableProperty };
 
-    /**
-     * What a Chromium window shows of itself: its tabs (title, selected, frame, close button), the active page's URL
-     * from the Document's value, the omnibox, the toolbar buttons, and whether it is loading (the reload button reads Stop).
-     */
-    public static object Browser(IntPtr hwnd)
+    /** The browser's own controls, and the page: what a read of its toolbar keeps, the rest of the tree between them left out. */
+    static readonly Condition BrowserParts = new OrCondition(
+        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TabItem), new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button),
+        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit), new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Document));
+
+    /** What one read of a Chromium window's own controls finds, gathered as the read goes. */
+    class BrowserRead
     {
-        Condition filter = new OrCondition(
-            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TabItem), new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button),
-            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit), new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Document));
-        AutomationElement top;
-        using (Request(BrowserWanted, filter, true).Activate()) top = AutomationElement.FromHandle(hwnd);
-        List<object> tabs = new List<object>();
-        Dictionary<string, object> buttons = new Dictionary<string, object>();
-        string url = null;
-        object[] omnibox = null;
-        string omniboxValue = "";
-        bool loading = false;
-        List<AutomationElement> queue = new List<AutomationElement>();
-        queue.Add(top);
-        for (int i = 0; i < queue.Count; i++)
+        public readonly List<object> tabs = new List<object>();
+        public readonly Dictionary<string, object> buttons = new Dictionary<string, object>();
+        public string url; // the page's own
+        public string anyUrl; // any other page's, a side panel's say: the URL when the page gives none
+        public object[] omnibox;
+        public string omniboxValue = "";
+        public bool loading;
+
+        /**
+         * One control, and, unless it is a tab or a page, what its cached children hold: a tab's close button is taken with
+         * it, and a page's own tabs and buttons are not the browser's. `page` is where the window shows its page: the
+         * Document over its middle is the page, and gives the URL.
+         */
+        public void Take(AutomationElement el, System.Windows.Rect page, List<AutomationElement> queue)
         {
-            AutomationElement el = queue[i];
             ControlType type = el.GetCachedPropertyValue(AutomationElement.ControlTypeProperty, true) as ControlType;
             string name = Clean(Text(el, AutomationElement.NameProperty));
-            object[] frame = FrameOf(el.GetCachedPropertyValue(AutomationElement.BoundingRectangleProperty, true));
+            object box = el.GetCachedPropertyValue(AutomationElement.BoundingRectangleProperty, true);
+            object[] frame = FrameOf(box);
             if (type == ControlType.TabItem)
             {
                 object[] close = null;
@@ -1466,7 +1534,7 @@ static class Uia
                 }
                 int cut = name.IndexOf(" - Memory usage - ", StringComparison.Ordinal);
                 tabs.Add(new Dictionary<string, object> { { "title", cut > 0 ? name.Substring(0, cut) : name }, { "active", Flag(el, SelectionItemPattern.IsSelectedProperty) }, { "frame", frame }, { "close", close } });
-                continue; // the close button was taken above
+                return; // the close button was taken above
             }
             if (type == ControlType.Button && frame != null)
             {
@@ -1476,22 +1544,146 @@ static class Uia
             else if (type == ControlType.Edit && name == "Address and search bar") { omnibox = frame; omniboxValue = Text(el, ValuePattern.ValueProperty); }
             else if (type == ControlType.Document)
             {
-                if (url == null && Flag(el, AutomationElement.IsValuePatternAvailableProperty)) { string v = Text(el, ValuePattern.ValueProperty); if (v.Length > 0) url = v; }
-                continue; // the page's own tabs and buttons are not the browser's
+                string v = Flag(el, AutomationElement.IsValuePatternAvailableProperty) ? Text(el, ValuePattern.ValueProperty) : "";
+                bool over = box is System.Windows.Rect && !page.IsEmpty && ((System.Windows.Rect)box).Contains(new System.Windows.Point(page.X + page.Width / 2, page.Y + page.Height / 2));
+                if (v.Length > 0 && over && url == null) url = v;
+                else if (v.Length > 0 && anyUrl == null) anyUrl = v;
+                return; // the page's own tabs and buttons are not the browser's
             }
-            foreach (AutomationElement kid in el.CachedChildren) queue.Add(kid);
+            if (queue != null) foreach (AutomationElement kid in el.CachedChildren) queue.Add(kid);
         }
-        // A window whose page tree is not on yet has no Document with a value; touching the render widget's window switches it on.
+
+        public object Reply()
+        {
+            return new Dictionary<string, object> { { "tabs", tabs }, { "url", url ?? anyUrl }, { "omnibox", omnibox }, { "omniboxValue", omniboxValue }, { "buttons", buttons }, { "loading", loading } };
+        }
+    }
+
+    /** Where a Chromium window shows its page, on screen: its largest visible render widget. False when it has none. */
+    static bool PageRect(IntPtr root, out System.Windows.Rect page)
+    {
+        Win.RECT best = new Win.RECT();
+        long area = 0;
+        Win.EnumChildWindows(root, delegate (IntPtr c, IntPtr l)
+        {
+            if (!Win.IsWindowVisible(c) || Desk.ClassOf(c) != "Chrome_RenderWidgetHostHWND") return true;
+            Win.RECT r;
+            Win.GetWindowRect(c, out r);
+            long a = (long)(r.R - r.L) * (r.B - r.T);
+            if (a > area) { area = a; best = r; }
+            return true;
+        }, IntPtr.Zero);
+        page = area > 0 ? new System.Windows.Rect(best.L, best.T, best.R - best.L, best.B - best.T) : System.Windows.Rect.Empty;
+        return area > 0;
+    }
+
+    /**
+     * What a Chromium window shows of itself: its tabs (title, selected, frame, close button), the active page's URL
+     * from the Document's value, the omnibox, the toolbar buttons, and whether it is loading (the reload button reads Stop).
+     *
+     * Read around the page: the page's tree is the bulk of the window's, and nothing the browser shows of itself lies
+     * in it (a long article's thousands of nodes made a whole read cost 210 to 310 ms; a read around the page costs 35
+     * to 60, measured). So the tree is fetched a level at a time down the parts that lie over the page, and each part
+     * that lies clear of it (the tab strip, the toolbar, the window's buttons) whole, in one fetch; the page's Document
+     * gives its URL without its descendants. The levels over the page are read in the control view, so a button the
+     * browser keeps out of it there (a hidden side panel's, a closed vertical tab strip's) is not read, where a whole
+     * read found it. A window with no page to go round, or whose read around it finds no omnibox, is read whole.
+     */
+    public static object Browser(IntPtr hwnd)
+    {
+        System.Windows.Rect page;
+        if (PageRect(hwnd, out page))
+        {
+            try
+            {
+                BrowserRead around = Around(hwnd, page);
+                if (around.omnibox != null) return Finish(hwnd, around);
+            }
+            catch (Exception) { /* a part that went away under the read, or a tree shaped otherwise: read it whole */ }
+        }
+        return Whole(hwnd);
+    }
+
+    const int AroundDepth = 16; // levels down the parts over the page: Chrome's page lies 7 down (measured)
+
+    static BrowserRead Around(IntPtr hwnd, System.Windows.Rect page)
+    {
+        BrowserRead read = new BrowserRead();
+        CacheRequest level = Request(BrowserWanted, Automation.ControlViewCondition, false);
+        level.TreeScope = TreeScope.Element | TreeScope.Children;
+        CacheRequest part = Request(BrowserWanted, BrowserParts, true);
+        AutomationElement top;
+        using (level.Activate()) top = AutomationElement.FromHandle(hwnd);
+        List<AutomationElement> spine = new List<AutomationElement>();
+        List<int> depths = new List<int>();
+        spine.Add(top);
+        depths.Add(0);
+        for (int i = 0; i < spine.Count; i++)
+        {
+            AutomationElement el = spine[i];
+            read.Take(el, page, null);
+            foreach (AutomationElement kid in el.CachedChildren)
+            {
+                ControlType type = kid.GetCachedPropertyValue(AutomationElement.ControlTypeProperty, true) as ControlType;
+                object box = kid.GetCachedPropertyValue(AutomationElement.BoundingRectangleProperty, true);
+                bool over = box is System.Windows.Rect && Overlap((System.Windows.Rect)box, page);
+                if (type == ControlType.Document) { read.Take(kid, page, null); continue; } // the page, or a page of the browser's own: its URL, never its tree
+                if (over && depths[i] < AroundDepth)
+                {
+                    spine.Add(kid.GetUpdatedCache(level));
+                    depths.Add(depths[i] + 1);
+                    continue;
+                }
+                // Clear of the page (or with no place at all): everything the browser has there, in one fetch.
+                AutomationElement whole = kid.GetUpdatedCache(part);
+                List<AutomationElement> queue = new List<AutomationElement>();
+                queue.Add(whole);
+                for (int j = 0; j < queue.Count; j++) read.Take(queue[j], page, queue);
+            }
+        }
+        return read;
+    }
+
+    /** Whether two rectangles share some area, not only an edge. */
+    static bool Overlap(System.Windows.Rect a, System.Windows.Rect b)
+    {
+        System.Windows.Rect both = System.Windows.Rect.Intersect(a, b);
+        return !both.IsEmpty && both.Width > 0 && both.Height > 0;
+    }
+
+    /** The window's tree fetched whole, as it was read before the read around the page. */
+    static object Whole(IntPtr hwnd)
+    {
+        System.Windows.Rect page;
+        PageRect(hwnd, out page);
+        AutomationElement top;
+        using (Request(BrowserWanted, BrowserParts, true).Activate()) top = AutomationElement.FromHandle(hwnd);
+        BrowserRead read = new BrowserRead();
+        List<AutomationElement> queue = new List<AutomationElement>();
+        queue.Add(top);
+        for (int i = 0; i < queue.Count; i++) read.Take(queue[i], page, queue);
+        return Finish(hwnd, read);
+    }
+
+    /** The read as Bun takes it, with the page's URL from its render widget when the page's tree is not on yet. */
+    static object Finish(IntPtr hwnd, BrowserRead read)
+    {
+        string url = read.url ?? read.anyUrl;
+        // A window whose page tree is not on yet has no Document with a value; touching the render widget's window switches it
+        // on. Only its nearest Documents are fetched: the page under them is the bulk of the tree (a loading article's cost
+        // a read 150 ms, measured), and the page's URL is its Document's.
         if (url == null)
         {
             List<IntPtr> children = new List<IntPtr>();
             Win.EnumChildWindows(hwnd, delegate (IntPtr c, IntPtr l) { if (Desk.ClassOf(c) == "Chrome_RenderWidgetHostHWND") children.Add(c); return true; }, IntPtr.Zero);
+            CacheRequest nearest = Request(BrowserWanted, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Document), false);
+            nearest.TreeScope = TreeScope.Element | TreeScope.Children;
             foreach (IntPtr child in children)
             {
                 try
                 {
                     AutomationElement island;
-                    using (Request(BrowserWanted, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Document), true).Activate()) island = AutomationElement.FromHandle(child);
+                    using (nearest.Activate()) island = AutomationElement.FromHandle(child);
                     List<AutomationElement> docs = new List<AutomationElement>();
                     docs.Add(island);
                     for (int i = 0; i < docs.Count && url == null; i++)
@@ -1505,7 +1697,8 @@ static class Uia
                 if (url != null) break;
             }
         }
-        return new Dictionary<string, object> { { "tabs", tabs }, { "url", url }, { "omnibox", omnibox }, { "omniboxValue", omniboxValue }, { "buttons", buttons }, { "loading", loading } };
+        read.url = url;
+        return read.Reply();
     }
 
     // ------------------------------------------------------------ menus and scrolling
@@ -1803,7 +1996,9 @@ static class Input
             if (c == '\n') Key(target, 0x0D);
             else if (c == '\t') Key(target, 0x09);
             else if (c != '\r') Win.PostMessage(target, 0x0102, new IntPtr(c), new IntPtr(1));
-            Thread.Sleep(12);
+            // A page's field is given its characters a beat apart, as a person types them; the omnibox takes them all at
+            // once (a URL of 42 characters cost 690 ms at 16 a character, measured), and Bun reads back what it holds.
+            if (!direct) Thread.Sleep(12);
         }
         return new Dictionary<string, object> { { "ok", true }, { "target", target.ToInt64() } };
     }
@@ -2017,6 +2212,10 @@ static class Flash
     public const int WatchMs = 600; // after the handback, a while more, for a second take (a bubble, a focus change)
     const int SettleMs = 30; // after the release, before the first handback: Chrome finishes taking the foreground
     const int ShortMs = 150; // the watch of a click that more clicks follow: Chrome takes the foreground 5 to 11 ms after the press (measured)
+    // A click whose window has left the foreground alone this long (after the settle, or after its handback), with no
+    // window of its own opening, is answered: the rest of its watch goes on behind the answer (see Behind), which is
+    // where a late take is given back. The answer used to wait out the whole watch, 630 ms, every time (measured).
+    const int AnswerMs = 120;
 
     /** Said, word for word, when a click a guarded piece of work still had to make was not made: the tools know it by its start. */
     public const string Busy = "busy: the user went back to the mouse or keyboard before the field was ready, so nothing was typed";
@@ -2024,16 +2223,28 @@ static class Flash
     /**
      * One guarded moment: the window clicked and whether it goes back behind the user's (it is the hand's own), the
      * window the user had in front, the nearest ordinary window above the clicked one (where a window of the user's
-     * goes back to), and the top-level windows its process had, which tell a window the click opens.
+     * goes back to), and the top-level windows its process had, which tell a window the click opens. `stop` ends its
+     * watch behind.
      */
-    public class Moment { public IntPtr root, front, above; public bool sink; public uint pid; public HashSet<long> before; }
+    public class Moment { public IntPtr root, front, above; public bool sink; public uint pid; public HashSet<long> before; public volatile bool stop; }
 
     static readonly object gate = new object();
+    // Each round of a watch, from reading the foreground to giving it back, is made under this lock, and Quiet takes it
+    // once after stopping a watch: a handback already under way ends before Bun's own move, never after it.
+    static readonly object acting = new object();
     static Moment pending; // the moment under way, which Hold.Abandon undoes when the hand ends in the middle of it
     static Moment driven; // the moment Bun began with "guard", which its "guard" end closes
+    static Moment behind; // the moment whose watch goes on after its answer (see Behind)
+    static readonly List<Moment> open = new List<Moment>(); // answered moments in windows of the hand's whose watch time is not over: a window they open is still theirs
+    static readonly List<object[]> late = new List<object[]>(); // [window, the window clicked]: windows those moments opened after their answer, for Bun to adopt (Late)
+    static readonly HashSet<long> handed = new HashSet<long>(); // windows a click opened that Bun has been told of, by an answer or by Late
+
+    /** Whether a guarded moment is under way, or watched behind its answer: its watch sees to the windows it brings forward. */
+    public static bool Watching { get { lock (gate) return pending != null || behind != null; } }
 
     public static Moment Begin(IntPtr root, bool sink)
     {
+        Quiet(IntPtr.Zero); // this moment's own watch sees to the window from here on
         Moment m = new Moment();
         m.root = root;
         m.sink = sink;
@@ -2055,20 +2266,119 @@ static class Flash
         return End(m);
     }
 
-    /** The moment after the last click of a guarded piece of work, watched for a second take too: {taken, back, popups}. */
-    public static Dictionary<string, object> End(Moment m) { Dictionary<string, object> r = Watch(m, SettleMs, WatchMs); Done(m); return r; }
+    /**
+     * The moment after the last click of a guarded piece of work, watched for a second take too: {taken, back, popups}.
+     * Answered once the window has left the foreground alone a moment (AnswerMs), and watched on behind the answer for
+     * the rest of the time. A window the click opens after the answer is told of by Late.
+     */
+    public static Dictionary<string, object> End(Moment m)
+    {
+        int left;
+        Dictionary<string, object> r = Watch(m, SettleMs, WatchMs, true, out left);
+        lock (gate) foreach (object h in (List<object>)r["popups"]) handed.Add((long)h);
+        if (left > 0) Behind(m, left);
+        else Done(m);
+        return r;
+    }
 
     /** The moment after a click that more clicks follow: given back as soon as it is taken. */
-    public static Dictionary<string, object> Return(Moment m) { Dictionary<string, object> r = Watch(m, 0, ShortMs); Done(m); return r; }
+    public static Dictionary<string, object> Return(Moment m) { int left; Dictionary<string, object> r = Watch(m, 0, ShortMs, false, out left); Done(m); return r; }
 
-    /** A while more after a piece of work's last click, whose foreground is back already. */
-    public static void Linger(Moment m) { Watch(m, 0, WatchMs); }
+    /** A while more after a piece of work's last click, whose foreground is back already: behind, as the work goes on. */
+    public static void Linger(Moment m) { Behind(m, WatchMs); }
 
     static void Done(Moment m) { lock (gate) { if (pending == m) pending = null; } }
+
+    /**
+     * The rest of a moment's watch, on a thread of its own, after its answer: a late take (a bubble, a window the click
+     * opened coming up) is given back there within a few milliseconds, whatever Bun is doing meanwhile. It ends when its
+     * time is up, when another moment begins, or when Bun brings a window forward on purpose (Quiet). A moment in a
+     * window of the hand's is kept until its time is up, however its watch ended, for the windows it opens (see Late).
+     */
+    static void Behind(Moment m, int ms)
+    {
+        DateTime until = DateTime.UtcNow.AddMilliseconds(ms);
+        lock (gate)
+        {
+            if (behind != null && behind != m) behind.stop = true;
+            behind = m;
+            if (m.sink) open.Add(m);
+        }
+        Thread thread = new Thread(delegate ()
+        {
+            try
+            {
+                int left;
+                Watch(m, 0, ms, false, out left);
+            }
+            catch (Exception) { /* a window that went away under the watch: nothing left to give back */ }
+            finally
+            {
+                lock (gate) { if (behind == m) behind = null; }
+                Done(m);
+            }
+            try
+            {
+                // Stopped early or not, the windows the click opens in its time are the hand's: kept for Late at its end.
+                int rest = (int)(until - DateTime.UtcNow).TotalMilliseconds;
+                if (m.sink && rest > 0) Thread.Sleep(rest);
+                if (m.sink) lock (gate) { Opens(m); open.Remove(m); }
+            }
+            catch (Exception) { lock (gate) open.Remove(m); }
+        });
+        thread.IsBackground = true;
+        thread.Start();
+    }
+
+    /** The windows a moment's click opened that Bun has not been told of yet, into `late`. Under `gate`. */
+    static void Opens(Moment m)
+    {
+        foreach (object h in Popups(m))
+        {
+            if (handed.Add((long)h)) late.Add(new object[] { h, m.root.ToInt64() });
+        }
+    }
+
+    /**
+     * The windows clicks in windows of the hand's opened after their answers, each with the window clicked, which Bun
+     * has not been told of: {late: [[window, clicked]], behind}. Asked by Bun at its next look, or its watcher's round, so
+     * that such a window (a page's pop-up, a sign-in) is the hand's, kept with its opener and closed with it, without
+     * waiting for another click. `behind` says whether a click's watch still goes on behind its answer.
+     */
+    public static object Late()
+    {
+        List<object> found = new List<object>();
+        bool watching;
+        lock (gate)
+        {
+            foreach (Moment m in open) Opens(m);
+            found.AddRange(late);
+            late.Clear();
+            watching = behind != null;
+        }
+        return new Dictionary<string, object> { { "late", found }, { "behind", watching } };
+    }
+
+    /**
+     * Bun is about to bring a window forward on purpose (a borrow, a lift, Show): the watch behind an answer stops
+     * there, or it would give back what is now meant to be in front. A handback, which activates the window the user
+     * had, leaves it watching. A round of the watch under way ends first: after this, nothing of it moves the foreground.
+     */
+    public static void Quiet(IntPtr activating)
+    {
+        lock (gate)
+        {
+            if (behind == null || (activating != IntPtr.Zero && activating == behind.front)) return;
+            behind.stop = true;
+            behind = null;
+        }
+        if (Monitor.TryEnter(acting, 1000)) Monitor.Exit(acting);
+    }
 
     /** The hand ends in the middle of a guarded moment: whatever the click brought forward gives the foreground back, once. */
     public static void Abandon()
     {
+        Quiet(IntPtr.Zero);
         Moment m;
         lock (gate) { m = pending; pending = null; driven = null; }
         if (m == null) return;
@@ -2120,32 +2430,63 @@ static class Flash
      * is only handed back, and put back under the window it lay under. A window that still has the foreground is never
      * sunk (the user would type into a window they cannot see): `back` then says the handback failed. `popups` are the
      * windows the click opened (a page's pop-up, a sign-in), with a title bar of their own, which the hand may adopt.
+     *
+     * With `answer`, the watch answers early, once nothing has held the foreground for AnswerMs and no window the click
+     * opened has come up: `left` is then how long its watch still had to run, for the caller to go on with behind.
      */
-    static Dictionary<string, object> Watch(Moment m, int settleMs, int ms)
+    static Dictionary<string, object> Watch(Moment m, int settleMs, int ms, bool answer, out int left)
     {
         Stopwatch clock = Stopwatch.StartNew();
         bool taken = false, back = true;
-        while (clock.ElapsedMilliseconds < settleMs + ms)
+        long quiet = settleMs; // since when nothing of the click's has held the foreground
+        left = 0;
+        while (clock.ElapsedMilliseconds < settleMs + ms && !m.stop)
         {
-            IntPtr fg = Win.GetForegroundWindow();
-            bool opened = fg != IntPtr.Zero && fg != m.front && Opened(m, fg);
-            bool took = fg != IntPtr.Zero && fg != m.front && (Root(fg) == m.root || opened);
-            bool over = m.sink && m.front != IntPtr.Zero && Win.IsWindow(m.front) && Above(m.root, m.front);
-            if ((took || over) && clock.ElapsedMilliseconds >= settleMs)
+            lock (acting)
             {
-                taken |= took;
-                if (took && m.front != IntPtr.Zero && Win.IsWindow(m.front)) back = Program.Activate(m.front);
-                IntPtr now = Win.GetForegroundWindow();
-                bool free = now == IntPtr.Zero || (Root(now) != m.root && !Opened(m, now));
-                if (m.sink && free) Sink(m.root);
-                if (m.sink && opened && free) Sink(Root(fg));
+                if (m.stop) break; // Bun is bringing a window forward itself (Quiet): nothing more is given back
+                IntPtr fg = Win.GetForegroundWindow();
+                bool opened = fg != IntPtr.Zero && fg != m.front && Opened(m, fg);
+                bool took = fg != IntPtr.Zero && fg != m.front && (Root(fg) == m.root || opened);
+                bool over = m.sink && m.front != IntPtr.Zero && Win.IsWindow(m.front) && Above(m.root, m.front);
+                if ((took || over) && clock.ElapsedMilliseconds >= settleMs)
+                {
+                    taken |= took;
+                    if (took && m.front != IntPtr.Zero && Win.IsWindow(m.front)) back = Program.Activate(m.front);
+                    IntPtr now = Win.GetForegroundWindow();
+                    bool free = now == IntPtr.Zero || (Root(now) != m.root && !Opened(m, now));
+                    if (m.sink && free) Sink(m.root);
+                    if (m.sink && opened && free) Sink(Root(fg));
+                    if (took || !free) quiet = clock.ElapsedMilliseconds;
+                }
+                if (answer && clock.ElapsedMilliseconds >= quiet + AnswerMs && Popups(m).Count == 0)
+                {
+                    IntPtr now = Win.GetForegroundWindow();
+                    if (now == IntPtr.Zero || now == m.front || (Root(now) != m.root && !Opened(m, now)))
+                    {
+                        left = (int)Math.Max(0, settleMs + ms - clock.ElapsedMilliseconds);
+                        break;
+                    }
+                }
             }
             Thread.Sleep(5);
         }
-        IntPtr last = Win.GetForegroundWindow();
-        if (last != IntPtr.Zero && last != m.front && (Root(last) == m.root || Opened(m, last))) back = false; // every try failed: it still has the keyboard
-        if (!m.sink && taken && back && m.above != IntPtr.Zero && m.above != m.root && Win.IsWindow(m.above))
-            Win.SetWindowPos(m.root, m.above, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // the user's window, back where it lay: activation raised it over the rest of theirs
+        lock (acting)
+        {
+            if (!m.stop)
+            {
+                IntPtr last = Win.GetForegroundWindow();
+                if (left == 0 && last != IntPtr.Zero && last != m.front && (Root(last) == m.root || Opened(m, last))) back = false; // every try failed: it still has the keyboard
+                if (!m.sink && taken && back && m.above != IntPtr.Zero && m.above != m.root && Win.IsWindow(m.above))
+                    Win.SetWindowPos(m.root, m.above, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // the user's window, back where it lay: activation raised it over the rest of theirs
+            }
+        }
+        return new Dictionary<string, object> { { "taken", taken }, { "back", back }, { "popups", Popups(m) } };
+    }
+
+    /** The windows a moment's click opened (a page's pop-up, a sign-in) with a title bar of their own, not a tool window's: windows the hand may adopt. */
+    static List<object> Popups(Moment m)
+    {
         List<object> popups = new List<object>();
         foreach (long h in WindowsOf(m.pid))
         {
@@ -2154,8 +2495,167 @@ static class Flash
             long style = Win.GetWindowLongPtr(w, -16).ToInt64(), ex = Win.GetWindowLongPtr(w, -20).ToInt64();
             if ((style & 0x00C00000L) == 0x00C00000L && (ex & 0x80) == 0) popups.Add(h); // a title bar, and not a tool window: a window of its own
         }
-        return new Dictionary<string, object> { { "taken", taken }, { "back", back }, { "popups", popups } };
+        return popups;
     }
+}
+
+// ------------------------------------------------------------ an opening's watch of the seat
+
+/**
+ * The rest of an opening's watch of the seat (returnSeat in src/windows.ts), on a thread of its own. A window opened
+ * from behind can take the foreground a beat after it exists (a browser's window, or its bubble over it; an app as it
+ * finishes loading: Excel took it 1.7 s in). Bun watches the first moments itself, and once nothing has taken the seat
+ * for a while it goes on with the opening and hands the rest of the watch here: a late take is given back within a
+ * few milliseconds, whatever Bun is doing meanwhile (a look's capture, OCR and tree read keep it busy a second and
+ * more, and a watch of its own would wait for that).
+ *
+ * Which windows are the opening's is said as data, as Bun's own watch tells them: the window opened and what it owns
+ * (`roots`); a process's windows (`pid`), its children's too (`children`), but not those there before (`before`); any
+ * window of the executables `exes`, or of the package `package`. A take is given back to the window that had the seat,
+ * unless another hand holds the seat's lock (`lock`, its owner file; `me` is Bun's own pid): the foreground is then that
+ * hand's to move. Either way the window opened (`window`) goes behind the user's. The watch pauses while this hand
+ * borrows the seat or watches a guarded click, which put back what they move themselves, and ends when its time is up
+ * (`ms`), 800 ms after its first handback, or when Bun brings a window of the opening's forward on purpose (Quiet). As
+ * it ends, the window opened goes behind the user's, unless it has the foreground or Bun has it out.
+ */
+static class Opening
+{
+    const int RoundMs = 10;
+    const int AfterMs = 800; // after the first handback, a while more for a second take, as Bun's own watch waits
+    const int StaleMs = 30000; // LOCK_STALE_MS in src/windows.ts: a lock that has shown no sign of life this long is no one's
+
+    class Watch
+    {
+        public IntPtr seat, window;
+        public int ms;
+        public uint pid, me;
+        public bool children;
+        public string package = "", owner = "";
+        public readonly HashSet<long> roots = new HashSet<long>(), before = new HashSet<long>();
+        public readonly HashSet<string> exes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public volatile bool stop, over;
+
+        /** Whether a window is one of the opening's (openingTakes in src/windows.ts). */
+        public bool Takes(IntPtr h)
+        {
+            if (roots.Contains(h.ToInt64()) || roots.Contains(Flash.Root(h).ToInt64())) return true;
+            uint p = Desk.Describe(h).pid; // a UWP frame's app is its CoreWindow's process
+            if (pid != 0 && !before.Contains(h.ToInt64()) && (p == pid || (children && ((List<object>)Program.Children((int)pid)).Contains((long)p)))) return true;
+            if (exes.Count == 0 && package.Length == 0) return false;
+            string[] process = Desk.ProcessOf(p);
+            return (process[0].Length > 0 && exes.Contains(process[0])) || (package.Length > 0 && process[1] == package);
+        }
+    }
+
+    static readonly object gate = new object();
+    static readonly object acting = new object(); // each round is made under this lock: a handback under way ends before Bun's own move (Quiet)
+    static Watch current;
+
+    /** The rest of an opening's watch, from Bun's request: {ok}. One opening at a time (Bun's open lock sees to it). */
+    public static object Begin()
+    {
+        Watch w = new Watch();
+        w.seat = new IntPtr(Program.Long("seat"));
+        w.window = new IntPtr(Program.Long("window"));
+        w.ms = Program.Int("ms");
+        w.pid = (uint)Program.Long("pid");
+        w.children = Program.Bool("children");
+        w.package = Program.Str("package");
+        w.owner = Program.Str("lock");
+        w.me = (uint)Program.Long("me");
+        foreach (object h in Program.Arr("roots")) w.roots.Add(Convert.ToInt64(h, CultureInfo.InvariantCulture));
+        foreach (object h in Program.Arr("before")) w.before.Add(Convert.ToInt64(h, CultureInfo.InvariantCulture));
+        foreach (object e in Program.Arr("exes")) w.exes.Add(Convert.ToString(e, CultureInfo.InvariantCulture));
+        lock (gate)
+        {
+            if (current != null) current.stop = true;
+            current = w;
+        }
+        Thread thread = new Thread(delegate () { Run(w); });
+        thread.IsBackground = true;
+        thread.Start();
+        return new Dictionary<string, object> { { "ok", true } };
+    }
+
+    /** {watching}: whether an opening's watch still goes on, which Bun holds its open lock through. */
+    public static object State()
+    {
+        lock (gate) return new Dictionary<string, object> { { "watching", current != null && !current.over && !current.stop } }; // a stopped watch moves nothing more
+    }
+
+    /**
+     * Bun is bringing a window forward on purpose: one of the opening's (Show, a borrow of it, the app it started brought
+     * to the front), or any window back from off the screens (`activating` zero). The watch ends there, or it would give
+     * back what is now meant to be in front; a handback to a window of the user's leaves it watching. A round of the
+     * watch under way ends first: after this, nothing of it moves the foreground.
+     */
+    public static void Quiet(IntPtr activating)
+    {
+        Watch w;
+        lock (gate) w = current;
+        if (w == null || w.over) return;
+        try { if (activating != IntPtr.Zero && !w.Takes(activating)) return; }
+        catch (Exception) { return; }
+        w.stop = true;
+        if (Monitor.TryEnter(acting, 1000)) Monitor.Exit(acting);
+    }
+
+    static void Run(Watch w)
+    {
+        Stopwatch clock = Stopwatch.StartNew();
+        long returned = -1;
+        IntPtr seen = IntPtr.Zero; // the window last found in front, and whether it is the opening's: asked once for each
+        bool takes = false;
+        try
+        {
+            while (!w.stop && clock.ElapsedMilliseconds < w.ms && (returned < 0 || clock.ElapsedMilliseconds < returned + AfterMs))
+            {
+                lock (acting)
+                {
+                    if (w.stop) break;
+                    IntPtr fg = Win.GetForegroundWindow();
+                    if (fg != IntPtr.Zero && fg != w.seat && !Hold.Holding && !Flash.Watching)
+                    {
+                        if (fg != seen) { seen = fg; takes = w.Takes(fg); }
+                        if (takes)
+                        {
+                            if (Win.IsWindow(w.seat) && !SeatElsewhere(w)) Program.Activate(w.seat);
+                            if (w.window != IntPtr.Zero) Sink(w.window); // and the window itself behind the user's, not only behind the one in front
+                            if (returned < 0) returned = clock.ElapsedMilliseconds;
+                        }
+                    }
+                }
+                Thread.Sleep(RoundMs);
+            }
+            lock (acting)
+            {
+                IntPtr fg = Win.GetForegroundWindow();
+                if (!w.stop && w.window != IntPtr.Zero && Win.IsWindow(w.window) && !Hold.Holding && !Flash.Watching && fg != w.window && Flash.Root(fg) != w.window) Sink(w.window);
+            }
+        }
+        catch (Exception) { /* a window that went away under the watch: nothing left to give back */ }
+        finally
+        {
+            w.over = true;
+            lock (gate) { if (current == w) current = null; }
+        }
+    }
+
+    /** Whether another hand holds the seat's lock (seatElsewhere in src/windows.ts): its owner, alive, and not this hand. */
+    static bool SeatElsewhere(Watch w)
+    {
+        try
+        {
+            if (w.owner.Length == 0 || !File.Exists(w.owner)) return false;
+            uint pid;
+            if (!uint.TryParse(File.ReadAllText(w.owner).Trim(), out pid) || pid == 0 || pid == w.me) return false;
+            if ((DateTime.UtcNow - File.GetLastWriteTimeUtc(w.owner)).TotalMilliseconds > StaleMs) return false;
+            using (Process p = Process.GetProcessById((int)pid)) return !p.HasExited;
+        }
+        catch (Exception) { return false; }
+    }
+
+    static void Sink(IntPtr h) { Win.SetWindowPos(h, new IntPtr(1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); } // HWND_BOTTOM, no activation
 }
 
 // ------------------------------------------------------------ the seat, as a hand borrows it
@@ -2290,10 +2790,13 @@ static class Seat
  */
 static class Hold
 {
-    static bool holding;
+    static volatile bool holding;
     static IntPtr before, root;
     static int x, y;
     static bool sink;
+
+    /** Whether this hand is borrowing the seat: its borrow puts back what it moves. */
+    public static bool Holding { get { return holding; } }
 
     public static object Command(string state)
     {

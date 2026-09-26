@@ -246,6 +246,17 @@ let kernel: Kernel | undefined;
 let helper: Helper | undefined;
 let helperFailure: Error | undefined;
 let lastCall = 0; // when this process last asked the helper for anything on its own account: the watcher's rounds do not count
+let actedAt = 0; // when the hand last sent anything into a window (see acted)
+
+/**
+ * The hand has sent something into a window: the seat's input (input), keys or a click posted from behind, a press or a
+ * value through accessibility, a menu, a page scrolled (each of which gives the seat back after, giveBack), or input
+ * into a browser window of its own (touch). A tree read before this is no longer what the window holds (see
+ * actionableElements, which gives a kept tree again only when nothing was sent since).
+ */
+function acted(): void {
+  actedAt = performance.now();
+}
 
 /**
  * One synchronous round trip to the helper. A helper that has gone away between calls (the pipe broken, error 109 or
@@ -254,6 +265,7 @@ let lastCall = 0; // when this process last asked the helper for anything on its
  */
 export const native = {
   call(command: string, args: object = {}): any {
+    lingerDue(); // a stretch of synchronous calls holds up every timer
     if (!watching) lastCall = performance.now();
     let reply: string | undefined;
     for (let attempt = 0; reply === undefined; attempt++) {
@@ -381,6 +393,7 @@ let borrowedRoot = 0; // the window borrowed, which its input goes to and nothin
  */
 const input = async (args: object, delay = EVENT_DELAY_MS) => {
   if (borrowed !== null) checkStopped();
+  acted();
   const reply = native.call("input", borrowed === null ? args : { ...args, since: borrowed, root: borrowedRoot }) as { ok?: boolean; taken?: string };
   if (reply.ok === false) {
     const taken = reply.taken ?? "the user took the mouse or keyboard back";
@@ -627,6 +640,7 @@ const own = new Map<number, number>(); // the windows this hand opened, each wit
 const opened = new Set<number>(); // the processes this hand has opened a window in: there, it works in its own windows or none, never the user's
 const browserWindows = new Map<number, number>(); // the browser windows this hand opened, with their pid: closed when it is released
 const inFront = new Map<number, number>(); // when each of the hand's windows was last seen in front, which is the user's doing
+const presented = new Map<number, number>(); // when each window was last shown to the user (present), whatever the hand was doing
 let groundedNote: string | null = null; // for the model, once, the first time an app it opens is grounded
 let watcher: ReturnType<typeof setInterval> | null = null; // keeps the hand's windows where they belong while it thinks, once it has any
 let watching = false; // the watcher is making its round: its calls are not the hand's doing
@@ -764,6 +778,7 @@ async function sendToDesktop(windowId: number, pid: number, app: string): Promis
  * front gets the keyboard back, and the hand's goes behind theirs.
  */
 function keepOnDesktop(): void {
+  adoptLate();
   if (sent.size === 0 && own.size === 0) return;
   const list = windowList();
   const now = performance.now();
@@ -900,12 +915,18 @@ export function releaseDesktop(): void {
   opened.clear();
   browserWindows.clear();
   inFront.clear();
+  presented.clear();
   primed.clear();
   unlifted.clear();
+  keptTree = null;
   stale.clear();
   parked.clear();
   tabsSeen.clear();
   touchedAt.clear();
+  countedAt.clear();
+  addressRead.clear();
+  inputAddress.clear();
+  lateUntil = 0;
   unsettled.clear();
   frontBefore = 0;
   givenUp.clear();
@@ -1154,13 +1175,19 @@ function holdLock(name: string): void {
   }
 }
 
-/** `work` under a lock; after `waitMs` without it, anyway: a hand that holds it that long has hung, and the lock goes stale soon. */
-async function withLock<T>(name: string, work: () => Promise<T>, waitMs = 20_000): Promise<T> {
+/**
+ * `work` under a lock; after `waitMs` without it, anyway: a hand that holds it that long has hung, and the lock goes
+ * stale soon. The work may hand over a watch that goes on after it returns (`behind`, see returnSeat): the lock is let
+ * go once that is over too.
+ */
+async function withLock<T>(name: string, work: (behind: (watch: Promise<void>) => void) => Promise<T>, waitMs = 20_000): Promise<T> {
   const release = await takeLock(name, performance.now() + waitMs);
+  let watch: Promise<void> | null = null;
   try {
-    return await work();
+    return await work((done) => void (watch = done));
   } finally {
-    release?.();
+    if (watch) void (watch as Promise<void>).finally(() => release?.());
+    else release?.();
   }
 }
 
@@ -1223,7 +1250,7 @@ function whenPausedSync(quietMs: number, until: number, what: string): () => voi
     const taken = pausedNow(quietMs);
     if (taken.release) return taken.release;
     if (performance.now() >= until) throw new SeatBusy(`${busyReason(taken.seat, taken.locked)}, so ${what} did not happen`);
-    Bun.sleepSync(SEAT_POLL_MS);
+    sleepSync(SEAT_POLL_MS);
   }
 }
 
@@ -1232,7 +1259,7 @@ function pausedNow(quietMs: number): { release: (() => void) | null; seat: Idle;
   checkStopped();
   const seat = idle();
   if (!paused(seat, quietMs)) return { release: null, seat, locked: false };
-  const release = tryLock(SEAT_LOCK, LOCK_STALE_MS);
+  const release = ownLinger() ?? tryLock(SEAT_LOCK, LOCK_STALE_MS);
   if (release && interrupted) {
     release();
     checkStopped();
@@ -1265,22 +1292,76 @@ async function flashing<T>(work: () => Promise<T>, why = "clicking in the page")
   try {
     return await work();
   } finally {
-    release();
+    linger(release);
   }
 }
 
 /**
  * flashing, for what the platform makes synchronous (a press, a value, a menu, a first read): the user's pause for
- * `quietMs` under the seat's lock, waited for `waitMs` at most, then SeatBusy. Abort when the hand was stopped.
+ * `quietMs` under the seat's lock, waited for `waitMs` at most, then SeatBusy. Abort when the hand was stopped. A
+ * guarded click (`guarded`) keeps the lock a moment past its answer, as flashing does.
  */
-function pausedSync<T>(work: () => T, what: string, quietMs = FLASH_QUIET_MS, waitMs = FLASH_WAIT_SYNC_MS): T {
+function pausedSync<T>(work: () => T, what: string, quietMs = FLASH_QUIET_MS, waitMs = FLASH_WAIT_SYNC_MS, guarded = false): T {
   if (borrowed !== null) return work();
   const release = whenPausedSync(quietMs, performance.now() + waitMs, what);
   try {
     return work();
   } finally {
-    release();
+    if (guarded) linger(release);
+    else release();
   }
+}
+
+// The helper answers a guarded click as soon as nothing has taken the foreground from it for a moment, and watches the
+// rest of the moment behind its answer (Flash in windows.cs): the seat's lock is kept that much longer, so that no other
+// hand's click or borrow begins while that watch may still give the foreground back. This hand's own next use of the
+// seat takes the lock over (ownLinger) rather than waiting for itself.
+const LINGER_MS = 600;
+let lingering: { path: string; release: () => void; timer: ReturnType<typeof setTimeout>; until: number } | null = null;
+
+/** Let the seat's lock go LINGER_MS from now, unless this hand uses the seat again first. */
+function linger(release: () => void): void {
+  endLinger();
+  const timer = setTimeout(() => {
+    if (lingering?.timer !== timer) return;
+    lingering = null;
+    release();
+  }, LINGER_MS);
+  timer.unref?.();
+  lingering = { path: join(locks.root, SEAT_LOCK), release, timer, until: performance.now() + LINGER_MS };
+}
+
+/**
+ * The lingering lock let go once its time is up, whether its timer could fire or not: no timer fires while the process
+ * is busy with something synchronous (a field's value read back for seconds, a look's capture, OCR and tree read), and
+ * while the lock is held the panel lets every click through (src/panel.cs) and other hands wait. Asked at each call to
+ * the helper and around each synchronous sleep.
+ */
+function lingerDue(): void {
+  if (lingering && performance.now() >= lingering.until) endLinger();
+}
+
+/** Bun.sleepSync, around which a lingering lock whose time has come is let go (lingerDue). */
+function sleepSync(ms: number): void {
+  lingerDue();
+  Bun.sleepSync(ms);
+  lingerDue();
+}
+
+/** The seat's lock this hand still holds from its last guarded click, taken over for its next use of the seat; null when there is none. */
+function ownLinger(): (() => void) | null {
+  if (!lingering || lingering.path !== join(locks.root, SEAT_LOCK)) return null;
+  const { release, timer } = lingering;
+  clearTimeout(timer);
+  lingering = null;
+  return release;
+}
+
+/** The lingering lock let go now: the hand is ending, or another click keeps its own. */
+function endLinger(): void {
+  const release = lingering ? (clearTimeout(lingering.timer), lingering.release) : null;
+  lingering = null;
+  release?.();
 }
 
 let guarding = false; // a guarded click is under way: the window it brings forward for a moment is not the user's doing
@@ -1320,6 +1401,7 @@ async function guarded<T>(hwnd: number, web: boolean, work: () => Promise<T>): P
         if (sink) adoptPopups(ended.popups ?? [], parked.has(hwnd)); // a window the user's own page opens is theirs
       } finally {
         guarding = false;
+        watchedBehind(sink);
         touch(hwnd); // a tab the click opens is the hand's, however long the wait for the user to pause was
       }
     }
@@ -1335,12 +1417,41 @@ function adoptPopups(opened: number[], offScreen: boolean): void {
   const list = windowList();
   for (const popup of opened) {
     const entry = list.find((w) => w.hwnd === popup);
-    if (!entry) continue; // closed again already
+    if (!entry || own.has(popup)) continue; // closed again already, or the hand's already
     adopt(popup, entry.pid);
     browserWindows.set(popup, entry.pid);
     if (offScreen) park(popup);
     else native.call("sink", { hwnd: popup });
     popups.push(popup);
+  }
+}
+
+// A guarded click in a window of the hand's is answered early and watched on behind its answer (Flash.Behind in
+// windows.cs), up to Flash.WatchMs: a window it opens in that time, after its answer (a page's pop-up, a sign-in that
+// takes a moment), is the hand's too, and the helper tells of it when asked (adoptLate). Asked until a moment past that.
+const LATE_MS = 1000;
+let lateUntil = 0; // until when a click's watch behind its answer may still find a window it opened (0: none may)
+
+/** A guarded click has been answered: when it was in a window of the hand's, what it opens after its answer is asked for a while. */
+function watchedBehind(sink: boolean | undefined): void {
+  if (sink) lateUntil = performance.now() + LATE_MS;
+}
+
+/**
+ * The windows the hand's guarded clicks opened after the helper answered them, adopted as their answers' are
+ * (adoptPopups), each kept as the window it was opened from is kept: off the screens with it when it is parked. Asked
+ * at every look and action (keepOnDesktop) and at the watcher's rounds while a click's watch may still find one, and
+ * once after that, and as the hand is released, so that its pop-up is closed with it. Nothing here throws.
+ */
+function adoptLate(): void {
+  if (lateUntil === 0) return;
+  const last = performance.now() >= lateUntil;
+  try {
+    const { late } = native.call("late") as { late?: [number, number][] };
+    for (const [popup, from] of late ?? []) if (browserWindows.has(from)) adoptPopups([popup], parked.has(from)); // opened from a window still the hand's: not given up to the user
+    if (last) lateUntil = 0;
+  } catch {
+    // the helper is busy or gone: asked again next time
   }
 }
 
@@ -1354,6 +1465,7 @@ let handBack: { to: number; until: number } | null = null; // the window the use
  * HANDBACK_MS. A window of the user's they brought forward meanwhile is left alone.
  */
 function giveBack(front: number): void {
+  acted();
   if (borrowed !== null || !front) return;
   handBack = { to: front, until: performance.now() + HANDBACK_MS };
   takeBack(frontWindow());
@@ -1486,6 +1598,7 @@ export async function borrow<T>(target: KeyTarget, since: number, work: () => Pr
  * and nothing is done when nothing is out.
  */
 export function abandonSeat(): void {
+  endLinger();
   if (seatOut === null && !guarding) return;
   seatAbandoned = seatOut;
   seatOut = null;
@@ -1573,7 +1686,7 @@ async function freshWindow(launching: Launching, timeout: number): Promise<{ pid
  * window of another app that the user opens in that moment is theirs, and keeps it.
  */
 async function openWindow(start: () => Omit<Launching, "before">, timeout: number): Promise<{ pid: number; windowId: number } | null> {
-  return withLock(OPEN_LOCK, async () => {
+  return withLock(OPEN_LOCK, async (behind) => {
     const before = new Set(windowList().map((w) => w.hwnd));
     const seat = (native.call("foreground") as { hwnd: number }).hwnd;
     let launching: Launching | null = null;
@@ -1583,11 +1696,14 @@ async function openWindow(start: () => Omit<Launching, "before">, timeout: numbe
       found = await freshWindow(launching, timeout);
       return found;
     } finally {
-      const started = launching;
-      let kids: Set<number> | null = null;
-      const children = () => (kids ??= childrenOf(started?.pid ?? 0));
-      const taken = (w: WindowEntry) => started !== null && ofLaunch(w, started, children);
-      if (seat) await returnSeat(seat, taken, undefined, pace.seatWatchMs); // where the window goes (behind, or to the hand's desktop) is the caller's to say
+      // The launch's windows, as a launch is known (ofLaunch): of what it started, its children, or its executables or package.
+      const started: Launching | null = launching;
+      const of: OpeningOf = started ? { pid: started.pid, children: true, exes: [...started.exes], package: started.package } : {};
+      if (seat) {
+        const watch = returnSeat(seat, of, undefined, pace.seatWatchMs); // where the window goes (behind, or to the hand's desktop) is the caller's to say
+        behind(watch.done);
+        await watch.ready;
+      }
     }
   });
 }
@@ -1777,12 +1893,14 @@ function viewOf(hwnd: number): BrowserView {
     view = native.call("browser", { hwnd }) as BrowserView; // UI Automation's cache races a tab that has just opened (IndexOutOfRangeException): asked once more
   }
   if (browserWindows.has(hwnd)) {
+    addressRead.set(hwnd, { url: fullUrl(view), at: performance.now() }); // where its page is, as input may go in next (see touch)
     // A tab more than the hand last saw is its own while the window is unsettled, and a link of the user's after (see
     // "a link of the user's in a window of the hand's"). A count SETTLE_MS after the hand's last input settles it.
     const seen = tabsSeen.get(hwnd);
     if (seen !== undefined && view.tabs.length > seen && !unsettled.has(hwnd)) giveUp(hwnd);
     else {
       tabsSeen.set(hwnd, view.tabs.length);
+      countedAt.set(hwnd, performance.now());
       if (performance.now() - (touchedAt.get(hwnd) ?? Number.NEGATIVE_INFINITY) >= SETTLE_MS) unsettled.delete(hwnd);
     }
   }
@@ -1845,6 +1963,26 @@ export async function browserUrl(browser: string, window?: WindowSelector): Prom
   return at ? fullUrl(at.view) : null;
 }
 
+/** What one read of a browser window says of its page: where it is, whether it is loading, and the window's tabs. */
+export interface BrowserPage {
+  url: string | null;
+  loading: boolean;
+  tabs: Tab[];
+}
+
+/**
+ * One window's page, its loading state and its tabs, all from one read of that window alone (browserTabs reads every
+ * window of the browser, which in the user's browser is all of theirs). What a look at the hand's own window asks.
+ * Null when the window is gone, or the browser is not running.
+ */
+export async function browserPage(browser: string, window: WindowSelector): Promise<BrowserPage | null> {
+  const at = await browserWindow(browser, window).catch(() => null);
+  if (!at) return null;
+  const url = fullUrl(at.view);
+  const tabs = at.view.tabs.map((tab, t) => ({ scripted: String(at.hwnd), window: at.index + 1, tab: t + 1, active: tab.active, title: tab.title, url: tab.active ? (url ?? "") : "" }));
+  return { url, loading: at.view.loading, tabs };
+}
+
 /** A posted click at the center of a frame in a browser window: it lands there whether or not the window is in front, which it then is for a moment (see guarded). */
 async function postClick(hwnd: number, frame: Frame, count = 1): Promise<void> {
   const [x, y] = [Math.round(frame[0] + frame[2] / 2), Math.round(frame[1] + frame[3] / 2)];
@@ -1861,15 +1999,18 @@ async function postClick(hwnd: number, frame: Frame, count = 1): Promise<void> {
 }
 
 /**
- * Navigate one window from behind: a click selects the omnibox's whole text, and the URL replaces it, as characters
- * posted to the browser's window itself (whose own focus is then the omnibox; its thread's focus can be in the user's
- * window, or in the page). Enter goes only once the omnibox holds exactly the URL: the characters are typed once more
- * when it does not, and a suggestion the browser completed it with is deleted. True once the page has gone: its URL
- * changed, or it started loading, within two seconds.
+ * Navigate one window from behind: a triple click selects the omnibox's whole text, and the URL replaces it, as
+ * characters posted to the browser's window itself (whose own focus is then the omnibox; its thread's focus can be in
+ * the user's window, or in the page). One click selects it all only when the omnibox is not focused yet: in a window
+ * just opened it can be, and the URL went in at the caret, after the old one (measured: a new window's first
+ * navigation failed three times of three). Enter goes only once the omnibox holds exactly the URL: the characters are
+ * typed once more when it does not, and a suggestion the browser completed it with is deleted. True once the page has
+ * gone: its URL changed, or it started loading, within two seconds. `read` is a read of the window just made, which
+ * saves one here.
  */
-async function navigateBehind(hwnd: number, url: string): Promise<boolean> {
-  let view: BrowserView | null = null;
-  if (!(await until(() => Boolean((view = viewOf(hwnd)).omnibox), 3000))) return false;
+async function navigateBehind(hwnd: number, url: string, read?: BrowserView): Promise<boolean> {
+  let view: BrowserView | null = read?.omnibox ? read : null;
+  if (!view && !(await until(() => Boolean((view = viewOf(hwnd)).omnibox), 3000))) return false;
   const was = fullUrl(view!);
   if (was !== null && plainUrl(was) === plainUrl(url)) return true; // already there: typing it again would only reload it, and the URL would not change to say so
   const holds = () => {
@@ -1880,7 +2021,7 @@ async function navigateBehind(hwnd: number, url: string): Promise<boolean> {
   };
   let typed = false;
   for (let attempt = 0; attempt < 2 && !typed; attempt++) {
-    await postClick(hwnd, viewOf(hwnd).omnibox ?? view!.omnibox!);
+    await postClick(hwnd, (attempt > 0 ? viewOf(hwnd).omnibox : null) ?? view!.omnibox!, 3); // where it was a moment ago, the first time
     native.call("chars", { hwnd, text: url, direct: true });
     typed = await until(holds, 1500);
   }
@@ -1934,39 +2075,113 @@ export async function openUrl(
   }
   const at = options.newWindow ? null : await browserWindow(browser, options.window);
   if (!at) throw new Error(`that ${browser} window is gone: open a new one`);
+  let read: BrowserView | undefined = at.view; // handed on to the navigation, which would otherwise read the window again at once
   if (options.tab !== undefined) {
     const tab = at.view.tabs[options.tab - 1];
     if (tab?.frame) await postClick(at.hwnd, tab.frame);
+    read = undefined;
   } else if (fresh && at.view.buttons["New Tab"]) {
     const tabs = at.view.tabs.length;
     await postClick(at.hwnd, at.view.buttons["New Tab"]);
-    await until(() => viewOf(at.hwnd).tabs.length > tabs, 1500); // typed into the new tab's omnibox, not the old one's
+    read = undefined;
+    await until(() => (read = viewOf(at.hwnd)).tabs.length > tabs, 1500); // typed into the new tab's omnibox, not the old one's
   }
-  return navigateBehind(at.hwnd, href);
+  return navigateBehind(at.hwnd, href, read);
+}
+
+const SEAT_QUIET_MS = 600; // how long an opening's watch of the seat must see nothing take it before the opening goes on, the watch behind it
+const OPENING_POLL_MS = 100; // how often the helper is asked whether an opening's watch is over, for the open lock
+const OPENING_OVER_MS = 1000; // how long past its time an opening's watch in the helper is waited for, before the open lock goes anyway
+
+/**
+ * Which windows are an opening's, for its watch of the seat, said as data since the helper watches the rest of it
+ * (Opening in windows.cs): the window opened, and what it brings up over itself (`roots`); a process's windows (`pid`),
+ * its children's too (`children`), but not those there before (`before`); any window of these executables, lower case
+ * (`exes`), or of this package.
+ */
+interface OpeningOf {
+  roots?: number[];
+  pid?: number;
+  children?: boolean;
+  before?: number[];
+  exes?: string[];
+  package?: string | null;
+}
+
+/** Whether a window is one of an opening's (as Opening.Takes in windows.cs tells them). */
+function openingTakes(of: OpeningOf): (w: WindowEntry, list: WindowEntry[]) => boolean {
+  let kids: Set<number> | null = null;
+  const children = () => (kids ??= of.children ? childrenOf(of.pid ?? 0) : new Set<number>());
+  const before = new Set(of.before ?? []);
+  return (w, list) =>
+    (of.roots ?? []).some((root) => w.hwnd === root || rootOf(w, list).hwnd === root) ||
+    (of.pid !== undefined && of.pid > 0 && !before.has(w.hwnd) && (w.pid === of.pid || children().has(w.pid))) ||
+    (Boolean(w.exe) && (of.exes ?? []).includes(w.exe!.toLowerCase())) ||
+    (Boolean(of.package) && w.package === of.package);
 }
 
 /**
  * Give the seat back to the window that had it, each time something the hand opened takes it: the one visible moment
- * of opening a window from behind. `taken` says which windows are the opening's (by handle: the user's own Chrome
- * window shares the new one's process, and a click of theirs into it is theirs). Chrome activates a beat after the
- * window exists, and once more when it shows a bubble over it, so this watches for up to `watchMs`, and until a moment
- * after the first handback. While another hand borrows the seat the foreground is its borrow's to move (see takeBack):
- * the window only goes behind the user's.
+ * of opening a window from behind. `of` says which windows are the opening's (by handle: the user's own Chrome window
+ * shares the new one's process, and a click of theirs into it is theirs). Chrome activates a beat after the window
+ * exists, and once more when it shows a bubble over it, so this watches for up to `watchMs`, and until a moment after
+ * the first handback. While another hand borrows the seat the foreground is its borrow's to move (see takeBack): the
+ * window only goes behind the user's.
+ *
+ * The opening goes on (`ready`) once the watch is over, or once it has seen nothing take the seat for SEAT_QUIET_MS:
+ * a take comes a beat after the window exists, when it comes (a browser that works unseen took it in none of 8 opens,
+ * measured), and the rest of the watch, 1.9 s that every such open used to wait out, goes on in the helper, on a
+ * thread of its own (Opening in windows.cs), which gives a late take back within a few milliseconds whatever this
+ * process is doing meanwhile: the look that follows an opening holds it for a second and more at a time, and no round
+ * of a watch here could run until that was over. `done` is when that watch is over; the caller keeps the open lock
+ * until then, so that no other hand's opening starts while this one can still take the seat. The hand's own borrow or
+ * guarded click, which bring its window forward on purpose, is left to put back what it moved, and a window shown to
+ * the user (present, which the helper hears as an activation of the window) is theirs: the watch ends there. Behind
+ * the opening nothing throws: the helper may be gone by then.
  */
-async function returnSeat(seat: number, taken: (w: WindowEntry, list: WindowEntry[]) => boolean, window?: number, watchMs = 2500): Promise<void> {
-  let returned = 0;
-  for (const end = performance.now() + watchMs; ; await sleep(50)) {
-    const front = (native.call("foreground") as { hwnd: number }).hwnd;
-    const list = front && front !== seat ? windowList() : [];
-    const entry = list.find((w) => w.hwnd === front);
-    if (entry && taken(entry, list)) {
-      if (!seatElsewhere()) native.call("activate", { hwnd: seat });
-      if (window !== undefined) native.call("sink", { hwnd: window }); // and the window itself goes behind the user's, not only behind the one in front
-      returned ||= performance.now();
+function returnSeat(seat: number, of: OpeningOf, window?: number, watchMs = 2500): { ready: Promise<void>; done: Promise<void> } {
+  const taken = openingTakes(of);
+  let behind = false;
+  let go = (): void => {};
+  let fail = (_error: unknown): void => {};
+  const ready = new Promise<void>((resolve, reject) => ((go = resolve), (fail = reject)));
+  const done = (async () => {
+    const start = performance.now();
+    const end = start + watchMs;
+    const shown = () => window !== undefined && (presented.get(window) ?? Number.NEGATIVE_INFINITY) >= start;
+    let returned = 0;
+    try {
+      for (; !shown(); await sleep(50)) {
+        if (borrowed === null && !guarding) {
+          const front = (native.call("foreground") as { hwnd: number }).hwnd;
+          const list = front && front !== seat ? windowList() : [];
+          const entry = list.find((w) => w.hwnd === front);
+          if (entry && taken(entry, list)) {
+            if (!seatElsewhere()) native.call("activate", { hwnd: seat });
+            if (window !== undefined) native.call("sink", { hwnd: window }); // and the window itself goes behind the user's, not only behind the one in front
+            returned ||= performance.now();
+          }
+        }
+        const now = performance.now();
+        if (now >= end || (returned > 0 && now >= returned + 800)) break;
+        if (returned === 0 && now - start >= SEAT_QUIET_MS) {
+          behind = true;
+          go();
+          native.call("opening", { seat, window, ms: Math.round(end - now), ...of, lock: join(locks.root, SEAT_LOCK, "owner"), me: process.pid });
+          do await sleep(OPENING_POLL_MS);
+          while (performance.now() < end + OPENING_OVER_MS && (native.call("opening") as { watching?: boolean }).watching);
+          return;
+        }
+      }
+      // Not while the hand's own borrow or guarded click has it out, nor while it has the keyboard: the user would type into a window they cannot see.
+      if (window !== undefined && !shown() && borrowed === null && !guarding && frontWindow() !== window) native.call("sink", { hwnd: window });
+    } catch (error) {
+      if (!behind) fail(error);
+    } finally {
+      go();
     }
-    if (performance.now() >= end || (returned > 0 && performance.now() >= returned + 800)) break;
-  }
-  if (window !== undefined) native.call("sink", { hwnd: window });
+  })();
+  return { ready, done };
 }
 
 /** Whether the front window's active tab is still loading: the toolbar shows Stop instead of Reload. A browser that is not running is not. */
@@ -2022,10 +2237,10 @@ export async function tabCommand(browser: string, command: TabCommand, window?: 
 export async function openBackgroundWindow(browser: string, url: string): Promise<PinnedWindow> {
   // One hand at a time, across processes: a new window is told from the rest by not having been there before, and two
   // hands opening at once would both claim the first to appear.
-  return withLock(OPEN_LOCK, () => openWindowAlone(browser, url));
+  return withLock(OPEN_LOCK, (behind) => openWindowAlone(browser, url, behind));
 }
 
-async function openWindowAlone(browser: string, url: string): Promise<PinnedWindow> {
+async function openWindowAlone(browser: string, url: string, behind: (watch: Promise<void>) => void): Promise<PinnedWindow> {
   const seat = (native.call("foreground") as { hwnd: number }).hwnd;
   const before = new Set(windowList().map((w) => w.hwnd)); // minimized ones too: one the user restores meanwhile is not new
   const cold = (await userInstance(browser)) === null;
@@ -2050,9 +2265,13 @@ async function openWindowAlone(browser: string, url: string): Promise<PinnedWind
     if (!opened && cold && pages.length === 1 && only) opened = { pid: only.pid, windowId: only.hwnd, scripted: String(only.hwnd) }; // the page went elsewhere (a redirect), and it is the one new browser window
   } finally {
     // Only the new window, and what it brings up over itself, is handed back from: a window the user opens meanwhile is theirs.
-    const taken = (w: WindowEntry, list: WindowEntry[]) =>
-      opened !== null ? w.hwnd === opened.windowId || rootOf(w, list).hwnd === opened.windowId : w.pid === pid && !before.has(w.hwnd);
-    if (seat) await returnSeat(seat, taken, opened?.windowId, pace.browserWatchMs);
+    const found = opened as PinnedWindow | null;
+    const of: OpeningOf = found !== null ? { roots: [found.windowId] } : { pid: pid ?? 0, before: [...before] };
+    if (seat) {
+      const watch = returnSeat(seat, of, found?.windowId, pace.browserWatchMs);
+      behind(watch.done);
+      await watch.ready;
+    }
   }
   if (!opened) throw new Error(`${browser} opened no new window${cold ? ` showing ${url} (it may be asking which profile to use, or restoring the user's last session)` : ""}`);
   // Once the seat is back: a browser that paints unseen has its window parked off the screens; any other keeps it here,
@@ -2184,10 +2403,30 @@ export async function frontmostWindowCenter(pid?: number | null): Promise<Point 
 
 // ------------------------------------------------------------------ capture and OCR
 
+type CaptureReply = { width: number; height: number; gone?: boolean; thumb?: string; thumbWidth?: number; thumbHeight?: number };
+
+// A capture's grey copy at 1/8 scale, which the helper makes from the picture it has in hand (Capture.Thumb in
+// windows.cs): what the OCR cache compares captures by (src/perception.ts thumbnail, whose THUMB_DIVISOR this is).
+// Decoding the PNG again to make it cost 125 ms a look (measured). Only the latest capture's is kept.
+const THUMB_DIVISOR = 8;
+let thumbOf: { path: string; hwnd: number; data: Uint8Array; width: number; height: number } | null = null; // hwnd 0 for a display
+
+function keepThumb(path: string, hwnd: number, reply: CaptureReply): void {
+  thumbOf = reply.thumb && reply.thumbWidth && reply.thumbHeight ? { path, hwnd, data: new Uint8Array(Buffer.from(reply.thumb, "base64")), width: reply.thumbWidth, height: reply.thumbHeight } : null;
+}
+
+/** The grey copy of the capture at `path` at 1/`divisor` scale, when the helper made it with the capture; null otherwise. */
+export function captureThumb(path: string, divisor: number): { data: Uint8Array; width: number; height: number } | null {
+  if (!thumbOf || thumbOf.path !== path || divisor !== THUMB_DIVISOR) return null;
+  const { data, width, height } = thumbOf;
+  return data.length === width * height ? { data, width, height } : null;
+}
+
 /** One display as a PNG at `path`. */
 export async function screenshot(display: Display, path: string): Promise<Capture> {
-  const { width, height } = native.call("capture", { display: display.index, path, format: "png" }) as { width: number; height: number };
-  return { path, width, height };
+  const reply = native.call("capture", { display: display.index, path, format: "png", thumb: THUMB_DIVISOR }) as CaptureReply;
+  keepThumb(path, 0, reply);
+  return { path, width: reply.width, height: reply.height };
 }
 
 const REPAINT_MS = 300; // how long a page given a strip of screen takes to paint again
@@ -2211,7 +2450,9 @@ export async function screenshotWindow(windowId: number, path: string): Promise<
     if (await reveal(windowId)) await sleep(REPAINT_MS);
     else stale.add(windowId);
   }
-  const reply = native.call("capture", { hwnd: windowId, path, format: "png" }) as { width: number; height: number; gone?: boolean };
+  const reply = native.call("capture", { hwnd: windowId, path, format: "png", thumb: THUMB_DIVISOR }) as CaptureReply;
+  keepThumb(path, windowId, reply);
+  inputAddress.delete(windowId); // the next action's first input notes where its page is then
   if (reply.gone) throw new Error("the window is gone; look again");
   if (entry?.iconic && isOwn(entry, list)) native.call("sink", { hwnd: rootOf(entry, list).hwnd });
   for (const [shot, of] of staleShots) if (of.windowId === windowId || shot === path) staleShots.delete(shot);
@@ -2316,13 +2557,14 @@ const act = (ref: unknown, action: string): boolean => {
       const done = native.call("act", { id: ref, action, ...(web ? { sink: webRefs.get(ref) } : {}) }) as { ok: boolean; popups?: number[] };
       if (refWindows.has(ref)) touch(refWindows.get(ref)!); // after the wait for the user to pause: a tab the press opens is the hand's
       if (webRefs.get(ref)) adoptPopups(done.popups ?? [], parked.size > 0); // a press in the hand's page that opened a window: the hand's, as for a click
+      if (action === AX_PRESS) watchedBehind(webRefs.get(ref));
       return Boolean(done.ok);
     } catch {
       return false;
     }
   };
   try {
-    return action === AX_PRESS && web ? pausedSync(run, "the click") : run();
+    return action === AX_PRESS && web ? pausedSync(run, "the click", FLASH_QUIET_MS, FLASH_WAIT_SYNC_MS, true) : run();
   } catch (error) {
     // The user did not pause in the moment a press can wait here: nothing was done, and the tools' pointer click
     // waits longer, where the wait is shown and a stop is heard (see flashing). A stop is the stop it is.
@@ -2376,16 +2618,17 @@ export function axSetValue(ref: unknown, value: string): boolean {
   const set = () => {
     const reply = native.call("setValue", { id: ref, text: value, ...(web ? { sink: webRefs.get(ref) } : {}) }) as { ok: boolean; posted?: boolean; why?: string };
     if (refWindows.has(ref)) touch(refWindows.get(ref)!); // after the wait for the user to pause: a tab a submit opens is the hand's
+    watchedBehind(webRefs.get(ref));
     return reply;
   };
   try {
-    const { ok: taken, posted, why } = web ? pausedSync(set, "typing into the field") : set();
+    const { ok: taken, posted, why } = web ? pausedSync(set, "typing into the field", FLASH_QUIET_MS, FLASH_WAIT_SYNC_MS, true) : set();
     if (!taken && why?.startsWith("busy:")) throw new SeatBusy(why.slice("busy:".length).trim()); // the user went back to work between the clicks
     // A Chromium field takes the text as posted keystrokes, and its tree shows them a beat later: WhatsApp's composer
     // read back empty when asked at once and full 250 ms on (measured), and a long message takes longer to show. So the
     // value is waited for, a second and a half and more for a longer text, up to eight seconds.
     const wait = Math.min(8000, 1500 + 12 * value.length);
-    if (taken && posted) for (const end = performance.now() + wait; performance.now() < end && !holdsText(axValue(ref), value); ) Bun.sleepSync(50);
+    if (taken && posted) for (const end = performance.now() + wait; performance.now() < end && !holdsText(axValue(ref), value); ) sleepSync(50);
     return taken;
   } catch (error) {
     if (error instanceof SeatBusy || error instanceof Abort) throw error;
@@ -2598,7 +2841,7 @@ export function workingWindow(pid: number, preferred?: number): WorkingWindow | 
   if (entry.iconic && isOwn(entry, list)) {
     native.call("show", { hwnd: base }); // SW_SHOWNOACTIVATE
     native.call("sink", { hwnd: rootOf(entry, list).hwnd });
-    Bun.sleepSync(REPAINT_MS); // restored, it paints before it can be captured
+    sleepSync(REPAINT_MS); // restored, it paints before it can be captured
   }
   const dialog = dialogOf(entry, list);
   return { windowId: dialog?.hwnd ?? base, dialog: dialog ? dialog.title || "a dialog" : null, theirs: !isOwn(entry, list) };
@@ -2652,7 +2895,11 @@ interface TreeNode {
 }
 
 const ROOT = -1;
-type TreeReply = { nodes: TreeNode[]; capped: boolean };
+type TreeReply = { nodes: TreeNode[]; capped: boolean; again?: boolean };
+const TREE_AGAIN_MS = 30_000; // how long a kept tree may be given again, however still its window stays
+let keptTree: { hwnd: number; at: number; frame: Frame; thumb: Uint8Array; cap?: number; ms?: number } | null = null; // the tree the helper keeps (see actionableElements), and the window as it was then
+
+const sameBytes = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length && a.every((v, i) => v === b[i]);
 const primed = new Map<number, string>(); // Chromium windows of the hand's whose page came back after a lift, and the address it came back at
 const unlifted = new Map<number, { address: string; lifts: number }>(); // lifts that brought no page back, for the address they were made at
 const LIFTS_PER_PAGE = 2; // a page that stays blank through this many lifts (about:blank, a page with nothing on it) is not lifted again
@@ -2699,7 +2946,7 @@ function liftedRead(hwnd: number, read: () => TreeReply): TreeReply {
  */
 function awaitPage(reply: TreeReply, read: () => TreeReply): TreeReply {
   for (const end = performance.now() + LIFT_POLL_CAP_MS; !pageShown(reply.nodes) && performance.now() < end; ) {
-    Bun.sleepSync(LIFT_POLL_MS);
+    sleepSync(LIFT_POLL_MS);
     reply = read();
   }
   return reply;
@@ -2800,6 +3047,11 @@ function tidy(found: AxNode[], tree: Map<number, TreeNode>, window: WindowEntry 
  * there when it needs none). The lifted window lies over the user's for the walk, where their click would land in it:
  * so the lift waits, a moment, for the user to pause, under the seat's lock, and when they do not, the page is read
  * without it (and looked at again next time). A field's value comes with it, when the helper read one.
+ *
+ * The helper keeps the last tree read here, and gives it again when the window looks exactly as it did when it was read
+ * (the capture's grey copy the same, byte for byte, and the window where it was), the hand has sent nothing into any
+ * window since (acted), and the read showed its page: a look at a window nothing has touched, which on a long page
+ * saves the fetch of its tree, half a second and more.
  */
 export function actionableElements(pid: number, display: Frame, options: WalkOptions<number> & { windowId?: number } = {}): [AxNode[], AxNode[], boolean] {
   const { windowId, ...walk } = options;
@@ -2808,11 +3060,15 @@ export function actionableElements(pid: number, display: Frame, options: WalkOpt
   const list = windowList();
   const window = list.find((w) => w.hwnd === hwnd);
   const web = window ? window.cls.startsWith("Chrome_WidgetWin") : isWebContentApp(pid);
-  const read = () => native.call("tree", { hwnd, cap: walk.nodeCap, ms: walk.timeCap === undefined ? undefined : Math.round(walk.timeCap * 1000) }) as TreeReply;
+  const caps = { cap: walk.nodeCap, ms: walk.timeCap === undefined ? undefined : Math.round(walk.timeCap * 1000) };
+  const read = () => native.call("tree", { hwnd, ...caps, keep: true }) as TreeReply;
+  const shot = thumbOf?.hwnd === hwnd && !stale.has(hwnd) ? thumbOf : null;
+  const again = keptTree !== null && shot !== null && window !== undefined && keptTree.hwnd === hwnd && keptTree.cap === caps.cap && keptTree.ms === caps.ms &&
+    keptTree.frame.every((v, i) => v === window.frame[i]) && keptTree.at > actedAt && performance.now() - keptTree.at < TREE_AGAIN_MS && sameBytes(keptTree.thumb, shot.data); // prettier-ignore
   // Read as it lies first: a page whose tree is on needs no lift. One with none is lifted at an address no lift has
   // brought its page back at yet, so a page navigated to is lifted too; one that stays blank, only a couple of times.
-  let reply = read();
-  if (web && window !== undefined && !window.cloaked && isOwn(window, list) && !pageShown(reply.nodes) && liftFor(hwnd, addressIn(reply.nodes)) && !showing(hwnd)) {
+  let reply = again ? (native.call("tree", { hwnd, ...caps, keep: true, again: true }) as TreeReply) : read();
+  if (!reply.again && web && window !== undefined && !window.cloaked && isOwn(window, list) && !pageShown(reply.nodes) && liftFor(hwnd, addressIn(reply.nodes)) && !showing(hwnd)) {
     const address = addressIn(reply.nodes);
     try {
       reply = awaitPage(pausedSync(() => liftedRead(hwnd, read), "the first read of the page", FLASH_QUIET_MS, LIFT_WAIT_MS), read);
@@ -2821,6 +3077,8 @@ export function actionableElements(pid: number, display: Frame, options: WalkOpt
       if (!(error instanceof SeatBusy)) throw error; // the user is busy: read as it lies, and lifted another time
     }
   }
+  // Kept to be given again: a read that showed its page (one that did not is read, and maybe lifted, again next time).
+  if (!reply.again) keptTree = shot && window && (!web || pageShown(reply.nodes)) ? { hwnd, at: performance.now(), frame: window.frame, thumb: shot.data, ...caps } : null;
   const byId = new Map<number, TreeNode>();
   const kids = new Map<number, number[]>();
   for (const node of reply.nodes) {
@@ -2898,6 +3156,7 @@ export function present(windowId: number): boolean {
     // the window went away: activating it says so
   }
   inFront.set(rootOf(entry, list).hwnd, performance.now());
+  presented.set(rootOf(entry, list).hwnd, performance.now()); // nor handed back from by an opening's watch of the seat (returnSeat)
   return Boolean((native.call("activate", { hwnd: windowId }) as { ok: boolean }).ok);
 }
 
@@ -2925,6 +3184,7 @@ export function sweepDesktops(): number {
  */
 export function release(keepBrowser: boolean): void {
   abandonSeat();
+  adoptLate(); // a pop-up a last click opened goes with the hand's windows
   try {
     const list = windowList();
     for (const [windowId, pid] of browserWindows) {
@@ -2981,15 +3241,45 @@ export function isGivenUp(windowId: number): boolean {
 }
 
 const SETTLE_MS = 3000; // how long after the hand's input into its window a tab of its own may still come
+const RECOUNT_MS = 300; // a settled window whose tabs were counted this lately is not counted again before input goes into it
 const touchedAt = new Map<number, number>(); // when the hand last sent input into each browser window of its
+const countedAt = new Map<number, number>(); // when each browser window of the hand's last had its tabs counted
 const unsettled = new Set<number>(); // browser windows the hand has sent input into whose tabs have not been counted since, SETTLE_MS on
 let frontBefore = 0; // the window in front at the watcher's last look
 
-/** The hand is sending input into a window, or has just sent it (after any wait for the user to pause): a tab that comes in it for SETTLE_MS is the hand's. */
+/**
+ * The hand is sending input into a window, or has just sent it (after any wait for the user to pause): a tab that comes
+ * in it for SETTLE_MS is the hand's. The first input into a browser window of the hand's since its last capture also
+ * notes where its page was then (see addressAtInput).
+ */
 function touch(hwnd: number): void {
+  acted();
   if (!browserWindows.has(hwnd)) return;
   touchedAt.set(hwnd, performance.now());
   unsettled.add(hwnd);
+  if (!inputAddress.has(hwnd)) {
+    const read = addressRead.get(hwnd);
+    inputAddress.set(hwnd, read && performance.now() - read.at <= ADDRESS_FRESH_MS ? { url: read.url } : null);
+  }
+}
+
+// Where the page of a browser window of the hand's was as an action began, for the tools' settle (src/tools.ts
+// settled): a page at another address after the action went there by the action. The last look's address would take a
+// page that changed its own address since (its search parameters rewritten, a single-page app's route) for a
+// navigation, and a capture taken then would come before a late reaction to the action. A read of the window made just
+// before the action's first input says where it was: the one the link watch makes before input goes into a settled
+// window (refuseTheirs), or a navigation's own; a read older than ADDRESS_FRESH_MS says nothing.
+const ADDRESS_FRESH_MS = 1000;
+const addressRead = new Map<number, { url: string | null; at: number }>(); // each browser window of the hand's: its page's address at its last read, and when
+const inputAddress = new Map<number, { url: string | null } | null>(); // ...: where its page was as the first input since its last capture went in; null when no fresh read said
+
+/**
+ * Where the page of a browser window of the hand's was as the first input since its last capture went into it, from
+ * a read made just before; undefined when nothing has gone into it since, or no read then said.
+ */
+export function addressAtInput(windowId: number): string | null | undefined {
+  const at = inputAddress.get(windowId);
+  return at ? at.url : undefined;
 }
 
 /**
@@ -3035,6 +3325,9 @@ function giveUp(hwnd: number): void {
   browserWindows.delete(hwnd);
   tabsSeen.delete(hwnd);
   touchedAt.delete(hwnd);
+  countedAt.delete(hwnd);
+  addressRead.delete(hwnd);
+  inputAddress.delete(hwnd);
   unsettled.delete(hwnd);
   seenBehind.delete(hwnd);
   inFront.set(hwnd, performance.now());
@@ -3049,12 +3342,13 @@ function giveUp(hwnd: number): void {
 /**
  * Before anything is sent into a window: LINK_LANDED, when it is a browser window of the hand's that a link of the
  * user's has landed in. A settled window's tabs are counted first, since a link that the browser could only flash on
- * the taskbar lands with nothing in front to say so. The window is then unsettled by the input (touch).
+ * the taskbar lands with nothing in front to say so, unless they were counted a moment ago (RECOUNT_MS: a navigation
+ * reads the window just before its click on the omnibox). The window is then unsettled by the input (touch).
  */
 function refuseTheirs(hwnd: number): void {
   if (browserWindows.has(hwnd)) {
     watchLinks();
-    if (!givenUp.has(hwnd) && !unsettled.has(hwnd)) countTabs(hwnd);
+    if (!givenUp.has(hwnd) && !unsettled.has(hwnd) && !(performance.now() - (countedAt.get(hwnd) ?? Number.NEGATIVE_INFINITY) < RECOUNT_MS)) countTabs(hwnd);
   }
   if (givenUp.has(hwnd)) throw new Error(LINK_LANDED);
   touch(hwnd);

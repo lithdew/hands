@@ -11,7 +11,7 @@ import * as windows from "../src/windows.ts";
 type Args = Record<string, unknown>;
 type Reply = ((args: Args) => unknown) | object | null;
 let calls: [string, Args][];
-const HOUSEKEEPING: Record<string, Reply> = { displays: [{ index: 0, frame: [0, 0, 2560, 1600] }], foreground: { hwnd: 11, pid: 100 }, sink: { ok: true }, processes: [], capture: { width: 400, height: 500 } }; // prettier-ignore
+const HOUSEKEEPING: Record<string, Reply> = { displays: [{ index: 0, frame: [0, 0, 2560, 1600] }], foreground: { hwnd: 11, pid: 100 }, sink: { ok: true }, processes: [], capture: { width: 400, height: 500 }, late: { late: [] } }; // prettier-ignore
 
 function helper(replies: Record<string, Reply>): void {
   spyOn(windows.native, "call").mockImplementation((command: string, args: Args = {}) => {
@@ -430,7 +430,7 @@ test("a browser window holding tabs the hand never saw is not closed with it: a 
 });
 
 /** A Chrome whose hand window is parked, with the tabs `tabs()` says and the window in front `front()` says. */
-function linkBrowser(state: { tabs: number; front: { hwnd: number; pid: number } }) {
+function linkBrowser(state: { tabs: number; front: { hwnd: number; pid: number }; url?: string }) {
   let launched = 0;
   const window = { chrome: { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Example - Google Chrome", frame: [50, 60, 1200, 800] as Frame, core: 0, exe: "chrome.exe", caption: true } };
   helper({
@@ -440,7 +440,7 @@ function linkBrowser(state: { tabs: number; front: { hwnd: number; pid: number }
     launch: () => (launched++, { pid: 0 }),
     activate: ({ hwnd }) => ((state.front = { hwnd: hwnd as number, pid: 100 }), { ok: true }),
     ...parking(() => window.chrome, (frame) => (window.chrome = { ...window.chrome, frame })),
-    browser: () => ({ tabs: Array.from({ length: state.tabs }, (_, i) => ({ title: `Tab ${i}`, active: i === state.tabs - 1, frame: null, close: null })), url: "https://example.com/", omnibox: [0, 0, 500, 30], omniboxValue: "example.com", buttons: {}, loading: false }),
+    browser: () => ({ tabs: Array.from({ length: state.tabs }, (_, i) => ({ title: `Tab ${i}`, active: i === state.tabs - 1, frame: null, close: null })), url: state.url ?? "https://example.com/", omnibox: [0, 0, 500, 30], omniboxValue: "example.com", buttons: {}, loading: false }),
     idle: { idleMs: 60_000, held: [], quiet: true, tick: 1 },
     guard: { back: true, popups: [] },
     post: { ok: true },
@@ -558,6 +558,59 @@ test("a link of the user's that the browser could only flash on the taskbar is f
   expect(window.chrome.frame.slice(0, 2)).toEqual([50, 60]); // on a screen, where the flashing taskbar button finds it
   expect(asked("sink")).toEqual([{ hwnd: 46 }]); // behind the user's windows: the browser did not bring it forward, and nor does the hand
   expect(quiet).toHaveBeenCalledTimes(1);
+});
+
+test("a settled window of the hand's has its tabs counted before input goes into it, unless a read counted them a moment ago", async () => {
+  const state = { tabs: 1, front: { hwnd: 11, pid: 100 } };
+  const window = linkBrowser(state);
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/"); // its one tab counted as it opens
+  const target = { pid: 400, windowId: 46, frame: window.chrome.frame, web: true };
+  const start = performance.now();
+  const clock = spyOn(performance, "now").mockImplementation(() => start + 1000);
+  const readsBeforeClick = () => calls.slice(0, calls.findIndex(([c]) => c === "post")).filter(([c]) => c === "browser").length;
+  try {
+    calls = [];
+    await windows.windowPointer(target, [[100, 100]]);
+    expect(readsBeforeClick()).toBe(1); // counted a second ago: counted again
+    clock.mockImplementation(() => start + 5000);
+    await windows.browserTabs("Google Chrome"); // a look, past the click's SETTLE_MS: it settles the window, and counts its tabs
+    calls = [];
+    await windows.windowPointer(target, [[120, 100]]);
+    expect(readsBeforeClick()).toBe(0); // counted just now: not again
+  } finally {
+    clock.mockRestore();
+  }
+  expect(windows.isGivenUp(46)).toBe(false);
+});
+
+test("where the page of a window of the hand's was as the first input since its last capture went in is what a read just before it said, and nothing when no read was that fresh", async () => {
+  const state: { tabs: number; front: { hwnd: number; pid: number }; url?: string } = { tabs: 1, front: { hwnd: 11, pid: 100 } };
+  const window = linkBrowser(state);
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  const target = { pid: 400, windowId: 46, frame: window.chrome.frame, web: true };
+  const real = performance.now.bind(performance);
+  let ahead = 0;
+  const clock = spyOn(performance, "now").mockImplementation(() => real() + ahead);
+  try {
+    await windows.screenshotWindow(46, "w.png"); // a look
+    expect(windows.addressAtInput(46)).toBeUndefined(); // nothing has gone in since
+    ahead = 5000; // the model's turn, in which the page rewrote its own address
+    state.url = "https://example.com/?tab=2";
+    await windows.windowPointer(target, [[100, 100]]); // a settled window: its tabs are counted, and its page read, just before the click
+    expect(windows.addressAtInput(46)).toBe("https://example.com/?tab=2");
+    state.url = "https://example.com/next"; // where the click took it
+    await windows.windowPointer(target, [[120, 100]]);
+    expect(windows.addressAtInput(46)).toBe("https://example.com/?tab=2"); // still where it was as the first input went in
+    await windows.screenshotWindow(46, "w.png");
+    expect(windows.addressAtInput(46)).toBeUndefined();
+    ahead = 7000; // unsettled still, so nothing reads the window before the next click, and the last read is two seconds old
+    await windows.windowPointer(target, [[100, 100]]);
+    expect(windows.addressAtInput(46)).toBeUndefined();
+  } finally {
+    clock.mockRestore();
+  }
 });
 
 test("a hand whose process ends without a close still puts back what it had out: its parked windows come back on screen, kept", async () => {

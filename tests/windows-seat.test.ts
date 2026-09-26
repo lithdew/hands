@@ -12,7 +12,7 @@ import { windowsSeat } from "../src/windows-seat.ts";
 type Args = Record<string, unknown>;
 type Reply = ((args: Args) => unknown) | object | null;
 let calls: [string, Args][];
-const HOUSEKEEPING: Record<string, Reply> = { displays: [{ index: 0, frame: [0, 0, 2560, 1600] }], sink: { ok: true }, recall: { ok: true }, send: { ok: true }, cursor: [700, 400], setCursor: { ok: true }, exe: { name: "Notepad", path: "" }, seat: { ok: true } }; // prettier-ignore
+const HOUSEKEEPING: Record<string, Reply> = { displays: [{ index: 0, frame: [0, 0, 2560, 1600] }], sink: { ok: true }, recall: { ok: true }, send: { ok: true }, cursor: [700, 400], setCursor: { ok: true }, exe: { name: "Notepad", path: "" }, seat: { ok: true }, late: { late: [] } }; // prettier-ignore
 
 function helper(replies: Record<string, Reply>): void {
   spyOn(windows.native, "call").mockImplementation((command: string, args: Args = {}) => {

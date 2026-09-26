@@ -26,7 +26,7 @@ import { jevClient } from "./decide.ts";
 import { hand, quote } from "./hand.ts";
 import { onWindows, platform as macos, seat } from "./platform.ts";
 import { Abort, center, type Field, type Item, type Point, repr, roleWord, type Screen, sizePt } from "./models.ts";
-import { capture, glance, OcrCache, perceive, stillAs, type Thumb } from "./perception.ts";
+import { bare, capture, glance, OcrCache, perceive, stillAs, type Thumb } from "./perception.ts";
 import { leaning, runLine } from "./report.ts";
 import { type RunState, run } from "./runner.ts";
 import { type KeyTarget, SeatBusy, SeatTaken } from "./seat.ts";
@@ -45,6 +45,7 @@ const VALUE_CHARS = 120;
 const SCREEN_ITEMS = 600;
 const CLICKER_STEPS = 25; // the most actions one Jev run takes, unless the model asks for fewer or more
 const PAGE_LOAD_MS = 10_000; // how long a navigation may keep a capture waiting
+const PAGE_POLL_MS = 250; // between the reads of a page that says it is still loading
 const SCROLL_LINES = 10; // what a borrowed wheel turns, the way a page's own scroll would
 // The words the model reads: the Mac strings stay as they were, and Windows gets its own apps, modifier and menus.
 const appNames = (mac: string) => (onWindows() ? "e.g. Calculator, Notepad, Paint, Excel" : `As in /Applications, e.g. ${mac}`);
@@ -127,6 +128,9 @@ export interface Finish {
   /** The hand left pages or files open for the user: its browser windows stay when it is dismissed (src/agent.ts). */
   keep_open?: boolean;
 }
+
+/** What a read of the hand's browser window says: whether its page is loading, and, where one read gives them too (Windows), its URL and tabs. */
+type PageRead = { loading: boolean; url?: string | null; tabs?: macos.Tab[] };
 
 /** `listing` marks a result that describes the screen, which goes stale and is cut from the transcript like any other; `finish` carries the model's verdict. */
 export type Details = { listing?: true; finish?: Finish; moves?: number } | undefined; // moves: a clicker run's count of Jev's actions, for the card's ticks
@@ -269,6 +273,8 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
   let captures = lastCapture(runDir);
   let lastAction = 0;
   let lastLook = 0;
+  let glanced: { windowId: number; thumb: Thumb } | null = null; // the window as the last look that watched it settle left it
+  const looked = new Set<number>(); // the windows a look has captured
   // Only Windows borrows the seat (src/macos-seat.ts): the Mac is not offered seat=true, nor told of it.
   const borrows = onWindows();
   const seatParam: Record<string, TSchema> = borrows ? { seat: Type.Optional(Type.Boolean({ description: SEAT_DESCRIPTION })) } : {};
@@ -400,31 +406,69 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
   };
 
   /**
-   * After an action, wait for the window to stop changing: two glances alike, and a page that is not loading. At
-   * least a moment for the action to land, and at most a few seconds for a window that never stops. A window that has
-   * not changed at all is watched a while longer (`settling`, from the action): a chat's Send, an Office command or a
-   * page's update often begins only then, and a capture taken before it would say the action did nothing.
+   * One read of the hand's browser window: whether its page is loading, and on Windows its URL and tabs from that same
+   * read of that window alone (src/windows.ts browserPage); on the Mac those two are asked apart, as they always were.
    */
-  async function settled(windowId: number, scripted?: string): Promise<void> {
-    if (lastAction <= lastLook) return;
-    const since = performance.now() - lastAction;
-    if (since < SETTLE_FLOOR_MS) await Bun.sleep(SETTLE_FLOOR_MS - since);
-    let [first, before, changed]: [Thumb | null, Thumb | null, boolean] = [null, null, false];
-    for (const end = performance.now() + SETTLE_CAP_MS; performance.now() < end; await Bun.sleep(SETTLE_POLL_MS)) {
-      const now = await glance(windowId, scratch);
-      if (!now) return; // nothing to watch: the floor is all the wait
-      first ??= now;
-      changed ||= !stillAs(now, first);
-      const loading = scripted !== undefined && (await macos.browserLoading(browser, scripted).catch(() => false));
-      if (before && !loading && stillAs(now, before) && (changed || performance.now() - lastAction >= settling.unchangedMs)) return;
-      before = now;
-    }
+  async function readPage(scripted: string): Promise<PageRead> {
+    if (onWindows()) return (await windows.browserPage(browser, scripted).catch(() => null)) ?? { loading: false };
+    return { loading: await macos.browserLoading(browser, scripted).catch(() => false) };
   }
 
-  /** The browser window's tabs, which the listing gives in place of its tab strip. Asked again only when the page has changed. */
-  async function tabsOf(pinned: macos.PinnedWindow, url: string | null): Promise<Screen["tabs"]> {
-    if (tabsSeen && tabsSeen.url === url) return tabsSeen.tabs;
-    const tabs = (await macos.browserTabs(browser).catch(() => [])).filter((t) => t.scripted === pinned.scripted);
+  /**
+   * After an action, wait for the window to stop changing: two glances alike, and a page that is not loading. At
+   * least a moment for the action to land, and at most a few seconds for a window that never stops, or, while its page
+   * loads, PAGE_LOAD_MS. A window that has not changed at all is watched a while longer (`settling`, from the action): a
+   * chat's Send, an Office command or a page's update often begins only then, and a capture taken before it would say
+   * the action did nothing. A navigation seen is a change, though: when the hand's browser window no longer looks as
+   * the last look left it (or is one it has not looked at yet, just opened for its page) and its page is at another
+   * address than it was as the action began, the page the action went to is up already (it finished before the first
+   * glance), and nothing is late. A browser window's page is read once, when the glances say it is still, not every
+   * round; that read (its URL and tabs, on Windows) is what the look goes on with. Null when there was nothing to read.
+   */
+  async function settled(windowId: number, scripted?: string): Promise<PageRead | null> {
+    if (lastAction <= lastLook) return null;
+    const since = performance.now() - lastAction;
+    if (since < SETTLE_FLOOR_MS) await Bun.sleep(SETTLE_FLOOR_MS - since);
+    const last = glanced?.windowId === windowId ? glanced.thumb : null;
+    // Where the page was as the action began: read just before its first input (src/windows.ts addressAtInput), or, in
+    // a window no look has captured yet (just opened for its page), nowhere, so that whatever page it shows is the one
+    // it was opened for. Not known otherwise, and then no navigation is counted: the last look's address would take a
+    // page that changed its own address since for one, and the capture would come before a late reaction to the action.
+    const from = !onWindows() || scripted === undefined ? undefined : looked.has(windowId) ? windows.addressAtInput(windowId) : null;
+    let [first, before, changed, asked]: [Thumb | null, Thumb | null, boolean, boolean] = [null, null, false, false];
+    for (let end = performance.now() + SETTLE_CAP_MS; ; await Bun.sleep(SETTLE_POLL_MS)) {
+      const now = await glance(windowId, scratch);
+      if (!now) break; // nothing to watch: the floor is all the wait, but a page's load
+      glanced = { windowId, thumb: now };
+      first ??= now;
+      changed ||= !stillAs(now, first);
+      const alike = before !== null && stillAs(now, before);
+      before = now;
+      let page: PageRead | null = null;
+      // Asked once, and only on Windows, where the read says where the page is: whether a navigation has been seen. A page
+      // with nothing on it yet (bare) may be the one between the address changing and the first paint, and is waited on.
+      if (alike && !changed && !asked && from !== undefined && scripted !== undefined && (last === null || !stillAs(now, last)) && !bare(now) && performance.now() - lastAction < settling.unchangedMs) {
+        asked = true;
+        page = await readPage(scripted);
+        changed = page.url !== undefined && page.url !== from;
+      }
+      const still = alike && (changed || performance.now() - lastAction >= settling.unchangedMs);
+      if (!still && performance.now() < end) continue;
+      if (scripted === undefined) return null;
+      page ??= await readPage(scripted);
+      if (!page.loading || performance.now() - lastAction >= PAGE_LOAD_MS) return page;
+      macos.checkAbort(); // a long load is waited out, and the mouse in the corner still stops it
+      end = Math.max(end, performance.now() + PAGE_POLL_MS);
+    }
+    let page: PageRead | null = null;
+    for (const end = lastAction + PAGE_LOAD_MS; scripted !== undefined && (page = await readPage(scripted)).loading && performance.now() < end; ) await macos.sleepWatching(PAGE_POLL_MS / 1000);
+    return page;
+  }
+
+  /** The browser window's tabs, which the listing gives in place of its tab strip: from the look's own read, or asked again when the page has changed. */
+  async function tabsOf(pinned: macos.PinnedWindow, url: string | null, read?: macos.Tab[]): Promise<Screen["tabs"]> {
+    if (!read && tabsSeen && tabsSeen.url === url) return tabsSeen.tabs;
+    const tabs = read ?? (await macos.browserTabs(browser).catch(() => [])).filter((t) => t.scripted === pinned.scripted);
     const seen = tabs.length ? { count: tabs.length, active: tabs.find((t) => t.active)?.title ?? "" } : undefined;
     tabsSeen = { url, tabs: seen };
     return seen;
@@ -470,12 +514,15 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
     const working = seat.workingWindow(pid, pinned?.windowId ?? target.window);
     // On the Mac open_app opens no second window of an app that is running, so asking again would change nothing.
     if (!working) throw new Error(onWindows() ? `${app} has no window open: \`open_app\` it again for a window of your own` : `${app} has no window open. Its \`menu\` can make one (File > New...).`);
-    await settled(working.windowId, pinned?.scripted);
-    const url = pinned ? ((await macos.browserUrl(browser, pinned.scripted)) ?? undefined) : undefined;
+    // A browser window is read once a look: the read that found it still, or one now when nothing has acted since.
+    const settledRead = await settled(working.windowId, pinned?.scripted);
+    const read = pinned ? (settledRead ?? (onWindows() ? await readPage(pinned.scripted) : null)) : null;
+    const url = pinned ? ((read?.url !== undefined ? read.url : await macos.browserUrl(browser, pinned.scripted)) ?? undefined) : undefined;
     givenUp();
     const screen = await capture({ target: { pid, windowId: working.windowId }, out, url, timing });
+    looked.add(working.windowId);
     Object.assign(screen, { dialog: working.dialog, theirs: working.theirs });
-    if (pinned && !working.dialog) screen.tabs = await tabsOf(pinned, screen.url);
+    if (pinned && !working.dialog) screen.tabs = await tabsOf(pinned, screen.url, read?.tabs);
     givenUp(screen.image.path);
     return screen;
   }
@@ -483,13 +530,12 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
 
   /**
    * An action that changes the page or the app. The last capture no longer describes it, and the model's next move
-   * is always to look, so the result is the new listing, led by what the action says of what it found.
+   * is always to look, so the result is the new listing, led by what the action says of what it found. The look waits
+   * for a page that is loading (settled).
    */
   const moved = async (text: string | ((screen: Screen) => string)): Promise<Result> => {
     view = null;
     lastAction = performance.now();
-    const scripted = target?.pinned?.scripted;
-    for (const end = performance.now() + PAGE_LOAD_MS; scripted && performance.now() < end && (await macos.browserLoading(browser, scripted)); ) await macos.sleepWatching(0.25);
     const [seen, screen] = await see(false);
     return { ...seen, content: [{ type: "text", text: typeof text === "string" ? text : text(screen) }, ...seen.content] };
   };
@@ -658,7 +704,7 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
         if (!it && (x === undefined || y === undefined)) throw new Error("give an item, or both x and y");
         const [px, py] = it ? spot(screen, it) : [x!, y!];
         const what = it ? repr(it.text) : `at ${px},${py}`;
-        await hand.cue("press", `click${it ? ` ${quote(it.text)}` : ""}`, [px, py], { count });
+        void hand.cue("press", `click${it ? ` ${quote(it.text)}` : ""}`, [px, py], { count }); // the hand glides there as the click goes: nothing waits for it
         if (borrow) {
           return seatAction(`clicking ${what}`, async () => {
             await macos.clickAt(onScreenNow(px, py), { count });
@@ -754,7 +800,7 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
           return acted(`typed ${typed} into ${app}${returned}`);
         }
         const { it, ref } = control(index);
-        await hand.cue("write", `typing ${quote(text)}`, spot(current().screen, it));
+        void hand.cue("write", `typing ${quote(text)}`, spot(current().screen, it)); // the hand glides there as the typing goes: nothing waits for it
         if (borrow) {
           const [px, py] = spot(current().screen, it);
           return seatAction(`typing into ${repr(it.text)}`, async () => {
