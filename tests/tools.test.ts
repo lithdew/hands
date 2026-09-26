@@ -5,12 +5,14 @@ import { join } from "node:path";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import sharp from "sharp";
 import { hand } from "../src/hand.ts";
+import { macSeat } from "../src/macos-seat.ts";
 import * as macos from "../src/macos.ts";
-import type { AxNode, Frame } from "../src/models.ts";
+import { Abort, type AxNode, type Frame } from "../src/models.ts";
 import type { Line } from "../src/perception.ts";
 import { seat } from "../src/platform.ts";
 import { type KeyTarget, SeatBusy, type SeatOptions, SeatTaken, type WorkingWindow } from "../src/seat.ts";
-import { chords, computerTools, lastCapture, shellChord } from "../src/tools.ts";
+import { chords, computerTools, filePath, lastCapture, settling, shellChord } from "../src/tools.ts";
+import * as windows from "../src/windows.ts";
 import { guardMachine } from "./helpers.ts";
 
 // The hand's window: TextEdit's pid 500, window 55, 400x300 points at 100,50, captured at two pixels a point.
@@ -28,8 +30,15 @@ beforeAll(async () => {
   await sharp({ create: { width: 800, height: 600, channels: 3, background: "#203040" } }).png().toFile(changed);
 });
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
-beforeEach(guardMachine);
-afterEach(() => mock.restore());
+const SETTLING = settling.unchangedMs;
+beforeEach(() => {
+  guardMachine();
+  settling.unchangedMs = 0; // a picture that never changes would keep every look waiting for a late reaction
+});
+afterEach(() => {
+  mock.restore();
+  settling.unchangedMs = SETTLING;
+});
 
 const field = (label: string, x: number, y: number, extra: Partial<AxNode> = {}): AxNode => ({ role: "AXTextField", label, x, y, w: 100, h: 20, pressable: true, ref: { label }, ...extra });
 const button = (label: string, x: number, y: number): AxNode => ({ role: "AXButton", label, x, y, w: 60, h: 20, pressable: true, ref: { label } });
@@ -76,17 +85,18 @@ const granted = () =>
     return work();
   });
 
-/** Windows, for the length of one test: posted keys carry no modifiers there. */
+/** Windows, for the length of one test: posted keys carry no modifiers there, and reach a browser window of the hand's own. */
 async function asOnWindows<T>(work: () => Promise<T>): Promise<T> {
-  const was = [process.env.HANDS_PLATFORM, seat.chordsFromBehind] as const;
+  const was = [process.env.HANDS_PLATFORM, seat.chordsFromBehind, seat.browserKeysFromBehind] as const;
+  const keys = seat as { chordsFromBehind: boolean; browserKeysFromBehind: boolean };
   process.env.HANDS_PLATFORM = "windows";
-  (seat as { chordsFromBehind: boolean }).chordsFromBehind = false;
+  [keys.chordsFromBehind, keys.browserKeysFromBehind] = [false, true];
   try {
     return await work();
   } finally {
     if (was[0] === undefined) delete process.env.HANDS_PLATFORM;
     else process.env.HANDS_PLATFORM = was[0];
-    (seat as { chordsFromBehind: boolean }).chordsFromBehind = was[1];
+    [keys.chordsFromBehind, keys.browserKeysFromBehind] = [was[1], was[2]];
   }
 }
 
@@ -197,20 +207,55 @@ test("keys that act on the whole desktop are never pressed", async () => {
   ]);
 });
 
-test("a borrow the user was too busy for, or took back, is an error that says so, and the seat is marked free", async () => {
+test("a borrow the seat never granted says why, with advice for that reason; one the user took back says so; the seat is marked free", async () => {
   desk();
   spyOn(macos, "press").mockImplementation(async () => {});
   const shown = spyOn(hand, "seat");
   const { call } = hands();
   await call("open_app", { name: "TextEdit" });
-  spyOn(seat, "withSeat").mockImplementation(async () => {
-    throw new SeatBusy("the user kept typing");
-  });
-  await expect(asOnWindows(() => call("key", { keys: "ctrl+s" }))).rejects.toThrow("the user kept using the mouse and keyboard, so nothing was done");
+  const refused = (reason: string) =>
+    spyOn(seat, "withSeat").mockImplementation(async () => {
+      throw new SeatBusy(reason);
+    });
+  refused("the user kept using the mouse or keyboard, so pressing ctrl+s did not happen");
+  await expect(asOnWindows(() => call("key", { keys: "ctrl+s" }))).rejects.toThrow(
+    "nothing was done (pressing ctrl+s): the user kept using the mouse or keyboard, so pressing ctrl+s did not happen. Try again in a while, or finish with needs_you",
+  );
+  refused("the window is gone");
+  await expect(asOnWindows(() => call("key", { keys: "ctrl+s" }))).rejects.toThrow("nothing was done (pressing ctrl+s): the window is gone. Look again with `screen`.");
+  refused("another hand had the mouse and keyboard all this time, so pressing ctrl+s did not happen");
+  await expect(asOnWindows(() => call("key", { keys: "ctrl+s" }))).rejects.toThrow("Try again shortly.");
+  refused("Untitled - Notepad would not come to the front");
+  await expect(asOnWindows(() => call("key", { keys: "ctrl+s" }))).rejects.toThrow("do it from behind if you can, or finish with needs_you");
   spyOn(seat, "withSeat").mockImplementation(async () => {
     throw new SeatTaken("the mouse moved");
   });
   await expect(asOnWindows(() => call("key", { keys: "ctrl+s" }))).rejects.toThrow("the user took the mouse back");
+  expect(shown.mock.calls.filter(([state]) => state === "free")).toHaveLength(5);
+});
+
+test("a stop while the hand waits for the seat ends the tool as the stop it was, sends nothing, and marks the seat free", async () => {
+  desk();
+  const typed = spyOn(macos, "press").mockImplementation(async () => {});
+  const shown = spyOn(hand, "seat");
+  const aborted: string[] = [];
+  const tools = computerTools({ runDir: dir, cwd: dir, onAbort: (why) => void aborted.push(why) });
+  const call = (name: string, params: object) => tools.find((tool) => tool.name === name)!.execute("call", params);
+  await call("open_app", { name: "TextEdit" });
+  // The platform's wait for a pause reads the interrupt a stop sets (src/windows.ts), and throws.
+  spyOn(seat, "withSeat").mockImplementation(async (_target, _work, options) => {
+    options.onWaiting?.();
+    throw new Abort("stopped");
+  });
+  await expect(asOnWindows(() => call("key", { keys: "ctrl+s" }))).rejects.toBeInstanceOf(Abort);
+  expect(aborted).toEqual(["stopped"]);
+  // A stop that comes as the seat is granted is caught before the work sends anything.
+  spyOn(seat, "withSeat").mockImplementation(async (_target, work) => work());
+  spyOn(macos, "checkAbort").mockImplementationOnce(() => {}).mockImplementation(() => {
+    throw new Abort("stopped");
+  });
+  await expect(asOnWindows(() => call("key", { keys: "ctrl+s" }))).rejects.toBeInstanceOf(Abort);
+  expect(typed).not.toHaveBeenCalled();
   expect(shown.mock.calls.filter(([state]) => state === "free")).toHaveLength(2);
 });
 
@@ -221,19 +266,93 @@ test("seat=true on a click clicks the user's mouse at the point on screen now", 
   const { call } = hands();
   const listing = await call("open_app", { name: "TextEdit" });
   const index = Number(/(\d+) button 'Send'/.exec(listing)![1]);
-  expect(await call("click", { item: index, seat: true })).toBe("clicked 'Send' (borrowed the user's mouse and keyboard for a moment, and gave them back)");
-  expect(clicked.mock.calls).toEqual([[[330, 210], { button: "left", count: 1 }]]); // the button's centre, where the window is
+  expect(await asOnWindows(() => call("click", { item: index, seat: true }))).toBe("clicked 'Send' (borrowed the user's mouse and keyboard for a moment, and gave them back)");
+  expect(clicked.mock.calls).toEqual([[[330, 210], { count: 1 }]]); // the button's centre, where the window is
 });
 
-test("a right click always borrows the seat", async () => {
+test("there is no right click: it is refused with what to use instead, and the seat is not borrowed", async () => {
   desk();
   const clicked = spyOn(macos, "clickAt").mockImplementation(async () => {});
   const borrowed = granted();
-  const { call } = hands();
+  const { call, find } = hands();
   await call("open_app", { name: "TextEdit" });
-  expect(await call("click", { x: 20, y: 30, button: "right" })).toStartWith("right-clicked at 20,30");
-  expect(borrowed.mock.calls[0]?.[2]).toMatchObject({ why: "right-clicking at 20,30" });
-  expect(clicked.mock.calls).toEqual([[[120, 80], { button: "right", count: 1 }]]);
+  for (const borrow of [false, true]) {
+    await expect(asOnWindows(() => call("click", { x: 20, y: 30, button: "right", seat: borrow }))).rejects.toThrow("there is no right click: a context menu cannot be used from behind");
+  }
+  expect(borrowed).not.toHaveBeenCalled();
+  expect(clicked).not.toHaveBeenCalled();
+  expect(find("click").parameters.properties.button).toBeUndefined();
+  expect(find("click").description).toContain("There is no right click");
+});
+
+test("the Mac borrows nothing: seat=true is not offered there, and a borrow that is asked for says to do it from behind", async () => {
+  desk();
+  const typed = spyOn(macos, "press").mockImplementation(async () => {});
+  const shown = spyOn(hand, "seat");
+  const { call, find } = hands();
+  for (const name of ["click", "drag", "type", "key", "scroll"]) expect(find(name).parameters.properties.seat).toBeUndefined();
+  expect(find("open_app").parameters.properties.file).toBeUndefined(); // nor a document by its file, which the Mac cannot open as a window of the hand's
+  await call("open_app", { name: "TextEdit" });
+  const said = await call("key", { keys: "cmd+s", seat: true }); // a model that passes it all the same
+  expect(said).toStartWith("nothing was done (pressing cmd+s): borrowing the user's mouse and keyboard is not available on the Mac yet");
+  expect(said).toContain("finish with needs_you");
+  expect(typed).not.toHaveBeenCalled();
+  expect(shown.mock.calls.at(-1)).toEqual(["free"]);
+  const onWindows = await asOnWindows(async () => hands().find);
+  for (const name of ["click", "drag", "type", "key", "scroll"]) expect(onWindows(name).parameters.properties.seat).toBeDefined();
+  expect(onWindows("open_app").parameters.properties.file).toBeDefined();
+});
+
+test("the Mac's browser window takes no keys from behind, and the error does not send the model to the seat", async () => {
+  desk({ app: "Google Chrome" });
+  spyOn(macos, "openBackgroundWindow").mockImplementation(async () => ({ pid: PID, windowId: WINDOW, scripted: String(WINDOW) }));
+  spyOn(macos, "stageWindow").mockImplementation(async () => {});
+  spyOn(macos, "browserLoading").mockImplementation(async () => false);
+  spyOn(macos, "browserUrl").mockImplementation(async () => "https://example.com/");
+  spyOn(macos, "browserTabs").mockImplementation(async () => []);
+  const { call } = hands();
+  await call("browser", { action: "open", url: "https://example.com" });
+  const refused = await call("key", { keys: "return" }).then(
+    () => null,
+    (error: Error) => error.message,
+  );
+  expect(refused).toContain("Press the page's own controls instead");
+  expect(refused).not.toContain("seat=true");
+});
+
+test("in the hand's browser window on Windows, Tab is never pressed, from behind or with the seat", async () => {
+  desk({ app: "Google Chrome" });
+  spyOn(macos, "openBackgroundWindow").mockImplementation(async () => ({ pid: PID, windowId: WINDOW, scripted: String(WINDOW) }));
+  spyOn(macos, "stageWindow").mockImplementation(async () => {});
+  spyOn(macos, "browserLoading").mockImplementation(async () => false);
+  spyOn(macos, "browserUrl").mockImplementation(async () => "https://example.com/");
+  spyOn(macos, "browserTabs").mockImplementation(async () => []);
+  const posted = spyOn(seat, "pressIn").mockImplementation(async () => {});
+  const typed = spyOn(seat, "typeIn").mockImplementation(async () => {});
+  const borrowed = granted();
+  const { call } = hands();
+  await call("browser", { action: "open", url: "https://example.com" });
+  await asOnWindows(async () => {
+    for (const keys of ["tab", "shift+tab", "a tab return"]) await expect(call("key", { keys })).rejects.toThrow("is not pressed in your browser window");
+    await expect(call("key", { keys: "tab", seat: true })).rejects.toThrow("Click the field you want instead");
+    await expect(call("type", { text: "a\tb" })).rejects.toThrow("is not pressed in your browser window");
+    expect(await call("key", { keys: "return" })).toBe("pressed return in Google Chrome");
+  });
+  expect(posted.mock.calls).toEqual([[{ pid: PID, windowId: WINDOW }, "return", []]]);
+  expect(typed).not.toHaveBeenCalled();
+  expect(borrowed).not.toHaveBeenCalled();
+});
+
+test("a click the guard could not make for a busy user says so, and does not send the model to the seat", async () => {
+  desk({ nodes: [button("Send", 300, 200)] });
+  spyOn(macos, "axPress").mockImplementation(() => {
+    throw new SeatBusy("the user did not pause long enough for a click");
+  });
+  const { call } = hands();
+  const listing = await call("open_app", { name: "TextEdit" });
+  const index = Number(/(\d+) button 'Send'/.exec(listing)![1]);
+  const clicked = call("click", { item: index });
+  await expect(clicked).rejects.toThrow("nothing was done (clicking 'Send'): the user did not pause long enough for a click. The user was busy, or another hand had the mouse and keyboard; try again shortly.");
 });
 
 test("a line break a page refuses from behind is sent back as advice, and seat=true types it with shift+Enter between the lines", async () => {
@@ -358,10 +477,136 @@ test("`wait` returns the new listing, and with `until` stops once the text shows
   expect(await call("wait", { seconds: 0, until: "never" })).toStartWith("waited 0s, and 'never' has not shown");
 });
 
-test("finish records the outcome for the run to report", async () => {
+test("finish records the outcome for the run to report, and whether the hand left pages open for the user", async () => {
   const { find } = hands();
-  const result = await find("finish").execute("call", { outcome: "needs_you", summary: "Sign in to WhatsApp on the phone." });
-  expect(result.details).toEqual({ finish: { outcome: "needs_you", summary: "Sign in to WhatsApp on the phone." } });
+  const result = await find("finish").execute("call", { outcome: "needs_you", summary: "Sign in to WhatsApp on the phone.", keep_open: true });
+  expect(result.details).toEqual({ finish: { outcome: "needs_you", summary: "Sign in to WhatsApp on the phone.", keep_open: true } });
+  expect((await find("finish").execute("call", { outcome: "done", summary: "Did it." })).details).toEqual({ finish: { outcome: "done", summary: "Did it.", keep_open: false } });
+  expect(find("finish").parameters.required).toContain("keep_open");
+});
+
+test("a window the user minimized is looked at all the same on Windows: the capture brings it back, and it is not taken for closed", async () => {
+  desk();
+  spyOn(windows, "thumbnail").mockImplementation(() => null); // a glance, to tell whether the window has settled: nothing to watch
+  let minimized = true;
+  spyOn(macos, "appWindows").mockImplementation(() => (minimized ? [] : [{ id: WINDOW, frame: FRAME }])); // an app's windows leave a minimized one out
+  spyOn(macos, "screenshotWindow").mockImplementation(async (_id, path) => {
+    if (!path.includes("hands-glance")) minimized = false; // the capture restores it without activation, behind the user's windows
+    return { path: picture, width: 800, height: 600 };
+  });
+  const listing = await asOnWindows(() => hands().call("open_app", { name: "TextEdit" }));
+  expect(listing).toContain("TextEdit, the window you are working in");
+  minimized = true;
+  await expect(hands().call("open_app", { name: "TextEdit" })).rejects.toThrow("the window is gone"); // the Mac, where a capture restores nothing
+  // The browser window the hand opened, minimized, is still its window.
+  minimized = true;
+  spyOn(macos, "openBackgroundWindow").mockImplementation(async () => ({ pid: PID, windowId: WINDOW, scripted: String(WINDOW) }));
+  spyOn(macos, "stageWindow").mockImplementation(async () => {});
+  spyOn(macos, "browserLoading").mockImplementation(async () => false);
+  spyOn(macos, "browserUrl").mockImplementation(async () => "https://example.com/");
+  spyOn(macos, "browserTabs").mockImplementation(async () => []);
+  const opened = spyOn(macos, "openUrl").mockImplementation(async () => true);
+  await asOnWindows(async () => {
+    const { call } = hands();
+    minimized = false;
+    await call("browser", { action: "open", url: "https://example.com" });
+    minimized = true;
+    expect(await call("browser", { action: "open", url: "https://example.com/next" })).not.toContain("your earlier window had been closed");
+  });
+  expect(opened).toHaveBeenCalledTimes(1);
+});
+
+test("with nothing of its own open, a look at the user's screen does not leave the hand on it", async () => {
+  desk();
+  spyOn(macos, "frontmostAppAndPid").mockImplementation(async () => ["Mail", 700]);
+  spyOn(macos, "frontmostWindowBounds").mockImplementation(async () => [0, 0, 400, 300]);
+  spyOn(macos, "displayFor").mockImplementation(() => ({ index: 0, frame: [0, 0, 400, 300] }));
+  spyOn(macos, "screenshot").mockImplementation(async () => ({ path: picture, width: 800, height: 600 }));
+  spyOn(macos, "focusedField").mockImplementation(() => null);
+  spyOn(macos, "browserUrl").mockImplementation(async () => null);
+  const rode = spyOn(hand, "look");
+  const posed = spyOn(hand, "cue");
+  await hands().call("screen");
+  expect(rode).not.toHaveBeenCalled();
+  expect(posed.mock.calls[0]?.slice(0, 2)).toEqual(["look", "looking"]);
+});
+
+test("the listing claims a field's value only when there is one to give", async () => {
+  desk({ nodes: [field("Search", 150, 80)] });
+  const bare = await hands().call("open_app", { name: "TextEdit" });
+  expect(bare).toContain("items (index role 'text' @x,y)");
+  expect(bare).not.toContain("= value");
+  expect(hands().find("screen").description).not.toContain("what a field holds");
+});
+
+test("open_app with the browser's name says it is the user's own window, and where a window of the hand's own comes from", async () => {
+  desk({ app: "Google Chrome", working: { windowId: WINDOW, dialog: null, theirs: true } });
+  const listing = await hands().call("open_app", { name: "Google Chrome" });
+  expect(listing).toStartWith("opened Google Chrome: this is the user's own Google Chrome window, to act in only as far as the task asks. For a page of your own, `browser` open url=...");
+  expect(listing).toContain("(`browser` open gives you a Google Chrome window of your own)");
+  expect(listing).not.toContain("opened no second window");
+});
+
+test("on the Mac an app's window that was there before the hand is the user's, one it made later is its own, and its browser window is its own", () => {
+  spyOn(macos, "mainWindowId").mockImplementation(() => 71);
+  spyOn(macos, "appWindows").mockImplementation(() => [{ id: 71, frame: FRAME }, { id: 72, frame: FRAME }]);
+  expect(macSeat.workingWindow(9001)).toEqual({ windowId: 71, dialog: null, theirs: true });
+  spyOn(macos, "mainWindowId").mockImplementation(() => 73); // File > New, from the hand's `menu`
+  expect(macSeat.workingWindow(9001)).toEqual({ windowId: 73, dialog: null, theirs: false });
+  spyOn(macos, "mainWindowId").mockImplementation(() => 72);
+  expect(macSeat.workingWindow(9001)?.theirs).toBe(true);
+  expect(macSeat.workingWindow(9001, 555)).toEqual({ windowId: 555, dialog: null, theirs: false });
+  spyOn(macos, "mainWindowId").mockImplementation(() => null);
+  expect(macSeat.workingWindow(9002)).toBeNull();
+});
+
+test("the Mac's user's own window says how to make one of the hand's, and an app with no window points to its menu, not open_app again", async () => {
+  desk({ working: { windowId: WINDOW, dialog: null, theirs: true } });
+  expect(await hands().call("open_app", { name: "TextEdit" })).toContain("make one of your own with the app's `menu` (File > New...)");
+  desk({ working: null });
+  await expect(hands().call("open_app", { name: "TextEdit" })).rejects.toThrow("TextEdit has no window open. Its `menu` can make one (File > New...).");
+  await expect(asOnWindows(() => hands().call("open_app", { name: "TextEdit" }))).rejects.toThrow("`open_app` it again for a window of your own");
+});
+
+test("a file for open_app is found where Git Bash, ~ and file:// name it", () => {
+  const [cwd, home] = ["D:\\work", "C:\\Users\\u"];
+  const at = (file: string) => filePath(file, cwd, home, true).replaceAll("\\", "/");
+  expect(at("/c/Users/u/report.xlsx")).toBe("C:/Users/u/report.xlsx");
+  expect(at("/mnt/d/data/a.csv")).toBe("D:/data/a.csv");
+  expect(at("/cygdrive/e/x.docx")).toBe("E:/x.docx");
+  expect(at("~/Documents/a.docx")).toBe("C:/Users/u/Documents/a.docx");
+  expect(at("file:///C:/Users/u/My%20Report.xlsx")).toBe("C:/Users/u/My Report.xlsx");
+  expect(at("C:\\Users\\u\\b.xlsx")).toBe("C:/Users/u/b.xlsx");
+  expect(at("notes.txt")).toBe("D:/work/notes.txt");
+});
+
+test("after an action that changed nothing yet, the next look waits a while for a reaction that starts late", async () => {
+  desk();
+  spyOn(seat, "pressIn").mockImplementation(async () => {});
+  const { call } = hands();
+  await call("open_app", { name: "TextEdit" });
+  settling.unchangedMs = 800;
+  await call("key", { keys: "return" });
+  const started = performance.now();
+  await call("screen");
+  expect(performance.now() - started).toBeGreaterThanOrEqual(700); // two glances alike at 300 ms are not enough: the old code waited 800 ms
+});
+
+test("`browser` tabs, back from another app, drops that app's capture: the next action looks first", async () => {
+  desk({ app: "Google Chrome" });
+  spyOn(macos, "openBackgroundWindow").mockImplementation(async () => ({ pid: PID, windowId: WINDOW, scripted: String(WINDOW) }));
+  spyOn(macos, "stageWindow").mockImplementation(async () => {});
+  spyOn(macos, "browserLoading").mockImplementation(async () => false);
+  spyOn(macos, "browserUrl").mockImplementation(async () => "https://example.com/");
+  spyOn(macos, "browserTabs").mockImplementation(async () => [{ scripted: String(WINDOW), window: 1, tab: 1, active: true, title: "Landing", url: "https://example.com/" }]);
+  spyOn(macos, "runInBackground").mockImplementation(async () => 600);
+  const typed = spyOn(seat, "typeIn").mockImplementation(async () => {});
+  const { call } = hands();
+  await call("browser", { action: "open", url: "https://example.com" });
+  await call("open_app", { name: "Notepad" });
+  expect(await call("browser", { action: "tabs" })).toContain("tab 1 (active): Landing");
+  await expect(asOnWindows(() => call("type", { text: "hello" }))).rejects.toThrow("no current screen: call `screen` first");
+  expect(typed).not.toHaveBeenCalled();
 });
 
 test("the screenshots of a run folder carry on from the last one there", () => {
