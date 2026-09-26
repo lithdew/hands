@@ -246,6 +246,17 @@ let kernel: Kernel | undefined;
 let helper: Helper | undefined;
 let helperFailure: Error | undefined;
 let lastCall = 0; // when this process last asked the helper for anything on its own account: the watcher's rounds do not count
+let actedAt = 0; // when the hand last sent anything into a window (see acted)
+
+/**
+ * The hand has sent something into a window: the seat's input (input), keys or a click posted from behind, a press or a
+ * value through accessibility, a menu, a page scrolled (each of which gives the seat back after, giveBack), or input
+ * into a browser window of its own (touch). A tree read before this is no longer what the window holds (see
+ * actionableElements, which gives a kept tree again only when nothing was sent since).
+ */
+function acted(): void {
+  actedAt = performance.now();
+}
 
 /**
  * One synchronous round trip to the helper. A helper that has gone away between calls (the pipe broken, error 109 or
@@ -381,6 +392,7 @@ let borrowedRoot = 0; // the window borrowed, which its input goes to and nothin
  */
 const input = async (args: object, delay = EVENT_DELAY_MS) => {
   if (borrowed !== null) checkStopped();
+  acted();
   const reply = native.call("input", borrowed === null ? args : { ...args, since: borrowed, root: borrowedRoot }) as { ok?: boolean; taken?: string };
   if (reply.ok === false) {
     const taken = reply.taken ?? "the user took the mouse or keyboard back";
@@ -904,6 +916,7 @@ export function releaseDesktop(): void {
   presented.clear();
   primed.clear();
   unlifted.clear();
+  keptTree = null;
   stale.clear();
   parked.clear();
   tabsSeen.clear();
@@ -1400,6 +1413,7 @@ let handBack: { to: number; until: number } | null = null; // the window the use
  * HANDBACK_MS. A window of the user's they brought forward meanwhile is left alone.
  */
 function giveBack(front: number): void {
+  acted();
   if (borrowed !== null || !front) return;
   handBack = { to: front, until: performance.now() + HANDBACK_MS };
   takeBack(frontWindow());
@@ -2788,7 +2802,11 @@ interface TreeNode {
 }
 
 const ROOT = -1;
-type TreeReply = { nodes: TreeNode[]; capped: boolean };
+type TreeReply = { nodes: TreeNode[]; capped: boolean; again?: boolean };
+const TREE_AGAIN_MS = 30_000; // how long a kept tree may be given again, however still its window stays
+let keptTree: { hwnd: number; at: number; frame: Frame; thumb: Uint8Array; cap?: number; ms?: number } | null = null; // the tree the helper keeps (see actionableElements), and the window as it was then
+
+const sameBytes = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length && a.every((v, i) => v === b[i]);
 const primed = new Map<number, string>(); // Chromium windows of the hand's whose page came back after a lift, and the address it came back at
 const unlifted = new Map<number, { address: string; lifts: number }>(); // lifts that brought no page back, for the address they were made at
 const LIFTS_PER_PAGE = 2; // a page that stays blank through this many lifts (about:blank, a page with nothing on it) is not lifted again
@@ -2936,6 +2954,11 @@ function tidy(found: AxNode[], tree: Map<number, TreeNode>, window: WindowEntry 
  * there when it needs none). The lifted window lies over the user's for the walk, where their click would land in it:
  * so the lift waits, a moment, for the user to pause, under the seat's lock, and when they do not, the page is read
  * without it (and looked at again next time). A field's value comes with it, when the helper read one.
+ *
+ * The helper keeps the last tree read here, and gives it again when the window looks exactly as it did when it was read
+ * (the capture's grey copy the same, byte for byte, and the window where it was), the hand has sent nothing into any
+ * window since (acted), and the read showed its page: a look at a window nothing has touched, which on a long page
+ * saves the fetch of its tree, half a second and more.
  */
 export function actionableElements(pid: number, display: Frame, options: WalkOptions<number> & { windowId?: number } = {}): [AxNode[], AxNode[], boolean] {
   const { windowId, ...walk } = options;
@@ -2944,11 +2967,15 @@ export function actionableElements(pid: number, display: Frame, options: WalkOpt
   const list = windowList();
   const window = list.find((w) => w.hwnd === hwnd);
   const web = window ? window.cls.startsWith("Chrome_WidgetWin") : isWebContentApp(pid);
-  const read = () => native.call("tree", { hwnd, cap: walk.nodeCap, ms: walk.timeCap === undefined ? undefined : Math.round(walk.timeCap * 1000) }) as TreeReply;
+  const caps = { cap: walk.nodeCap, ms: walk.timeCap === undefined ? undefined : Math.round(walk.timeCap * 1000) };
+  const read = () => native.call("tree", { hwnd, ...caps, keep: true }) as TreeReply;
+  const shot = thumbOf?.hwnd === hwnd && !stale.has(hwnd) ? thumbOf : null;
+  const again = keptTree !== null && shot !== null && window !== undefined && keptTree.hwnd === hwnd && keptTree.cap === caps.cap && keptTree.ms === caps.ms &&
+    keptTree.frame.every((v, i) => v === window.frame[i]) && keptTree.at > actedAt && performance.now() - keptTree.at < TREE_AGAIN_MS && sameBytes(keptTree.thumb, shot.data); // prettier-ignore
   // Read as it lies first: a page whose tree is on needs no lift. One with none is lifted at an address no lift has
   // brought its page back at yet, so a page navigated to is lifted too; one that stays blank, only a couple of times.
-  let reply = read();
-  if (web && window !== undefined && !window.cloaked && isOwn(window, list) && !pageShown(reply.nodes) && liftFor(hwnd, addressIn(reply.nodes)) && !showing(hwnd)) {
+  let reply = again ? (native.call("tree", { hwnd, ...caps, keep: true, again: true }) as TreeReply) : read();
+  if (!reply.again && web && window !== undefined && !window.cloaked && isOwn(window, list) && !pageShown(reply.nodes) && liftFor(hwnd, addressIn(reply.nodes)) && !showing(hwnd)) {
     const address = addressIn(reply.nodes);
     try {
       reply = awaitPage(pausedSync(() => liftedRead(hwnd, read), "the first read of the page", FLASH_QUIET_MS, LIFT_WAIT_MS), read);
@@ -2957,6 +2984,8 @@ export function actionableElements(pid: number, display: Frame, options: WalkOpt
       if (!(error instanceof SeatBusy)) throw error; // the user is busy: read as it lies, and lifted another time
     }
   }
+  // Kept to be given again: a read that showed its page (one that did not is read, and maybe lifted, again next time).
+  if (!reply.again) keptTree = shot && window && (!web || pageShown(reply.nodes)) ? { hwnd, at: performance.now(), frame: window.frame, thumb: shot.data, ...caps } : null;
   const byId = new Map<number, TreeNode>();
   const kids = new Map<number, number[]>();
   for (const node of reply.nodes) {
@@ -3126,6 +3155,7 @@ let frontBefore = 0; // the window in front at the watcher's last look
 
 /** The hand is sending input into a window, or has just sent it (after any wait for the user to pause): a tab that comes in it for SETTLE_MS is the hand's. */
 function touch(hwnd: number): void {
+  acted();
   if (!browserWindows.has(hwnd)) return;
   touchedAt.set(hwnd, performance.now());
   unsettled.add(hwnd);

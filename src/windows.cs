@@ -184,7 +184,7 @@ static class Program
             case "colours": return Capture.Colours(Hwnd(), Has("cap") ? Int("cap") : 64);
             case "image": return Capture.Size(Str("path"));
             case "ocr": return Ocr.Read(Str("path"), Arr("rect"));
-            case "tree": return Uia.Tree(Hwnd(), Has("cap") ? Int("cap") : 4000, Has("ms") ? Int("ms") : 600);
+            case "tree": return Uia.Tree(Hwnd(), Has("cap") ? Int("cap") : 4000, Has("ms") ? Int("ms") : 600, Bool("keep"), Bool("again"));
             case "focused": return Uia.Focused();
             case "act": return Uia.Act(Int("id"), Str("action"), !Has("sink") || Bool("sink"));
             case "setValue": return Uia.SetValue(Int("id"), Str("text"), !Has("sink") || Bool("sink"));
@@ -1093,13 +1093,42 @@ static class Uia
 
     public static void Release() { live.Clear(); }
 
+    /** A tree read that Bun asked to be kept (`keep`), with the elements it gave out, for Bun to ask for again (`again`). */
+    class KeptTree { public IntPtr hwnd; public int cap, ms; public Dictionary<string, object> reply; public readonly List<KeyValuePair<int, Node>> nodes = new List<KeyValuePair<int, Node>>(); }
+    static KeptTree kept;
+
     /**
      * The controls of a window as a flat list, one cached fetch per root. A covered WinUI window's tree can stop at the
      * title bar while its child windows still answer, and a UWP frame holds its app in a CoreWindow child, so every child
      * window is read as a root too, once. Chrome switches its page tree on when a client first touches the render widget's
      * window, which reading the children does.
+     *
+     * With `keep`, the read is kept, elements and all, and with `again`, the one kept for this window with the same caps
+     * is given again, its elements live once more under the ids they had, without asking the app anything: Bun asks for
+     * that when the window looks exactly as it did then and nothing has been sent into any window since (the fetch of a
+     * long page's tree cost 500 ms, all of it in the app's answers, measured). {again: true} says it was.
      */
-    public static object Tree(IntPtr hwnd, int cap, int ms)
+    public static object Tree(IntPtr hwnd, int cap, int ms, bool keep, bool again)
+    {
+        if (again && kept != null && kept.hwnd == hwnd && kept.cap == cap && kept.ms == ms)
+        {
+            foreach (KeyValuePair<int, Node> n in kept.nodes) live[n.Key] = n.Value;
+            Dictionary<string, object> reply = new Dictionary<string, object>(kept.reply);
+            reply["again"] = true;
+            return reply;
+        }
+        int first = next;
+        Dictionary<string, object> read = ReadTree(hwnd, cap, ms);
+        if (keep)
+        {
+            kept = new KeptTree();
+            kept.hwnd = hwnd; kept.cap = cap; kept.ms = ms; kept.reply = read;
+            for (int id = first; id < next; id++) { Node n; if (live.TryGetValue(id, out n)) kept.nodes.Add(new KeyValuePair<int, Node>(id, n)); }
+        }
+        return read;
+    }
+
+    static Dictionary<string, object> ReadTree(IntPtr hwnd, int cap, int ms)
     {
         Stopwatch clock = Stopwatch.StartNew();
         bool chromium = IsChromium(hwnd);

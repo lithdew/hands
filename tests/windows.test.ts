@@ -272,6 +272,37 @@ test("a press, a value and a read each name the control by the helper's id; a st
   expect(calls.slice(before).map(([c]) => c)).toEqual(["release"]);
 });
 
+test("a look at a window nothing has touched since its tree was read is given that tree again, its controls live; a changed picture, a moved window or anything sent reads it anew", async () => {
+  let grey = Buffer.from([1, 2, 3, 4, 5, 6]);
+  let frame: Frame = [100, 100, 1000, 700];
+  helper({
+    windows: () => [{ hwnd: 22, pid: 200, cls: "MSPaintApp", title: "Untitled - Paint", frame, core: 0, exe: "mspaint.exe" }],
+    capture: () => ({ width: 24, height: 16, thumb: grey.toString("base64"), thumbWidth: 3, thumbHeight: 2 }),
+    tree: ({ again }) => ({ nodes: [node(1, -1, "AXGroup", "w", { frame: [0, 0, 500, 500] }), node(7, 1, "AXButton", "Save", { actions: ["AXPress"] })], capped: false, ...(again ? { again } : {}) }),
+    act: { ok: true },
+  });
+  const look = async () => {
+    await windows.screenshotWindow(22, "w.png");
+    return windows.actionableElements(200, DISPLAY, { windowId: 22 });
+  };
+  const again = () => asked("tree").at(-1)!.again === true;
+  await look();
+  expect(again()).toBe(false);
+  const [[save]] = await look();
+  expect(again()).toBe(true); // the tree the helper kept: the app is not asked for it
+  expect(windows.axPress(save!.ref)).toBe(true); // and its controls are live again
+  await look();
+  expect(again()).toBe(false); // a press since: read anew
+  await look();
+  expect(again()).toBe(true);
+  grey = Buffer.from([1, 2, 3, 4, 5, 7]); // the picture changed
+  await look();
+  expect(again()).toBe(false);
+  frame = [120, 100, 1000, 700]; // the window moved
+  await look();
+  expect(again()).toBe(false);
+});
+
 test("a control that the helper cannot act on is a refusal, not a crash", () => {
   helper({ focused: { id: 5, role: "AXTextField", label: "To", placeholder: "Recipients", value: "", frame: [10, 20, 300, 30] }, act: () => { throw new Error("act: the element is gone"); }, value: () => { throw new Error("gone"); } }); // prettier-ignore
   const field = windows.focusedField()!;
