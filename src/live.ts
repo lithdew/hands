@@ -104,8 +104,8 @@ const ordered = <T extends Pick<HandView, "status">>(all: Iterable<T>): T[] => {
 };
 
 const view = (hand: Hand): HandView => {
-  const { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since } = hand;
-  return { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since };
+  const { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since, window } = hand;
+  return { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since, window };
 };
 
 /** The hands a spoken name means: one by name, or every one for "all". */
