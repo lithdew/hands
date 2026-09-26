@@ -95,7 +95,6 @@ interface Hand extends HandView {
 }
 
 const hands = new Map<string, Hand>();
-const leaving = new Set<Hand>(); // dismissed, and not gone yet
 /** A run that has ended one way or another: nothing more comes of it unless it is given something new. */
 const finished = (hand: Pick<HandView, "status">) => hand.status === "done" || hand.status === "failed" || hand.status === "stopped";
 /** Hands at work, paused, or waiting for the user first, then the ones that have finished, each in the order they came. */
@@ -339,6 +338,11 @@ type HandEvent =
   | ({ type: "cue" } & Cue);
 
 function heard(hand: Hand, event: HandEvent): void {
+  if (hand.closed) {
+    // Dismissed: the voice and the card are done with it. A status already on its way is logged, and not said.
+    if (event.type === "status") console.log(`[${hand.name}] ${event.status}, after it was dismissed`);
+    return;
+  }
   if (event.type === "ready") return void clearTimeout(hand.starting); // its task is already waiting for it
   if (event.type === "tool") record(hand, "tool", `${event.name} ${event.args}`);
   else if (event.type === "result") record(hand, event.error ? "error" : "result", event.text);
@@ -346,7 +350,7 @@ function heard(hand: Hand, event: HandEvent): void {
   else if (event.type === "clicked") focus = hand.id; // the user clicked the hand itself: it has stopped where it was, and its card opens
   else if (event.type === "status") {
     clearTimeout(hand.starting);
-    if (event.status === "working") [hand.status, hand.reason, hand.last] = ["working", "", false];
+    if (event.status === "working") [hand.status, hand.answer, hand.reason, hand.reported, hand.last] = ["working", "", "", false, false]; // what it said when it was paused is not a result: a resumed run has none yet
     else settle(hand, event.status, event.answer ?? "", event.reason ?? "");
   } else if (event.type === "cue") {
     if (event.subject) {
@@ -385,18 +389,19 @@ function settle(hand: Hand, status: Status, answer: string, reason = "", quietly
 function ended(hand: Hand, code: number): void {
   hand.gone = true;
   clearTimeout(hand.starting);
-  leaving.delete(hand);
   if (hand.closed) return;
   const why = hand.failure || hand.stderr.slice(-3).join(" / ") || `its process ended (exit code ${code})`;
   settle(hand, "failed", hand.answer, cap(why, 300), finished(hand));
 }
 
 /**
- * Dismiss a hand, from the card and the voice's list at once. It is told to close (the browser windows it opened
- * too, unless `keep`) and its stdin is ended, and whatever it has not done in CLOSE_MS it never will: it is ended from
- * here, with the desktop it may have left. The voice knows, and says nothing of it.
+ * Dismiss a hand, from the card and the voice's list at once. It is told to close and its stdin is ended, and whatever
+ * it has not done in CLOSE_MS it never will: it is ended from here, with the desktop it may have left. The voice
+ * knows, and says nothing of it. The browser windows it opened close with it, unless it finished saying it left pages
+ * open in them for the user: the hand knows, and decides. `keep` decides instead, and is only ever true here, for a
+ * finished hand that makes way for another, whose windows stay whatever it said.
  */
-async function close(hand: Hand, keep = false): Promise<void> {
+async function close(hand: Hand, keep?: true): Promise<void> {
   if (hand.closed) return;
   hand.closed = true;
   clearTimeout(hand.starting);
@@ -406,28 +411,37 @@ async function close(hand: Hand, keep = false): Promise<void> {
   aside(`${hand.name} was dismissed.`);
   changed();
   if (hand.gone) return end(hand);
-  leaving.add(hand);
   tell(hand, keep ? { type: "close", keep } : { type: "close" });
   try {
     hand.proc.stdin.end();
   } catch {}
   const code = await Promise.race([hand.proc.exited, new Promise<null>((done) => setTimeout(done, CLOSE_MS, null))]);
-  leaving.delete(hand);
   if (code === 0) return; // it put its windows away and went
   if (code === null) console.log(`[${hand.name}] did not go when asked: ended`);
   end(hand); // and one that went some other way (a Ctrl-C reaches every process in the console) took nothing down
 }
 
-/** End a hand's process from here, and take down the desktop it may have left: unless another hand goes by its name now (`all`: at exit, when every hand is going). */
+/**
+ * End a hand's process from here, and take down the desktop it may have left: unless another hand goes by its name
+ * now (`all`: at exit, when every hand is going). The windows on it are brought behind the user's first, as the
+ * hand's own helper would have done had it had the time: removed alone, a desktop drops them over the user's windows.
+ * No name in the cast begins another, so the prefix is the one desktop.
+ */
 function end(hand: Hand, all = false): void {
   try {
     hand.proc.kill();
   } catch {} // already gone
-  if (onWindows() && windows.desktopsEnabled() && (all || !hands.has(hand.id))) windows.removeDesktop(`Hands: ${hand.name}`);
+  if (!onWindows() || !windows.desktopsEnabled() || (!all && hands.has(hand.id))) return;
+  try {
+    windows.native.call("removeDesktops", { prefix: `Hands: ${hand.name}` });
+  } catch {
+    // the shell's desktops do not answer: the next `bun live` sweeps up what is left
+  }
 }
 
-/** What the panel's buttons and the voice's tools both come down to. A hand that has finished is given new work; one still at it keeps its task, and the latest word on it. */
+/** What the panel's buttons and the voice's tools both come down to. A hand that has finished is given new work; one still at it keeps its task, and the latest word on it. A hand whose process has gone is told nothing, and keeps what it had. */
 function steer(hand: Hand, text: string): void {
+  if (hand.gone) return;
   const fresh = finished(hand);
   hand.task = steered(hand.task, text, !fresh);
   if (fresh) hand.since = Date.now();
@@ -1095,6 +1109,7 @@ export function command(message: ClientMessage): void {
   if (message.cmd === "clear") return void [...hands.values()].filter(finished).forEach((one) => void close(one));
   const target = hands.get(message.hand);
   if (!target) return;
+  if (target.gone && (message.cmd === "steer" || message.cmd === "resume")) return record(target, "error", `${target.name} has gone: its process ended, so it cannot be told anything more. Ask the voice for a new hand.`);
   if (message.cmd === "steer") steer(target, message.text);
   else if (message.cmd === "close") void close(target);
   else if (message.cmd === "show") show(target);
@@ -1224,6 +1239,16 @@ async function shutdown(code: number): Promise<void> {
   process.exit(code);
 }
 
+/**
+ * This process is going some other way than a shutdown that saw every hand go (asked twice, for one): the hands
+ * still out are ended, and their desktops taken down. A hand already told to close is left to go by itself, as it
+ * will once it has put its windows away (its stdin has ended too): ending it would cut that short. Whatever a hand
+ * that is ended leaves behind (its parked windows, a borrow of the mouse and keyboard) its helper puts back.
+ */
+export function atExit(): void {
+  for (const one of hands.values()) if (!one.gone) end(one, true);
+}
+
 /** What a cold microphone loses at the start of each press. On Windows the key is a press only once it has been held alone for a fifth of a second (shell-windows.ts), and a microphone opened then takes about 60 ms more to start. */
 const coldMicLoss = (): string =>
   onWindows()
@@ -1308,10 +1333,7 @@ async function main(argv: string[]): Promise<void> {
       process.on(signal, () => void shutdown(code));
     } catch {} // a signal this system does not have
   }
-  // Leaving any other way, the hands still here are ended, and their desktops taken down.
-  process.on("exit", () => {
-    for (const one of [...hands.values(), ...leaving]) if (!one.gone) end(one, true);
-  });
+  process.on("exit", atExit);
   console.log(`run folder: ${runs}\nhold the ${TALK_KEY} key and say what you want done. Ctrl-C to quit.`);
 
   for (const words of values.say ?? []) {

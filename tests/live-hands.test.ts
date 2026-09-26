@@ -446,3 +446,80 @@ test("a press cancelled before the session has started sends none of what it hea
   expect(heard().length).toBe(1);
   live.talk("cancel", body);
 });
+
+test("an instruction typed into the card of a hand whose process has gone does not become its task", async () => {
+  live.dispatch("start_hands", { tasks: ["open Excel"] }, runs);
+  hands[0]!.complain("error: the Windows helper went away (write error 232)");
+  hands[0]!.finish(1);
+  await Bun.sleep(20);
+  live.command({ cmd: "steer", hand: "lefty", text: "try again" });
+  live.command({ cmd: "resume", hand: "lefty" });
+  expect(known()[0]).toMatchObject({ task: "open Excel", status: "failed" });
+  expect(known()[0]!.reason).toContain("the Windows helper went away");
+});
+
+test("leaving at once, the hands still out are ended, and a hand already told to close is left to put its windows away and go", async () => {
+  stubborn = true;
+  live.dispatch("start_hands", { tasks: ["open Paint", "open Notepad"] }, runs);
+  live.dispatch("close_hands", { hands: ["Lefty"] }, runs);
+  live.atExit();
+  expect(hands[0]!.killed).toBe(false);
+  expect(hands[1]!.killed).toBe(true);
+  hands[0]!.finish(0); // it went, in its own time
+});
+
+test("closed from its card, by Clear done or by the voice, a hand is told only to close: whether its pages stay is what it finished saying", async () => {
+  live.dispatch("start_hands", { tasks: ["find lunch nearby", "find flights to Tokyo", "open Notepad", "open Paint"] }, runs);
+  hands[0]!.say({ type: "status", status: "done", answer: "I left Yashima's page open in a tab of mine." });
+  hands[1]!.say({ type: "status", status: "done", answer: "Two direct flights, both on Friday." });
+  await Bun.sleep(5);
+  live.command({ cmd: "clear" });
+  live.command({ cmd: "close", hand: "thumbs" });
+  live.dispatch("close_hands", { hands: ["Pinky"] }, runs);
+  for (const hand of hands) expect(hand.told.at(-1)).toEqual({ type: "close" });
+});
+
+test("a resumed hand has no answer yet: what it had said when it was paused is not a result", async () => {
+  live.dispatch("start_hands", { tasks: ["find flights to Tokyo"] }, runs);
+  hands[0]!.say({ type: "status", status: "working" });
+  hands[0]!.say({ type: "status", status: "paused", answer: "So far, two direct flights." });
+  await Bun.sleep(5);
+  expect(known()[0]).toMatchObject({ status: "paused", answer: "So far, two direct flights." });
+  live.command({ cmd: "resume", hand: "lefty" });
+  expect(hands[0]!.told.at(-1)).toEqual({ type: "resume" });
+  hands[0]!.say({ type: "status", status: "working" });
+  await Bun.sleep(5);
+  expect(known()[0]!.status).toBe("working");
+  expect(known()[0]!.answer).toBeUndefined();
+});
+
+test("what a hand says after it was dismissed is not said by the voice", async () => {
+  stubborn = true;
+  live.dispatch("start_hands", { tasks: ["find lunch nearby"] }, runs);
+  hands[0]!.say({ type: "status", status: "working" });
+  await Bun.sleep(5);
+  live.dispatch("close_hands", { hands: ["Lefty"] }, runs);
+  hands[0]!.say({ type: "status", status: "done", answer: "Yashima, at 12:30." }); // already on its way when it was dismissed
+  await Bun.sleep(5);
+  expect(sessions.flatMap((session) => session.notes("session.commentary.append"))).toEqual([]);
+  hands[0]!.finish(0);
+});
+
+test("a hand ended from here has its desktop taken down with its windows brought behind the user's first", async () => {
+  const calls: [string, object][] = [];
+  spyOn(windows.native, "call").mockImplementation((command: string, args: object = {}) => void calls.push([command, args]));
+  [process.env.HANDS_PLATFORM, process.env.HANDS_DESKTOP] = ["windows", "1"];
+  try {
+    stubborn = true;
+    jest.useFakeTimers();
+    live.dispatch("start_hands", { tasks: ["open Paint"] }, runs);
+    live.dispatch("close_hands", { hands: ["Lefty"] }, runs);
+    jest.advanceTimersByTime(2100);
+    await settle();
+    expect(hands[0]!.killed).toBe(true);
+    expect(calls).toEqual([["removeDesktops", { prefix: "Hands: Lefty" }]]);
+  } finally {
+    delete process.env.HANDS_PLATFORM;
+    delete process.env.HANDS_DESKTOP;
+  }
+});
