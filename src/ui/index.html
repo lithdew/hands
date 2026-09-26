@@ -6,13 +6,65 @@
     <link rel="stylesheet" href="./ui.css" />
   </head>
   <body>
-    <main id="column">
+    <main id="column" hidden>
       <div id="deck"></div>
-      <section id="dock" class="idle" aria-live="polite">
-        <div class="palm" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
-        <p class="words"></p>
-      </section>
+      <div id="base">
+        <button id="clear" type="button" hidden>Clear done <b></b></button>
+        <section id="dock" class="idle">
+          <p class="banner" hidden><span class="who"></span><span class="what"></span></p>
+          <p class="notice" hidden></p>
+          <div class="talk">
+            <div class="palm" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+            <p class="words" aria-live="polite"></p>
+          </div>
+        </section>
+      </div>
     </main>
+
+    <template id="card">
+      <article class="card">
+        <header>
+          <span class="who"></span>
+          <b class="name"></b>
+          <span class="doing"></span>
+          <span class="chip front">in front</span>
+          <span class="chip state"></span>
+          <time></time>
+        </header>
+        <div class="fold">
+          <div class="clip">
+            <div class="view">
+              <div class="screen"><img alt="" /><img alt="" /><span class="marker"></span></div>
+              <p class="brief"></p>
+              <p class="caption" hidden></p>
+              <button class="show" type="button" data-cmd="show">Show</button>
+            </div>
+          </div>
+        </div>
+        <div class="tell">
+          <div class="clip">
+            <div class="now"><p class="said"></p></div>
+          </div>
+        </div>
+        <div class="sheet" inert>
+          <div class="clip">
+            <div class="paper">
+              <ol class="log"></ol>
+              <form><input type="text" autocomplete="off" spellcheck="false" /><button class="send">Send</button></form>
+              <div class="controls">
+                <button type="button" data-cmd="pause">Pause</button>
+                <button type="button" data-cmd="resume">Resume</button>
+                <button type="button" data-cmd="stop">Stop</button>
+                <button type="button" data-cmd="show">Show</button>
+                <button type="button" data-cmd="close">Close</button>
+                <span class="keys"><kbd>Esc</kbd> back <kbd class="close-key"></kbd> close</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </template>
+
     <script type="module" src="./ui.ts"></script>
   </body>
 </html>

@@ -3,7 +3,13 @@
  *   the dock is the voice you talk to, in the yellow of the hand emoji itself, and only the dock is ever that yellow;
  *   each card is a hand, headed in its own glove colour, the same one its hand wears out on the screen.
  * Everything is flat colour inside an ink outline with one hard shadow, like cut-out cards, so it reads over any desktop.
- * Type is what ships with every Mac: Superclarendon for names, Avenir Next for everything that is read.
+ * Type is what ships with the system: on a Mac, Superclarendon for names and Avenir Next for what is read; on
+ * Windows, Sitka for names (the sturdy serifs of its small cut are the nearest thing to a slab every Windows has)
+ * and Segoe UI Variable for what is read, with true regular and semibold weights and a display cut for the large words.
+ *
+ * On Windows the page sits in a window whose clear pixels are not there (a colour key, #010203): nothing here ever
+ * paints that colour, the page's own background is nothing at all, and a partly clear pixel at a card's edge comes
+ * out dark against the key, so every edge is ink, and cards come and go by moving and clipping, never by fading.
  */
 
 :root {
@@ -11,30 +17,68 @@
   --ink: #1c1408; /* the brown-black of the emoji hand's own shading, not a neutral black */
   --sheet: #ffffff;
   --shade: #6e6455;
+  --stone: #d9d3c8; /* a stopped hand's header */
   --alarm: #d7263d;
+  --alarm-on-ink: #ff8e8e; /* the alarm, bright enough to read on ink */
   --column: 380px;
-  font: 500 13.5px/1.4 "Avenir Next", "Avenir", -apple-system, sans-serif;
+
+  --face: "Avenir Next", "Avenir", -apple-system, sans-serif;
+  --display: var(--face);
+  --slab: "Superclarendon", "Rockwell", Georgia, serif;
+  --regular: 500;
+
+  /* Motion. Durations by how often a thing happens: what happens all the time barely moves, what is rare moves most. */
+  --t-tap: 100ms; /* a press, a hover */
+  --t-swap: 120ms; /* one picture over the last */
+  --t-quick: 180ms; /* the dock's colours, a sheet put away */
+  --t-move: 240ms; /* a fold, the hand in the picture */
+  --t-enter: 300ms; /* a sheet coming out */
+  --t-pop: 320ms; /* the palm waking */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* what answers the user, and what comes in */
+  --ease-glide: cubic-bezier(0.495, 0, 0.505, 1); /* the on-screen hand's own glide, so the one in the picture moves alike */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --spring: var(--ease-out); /* where linear() is not understood */
+
+  font: var(--regular) 13.5px/1.45 var(--face);
   color: var(--ink);
   -webkit-user-select: none;
+  user-select: none;
   -webkit-font-smoothing: antialiased;
   cursor: default;
+}
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    /* Remotion's spring with a little bounce, sampled: only ever on a move or a scale, never on a size */
+    --spring: linear(0, 0.006 1.2%, 0.025 2.6%, 0.062 4.2%, 0.109 5.8%, 0.219 8.8%, 0.476 15%, 0.586 17.8%, 0.692 20.8%, 0.778 23.6%, 0.85 26.4%, 0.909 29.2%, 0.958 32.2%, 0.993 35.2%, 1.017 38%, 1.033 41%, 1.043 44.2%, 1.046 47.8%, 1.042 53.4%, 1.015 68%, 1.004 77%, 0.998 89%, 1);
+  }
+}
+html.windows {
+  --face: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --slab: "Sitka Small", Georgia, serif;
+  --regular: 400;
 }
 html,
 body {
   margin: 0;
-  background: transparent;
+  height: 100%;
+  background: transparent; /* nothing: on Windows, the window's key colour shows, and is not there */
   overflow: hidden;
 }
 [hidden] {
   display: none !important;
 }
 
+/* The column stands in the bottom right corner of the window, which is the corner of the screen, and grows up. */
 #column {
-  display: inline-flex;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 10px;
-  padding: 2px 6px 6px 2px; /* room for the shadows: the window is cut to this box */
+  padding: 10px; /* room for the shadows and the listening ring */
 }
 #deck {
   display: flex;
@@ -42,10 +86,53 @@ body {
   align-items: flex-end;
   gap: 10px;
 }
+#deck:empty {
+  display: none;
+}
+/* the dock, and beside it what acts on all the hands at once */
+#base {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+button {
+  font: 600 12.5px/1 var(--face);
+  color: var(--ink);
+  background: var(--sheet);
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  padding: 6px 11px 7px;
+  transition:
+    scale var(--t-tap) var(--ease-out),
+    background-color var(--t-tap) var(--ease-out);
+}
+button:hover {
+  background: var(--glove, #efe9dd);
+}
+button:active {
+  scale: 0.97;
+}
+button:focus-visible {
+  outline: 3px solid var(--glove, var(--ink));
+  outline-offset: 1px;
+}
+kbd {
+  display: inline-block;
+  min-width: 14px;
+  padding: 1px 5px 2px;
+  border: 1.5px solid currentColor;
+  border-bottom-width: 3px;
+  border-radius: 5px;
+  font: 600 11px/1.2 var(--face);
+  text-align: center;
+}
 
 /* ------------------------------------------------------------------ a hand's card */
 
 .card {
+  --head: var(--glove);
+  position: relative;
   width: var(--column);
   box-sizing: border-box;
   border: 2px solid var(--ink);
@@ -53,44 +140,108 @@ body {
   box-shadow: 4px 4px 0 var(--ink);
   background: var(--ink);
   overflow: hidden;
-  transition: width 0.2s cubic-bezier(0.3, 1.3, 0.5, 1);
+  transition:
+    transform var(--t-tap) var(--ease-out),
+    box-shadow var(--t-tap) var(--ease-out);
 }
-.card.open {
-  width: 520px;
-}
-.card.dealt {
-  animation: deal 0.32s cubic-bezier(0.3, 1.4, 0.5, 1);
-}
-@keyframes deal {
-  from {
-    transform: translateX(60px) rotate(3deg);
-    opacity: 0;
+@media (hover: hover) and (pointer: fine) {
+  /* a cut-out card lifts off the page under the pointer, and goes down when pressed */
+  .card:not(.open):hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 5px 5px 0 var(--ink);
   }
+  .card:not(.open):active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0 var(--ink);
+  }
+}
+.card[data-status="done"],
+.card[data-status="failed"] {
+  --head: color-mix(in srgb, var(--glove) 42%, #fff); /* over: the colour steps back toward white */
+}
+.card[data-status="stopped"] {
+  --head: var(--stone);
+}
+.card.instant,
+.card.instant * {
+  transition-duration: 0s !important;
 }
 
 .card header {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   height: 42px;
-  padding: 0 12px 0 8px;
-  background: var(--glove);
+  padding: 0 11px 0 7px;
+  background-color: var(--head);
+  transition: background-color var(--t-move) var(--ease-out);
+  overflow: hidden;
 }
-.pose {
+.card[data-status="paused"] header {
+  background-image: repeating-linear-gradient(135deg, rgb(28 20 8 / 0.11) 0 6px, transparent 6px 12px); /* held: hatched */
+}
+/* at work: a hairline runs along the foot of the header, as long as it is */
+.card[data-status="working"] header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 28%;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ink);
+  opacity: 0.4;
+  animation: run 1.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes run {
+  from {
+    translate: -100% 0;
+  }
+  to {
+    translate: 360% 0;
+  }
+}
+/* done: one sheen across the header */
+.card[data-status="done"] header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 35%, rgb(255 255 255 / 0.7) 50%, transparent 65%);
+  translate: -100% 0;
+  animation: sheen 700ms var(--ease-glide) 120ms;
+  pointer-events: none;
+}
+@keyframes sheen {
+  to {
+    translate: 100% 0;
+  }
+}
+
+.who {
   flex: none;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 27px;
+  height: 27px;
+  box-sizing: border-box;
   border: 2px solid var(--ink);
   border-radius: 50%;
   background: var(--sheet);
-  font-size: 16px;
-  line-height: 1;
+  font: 14px/1 "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
+}
+.card[data-status="stopped"] .who {
+  box-shadow: 0 0 0 2.5px var(--glove); /* grey, it is still this hand */
 }
 .name {
-  font: 700 17px/1 "Superclarendon", "Rockwell", Georgia, serif;
-  letter-spacing: 0.01em;
+  flex: none;
+  font: 700 16.5px/1 var(--slab);
+  letter-spacing: 0.005em;
+}
+html.windows .name {
+  padding-top: 2px; /* Sitka sits high in its line */
+  font-size: 17px;
+  letter-spacing: 0;
 }
 .doing {
   flex: 1;
@@ -98,144 +249,293 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  opacity: 0.78;
+  font-size: 13px;
+  opacity: 0.72;
 }
 .card:not(.strip) .doing {
-  visibility: hidden; /* a full card says it in its footer, in full */
+  visibility: hidden; /* unfolded, the card says it underneath, in full */
 }
-.state {
-  font-weight: 600;
-  font-size: 12.5px;
+.chip {
+  flex: none;
+  padding: 3px 8px 4px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: var(--sheet);
+  font: 600 11.5px/1 var(--face);
+  white-space: nowrap;
 }
-.card time {
-  font-weight: 600;
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-  opacity: 0.7;
+.chip.front {
+  display: none;
+  background: transparent;
 }
-.card.working .state::before {
-  content: "";
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  margin-right: 6px;
-  border-radius: 50%;
+.card.viewed .chip.front {
+  display: block;
+}
+.card[data-status="starting"] .chip.state {
+  background: transparent;
+  border-style: dashed;
+}
+.card[data-status="done"] .chip.state::before {
+  content: "✓ ";
+}
+.card[data-status="failed"] .chip.state {
+  background: var(--alarm);
+  color: var(--sheet);
+  animation: shake 320ms var(--ease-out);
+}
+.card[data-status="stopped"] .chip.state {
+  background: transparent;
+}
+.card[data-status="needs_you"] .chip.state,
+.card[data-seat="holding"] .chip.state {
   background: var(--ink);
-  animation: beat 1.1s ease-in-out infinite;
+  color: var(--sheet);
 }
-@keyframes beat {
-  50% {
-    transform: scale(0.45);
+.card[data-status="needs_you"] .chip.state {
+  animation: nudge 1.4s var(--ease-out) 3;
+}
+.card[data-seat="waiting"] .chip.state {
+  border-style: dashed;
+}
+@keyframes shake {
+  20% {
+    translate: -4px 0;
+  }
+  40% {
+    translate: 4px 0;
+  }
+  60% {
+    translate: -3px 0;
+  }
+  80% {
+    translate: 2px 0;
   }
 }
+@keyframes nudge {
+  from {
+    box-shadow: 0 0 0 0 var(--ink);
+  }
+  to {
+    box-shadow: 0 0 0 7px transparent;
+  }
+}
+.card time {
+  flex: none;
+  min-width: 30px;
+  text-align: right;
+  font: 600 12px/1 var(--face);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.66;
+}
 
-/* the picture of the hand's window: whole, never cropped, so a tall window makes a narrow picture */
+/* what folds: a grid row that closes to nothing, so the column moves as smoothly as the card shrinks */
+.fold,
+.tell,
+.sheet {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--t-move) var(--ease-out);
+}
+.clip {
+  min-height: 0;
+  overflow: hidden;
+}
+.card.strip .fold,
+.card.quiet .tell {
+  grid-template-rows: 0fr;
+}
+.sheet {
+  grid-template-rows: 0fr;
+  transition-duration: var(--t-quick);
+}
+.card.open .sheet {
+  grid-template-rows: 1fr;
+  transition-duration: var(--t-enter);
+  transition-timing-function: var(--ease-drawer);
+}
+
+/* the picture of the hand's window: whole, never cropped, on a dark ground in the hand's own colour */
 .view {
+  position: relative;
   display: grid;
   place-items: center;
+  min-height: 84px;
   border-top: 2px solid var(--ink);
-  background: #2b2418;
-  min-height: 88px;
+  background: color-mix(in srgb, var(--glove) 14%, #15100a);
 }
 .screen {
   position: relative;
   aspect-ratio: var(--shape, 16 / 10);
-  width: min(100%, calc(var(--tall, 212px) * var(--ratio, 1.6)));
+  width: min(100%, calc(var(--tall, 240px) * var(--ratio, 1.6)));
 }
 .screen img {
-  display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+  object-fit: contain;
+  filter: contrast(0.97); /* lifts every channel off zero: no pixel of a picture is ever the key colour, a hole in the card */
+  transition: filter var(--t-quick) var(--ease-out);
 }
 .screen img:not([src]) {
-  display: none;
+  visibility: hidden;
+}
+.screen img.front {
+  z-index: 1;
+}
+.card[data-picture="blank"] .screen img,
+.card[data-picture="minimized"] .screen img {
+  filter: contrast(0.97) brightness(0.42) saturate(0.4); /* the last good frame, stepped back */
 }
 .marker {
   position: absolute;
-  font-size: 26px;
-  line-height: 1;
-  transform: translate(-28%, -10%);
+  z-index: 2;
+  font: 24px/1 "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
   /* the glove colour again, as the outline of the hand in the picture */
-  filter: drop-shadow(1.5px 0 0 var(--glove)) drop-shadow(-1.5px 0 0 var(--glove)) drop-shadow(0 1.5px 0 var(--glove)) drop-shadow(0 -1.5px 0 var(--glove)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+  filter: drop-shadow(1.5px 0 0 var(--glove)) drop-shadow(-1.5px 0 0 var(--glove)) drop-shadow(0 1.5px 0 var(--glove)) drop-shadow(0 -1.5px 0 var(--glove)) drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
   transition:
-    left 0.3s ease,
-    top 0.3s ease;
+    left var(--t-move) var(--ease-glide),
+    top var(--t-move) var(--ease-glide);
   pointer-events: none;
 }
 .brief {
   margin: 0;
-  padding: 22px 26px;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 15px;
-  line-height: 1.4;
+  padding: 18px 24px;
+  color: rgb(255 255 255 / 0.8);
+  font: var(--regular) 14.5px/1.4 var(--display);
   text-align: center;
+  text-wrap: balance;
 }
-.now {
+.caption {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: 10px;
+  translate: -50% 0;
   margin: 0;
-  padding: 9px 13px 10px;
-  border-top: 2px solid var(--ink);
+  padding: 4px 10px 5px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: rgb(255 255 255 / 0.86);
+  font: 600 11.5px/1.2 var(--face);
+  white-space: nowrap;
+}
+.view .show {
+  position: absolute;
+  z-index: 3;
+  top: 8px;
+  right: 8px;
+  padding: 5px 10px 6px;
+  box-shadow: 2px 2px 0 var(--ink);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--t-quick) var(--ease-out),
+    scale var(--t-tap) var(--ease-out),
+    background-color var(--t-tap) var(--ease-out);
+}
+.view .show::after {
+  content: " ↗";
+}
+.card:hover .view .show,
+.card[data-status="needs_you"] .view .show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* what it is doing, or what came of it: the clamp is on the words, so no half line shows in the padding */
+.now {
+  padding: 8px 13px 10px;
   background: var(--ink);
   color: var(--sheet);
-  font-size: 14px;
+}
+.said {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 20px;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
   overflow: hidden;
 }
-.card.open .now {
-  -webkit-line-clamp: 8;
-}
-.card.strip .view,
-.card.strip .now {
-  display: none;
-}
-.card.strip.finished .now {
-  display: -webkit-box; /* a folded hand that has finished still says what came of it */
+.card.strip .said {
   -webkit-line-clamp: 2;
-  padding: 7px 13px 8px;
-  font-size: 13.5px;
+}
+.card[data-status="failed"] .said {
+  color: var(--alarm-on-ink);
+}
+.card[data-status="needs_you"] .now {
+  border-top: 2px solid var(--ink);
+  background: var(--sheet);
+  color: var(--ink);
+}
+.card[data-status="needs_you"] .said {
+  font-weight: 600;
 }
 
 /* the sheet: what the hand was asked, what it did, what it said, and a box to tell it something */
-.sheet {
-  background: var(--sheet);
+.paper {
   border-top: 2px solid var(--ink);
+  background: var(--sheet);
 }
 .log {
   list-style: none;
   margin: 0;
-  padding: 12px 14px 4px;
-  max-height: 236px;
+  padding: 12px 12px 8px 14px;
+  max-height: var(--log, 96px);
+  box-sizing: border-box;
   overflow-y: auto;
+  overscroll-behavior: contain;
   -webkit-user-select: text;
+  user-select: text;
   cursor: text;
+  font-size: 13px;
+  /* a transcript that runs on past its edges fades there, so a cut line reads as more to scroll to */
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+}
+.log::-webkit-scrollbar {
+  width: 8px;
+}
+.log::-webkit-scrollbar-button {
+  display: none;
+}
+.log::-webkit-scrollbar-track {
+  background: transparent;
+}
+.log::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: transparent padding-box;
+}
+.log:hover::-webkit-scrollbar-thumb {
+  background-color: rgb(28 20 8 / 0.3);
 }
 .log li {
-  margin: 0 0 7px;
+  margin: 0 0 8px;
   overflow-wrap: anywhere;
 }
 .log .asked {
-  font-weight: 600;
-  font-size: 14.5px;
   padding-left: 9px;
   border-left: 4px solid var(--palm); /* your words: the voice's yellow */
-}
-.log .did {
-  color: var(--ink);
+  font-weight: 600;
+  font-size: 14px;
 }
 .verb {
   display: inline-block;
   margin-right: 6px;
-  padding: 0 7px;
+  padding: 1px 7px 2px;
   border-radius: 9px;
   background: var(--glove);
   font-weight: 600;
-  font-size: 12.5px;
+  font-size: 12px;
 }
 .log .got {
   margin-left: 14px;
   color: var(--shade);
-  font-size: 12.5px;
+  font-size: 12px;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -245,51 +545,56 @@ body {
   color: var(--alarm);
 }
 .log .said {
-  font-size: 14.5px;
+  font-size: 14px;
+  white-space: normal;
+  display: block;
+}
+.log .said p {
+  margin: 0 0 4px;
+}
+.log .said .h {
+  margin-top: 8px;
+  font-weight: 700;
+}
+.log .said .li {
+  padding-left: 14px;
+}
+.bullet {
+  display: inline-block;
+  min-width: 14px;
+  margin-left: -14px;
+  color: var(--shade);
 }
 .log .mark {
   color: var(--shade);
-  font-size: 12px;
+  font-size: 11.5px;
+  font-weight: 600;
   text-align: right;
 }
 
-.sheet form {
+.paper form {
   display: flex;
   gap: 8px;
   margin: 0;
   padding: 4px 14px 10px;
 }
-.sheet input {
+.paper input {
   flex: 1;
   min-width: 0;
-  font: inherit;
-  font-size: 14.5px;
-  color: var(--ink);
-  background: var(--sheet);
-  border: 2px solid var(--ink);
-  border-radius: 10px;
   padding: 7px 10px;
-  outline: none;
-}
-.sheet input:focus {
-  box-shadow: 0 0 0 3px var(--glove);
-}
-button {
-  font: inherit;
-  font-weight: 600;
-  font-size: 12.5px;
-  color: var(--ink);
-  background: var(--sheet);
   border: 2px solid var(--ink);
   border-radius: 10px;
-  padding: 4px 11px;
+  outline: none;
+  background: var(--sheet);
+  color: var(--ink);
+  font: var(--regular) 14px/1.3 var(--face);
+  transition: box-shadow var(--t-swap) var(--ease-out);
 }
-button:hover {
-  background: var(--glove);
+.paper input::placeholder {
+  color: #968c7c;
 }
-button:focus-visible {
-  outline: 3px solid var(--glove);
-  outline-offset: 1px;
+.paper input:focus {
+  box-shadow: 0 0 0 3px var(--glove);
 }
 .send {
   background: var(--ink);
@@ -301,93 +606,179 @@ button:focus-visible {
 .controls {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   padding: 0 14px 12px;
 }
 .keys {
   margin-left: auto;
   color: var(--shade);
-  font-size: 12px;
-}
-kbd {
-  display: inline-block;
-  min-width: 14px;
-  margin-left: 8px;
-  padding: 0 5px;
-  border: 1.5px solid var(--shade);
-  border-bottom-width: 3px;
-  border-radius: 5px;
-  font: inherit;
   font-size: 11.5px;
-  text-align: center;
+  white-space: nowrap;
+}
+.keys kbd {
+  margin: 0 3px 0 6px;
   color: var(--ink);
+  border-color: #b9b0a0;
+}
+
+/* ------------------------------------------------------------------ finished hands, cleared */
+
+#clear {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 5px 5px 12px;
+  border-radius: 999px;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+#clear b {
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: var(--ink);
+  color: var(--sheet);
+  font-size: 11px;
 }
 
 /* ------------------------------------------------------------------ the dock: the voice */
 
 #dock {
-  display: flex;
-  align-items: flex-end;
-  gap: 14px;
   width: var(--column);
   box-sizing: border-box;
-  padding: 12px 16px 13px 14px;
   border: 2px solid var(--ink);
   border-radius: 18px;
   box-shadow: 4px 4px 0 var(--ink);
+  outline: 2.5px solid transparent;
+  outline-offset: 2px;
   background: var(--palm);
   color: var(--ink);
+  overflow: hidden;
   transition:
-    background 0.18s,
-    color 0.18s;
+    background-color var(--t-quick) var(--ease-out),
+    color var(--t-quick) var(--ease-out),
+    width var(--t-move) var(--ease-out);
 }
-/* the key is down: a red light, there and gone with the key */
-#dock.listening::after {
-  content: "";
-  align-self: flex-start;
-  flex: none;
-  width: 11px;
-  height: 11px;
-  margin: 3px -4px 0 0;
-  border: 2px solid var(--ink);
-  border-radius: 50%;
-  background: #e5342b;
-  animation: beat 1.1s ease-in-out infinite;
-}
-#dock.thinking .words {
-  opacity: 0.6; /* heard, and no longer being added to by you */
+/* the key is down: a ring around the dock, spreading with your voice */
+#dock.listening {
+  outline-color: var(--palm);
+  outline-offset: calc(2px + var(--ring, 0) * 5px);
 }
 #dock.speaking {
   background: var(--ink); /* the other voice: the same two colours, the other way round */
   color: var(--palm);
+  outline: 2px solid var(--palm);
+  outline-offset: 0;
+}
+.talk {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 11px 16px 12px 12px;
 }
 .words {
   flex: 1;
   min-width: 0;
+  max-height: 72px; /* three lines: the newest words stay in sight, the oldest fade out at the top */
   margin: 0;
-  font-weight: 600;
-  font-size: 19px;
-  line-height: 1.32;
-  overflow-wrap: anywhere;
-  /* a long sentence keeps its newest words in sight */
-  max-height: calc(1.32em * 6);
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  overflow-wrap: anywhere;
+  font: 600 18px/24px var(--display);
 }
-#dock.idle .words {
-  font: 700 15px/1.3 "Superclarendon", "Rockwell", Georgia, serif;
+.words.long {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 24px);
+  mask-image: linear-gradient(to bottom, transparent, #000 24px);
 }
-#dock.idle {
-  padding: 9px 16px 10px 12px;
-  align-items: center;
+.words.waiting,
+#dock.thinking .words {
+  opacity: 0.58; /* nothing yet, or heard and no longer being added to */
 }
-.words.waiting {
-  opacity: 0.55;
+#dock.idle .words,
+#dock.offline .words {
+  font: 600 15px/22px var(--display);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+#dock.lingering .words {
+  font: 600 16px/22px var(--display);
+  white-space: normal;
+}
+.words kbd {
+  margin: 0 1px;
+  padding: 1px 6px 2px;
+  font-size: 12.5px;
+  vertical-align: 1px;
+  background: rgb(255 255 255 / 0.5);
 }
 
-/* five fingers on a palm: they rise with your voice, drum while it thinks, and move when it speaks */
+/* rested: a palm in the corner, which opens out under the pointer and whenever the key goes down */
+#dock.compact {
+  width: 60px;
+}
+#dock.compact .words {
+  visibility: hidden;
+}
+@media (hover: hover) and (pointer: fine) {
+  #dock.compact:hover {
+    width: var(--column);
+  }
+  #dock.compact:hover .words {
+    visibility: visible;
+  }
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 8px 8px 0;
+  padding: 7px 11px 8px 7px;
+  border-radius: 11px;
+  background: var(--ink);
+  color: var(--sheet);
+  font: 600 12.5px/1.35 var(--face);
+}
+.banner .who {
+  width: 24px;
+  height: 24px;
+  border-color: var(--sheet);
+  background: var(--glove);
+  font-size: 12.5px;
+}
+.banner[data-seat="waiting"] {
+  border: 1.5px dashed var(--ink);
+  background: var(--sheet);
+  color: var(--ink);
+}
+.banner[data-seat="waiting"] .who {
+  border-color: var(--ink);
+}
+#dock.speaking .banner {
+  box-shadow: inset 0 0 0 1.5px var(--palm);
+}
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 9px 14px 0;
+  font: 600 12px/1.3 var(--face);
+}
+.notice::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--alarm);
+}
+#dock.offline .notice::before {
+  background: var(--shade);
+}
+
+/* five fingers on a palm: each its full length, sliding up out of the palm with your voice */
 .palm {
   position: relative;
   flex: none;
@@ -398,6 +789,11 @@ kbd {
   height: 46px;
   padding: 0 0 15px 1px;
   box-sizing: border-box;
+  transform-origin: left bottom;
+  transition:
+    scale var(--t-pop) var(--spring),
+    margin var(--t-pop) var(--ease-out),
+    opacity var(--t-quick) var(--ease-out);
 }
 .palm::after {
   content: "";
@@ -411,10 +807,10 @@ kbd {
 }
 .palm i {
   width: 6.5px;
-  height: calc(var(--rest) + var(--reach) * var(--level, 0));
+  height: calc(var(--rest) + var(--reach));
   border-radius: 4px 4px 0 0;
   background: currentColor;
-  transition: height 0.09s linear;
+  translate: 0 var(--reach);
 }
 .palm i:nth-child(1) { --rest: 9px; --reach: 9px; } /* prettier-ignore */
 .palm i:nth-child(2) { --rest: 14px; --reach: 13px; } /* prettier-ignore */
@@ -423,54 +819,59 @@ kbd {
 .palm i:nth-child(5) {
   --rest: 15px;
   --reach: 5px;
-  position: absolute; /* the thumb: out of the side of the palm, from lower down */
+  position: absolute; /* the thumb: out of the side of the palm, from lower down, sliding along its own slant */
   left: 29px;
   bottom: 5px;
   width: 7.5px;
   border-radius: 4px;
-  transform: rotate(52deg);
+  translate: none;
+  rotate: 52deg;
+  transform: translateY(var(--reach));
   transform-origin: bottom center;
 }
-#dock.idle .palm {
-  transform: scale(0.72);
-  transform-origin: left center;
-  margin-right: -10px;
+#dock.idle .palm,
+#dock.offline .palm {
+  scale: 0.72;
+  margin: -13px -10px 0 0; /* the space it no longer takes, given back */
 }
+#dock.compact .palm {
+  margin: -13px -10px 0 1px;
+}
+#dock.offline .palm {
+  opacity: 0.4;
+}
+/* thinking: the fingers drum, index to little finger, striking down into the table */
 #dock.thinking .palm i:not(:nth-child(5)) {
-  animation: drum 0.9s ease-in-out infinite;
+  animation: drum 960ms infinite;
 }
-#dock.thinking .palm i:nth-child(2) { animation-delay: 0.09s; } /* prettier-ignore */
-#dock.thinking .palm i:nth-child(3) { animation-delay: 0.18s; } /* prettier-ignore */
-#dock.thinking .palm i:nth-child(4) { animation-delay: 0.27s; } /* prettier-ignore */
+#dock.thinking .palm i:nth-child(2) { animation-delay: 80ms; } /* prettier-ignore */
+#dock.thinking .palm i:nth-child(3) { animation-delay: 160ms; } /* prettier-ignore */
+#dock.thinking .palm i:nth-child(4) { animation-delay: 240ms; } /* prettier-ignore */
 @keyframes drum {
-  0%,
-  45%,
+  0% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  10% {
+    transform: translateY(4px);
+    animation-timing-function: var(--ease-out);
+  }
+  30%,
   100% {
     transform: translateY(0);
-  }
-  22% {
-    transform: translateY(5px);
-  }
-}
-#dock.speaking .palm i {
-  animation: talk 0.5s ease-in-out infinite alternate;
-}
-#dock.speaking .palm i:nth-child(2) { animation-duration: 0.37s; } /* prettier-ignore */
-#dock.speaking .palm i:nth-child(3) { animation-duration: 0.61s; } /* prettier-ignore */
-#dock.speaking .palm i:nth-child(4) { animation-duration: 0.43s; } /* prettier-ignore */
-@keyframes talk {
-  to {
-    height: calc(var(--rest) + var(--reach));
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * {
-    animation: none !important;
-    transition: none !important;
+  :root {
+    --t-move: 0ms;
+    --t-enter: 0ms;
+    --t-pop: 0ms;
   }
-}
-
-#deck:empty {
-  display: none; /* no hands out: no gap above the dock */
+  .card header::after,
+  .card header::before,
+  .chip.state,
+  #dock.thinking .palm i {
+    animation: none !important;
+  }
 }
