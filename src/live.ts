@@ -1164,7 +1164,8 @@ export function glance(hand: Pick<Hand, "window" | "viewing" | "front">, front: 
  * The hand whose window is to be photographed now, if any. Only cards that show a picture are filmed, and not while
  * the user has the window itself in front of them: one card alone four times a second, several once a second each,
  * the longest waiting first. The ones `first` names (the card watched big, the card under the pointer) are filmed
- * four times a second however many there are, ahead of the rest. A hand that has finished is filmed once more, and then not again.
+ * four times a second however many there are, ahead of the rest. A hand that has finished is filmed once more, and
+ * then not again.
  */
 export function nextShot<T extends Pick<Hand, "id" | "window" | "viewing" | "last" | "shot">>(all: Iterable<T>, visible: Set<string> | null, now: number, first: (string | null)[] = []): T | null {
   const shown = [...all].filter((one) => one.window !== null && !one.viewing && !one.last && (!visible || visible.has(one.id)));

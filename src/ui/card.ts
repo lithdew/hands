@@ -19,7 +19,7 @@ export const identity = (name: string): string => IDENTITY[name.toLowerCase()] ?
 /** Where each pose's glyph touches what it points at, as a fraction of its box (hand.ts's POSES), so the marker's fingertip is on the control. */
 const TOUCH: Record<string, [number, number]> = { "👋": [0.45, 0.75], "👆": [0.28, 0.11], "✍️": [0.02, 0.81], "👇": [0.48, 0.82], "✌️": [0.45, 0.13], "🖐️": [0.4, 0.47], "👉": [0.74, 0.42], "✋": [0.37, 0.47], "👍": [0.36, 0.44] };
 
-/** The word in a card's header. A hand at work has none: the line moving under its name says it. */
+/** The word in a card's header. A hand at work has none: the ticks along the header, and its picture's subtitle, say it. */
 const CHIP: Record<Status, string> = { starting: "starting", working: "", paused: "paused", needs_you: "needs you", done: "done", failed: "failed", stopped: "stopped" };
 
 /** How the glyph in the header takes a change of state. It stays the hand's own glyph: only its motion says it. */
