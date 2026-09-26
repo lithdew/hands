@@ -8,7 +8,7 @@
 
 import { finished } from "./fold.ts";
 import { EASE_OUT, ms, settle, still } from "./motion.ts";
-import { type Control, controls, driver, hold, moved, says, searching, sentence, type Step, sight, site, stale, steps, tally } from "./rules.ts";
+import { busy, clock, type Control, controls, driver, hold, moved, recount, says, searching, sentence, type Step, sight, site, stale, steps, tally } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, Status } from "./state.ts";
 import { blocks } from "./text.ts";
 
@@ -29,8 +29,6 @@ const REACT: Partial<Record<Status, Keyframe[]>> = {
   needs_you: [{ scale: 1 }, { scale: 1.18 }, { scale: 1 }],
   failed: [{ translate: "0 0" }, { translate: "-3px 0" }, { translate: "3px 0" }, { translate: "0 0" }],
 };
-
-export const busy = (hand: Pick<HandView, "status">): boolean => hand.status === "working" || hand.status === "starting";
 
 export interface Card {
   id: string;
@@ -150,7 +148,7 @@ export function paint(card: Card, hand: HandView, place: { folded: boolean; bare
   root.classList.toggle("open", place.open);
   root.classList.toggle("theater", place.theater);
   root.classList.toggle("viewed", hand.viewing && !place.open);
-  if (busy(hand) || !card.clock) card.clock = elapsed(hand.since);
+  card.clock = clock(card.clock, hand, before);
 
   // Jev drives while the clicker runs (a clicker call without its result), or while the action has Jev's name before it.
   const running = card.steps.at(-1);
@@ -373,11 +371,6 @@ export function fresh(card: Card, now = performance.now()): void {
   if (!late && now === card.shotAt && !live.hidden) part(card, ".live i").animate([{ scale: 1.8 }, { scale: 1 }], { duration: ms(260), easing: EASE_OUT });
 }
 
-export const elapsed = (since: number, now = Date.now()): string => {
-  const seconds = Math.max(0, Math.round((now - since) / 1000));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-};
-
 /** How a run's end reads in the transcript. */
 const MARK: Record<Status, string> = { starting: "getting ready", working: "working", paused: "paused", needs_you: "needs you", done: "done", failed: "couldn’t finish", stopped: "stopped" };
 
@@ -409,14 +402,17 @@ export function line(entry: LogEntry): HTMLElement {
   return made;
 }
 
-/** New lines on the sheet, and the steps they make in the header; a transcript scrolled to its end stays at its end. */
+/**
+ * New lines on the sheet, and the steps they make in the header; a transcript scrolled to its end stays at its end.
+ * A transcript sent again from its start keeps the moves of Jev's this card counted (rules.ts, recount).
+ */
 export function write(card: Card, entries: LogEntry[], reset = false): void {
   const log = part(card, ".log");
   const pinned = log.scrollHeight - log.scrollTop - log.clientHeight < 24;
   if (reset) log.replaceChildren();
   log.append(...entries.map(line));
   if (pinned) log.scrollTop = log.scrollHeight;
-  card.steps = steps(entries, reset ? [] : card.steps);
+  card.steps = reset ? recount(card.steps, steps(entries)) : steps(entries, card.steps);
   ticks(card);
 }
 

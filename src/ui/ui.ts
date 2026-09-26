@@ -7,11 +7,11 @@
  * the column is, which cards show a picture (only those are filmed), and what the user asked of a hand.
  */
 
-import { build, busy, type Card, elapsed, frame, fresh, paint, part, track, write } from "./card.ts";
+import { build, type Card, frame, fresh, paint, part, track, write } from "./card.ts";
 import { extra, level, speak } from "./dock.ts";
 import { arrange, finished, lines, order, type Shape } from "./fold.ts";
 import { deal, glide, sweep, where } from "./motion.ts";
-import { anew, closes, hold, neighbour, says, shortcut } from "./rules.ts";
+import { anew, busy, closes, elapsed, hold, neighbour, says, shortcut } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, ServerMessage } from "./state.ts";
 
 const column = document.getElementById("column") as HTMLElement;

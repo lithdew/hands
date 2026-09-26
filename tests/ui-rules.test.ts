@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { anew, closes, controls, driver, hold, moved, neighbour, type Press, STALE_MS, says, searching, shortcut, sight, site, stale, steps, tally } from "../src/ui/rules.ts";
+import { anew, clock, closes, controls, driver, hold, moved, neighbour, type Press, recount, STALE_MS, says, searching, shortcut, sight, site, stale, steps, tally } from "../src/ui/rules.ts";
 import type { HandView } from "../src/ui/state.ts";
 
 const view = (extra: Partial<HandView>): HandView => ({ id: "lefty", name: "Lefty", color: "4f8cff", task: "Book a table", status: "working", action: "", glyph: "👆", at: null, size: null, viewing: false, answer: "", reason: "", seat: "", seatWhy: "", picture: "none", since: 0, ...extra }); // prettier-ignore
@@ -40,6 +40,45 @@ test("a step for each tool call, settled by its result; the clicker's are Jev's,
   expect(steps([{ kind: "result", text: "stray" }])).toEqual([]);
 });
 
+test("in a batch run at once, a result that names its call settles that call, whatever order they finish in", () => {
+  // pi-agent-core starts every call of a parallel batch, then ends each as it finishes: here the read first.
+  const batch = [
+    { kind: "tool", text: 'bash {"command":"make"}', call: "a" },
+    { kind: "tool", text: 'read {"path":"notes.md"}', call: "b" },
+    { kind: "result", text: "# notes", call: "b" },
+    { kind: "error", text: "make: *** no rule", call: "a" },
+  ] as const;
+  expect(steps([...batch]).map((step) => step.ok)).toEqual([false, true]);
+  // Without the ids, results go to the oldest call still running: the count of good and bad is right, not their places.
+  const unnamed = steps(batch.map(({ kind, text }) => ({ kind, text })));
+  expect(unnamed.map((step) => step.ok)).toEqual([true, false]);
+  // A result naming a call no step has falls back to the oldest still running.
+  expect(steps([{ kind: "tool", text: "screen {}" }, { kind: "result", text: "ok", call: "z" }])[0]!.ok).toBe(true);
+});
+
+test("a clicker result's count of Jev's moves is the count; a transcript sent afresh keeps the moves the page counted", () => {
+  const made = steps([{ kind: "tool", text: 'clicker {"goal":"x"}', call: "c" }]);
+  made[0]!.moves = 3; // counted by the page as the moves came
+  steps([{ kind: "result", text: '{ "outcome": "done", "goal_achieved": true }', call: "c", moves: 9 }], made);
+  expect(made[0]).toEqual({ ok: true, jev: true, moves: 9, call: "c" });
+  // On connecting afresh the transcript comes again from its start, without the moves the page counted.
+  const log = [
+    { kind: "tool", text: "screen {}" },
+    { kind: "result", text: "ok" },
+    { kind: "tool", text: 'clicker {"goal":"x"}' },
+    { kind: "result", text: '{ "outcome": "done", "goal_achieved": true }' },
+    { kind: "tool", text: 'clicker {"goal":"y"}' },
+  ] as const;
+  const before = steps([...log]);
+  [before[1]!.moves, before[2]!.moves] = [9, 4];
+  const again = recount(before, steps([...log]));
+  expect(again.map((step) => step.moves)).toEqual([0, 9, 4]);
+  expect(tally(again, "0:52")).toBe("14 steps · 13 by Jev · 0:52");
+  // A count the transcript gives stands; a step that was not Jev's in that place gives none.
+  expect(recount(before, steps([...log.slice(0, 3), { kind: "result", text: "{}", moves: 7 }]))[1]!.moves).toBe(7);
+  expect(recount([{ ok: true, jev: false, moves: 5 }], steps([{ kind: "tool", text: 'clicker {"goal":"x"}' }]))[0]!.moves).toBe(0);
+});
+
 test("the sheet's buttons, the picture's tools and Ctrl+. follow one table: a starting hand and a lookup never pause", () => {
   expect(controls({ status: "working" })).toEqual(["pause", "stop", "show"]);
   expect(controls({ status: "working", kind: "lookup" })).toEqual(["stop", "show"]);
@@ -52,6 +91,20 @@ test("the sheet's buttons, the picture's tools and Ctrl+. follow one table: a st
   expect(hold({ status: "paused", kind: "lookup" })).toBeNull();
   expect(hold({ status: "needs_you" })).toBeNull();
   expect(hold({ status: "done" })).toBeNull();
+});
+
+test("a hand's clock runs while it works and stops when it does; a card drawn after it stopped does not guess", () => {
+  const at = { since: 1_000 };
+  expect(clock("", { ...at, status: "working" }, null, 53_000)).toBe("0:52");
+  // Stopped, as the page saw: the clock stops now, and stays.
+  expect(clock("0:51", { ...at, status: "done" }, { status: "working" }, 53_000)).toBe("0:52");
+  expect(clock("0:52", { ...at, status: "done" }, { status: "done" }, 900_000)).toBe("0:52");
+  expect(clock("0:30", { ...at, status: "stopped" }, { status: "paused" }, 900_000)).toBe("0:30");
+  // When the state says when it stopped, that is the time, however late the card is drawn.
+  expect(clock("", { ...at, status: "done", until: 53_000 }, null, 900_000)).toBe("0:52");
+  // Drawn first after it stopped, with no such time: nothing, not the fifteen minutes since it started.
+  expect(clock("", { ...at, status: "done" }, null, 900_000)).toBe("");
+  expect(clock("", { ...at, status: "paused" }, null, 900_000)).toBe("");
 });
 
 test("a receipt's tally counts each of Jev's moves as a step of its own, and the time it took", () => {

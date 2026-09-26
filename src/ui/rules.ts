@@ -25,6 +25,26 @@ export function says(hand: Pick<HandView, "status" | "seat" | "seatWhy" | "answe
   return gist(hand.answer); // done or stopped: the chip says which, and this says what came of it, if anything did
 }
 
+export const busy = (hand: Pick<HandView, "status">): boolean => hand.status === "working" || hand.status === "starting";
+
+/** A clock's "m:ss". */
+export const elapsed = (since: number, now = Date.now()): string => {
+  const seconds = Math.max(0, Math.round((now - since) / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+};
+
+/**
+ * How long a hand has been at it, `was` being what its card last said and `before` the state it was last drawn in.
+ * The clock runs while the hand works, and stops when the hand does: at the time the state says it stopped (`until`),
+ * or else when the page saw it stop. A card first drawn after its hand stopped (the page was loaded again) cannot
+ * tell without that time, and says nothing rather than the time since the hand started.
+ */
+export function clock(was: string, hand: Pick<HandView, "status" | "since" | "until">, before: Pick<HandView, "status"> | null, now = Date.now()): string {
+  if (busy(hand)) return elapsed(hand.since, now);
+  if (hand.until) return elapsed(hand.since, hand.until);
+  return before && busy(before) ? elapsed(hand.since, now) : was;
+}
+
 /** What the user can ask of a hand from its card: the sheet's buttons, the tools on its picture, and Ctrl+. */
 export type Control = "pause" | "resume" | "stop" | "show" | "close";
 
@@ -44,27 +64,47 @@ export function hold(hand: Pick<HandView, "status" | "kind">): "pause" | "resume
 
 /**
  * A tool call, as the ticks along a card's header show it: done (true), gone wrong (false), or still running (null).
- * A call of the clicker's is Jev's, and counts Jev's own moves while it runs (see `moved`).
+ * A call of the clicker's is Jev's, and counts Jev's own moves while it runs (see `moved`). `call` is the call's id,
+ * when the transcript gives one.
  */
 export interface Step {
   ok: boolean | null;
   jev: boolean;
   moves: number;
+  call?: string;
 }
 
 /**
- * The steps these lines add to `into`: a step for each tool call, settled by its result. A clicker call that
- * returns with its goal not achieved went wrong, whatever else it says.
+ * The steps these lines add to `into`: a step for each tool call, settled by its result. A result that names its
+ * call settles that one. One that does not settles the oldest still running, which is its own when calls run one at
+ * a time (the computer tools, the clicker among them, always do); in a batch run at once, results come as the calls
+ * finish, so there the ticks may change places, though not their number. A clicker call that returns with its goal
+ * not achieved went wrong, whatever else it says, and its result's count of Jev's moves, when it has one, is the count.
  */
 export function steps(entries: LogEntry[], into: Step[] = []): Step[] {
   for (const entry of entries) {
-    if (entry.kind === "tool") into.push({ ok: null, jev: entry.text.startsWith("clicker "), moves: 0 });
+    if (entry.kind === "tool") into.push({ ok: null, jev: entry.text.startsWith("clicker "), moves: 0, ...(entry.call ? { call: entry.call } : {}) });
     else if (entry.kind === "result" || entry.kind === "error") {
-      const running = into.find((step) => step.ok === null); // results come in the order their calls did
-      if (running) running.ok = entry.kind === "result" && !(running.jev && /"goal_achieved": ?false/.test(entry.text));
+      const running = (entry.call ? into.find((step) => step.ok === null && step.call === entry.call) : undefined) ?? into.find((step) => step.ok === null);
+      if (!running) continue;
+      running.ok = entry.kind === "result" && !(running.jev && /"goal_achieved": ?false/.test(entry.text));
+      if (running.jev && entry.moves !== undefined) running.moves = entry.moves;
     }
   }
   return into;
+}
+
+/**
+ * The steps of a transcript sent again from its start (on connecting afresh), keeping the moves of Jev's the page
+ * counted before: the transcript has its calls but not always the moves made in them. The same calls come in the
+ * same order, so a step keeps the count of the one in its place, when that was Jev's too.
+ */
+export function recount(before: Step[], after: Step[]): Step[] {
+  for (const [index, step] of after.entries()) {
+    const was = before[index];
+    if (step.jev && was?.jev && !step.moves) step.moves = was.moves;
+  }
+  return after;
 }
 
 /** How a finished hand's receipt counts its work: "12 steps · 5 by Jev · 0:52". A clicker call is as many steps as Jev's moves in it. */
