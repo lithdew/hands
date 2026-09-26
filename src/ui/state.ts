@@ -31,6 +31,7 @@ export interface HandView {
   seatWhy: string; // what the borrow is for: "pressing ctrl+s"
   picture: Picture;
   since: number;
+  window?: number | null; // which window it works in, as the camera films it: the card tells a new one's picture from the last one's (card.ts, track)
 }
 
 export interface VoiceView {

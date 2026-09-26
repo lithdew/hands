@@ -7,6 +7,7 @@
  */
 
 import { ms, settle } from "./motion.ts";
+import { sight } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, Status } from "./state.ts";
 import { blocks, gist } from "./text.ts";
 
@@ -33,6 +34,7 @@ export interface Card {
   url: string; // what the image in front shows, to be let go of when the next frame comes
   frame: number; // counts frames, so a slow decode never covers a newer one
   ratio: number | null; // the picture's own width over its height, from the last frame
+  of: number | null | undefined; // the window the picture is of: the one the state last said was drawing (see track)
   clock: string; // how long it has been at it, frozen when it stops
   leaving: boolean;
 }
@@ -59,7 +61,7 @@ const sentence = (text: string): string => text.charAt(0).toUpperCase() + text.s
 
 export function build(id: string, act: (message: ClientMessage) => void, toggle: (id: string) => void, closeKey: string): Card {
   const root = (template.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
-  const card: Card = { id, root, view: null, frames: [...root.querySelectorAll("img")], url: "", frame: 0, ratio: null, clock: "", leaving: false };
+  const card: Card = { id, root, view: null, frames: [...root.querySelectorAll("img")], url: "", frame: 0, ratio: null, of: undefined, clock: "", leaving: false };
   for (const selector of ["header", ".fold", ".tell"]) part(card, selector).addEventListener("click", () => toggle(id));
   part(card, ".close-key").textContent = closeKey;
   part<HTMLFormElement>(card, "form").addEventListener("submit", (event) => {
@@ -135,18 +137,37 @@ export function paint(card: Card, hand: HandView, place: { folded: boolean; bare
 /** Whether the card has a picture of its hand's window to show: the last good frame, even when the window has stopped drawing. */
 const shown = (card: Card): boolean => card.url !== "";
 
+/** Keeps the picture honest about which window it is of (rules.ts, sight): a frame of a window the hand has left goes, and the task stands in its place. */
+export function track(card: Card, hand: HandView): void {
+  const next = sight(hand, card.of, shown(card));
+  if (next === "of") card.of = hand.window;
+  else if (next === "forget") forget(card);
+}
+
+/** The picture let go of: the card shows the task until the next frame comes. A frame still being decoded is of the old window too. */
+function forget(card: Card): void {
+  card.frame++;
+  URL.revokeObjectURL(card.url);
+  for (const image of card.frames) image.removeAttribute("src");
+  card.url = "";
+  card.ratio = null;
+  card.of = undefined;
+}
+
 /** The picture, or the task where it will be; a quiet word over the last good frame when the window is not drawing; and the hand, where it is. */
 function picture(card: Card): void {
   const hand = card.view!;
   const has = shown(card);
   part(card, ".screen").hidden = !has;
   part(card, ".brief").hidden = has;
+  // The word is about the frame under it, stepped back: with no frame yet, the task shows, and nothing covers it.
   const caption = part(card, ".caption");
-  caption.hidden = hand.picture !== "blank" && hand.picture !== "minimized";
+  caption.hidden = !has || (hand.picture !== "blank" && hand.picture !== "minimized");
   put(caption, hand.picture === "minimized" ? "Minimized" : "Not drawing while out of sight");
   if (!card.ratio && hand.size) card.root.style.setProperty("--ratio", String(hand.size[0] / hand.size[1])); // until the first frame says otherwise
   const marker = part(card, ".marker");
-  marker.hidden = !(has && hand.at && hand.size);
+  // The hand is placed in its window's own points: over another window's picture, it would point at nothing there.
+  marker.hidden = !(has && hand.at && hand.size) || card.of !== hand.window;
   if (!hand.at || !hand.size) return;
   put(marker, hand.glyph);
   const [x, y] = TOUCH[hand.glyph] ?? [0.3, 0.1];

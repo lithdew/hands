@@ -43,8 +43,12 @@ export interface Shape {
 /** How tall a card's picture is at the column's width, no taller than `most`. */
 export const tall = (shape: Shape, most: number = SIZE.picture[1]): number => (shape.ratio ? Math.min(most, Math.round((SIZE.column - 4) / shape.ratio)) : SIZE.brief);
 
-/** A folded card: its header, and under it two lines of what came of a hand that has stopped (unless it is bare, header only). */
-export const folded = (hand: Pick<HandView, "status">, shape: Shape, bare = false): number => SIZE.strip + (shape.words && !busy(hand.status) && !bare ? SIZE.pad + 2 * SIZE.line : 0);
+/**
+ * A folded card: its header, and under it two lines of what came of a hand that has stopped, or of what a hand at
+ * work is doing with the user's mouse and keyboard (unless it is bare, header only). card.ts keeps the same words.
+ */
+export const folded = (hand: Pick<HandView, "status"> & Partial<Pick<HandView, "seat">>, shape: Shape, bare = false): number =>
+  SIZE.strip + (shape.words && !bare && (!busy(hand.status) || !!hand.seat) ? SIZE.pad + 2 * SIZE.line : 0);
 
 /** An unfolded card: its header, its picture, and three lines of words. */
 export const unfolded = (shape: Shape, most: number = SIZE.picture[1]): number => SIZE.strip + SIZE.rule + tall(shape, most) + (shape.words ? SIZE.pad + 3 * SIZE.line : 0);
@@ -52,15 +56,17 @@ export const unfolded = (shape: Shape, most: number = SIZE.picture[1]): number =
 export interface Layout {
   unfolded: Set<string>;
   bare: Set<string>; // cards folded to their header alone: while a sheet is out, or when the column had no room even for two lines each
-  picture: number; // how tall a picture may be: on an unfolded card, or on the open one
+  picture: number; // how tall a picture may be: on an unfolded card, or on the open one (0: the open card has no room for one)
   log: number; // the open card's transcript, how tall
+  over: boolean; // even so, the column is taller than the room: the cards scroll, so none is lost off the top
 }
 
-type Hand = Pick<HandView, "id" | "status" | "since" | "viewing">;
+type Hand = Pick<HandView, "id" | "status" | "since" | "viewing"> & Partial<Pick<HandView, "seat">>;
 
 /**
  * Which cards unfold, within `room` (the height the panel may take). While a sheet is out, its card alone, and the
- * others down to their headers: its picture and transcript share what they leave, the transcript giving way first.
+ * others down to their headers: its picture and transcript share what they leave, the transcript giving way first,
+ * and with too little left for both, the picture goes (the open card is then folded, with its sheet out).
  */
 export function arrange(hands: Hand[], shapes: Map<string, Shape>, room: number, open: string | null): Layout {
   const shape = (hand: Hand): Shape => shapes.get(hand.id) ?? { ratio: null, words: false };
@@ -74,8 +80,14 @@ export function arrange(hands: Hand[], shapes: Map<string, Shape>, room: number,
     const left = room - cost() + folded(opened, shape(opened), bare.has(opened.id)) - SIZE.strip - SIZE.rule - SIZE.sheet;
     const [fewest, most] = SIZE.log;
     const ideal = tall(shape(opened), SIZE.open[1]);
+    if (left < Math.min(ideal, SIZE.open[0]) + fewest) {
+      // No room for the smallest picture and the shortest transcript together: the picture (and the rule over it)
+      // gives way, and the transcript takes what is left, a line of it at least.
+      const log = Math.max(2 * SIZE.line, left + SIZE.rule);
+      return { unfolded: new Set(), bare, picture: 0, log, over: log > left + SIZE.rule };
+    }
     const log = Math.min(most, Math.max(fewest, left - ideal));
-    return { unfolded: new Set([opened.id]), bare, picture: Math.min(ideal, Math.max(SIZE.open[0], left - log)), log };
+    return { unfolded: new Set([opened.id]), bare, picture: Math.min(ideal, Math.max(SIZE.open[0], left - log)), log, over: false };
   }
   const wanted = hands.filter((hand) => !hand.viewing).sort((a, b) => ATTENTION[a.status] - ATTENTION[b.status] || b.since - a.since);
   /** What unfolding a card adds to the column, with its picture no taller than `most`. */
@@ -105,5 +117,5 @@ export function arrange(hands: Hand[], shapes: Map<string, Shape>, room: number,
   const taken = (most: number) => unfolding.reduce((sum, hand) => sum + more(hand, most), 0);
   let picture: number = SIZE.picture[0];
   while (picture < SIZE.picture[1] && taken(picture + 1) <= left) picture++;
-  return { unfolded: new Set(unfolding.map((hand) => hand.id)), bare, picture, log: SIZE.log[0] };
+  return { unfolded: new Set(unfolding.map((hand) => hand.id)), bare, picture, log: SIZE.log[0], over: left < 0 };
 }
