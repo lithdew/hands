@@ -307,6 +307,24 @@ test("the key: what the voice is to say waits while it is held, a silent microph
   }
 });
 
+test("a session nobody has talked in for a minute is closed, but not before it has had time to say what it was just given", async () => {
+  jest.useFakeTimers();
+  live.dispatch("start_hands", { tasks: ["open Paint"] }, runs);
+  hands[0]!.say({ type: "ready" });
+  await settle();
+  jest.advanceTimersByTime(61_000); // nobody talking, and nothing coming from the hands: their news does not count as talk
+  hands[0]!.say({ type: "status", status: "done", answer: "Paint is open." });
+  await settle();
+  const session = sessions.at(-1)!;
+  expect(session.notes("session.commentary.append").length).toBe(1);
+  jest.advanceTimersByTime(1000);
+  live.closeIdle();
+  expect(session.sent.some((event) => event.type === "session.close")).toBe(false); // it has not begun to say it
+  jest.advanceTimersByTime(15_000);
+  live.closeIdle();
+  expect(session.sent.at(-1)).toEqual({ type: "session.close" });
+});
+
 test("a voice that does not answer in 8 s is offline, the dock says so, and a later try gets the note through", async () => {
   answering = false;
   jest.useFakeTimers();

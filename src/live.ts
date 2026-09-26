@@ -37,6 +37,7 @@ const ALONE_MS = 250; // the one card that shows a picture is refreshed four tim
 const EACH_MS = 1000; // several are refreshed once a second each, in turn
 const VIEWING_MS = 1000; // the user has a hand's window in front of them (or no longer does) once it has lasted this long
 const IDLE_MS = 60_000; // an open session is sent audio all the time and costs by the minute: after this long with nobody talking it is closed, and started again, told the conversation so far, when next needed
+const SAYING_MS = 15_000; // and not within this long of being given something to say, which it may not have begun yet
 const CONNECT_MS = 8000; // a session that has not started by then will not
 const RETRY_MS = [2000, 4000, 8000, 15_000, 30_000]; // and the next try waits this long, longer each time
 const TAIL_MS = 300; // the microphone is heard this long after the key comes up: a last syllable outlasts the finger
@@ -594,6 +595,7 @@ let live: LiveWS | null = null;
 let started: Promise<void> | null = null;
 let ready = false; // the session has started and not closed: audio and notes may be sent
 let spokenAt = Date.now(); // when the user last let go of the key or the backend last did something: an open session costs by the minute
+let notedAt = 0; // when the voice was last given something to say
 let failures = 0; // sessions in a row that never started
 let retry: ReturnType<typeof setTimeout> | undefined;
 let quiet: ReturnType<typeof setTimeout> | undefined;
@@ -641,6 +643,7 @@ function flushNotes(): void {
   if (!ready) return void connect().then(flushNotes, () => {});
   const told = toSay.splice(0);
   sendLive({ type: "session.commentary.append", delegation_id: null, content: told.map((one) => one.text).join("\n").slice(0, NOTE_CHARS) });
+  notedAt = Date.now();
   for (const one of told) if (one.hand) one.hand.reported = true;
 }
 
@@ -665,6 +668,18 @@ function unreachable(session: LiveWS | null, why: string): void {
   changed();
   clearTimeout(retry);
   retry = setTimeout(() => void connect().catch(() => {}), RETRY_MS[Math.min(failures++, RETRY_MS.length - 1)]);
+}
+
+/**
+ * A session nobody has said anything in for a while is closed the way the guide closes one: asked to, and let finish.
+ * It is let go of at once, so that a press meanwhile opens another. The voice talking, or given something to say that
+ * it may not have begun, is not nobody saying anything.
+ */
+export function closeIdle(): void {
+  if (!live || !ready || feed || voice.state !== "idle" || toSay.length || Date.now() - spokenAt <= IDLE_MS || Date.now() - notedAt <= SAYING_MS) return;
+  const idle = live;
+  [live, started, ready] = [null, null, false];
+  idle.send({ type: "session.close" } as never);
 }
 
 /** Let the voice go: no session, no more tries, and nothing left to say. */
@@ -1223,13 +1238,7 @@ async function main(argv: string[]): Promise<void> {
   }
   // The stream never stops while a session is open: whenever the microphone has not just spoken, silence does, at the same pace.
   setInterval(hum, CHUNK_MS / 2);
-  // And a session nobody has said anything in for a while is closed the way the guide closes one: asked to, and let finish. It is let go of at once, so that a press meanwhile opens another.
-  setInterval(() => {
-    if (!live || !ready || feed || voice.state !== "idle" || toSay.length || Date.now() - spokenAt <= IDLE_MS) return;
-    const idle = live;
-    [live, started, ready] = [null, null, false];
-    idle.send({ type: "session.close" } as never);
-  }, 5000);
+  setInterval(closeIdle, 5000);
   if (process.env.HANDS_DEBUG && process.platform !== "win32") process.on("SIGUSR2", () => live?.close()); // hang up on the voice, to see it call back
   if (process.env.HANDS_SAY && process.platform !== "win32") process.on("SIGUSR1", () => void say(readFileSync(process.env.HANDS_SAY!, "utf8").trim(), runs)); // a line said on cue: a take directed from outside
   // Ctrl-C, the console window closed, Ctrl-Break, or asked to: every hand is dismissed properly first.
