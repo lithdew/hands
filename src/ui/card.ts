@@ -22,6 +22,14 @@ const TOUCH: Record<string, [number, number]> = { "👋": [0.45, 0.75], "👆": 
 /** The word in a card's header. A hand at work has none: the line moving under its name says it. */
 const CHIP: Record<Status, string> = { starting: "starting", working: "", paused: "paused", needs_you: "needs you", done: "done", failed: "failed", stopped: "stopped" };
 
+/** How the glyph in the header takes a change of state. It stays the hand's own glyph: only its motion says it. */
+const REACT: Partial<Record<Status, Keyframe[]>> = {
+  working: [{ rotate: "0deg" }, { rotate: "-14deg" }, { rotate: "10deg" }, { rotate: "0deg" }],
+  done: [{ translate: "0 0" }, { translate: "0 -4px" }, { translate: "0 0" }, { translate: "0 -2px" }, { translate: "0 0" }],
+  needs_you: [{ scale: 1 }, { scale: 1.18 }, { scale: 1 }],
+  failed: [{ translate: "0 0" }, { translate: "-3px 0" }, { translate: "3px 0" }, { translate: "0 0" }],
+};
+
 /** What each state lets the user do, from the sheet and from the tools on the picture. */
 const CONTROLS: Record<Status, string[]> = { starting: ["stop"], working: ["pause", "stop", "show"], paused: ["resume", "stop", "show"], needs_you: ["show", "close"], done: ["show", "close"], failed: ["show", "close"], stopped: ["show", "close"] };
 
@@ -64,12 +72,20 @@ const put = (target: HTMLElement, text: string): boolean => {
   return true;
 };
 
-export function build(id: string, act: (message: ClientMessage) => void, toggle: (id: string) => void, closeKey: string): Card {
+/** The sheet's keys as the system names them: Ctrl on Windows, ⌘ on the Mac. */
+export interface Keys {
+  close: string;
+  mod: string;
+}
+
+export function build(id: string, act: (message: ClientMessage) => void, toggle: (id: string) => void, keys: Keys): Card {
   const root = (template.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
   root.dataset.id = id;
   const card: Card = { id, root, view: null, frames: [...root.querySelectorAll<HTMLImageElement>(".screen img")], url: "", frame: 0, ratio: null, of: undefined, clock: "", leaving: false, steps: [], act: "", taps: null, shotAt: 0 };
   for (const selector of ["header", ".fold", ".tell"]) part(card, selector).addEventListener("click", () => toggle(id));
-  part(card, ".close-key").textContent = closeKey;
+  part(card, ".close-key").textContent = keys.close;
+  part(card, ".move-key").textContent = `${keys.mod} ↑↓`;
+  part(card, ".hold-key").textContent = `${keys.mod} .`;
   part<HTMLFormElement>(card, "form").addEventListener("submit", (event) => {
     event.preventDefault();
     const box = part<HTMLInputElement>(card, "input");
@@ -148,6 +164,9 @@ export function paint(card: Card, hand: HandView, place: { folded: boolean; bare
   const word = hand.seat === "holding" ? "using your mouse" : hand.seat === "waiting" ? "waiting for you" : CHIP[hand.status];
   if (put(chip, word) && before) settle(chip); // a status change, set down where the eye is
   chip.hidden = !word;
+  // And the hand's own glyph reacts to it, once: hello to work, a nod when done, a start when it needs you.
+  const react = before && before.status !== hand.status ? REACT[hand.status] : undefined;
+  if (react) part(card, ".who").animate(react, { duration: ms(520), easing: EASE_OUT });
 
   const said = says(hand);
   put(part(card, ".said"), said);

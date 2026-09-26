@@ -11,7 +11,7 @@ import { build, busy, type Card, elapsed, frame, fresh, paint, part, track, writ
 import { extra, level, speak } from "./dock.ts";
 import { arrange, finished, lines, order, type Shape } from "./fold.ts";
 import { deal, glide, sweep, where } from "./motion.ts";
-import { anew, closes, says } from "./rules.ts";
+import { anew, closes, neighbour, says, shortcut } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, ServerMessage } from "./state.ts";
 
 const column = document.getElementById("column") as HTMLElement;
@@ -22,7 +22,7 @@ const dock = document.getElementById("dock") as HTMLElement;
 // hides Show elsewhere).
 const windows = /Windows/.test(navigator.userAgent);
 document.documentElement.classList.toggle("windows", windows);
-const CLOSE_KEY = windows ? "Ctrl+W" : "⌘W";
+const KEYS = windows ? { close: "Ctrl+W", mod: "Ctrl" } : { close: "⌘W", mod: "⌘" };
 
 // How many characters of a card's words fit on a line, counted short: across the card, and beside a receipt's picture.
 const CARD_CHARS = 44;
@@ -101,7 +101,7 @@ function show(hands: HandView[], room: number): void {
   const dealt: Card[] = [];
   for (const hand of hands) {
     if (cards.has(hand.id)) continue;
-    const card = build(hand.id, send, (id) => toggle(id), CLOSE_KEY);
+    const card = build(hand.id, send, (id) => toggle(id), KEYS);
     write(card, logs.get(hand.id) ?? [], true); // lines that came before the card did
     deck.append(card.root);
     cards.set(hand.id, card);
@@ -208,6 +208,18 @@ document.addEventListener("keydown", (event) => {
     // Ctrl+Backspace is never a close: in a text box it deletes a word.
     event.preventDefault();
     if (card && !part<HTMLInputElement>(card, "input").value) send({ cmd: "close", hand: card.id });
+  } else {
+    const key = shortcut(event, windows);
+    if (!key || !card?.view) return;
+    event.preventDefault();
+    if (key === "hold") {
+      // Pause a hand at work, or let a paused one carry on; the sheet stays out, and so does the keyboard.
+      if (busy(card.view)) send({ cmd: "pause", hand: card.id });
+      else if (card.view.status === "paused") send({ cmd: "resume", hand: card.id });
+      return;
+    }
+    const next = neighbour(order(last.hands).map((hand) => hand.id), card.id, key === "next" ? 1 : -1);
+    if (next) toggle(next, true);
   }
 });
 

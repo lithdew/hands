@@ -15,8 +15,9 @@ export const sentence = (text: string): string => text.charAt(0).toUpperCase() +
  * say it all: a hand at work says what it is doing on its picture, and one starting shows its task there.
  */
 export function says(hand: Pick<HandView, "status" | "seat" | "seatWhy" | "answer" | "reason">): string {
-  if (hand.seat === "holding") return hand.seatWhy ? `${sentence(hand.seatWhy)} with your mouse and keyboard.` : "Using your mouse and keyboard.";
-  if (hand.seat === "waiting") return `Waiting for you to pause${hand.seatWhy ? `, before ${hand.seatWhy}` : ""}.`;
+  // Borrowing the seat: what for, and how to have it back, where the card is, not only in the dock.
+  if (hand.seat === "holding") return `${hand.seatWhy ? `${sentence(hand.seatWhy)} with` : "Using"} your mouse and keyboard — move the mouse to take them back.`;
+  if (hand.seat === "waiting") return `Waiting for you to pause a second${hand.seatWhy ? `, before ${hand.seatWhy}` : ""}.`;
   if (hand.status === "paused") return "Paused. Tell it what to change, or let it carry on.";
   if (hand.status === "needs_you") return gist(hand.answer) || "It needs you to do something in its window.";
   if (hand.status === "failed") return hand.reason || gist(hand.answer) || "It ran into an error and stopped.";
@@ -136,6 +137,25 @@ export interface Press {
   ctrlKey: boolean;
   metaKey: boolean;
   altKey: boolean;
+}
+
+/** What the keyboard does in a sheet, besides typing: the next or the previous hand's sheet, and pause or carry on. */
+export type Shortcut = "next" | "previous" | "hold";
+
+/** Ctrl (⌘ on the Mac) with ↓ or ↑ moves between the hands' sheets, and with . pauses the hand or lets it carry on. */
+export function shortcut(press: Press, windows: boolean): Shortcut | null {
+  if (!(windows ? press.ctrlKey : press.metaKey) || press.altKey) return null;
+  if (press.key === "ArrowDown") return "next";
+  if (press.key === "ArrowUp") return "previous";
+  if (press.key === "." || press.code === "Period") return "hold";
+  return null;
+}
+
+/** The hand `by` places from `from` in the column, stopping at either end; null when there is none but it. */
+export function neighbour(ids: string[], from: string, by: 1 | -1): string | null {
+  const at = ids.indexOf(from);
+  const to = at < 0 ? -1 : Math.max(0, Math.min(ids.length - 1, at + by));
+  return to < 0 || to === at ? null : ids[to]!;
 }
 
 /**

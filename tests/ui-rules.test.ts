@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { anew, closes, driver, moved, type Press, STALE_MS, says, searching, sight, site, stale, steps, tally } from "../src/ui/rules.ts";
+import { anew, closes, driver, moved, neighbour, type Press, STALE_MS, says, searching, shortcut, sight, site, stale, steps, tally } from "../src/ui/rules.ts";
 import type { HandView } from "../src/ui/state.ts";
 
 const view = (extra: Partial<HandView>): HandView => ({ id: "lefty", name: "Lefty", color: "4f8cff", task: "Book a table", status: "working", action: "", glyph: "👆", at: null, size: null, viewing: false, answer: "", reason: "", seat: "", seatWhy: "", picture: "none", since: 0, ...extra }); // prettier-ignore
@@ -7,7 +7,9 @@ const view = (extra: Partial<HandView>): HandView => ({ id: "lefty", name: "Left
 test("a hand at work says what it is doing on its picture, not under it; the rest say what came of it", () => {
   expect(says(view({ action: "click “Search”" }))).toBe("");
   expect(says(view({ status: "starting" }))).toBe("");
-  expect(says(view({ seat: "holding", seatWhy: "pressing ctrl+s" }))).toBe("Pressing ctrl+s with your mouse and keyboard.");
+  expect(says(view({ seat: "holding", seatWhy: "pressing ctrl+s" }))).toBe("Pressing ctrl+s with your mouse and keyboard — move the mouse to take them back.");
+  expect(says(view({ seat: "holding" }))).toBe("Using your mouse and keyboard — move the mouse to take them back.");
+  expect(says(view({ seat: "waiting", seatWhy: "pressing ctrl+s" }))).toBe("Waiting for you to pause a second, before pressing ctrl+s.");
   expect(says(view({ status: "paused" }))).toBe("Paused. Tell it what to change, or let it carry on.");
   expect(says(view({ status: "needs_you", answer: "Sign in, then tell me to carry on." }))).toBe("Sign in, then tell me to carry on.");
   expect(says(view({ status: "failed", reason: "The page would not load." }))).toBe("The page would not load.");
@@ -130,6 +132,28 @@ test("Ctrl+W is not the key in W's place on a layout with a Latin letter or a si
   expect(closes(press("w", "KeyW", 87, { ctrlKey: true, altKey: true }), true)).toBe(false); // AltGr is Ctrl+Alt
   expect(closes(press("w", "KeyW", 87, { metaKey: true }), true)).toBe(false);
   expect(closes(press("w", "KeyW", 87), true)).toBe(false);
+});
+
+test("in a sheet, Ctrl ↑↓ moves between the hands and Ctrl . pauses or carries on; ⌘ on the Mac, and never AltGr", () => {
+  expect(shortcut(press("ArrowDown", "ArrowDown", 40, { ctrlKey: true }), true)).toBe("next");
+  expect(shortcut(press("ArrowUp", "ArrowUp", 38, { ctrlKey: true }), true)).toBe("previous");
+  expect(shortcut(press(".", "Period", 190, { ctrlKey: true }), true)).toBe("hold");
+  expect(shortcut(press(":", "Period", 190, { ctrlKey: true }), true)).toBe("hold"); // a layout that puts another sign there
+  expect(shortcut(press("ArrowDown", "ArrowDown", 40), true)).toBeNull(); // a plain arrow is the box's
+  expect(shortcut(press(".", "Period", 190, { ctrlKey: true, altKey: true }), true)).toBeNull();
+  expect(shortcut(press("ArrowDown", "ArrowDown", 40, { metaKey: true }), false)).toBe("next");
+  expect(shortcut(press("ArrowDown", "ArrowDown", 40, { ctrlKey: true }), false)).toBeNull();
+  expect(shortcut(press("w", "KeyW", 87, { ctrlKey: true }), true)).toBeNull();
+});
+
+test("the next and the previous hand stop at the ends of the column", () => {
+  const ids = ["index", "lefty", "righty"];
+  expect(neighbour(ids, "lefty", 1)).toBe("righty");
+  expect(neighbour(ids, "lefty", -1)).toBe("index");
+  expect(neighbour(ids, "righty", 1)).toBeNull();
+  expect(neighbour(ids, "index", -1)).toBeNull();
+  expect(neighbour(ids, "gone", 1)).toBeNull();
+  expect(neighbour(["lefty"], "lefty", 1)).toBeNull();
 });
 
 test("⌘W closes a hand on the Mac, where a layout with no Latin letters falls back to W's place", () => {
