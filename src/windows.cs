@@ -192,6 +192,7 @@ static class Program
             case "release": Uia.Release(); return Ok();
             case "post": return Input.Post(Hwnd(), Str("kind"), Int("x"), Int("y"));
             case "guard": if (Bool("begin")) { Flash.Driven(Hwnd(), !Has("sink") || Bool("sink")); return Ok(); } return Flash.EndDriven();
+            case "late": return Flash.Late();
             case "opening": return Has("seat") ? Opening.Begin() : Opening.State();
             case "chars": return Input.Chars(Hwnd(), Str("text"), Bool("direct"));
             case "vkey": return Input.VKey(Hwnd(), Int("vk"), Bool("direct"));
@@ -2222,16 +2223,21 @@ static class Flash
     /**
      * One guarded moment: the window clicked and whether it goes back behind the user's (it is the hand's own), the
      * window the user had in front, the nearest ordinary window above the clicked one (where a window of the user's
-     * goes back to), and the top-level windows its process had, which tell a window the click opens. `told` are the
-     * windows it opened that an answer has handed over already; `stop` ends its watch behind.
+     * goes back to), and the top-level windows its process had, which tell a window the click opens. `stop` ends its
+     * watch behind.
      */
-    public class Moment { public IntPtr root, front, above; public bool sink; public uint pid; public HashSet<long> before; public readonly HashSet<long> told = new HashSet<long>(); public volatile bool stop; }
+    public class Moment { public IntPtr root, front, above; public bool sink; public uint pid; public HashSet<long> before; public volatile bool stop; }
 
     static readonly object gate = new object();
+    // Each round of a watch, from reading the foreground to giving it back, is made under this lock, and Quiet takes it
+    // once after stopping a watch: a handback already under way ends before Bun's own move, never after it.
+    static readonly object acting = new object();
     static Moment pending; // the moment under way, which Hold.Abandon undoes when the hand ends in the middle of it
     static Moment driven; // the moment Bun began with "guard", which its "guard" end closes
     static Moment behind; // the moment whose watch goes on after its answer (see Behind)
-    static readonly List<object> late = new List<object>(); // windows a click in a window of the hand's opened after its answer: the next answer hands them over
+    static readonly List<Moment> open = new List<Moment>(); // answered moments in windows of the hand's whose watch time is not over: a window they open is still theirs
+    static readonly List<object[]> late = new List<object[]>(); // [window, the window clicked]: windows those moments opened after their answer, for Bun to adopt (Late)
+    static readonly HashSet<long> handed = new HashSet<long>(); // windows a click opened that Bun has been told of, by an answer or by Late
 
     /** Whether a guarded moment is under way, or watched behind its answer: its watch sees to the windows it brings forward. */
     public static bool Watching { get { lock (gate) return pending != null || behind != null; } }
@@ -2263,18 +2269,15 @@ static class Flash
     /**
      * The moment after the last click of a guarded piece of work, watched for a second take too: {taken, back, popups}.
      * Answered once the window has left the foreground alone a moment (AnswerMs), and watched on behind the answer for
-     * the rest of the time; a click into a window of the hand's also hands over what an earlier click's watch behind saw
-     * it open after its answer.
+     * the rest of the time. A window the click opens after the answer is told of by Late.
      */
     public static Dictionary<string, object> End(Moment m)
     {
         int left;
         Dictionary<string, object> r = Watch(m, SettleMs, WatchMs, true, out left);
-        List<object> popups = (List<object>)r["popups"];
-        foreach (object h in popups) m.told.Add((long)h);
+        lock (gate) foreach (object h in (List<object>)r["popups"]) handed.Add((long)h);
         if (left > 0) Behind(m, left);
         else Done(m);
-        if (m.sink) lock (gate) { popups.AddRange(late); late.Clear(); }
         return r;
     }
 
@@ -2289,23 +2292,24 @@ static class Flash
     /**
      * The rest of a moment's watch, on a thread of its own, after its answer: a late take (a bubble, a window the click
      * opened coming up) is given back there within a few milliseconds, whatever Bun is doing meanwhile. It ends when its
-     * time is up, when another moment begins, or when Bun brings a window forward on purpose (Quiet). A window the click
-     * opened meanwhile in a window of the hand's is kept for the next answer to hand over.
+     * time is up, when another moment begins, or when Bun brings a window forward on purpose (Quiet). A moment in a
+     * window of the hand's is kept until its time is up, however its watch ended, for the windows it opens (see Late).
      */
     static void Behind(Moment m, int ms)
     {
+        DateTime until = DateTime.UtcNow.AddMilliseconds(ms);
         lock (gate)
         {
             if (behind != null && behind != m) behind.stop = true;
             behind = m;
+            if (m.sink) open.Add(m);
         }
         Thread thread = new Thread(delegate ()
         {
             try
             {
                 int left;
-                Dictionary<string, object> r = Watch(m, 0, ms, false, out left);
-                if (m.sink) lock (gate) foreach (object h in (List<object>)r["popups"]) if (!m.told.Contains((long)h)) late.Add(h);
+                Watch(m, 0, ms, false, out left);
             }
             catch (Exception) { /* a window that went away under the watch: nothing left to give back */ }
             finally
@@ -2313,15 +2317,52 @@ static class Flash
                 lock (gate) { if (behind == m) behind = null; }
                 Done(m);
             }
+            try
+            {
+                // Stopped early or not, the windows the click opens in its time are the hand's: kept for Late at its end.
+                int rest = (int)(until - DateTime.UtcNow).TotalMilliseconds;
+                if (m.sink && rest > 0) Thread.Sleep(rest);
+                if (m.sink) lock (gate) { Opens(m); open.Remove(m); }
+            }
+            catch (Exception) { lock (gate) open.Remove(m); }
         });
         thread.IsBackground = true;
         thread.Start();
     }
 
+    /** The windows a moment's click opened that Bun has not been told of yet, into `late`. Under `gate`. */
+    static void Opens(Moment m)
+    {
+        foreach (object h in Popups(m))
+        {
+            if (handed.Add((long)h)) late.Add(new object[] { h, m.root.ToInt64() });
+        }
+    }
+
+    /**
+     * The windows clicks in windows of the hand's opened after their answers, each with the window clicked, which Bun
+     * has not been told of: {late: [[window, clicked]], behind}. Asked by Bun at its next look, or its watcher's round, so
+     * that such a window (a page's pop-up, a sign-in) is the hand's, kept with its opener and closed with it, without
+     * waiting for another click. `behind` says whether a click's watch still goes on behind its answer.
+     */
+    public static object Late()
+    {
+        List<object> found = new List<object>();
+        bool watching;
+        lock (gate)
+        {
+            foreach (Moment m in open) Opens(m);
+            found.AddRange(late);
+            late.Clear();
+            watching = behind != null;
+        }
+        return new Dictionary<string, object> { { "late", found }, { "behind", watching } };
+    }
+
     /**
      * Bun is about to bring a window forward on purpose (a borrow, a lift, Show): the watch behind an answer stops
      * there, or it would give back what is now meant to be in front. A handback, which activates the window the user
-     * had, leaves it watching.
+     * had, leaves it watching. A round of the watch under way ends first: after this, nothing of it moves the foreground.
      */
     public static void Quiet(IntPtr activating)
     {
@@ -2331,6 +2372,7 @@ static class Flash
             behind.stop = true;
             behind = null;
         }
+        if (Monitor.TryEnter(acting, 1000)) Monitor.Exit(acting);
     }
 
     /** The hand ends in the middle of a guarded moment: whatever the click brought forward gives the foreground back, once. */
@@ -2400,37 +2442,44 @@ static class Flash
         left = 0;
         while (clock.ElapsedMilliseconds < settleMs + ms && !m.stop)
         {
-            IntPtr fg = Win.GetForegroundWindow();
-            bool opened = fg != IntPtr.Zero && fg != m.front && Opened(m, fg);
-            bool took = fg != IntPtr.Zero && fg != m.front && (Root(fg) == m.root || opened);
-            bool over = m.sink && m.front != IntPtr.Zero && Win.IsWindow(m.front) && Above(m.root, m.front);
-            if ((took || over) && clock.ElapsedMilliseconds >= settleMs)
+            lock (acting)
             {
-                taken |= took;
-                if (took && m.front != IntPtr.Zero && Win.IsWindow(m.front)) back = Program.Activate(m.front);
-                IntPtr now = Win.GetForegroundWindow();
-                bool free = now == IntPtr.Zero || (Root(now) != m.root && !Opened(m, now));
-                if (m.sink && free) Sink(m.root);
-                if (m.sink && opened && free) Sink(Root(fg));
-                if (took || !free) quiet = clock.ElapsedMilliseconds;
-            }
-            if (answer && clock.ElapsedMilliseconds >= quiet + AnswerMs && Popups(m).Count == 0)
-            {
-                IntPtr now = Win.GetForegroundWindow();
-                if (now == IntPtr.Zero || now == m.front || (Root(now) != m.root && !Opened(m, now)))
+                if (m.stop) break; // Bun is bringing a window forward itself (Quiet): nothing more is given back
+                IntPtr fg = Win.GetForegroundWindow();
+                bool opened = fg != IntPtr.Zero && fg != m.front && Opened(m, fg);
+                bool took = fg != IntPtr.Zero && fg != m.front && (Root(fg) == m.root || opened);
+                bool over = m.sink && m.front != IntPtr.Zero && Win.IsWindow(m.front) && Above(m.root, m.front);
+                if ((took || over) && clock.ElapsedMilliseconds >= settleMs)
                 {
-                    left = (int)Math.Max(0, settleMs + ms - clock.ElapsedMilliseconds);
-                    break;
+                    taken |= took;
+                    if (took && m.front != IntPtr.Zero && Win.IsWindow(m.front)) back = Program.Activate(m.front);
+                    IntPtr now = Win.GetForegroundWindow();
+                    bool free = now == IntPtr.Zero || (Root(now) != m.root && !Opened(m, now));
+                    if (m.sink && free) Sink(m.root);
+                    if (m.sink && opened && free) Sink(Root(fg));
+                    if (took || !free) quiet = clock.ElapsedMilliseconds;
+                }
+                if (answer && clock.ElapsedMilliseconds >= quiet + AnswerMs && Popups(m).Count == 0)
+                {
+                    IntPtr now = Win.GetForegroundWindow();
+                    if (now == IntPtr.Zero || now == m.front || (Root(now) != m.root && !Opened(m, now)))
+                    {
+                        left = (int)Math.Max(0, settleMs + ms - clock.ElapsedMilliseconds);
+                        break;
+                    }
                 }
             }
             Thread.Sleep(5);
         }
-        if (!m.stop)
+        lock (acting)
         {
-            IntPtr last = Win.GetForegroundWindow();
-            if (left == 0 && last != IntPtr.Zero && last != m.front && (Root(last) == m.root || Opened(m, last))) back = false; // every try failed: it still has the keyboard
-            if (!m.sink && taken && back && m.above != IntPtr.Zero && m.above != m.root && Win.IsWindow(m.above))
-                Win.SetWindowPos(m.root, m.above, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // the user's window, back where it lay: activation raised it over the rest of theirs
+            if (!m.stop)
+            {
+                IntPtr last = Win.GetForegroundWindow();
+                if (left == 0 && last != IntPtr.Zero && last != m.front && (Root(last) == m.root || Opened(m, last))) back = false; // every try failed: it still has the keyboard
+                if (!m.sink && taken && back && m.above != IntPtr.Zero && m.above != m.root && Win.IsWindow(m.above))
+                    Win.SetWindowPos(m.root, m.above, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // the user's window, back where it lay: activation raised it over the rest of theirs
+            }
         }
         return new Dictionary<string, object> { { "taken", taken }, { "back", back }, { "popups", Popups(m) } };
     }

@@ -29,7 +29,7 @@ let calls: [string, Args][];
 const HOUSEKEEPING: Record<string, Reply> = {
   displays: [{ index: 0, frame: DISPLAY }], foreground: { hwnd: 11, pid: 100 }, sink: { ok: true }, desktop: { index: 1, created: true }, send: { ok: true },
   onDesktop: { on: true }, recall: { ok: true }, colours: { colours: 32, blank: false }, removeDesktop: { removed: true }, reg: { value: null },
-  idle: { idleMs: 60_000, held: [], quiet: true, tick: 1000 }, guard: { taken: false, back: true },
+  idle: { idleMs: 60_000, held: [], quiet: true, tick: 1000 }, guard: { taken: false, back: true }, late: { late: [] },
 }; // prettier-ignore
 /** A tree with labels enough for the probe to count the window as working. */
 const LABELLED = { nodes: [node(1, -1, "AXGroup", "Untitled - Notepad"), node(2, 1, "AXMenuItem", "File"), node(3, 1, "AXMenuItem", "Edit"), node(4, 1, "AXTextArea", "Text editor")], capped: false };
@@ -497,6 +497,37 @@ test("a press through accessibility in the hand's page that opens a window makes
   expect(windows.popupsOpened()).toEqual([47]);
   expect(windows.mainWindowId(400)).toBe(47); // the hand's own now, front-most of its windows there
   windows.releaseDesktop();
+});
+
+test("a window a guarded click opens after the helper has answered it is the hand's all the same: told of at the next look, or as the hand is let go, and closed with its windows", async () => {
+  spyOn(process, "kill").mockImplementation(() => true);
+  const chrome = { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Shop", frame: [0, 0, 900, 600], core: 0, exe: "chrome.exe", caption: true };
+  let launched = false;
+  let shown: number[] = []; // the pop-ups up
+  let late: [number, number][] = []; // what the helper's watch behind its answers found, with the window clicked
+  helper({
+    processes: [{ pid: 400, cmd: '"C:\\chrome.exe"' }],
+    windows: () => [...(launched ? [chrome] : []), ...shown.map((hwnd) => ({ ...chrome, hwnd, title: "Sign in" })), ...desk()],
+    launch: () => ((launched = true), { pid: 400 }),
+    post: { ok: true },
+    guard: ({ begin }) => (begin ? { ok: true } : { taken: false, back: true, popups: [] }), // answered before anything came up
+    late: () => ({ late: late.splice(0), behind: false }),
+    capture: { width: 900, height: 600 },
+    close: { ok: true },
+  });
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://shop.example.com/");
+  const target = { pid: 400, windowId: 46, frame: [0, 0, 900, 600] as Frame, web: true };
+  await windows.windowPointer(target, [[150, 150]]);
+  expect(windows.popupsOpened()).toEqual([]);
+  [shown, late] = [[47], [[47, 46]]]; // the sign-in window comes up a moment after the answer
+  await windows.screenshotWindow(46, "w.png"); // the next look
+  expect(windows.popupsOpened()).toEqual([47]);
+  expect(asked("sink")).toContainEqual({ hwnd: 47 }); // kept where its opener is: behind the user's windows
+  await windows.windowPointer(target, [[160, 150]]);
+  [shown, late] = [[47, 48], [[48, 46]]]; // another comes up, and the hand is let go before it looks again
+  windows.release(false);
+  expect(asked("close")).toEqual([{ hwnd: 46 }, { hwnd: 47 }, { hwnd: 48 }]);
 });
 
 test("a press in a page is made only once the user pauses, and gives up quickly for the pointer's longer wait; a value is SeatBusy, not a field that refuses", () => {

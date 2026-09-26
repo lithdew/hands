@@ -777,6 +777,7 @@ async function sendToDesktop(windowId: number, pid: number, app: string): Promis
  * front gets the keyboard back, and the hand's goes behind theirs.
  */
 function keepOnDesktop(): void {
+  adoptLate();
   if (sent.size === 0 && own.size === 0) return;
   const list = windowList();
   const now = performance.now();
@@ -922,6 +923,7 @@ export function releaseDesktop(): void {
   tabsSeen.clear();
   touchedAt.clear();
   countedAt.clear();
+  lateUntil = 0;
   unsettled.clear();
   frontBefore = 0;
   givenUp.clear();
@@ -1379,6 +1381,7 @@ async function guarded<T>(hwnd: number, web: boolean, work: () => Promise<T>): P
         if (sink) adoptPopups(ended.popups ?? [], parked.has(hwnd)); // a window the user's own page opens is theirs
       } finally {
         guarding = false;
+        watchedBehind(sink);
         touch(hwnd); // a tab the click opens is the hand's, however long the wait for the user to pause was
       }
     }
@@ -1394,12 +1397,41 @@ function adoptPopups(opened: number[], offScreen: boolean): void {
   const list = windowList();
   for (const popup of opened) {
     const entry = list.find((w) => w.hwnd === popup);
-    if (!entry) continue; // closed again already
+    if (!entry || own.has(popup)) continue; // closed again already, or the hand's already
     adopt(popup, entry.pid);
     browserWindows.set(popup, entry.pid);
     if (offScreen) park(popup);
     else native.call("sink", { hwnd: popup });
     popups.push(popup);
+  }
+}
+
+// A guarded click in a window of the hand's is answered early and watched on behind its answer (Flash.Behind in
+// windows.cs), up to Flash.WatchMs: a window it opens in that time, after its answer (a page's pop-up, a sign-in that
+// takes a moment), is the hand's too, and the helper tells of it when asked (adoptLate). Asked until a moment past that.
+const LATE_MS = 1000;
+let lateUntil = 0; // until when a click's watch behind its answer may still find a window it opened (0: none may)
+
+/** A guarded click has been answered: when it was in a window of the hand's, what it opens after its answer is asked for a while. */
+function watchedBehind(sink: boolean | undefined): void {
+  if (sink) lateUntil = performance.now() + LATE_MS;
+}
+
+/**
+ * The windows the hand's guarded clicks opened after the helper answered them, adopted as their answers' are
+ * (adoptPopups), each kept as the window it was opened from is kept: off the screens with it when it is parked. Asked
+ * at every look and action (keepOnDesktop) and at the watcher's rounds while a click's watch may still find one, and
+ * once after that, and as the hand is released, so that its pop-up is closed with it. Nothing here throws.
+ */
+function adoptLate(): void {
+  if (lateUntil === 0) return;
+  const last = performance.now() >= lateUntil;
+  try {
+    const { late } = native.call("late") as { late?: [number, number][] };
+    for (const [popup, from] of late ?? []) if (browserWindows.has(from)) adoptPopups([popup], parked.has(from)); // opened from a window still the hand's: not given up to the user
+    if (last) lateUntil = 0;
+  } catch {
+    // the helper is busy or gone: asked again next time
   }
 }
 
@@ -2503,6 +2535,7 @@ const act = (ref: unknown, action: string): boolean => {
       const done = native.call("act", { id: ref, action, ...(web ? { sink: webRefs.get(ref) } : {}) }) as { ok: boolean; popups?: number[] };
       if (refWindows.has(ref)) touch(refWindows.get(ref)!); // after the wait for the user to pause: a tab the press opens is the hand's
       if (webRefs.get(ref)) adoptPopups(done.popups ?? [], parked.size > 0); // a press in the hand's page that opened a window: the hand's, as for a click
+      if (action === AX_PRESS) watchedBehind(webRefs.get(ref));
       return Boolean(done.ok);
     } catch {
       return false;
@@ -2563,6 +2596,7 @@ export function axSetValue(ref: unknown, value: string): boolean {
   const set = () => {
     const reply = native.call("setValue", { id: ref, text: value, ...(web ? { sink: webRefs.get(ref) } : {}) }) as { ok: boolean; posted?: boolean; why?: string };
     if (refWindows.has(ref)) touch(refWindows.get(ref)!); // after the wait for the user to pause: a tab a submit opens is the hand's
+    watchedBehind(webRefs.get(ref));
     return reply;
   };
   try {
@@ -3128,6 +3162,7 @@ export function sweepDesktops(): number {
  */
 export function release(keepBrowser: boolean): void {
   abandonSeat();
+  adoptLate(); // a pop-up a last click opened goes with the hand's windows
   try {
     const list = windowList();
     for (const [windowId, pid] of browserWindows) {
