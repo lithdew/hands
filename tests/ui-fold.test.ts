@@ -53,6 +53,16 @@ test("the lines words take are counted long: a line breaks between words, so it 
   expect(lines("Done.", 30)).toBe(1);
   expect(lines("a".repeat(31), 30)).toBe(2);
   expect(lines("Opened Notepad and wrote the haiku:\nLunch waits in warm light\nA quiet bowl, a shared pause\nAfternoon begins", 28)).toBe(5);
+  expect(lines("a".repeat(30), 30)).toBe(1);
+  // A word that does not fit goes whole to the next line, leaving the end of the last one empty.
+  expect(lines("abcdef ghijkl mnopqr", 10)).toBe(3);
+  expect(lines("Sign in at https://accounts.google.com/ServiceLogin?hl=en then tell me.", 44)).toBe(3);
+  // One longer than a line starts on a line of its own and takes as many as it needs; what follows goes on after it.
+  expect(lines(`Go to ${"a".repeat(25)} now`, 10)).toBe(4);
+  // Chinese, Japanese and Korean, and emoji, are about twice as wide as a Latin letter.
+  expect(lines("今日は良い天気ですね", 15)).toBe(2);
+  expect(lines("🎉".repeat(8), 15)).toBe(2);
+  expect(lines("é".repeat(15), 15)).toBe(1);
   expect(folded({ status: "done" }, { ...WIDE, lines: 1 })).toBe(SIZE.strip + SIZE.pad + SIZE.line);
   expect(unfolded({ ...WIDE, lines: 1 })).toBe(SIZE.strip + SIZE.rule + 235 + SIZE.pad + SIZE.line);
 });

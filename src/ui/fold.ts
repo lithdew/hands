@@ -37,11 +37,34 @@ export const SIZE = {
 export const finished = (status: Status): boolean => status === "done" || status === "failed" || status === "stopped";
 const busy = (status: Status): boolean => status === "working" || status === "starting";
 
+/** A character about as wide as two Latin letters: Chinese, Japanese and Korean, full-width forms, and emoji. */
+const WIDE = /[\u1100-\u115f\u2e80-\u303e\u3040-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]|\p{Extended_Pictographic}/u;
+
 /**
- * How many lines words take where `chars` of them fit on a line. A guess that errs long, since a line breaks between
- * words: the column is arranged for at least what is drawn, and never runs over for a line it did not count.
+ * How many lines words take where `chars` of them fit on a line: a guess, made before they are drawn. The words are
+ * broken as the card breaks them: a word that does not fit on a line goes whole to the next, and one longer than a
+ * line takes lines of its own; a wide character counts as two. With `chars` counted short it errs long for most
+ * text, but a font's widest letters can still take more room than counted, so the page also measures the lines it
+ * drew and arranges the column again when they are more (ui.ts).
  */
-export const lines = (text: string, chars: number): number => (text ? text.split("\n").reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / chars)), 0) : 0);
+export function lines(text: string, chars: number): number {
+  let count = 0;
+  for (const paragraph of text ? text.split("\n") : []) {
+    count++;
+    let used = 0; // how much of the line is taken
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      const width = [...word].reduce((sum, char) => sum + (WIDE.test(char) ? 2 : 1), 0);
+      if (used && used + 1 + width <= chars) {
+        used += 1 + width;
+        continue;
+      }
+      const more = Math.ceil(width / chars) - 1; // lines of its own, past the one it starts on
+      count += (used ? 1 : 0) + more;
+      used = width - more * chars;
+    }
+  }
+  return count;
+}
 
 /** Which hands want the room most: one that needs you, then the ones at work (a picture before a task still waiting for one), then one waiting to go on. */
 const ATTENTION: Record<Status, number> = { needs_you: 0, working: 1, starting: 2, paused: 3, failed: 4, done: 5, stopped: 6 };

@@ -7,7 +7,7 @@
  * the column is, which cards show a picture (only those are filmed), and what the user asked of a hand.
  */
 
-import { build, type Card, frame, fresh, paint, part, track, write } from "./card.ts";
+import { build, type Card, frame, fresh, measured, paint, part, track, write } from "./card.ts";
 import { extra, level, speak } from "./dock.ts";
 import { arrange, finished, lines, order, type Shape } from "./fold.ts";
 import { deal, glide, sweep, where } from "./motion.ts";
@@ -141,9 +141,13 @@ function update(): void {
     // A picture's shape is the last frame's; before the first, the window's own, when the hand has one. A lookup has none.
     const ratio = hand.kind === "lookup" ? null : card?.url ? card.ratio : hand.size ? hand.size[0] / hand.size[1] : null;
     const said = says(hand);
-    // A receipt's words stand beside its small picture, where fewer of them fit on a line.
+    // A receipt's words stand beside its small picture, where fewer of them fit on a line. They take as many lines
+    // as counted, or as many as they were seen to take when drawn, if that was more (card.ts, measured).
     const chars = finished(hand.status) && card?.url ? RECEIPT_CHARS : CARD_CHARS;
-    shapes.set(hand.id, { ratio, words: said !== "", lines: lines(said, chars), tally: (card?.steps.length ?? 0) > 0, sources: hand.kind === "lookup" && !!hand.sources?.length });
+    const words = `${chars} ${said}`;
+    if (card && card.drawn.words !== words) card.drawn = { words, lines: 0 };
+    const count = Math.max(lines(said, chars), card?.drawn.lines ?? 0);
+    shapes.set(hand.id, { ratio, words: said !== "", lines: count, tally: (card?.steps.length ?? 0) > 0, sources: hand.kind === "lookup" && !!hand.sources?.length });
   }
   const layout = arrange(hands, shapes, room - extra(), open, watching);
   // Watched with no room for it even at its smallest: it is not watched after all.
@@ -269,6 +273,9 @@ function report(): void {
   if (measuring) return;
   measuring = window.setTimeout(() => {
     measuring = 0;
+    // Words that took more lines than were counted for them: the column is arranged again for what was drawn, and
+    // measured once that is drawn.
+    if ([...cards.values()].filter(measured).length) return moving(update);
     outline();
     const [width, height] = column.hidden ? [0, 0] : [column.offsetWidth, column.offsetHeight];
     const size = `${width}x${height}@${devicePixelRatio}`;

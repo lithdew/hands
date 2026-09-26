@@ -6,7 +6,7 @@
  * tell it something. All that came from the hand, and so often from a web page, is set as text, never as HTML.
  */
 
-import { finished } from "./fold.ts";
+import { finished, SIZE } from "./fold.ts";
 import { EASE_OUT, ms, settle, still } from "./motion.ts";
 import { busy, clock, type Control, controls, driver, hold, moved, recount, says, searching, sentence, type Step, sight, site, stale, steps, tally } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, Status } from "./state.ts";
@@ -45,6 +45,7 @@ export interface Card {
   act: string; // the action it was last painted with, so each of Jev's moves is counted once
   taps: number | null; // how many presses its hand had made when last painted: each new one ripples (null: not painted yet)
   shotAt: number; // when the last frame came, on the page's clock: a picture that has not changed for a while says so
+  drawn: { words: string; lines: number }; // the most lines its words took as drawn, for the words and the width ui.ts counted them for (see measured)
 }
 
 const TICKS = 24; // the most steps the header shows: the latest
@@ -82,7 +83,7 @@ export interface Asks {
 export function build(id: string, act: (message: ClientMessage) => void, asks: Asks, keys: Keys): Card {
   const root = (template.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
   root.dataset.id = id;
-  const card: Card = { id, root, view: null, frames: [...root.querySelectorAll<HTMLImageElement>(".screen img")], url: "", frame: 0, ratio: null, of: undefined, clock: "", leaving: false, steps: [], act: "", taps: null, shotAt: 0 };
+  const card: Card = { id, root, view: null, frames: [...root.querySelectorAll<HTMLImageElement>(".screen img")], url: "", frame: 0, ratio: null, of: undefined, clock: "", leaving: false, steps: [], act: "", taps: null, shotAt: 0, drawn: { words: "", lines: 0 } };
   // The header and the words open the sheet; the picture is watched big, and its small copy on a receipt too.
   for (const selector of ["header", ".tell"]) part(card, selector).addEventListener("click", () => asks.toggle(id));
   part(card, ".fold").addEventListener("click", () => (shown(card) && card.view?.kind !== "lookup" ? asks.watch(id) : asks.toggle(id)));
@@ -230,6 +231,19 @@ function sources(card: Card, hand: HandView): void {
       return chip;
     }),
   );
+}
+
+/**
+ * Whether the card's words, as drawn, took more lines than they were last seen to (ui.ts arranges the column again
+ * when they did): counted before they were drawn (fold.ts, lines), they can take more. Only a card at the width
+ * they were counted for says: one watched big, or with its sheet out, is wider, and its words take fewer lines.
+ */
+export function measured(card: Card): boolean {
+  if (card.root.classList.contains("theater") || card.root.classList.contains("open")) return false;
+  const drawn = Math.round(part(card, ".said").clientHeight / SIZE.line);
+  if (drawn <= card.drawn.lines) return false;
+  card.drawn.lines = drawn;
+  return true;
 }
 
 /** Whether the card has a picture of its hand's window to show: the last good frame, even when the window has stopped drawing. */
