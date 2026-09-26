@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
-import { cap, cast, context, dispatch, FRONTEND, glance, isoTime, joined, named, nextShot, notesThatFit, runFolder, sameTask, samplesOf, snapshot, steered, voiceSummary } from "../src/live.ts";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { cap, cast, context, dispatch, FRONTEND, glance, isoTime, joined, named, nextShot, notesThatFit, occlusionNotice, runFolder, sameTask, samplesOf, snapshot, steered, usage, voiceSummary } from "../src/live.ts";
 import { cushion } from "../src/shell.ts";
 
 const hand = (name: string, extra = {}) => ({ id: name.toLowerCase(), name, status: "working" as const, task: `task of ${name}`, action: "", recent: [] as string[], answer: "", reason: "", since: 0, reported: false, ...extra });
@@ -169,6 +171,29 @@ test("notes go to the voice whole, the oldest first, as many as fit in one, and 
   expect(notesThatFit([note(500), note(500), note(499)])).toBe(2);
   expect(notesThatFit([note(1600), note(10)])).toBe(1);
   expect(notesThatFit([])).toBe(0);
+});
+
+test("the startup notice gives the line that turns occlusion tracking off, as the README gives it", () => {
+  const notice = occlusionNotice("Google Chrome");
+  const line = notice.match(/`([^`]+)`/)?.[1];
+  expect(line).toBe("reg add HKCU\\Software\\Policies\\Google\\Chrome /v NativeWindowOcclusionEnabled /t REG_DWORD /d 0 /f");
+  const readme = readFileSync(join(import.meta.dir, "..", "README.md"), "utf8");
+  expect(readme).toContain(line!);
+  expect(readme).toMatch(/^## Windows\r?$/m);
+  expect(readme).toContain("**Browsing fully out of sight**");
+  expect(notice).toContain('"Browsing fully out of sight"');
+  expect(occlusionNotice("Microsoft Edge")).toContain("HKCU\\Software\\Policies\\Microsoft\\Edge");
+});
+
+test("--cold-mic says what a press loses: on Windows the arming too, a quarter of a second in all", () => {
+  const flat = (text: string) => text.replace(/\s+/g, " ");
+  expect(flat(usage())).toContain("Cold, about a tenth of a second at the start of each press is lost.");
+  process.env.HANDS_PLATFORM = "windows";
+  try {
+    expect(flat(usage())).toContain("Cold, about a quarter of a second at the start of each press is lost: the key counts only once it has been held for a fifth of a second");
+  } finally {
+    delete process.env.HANDS_PLATFORM;
+  }
 });
 
 test("a tool call about a hand that is not out says who is, and does nothing", () => {

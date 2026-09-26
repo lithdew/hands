@@ -1194,6 +1194,16 @@ export function isoTime(at = new Date()): string {
   return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}.${pad(at.getMilliseconds(), 3)}${offset < 0 ? "-" : "+"}${pad(Math.floor(Math.abs(offset) / 60))}:${pad(Math.abs(offset) % 60)}`;
 }
 
+/**
+ * What the user is told, once, when their browser stops drawing the windows it thinks nobody can see: what that
+ * costs them, and the line that turns it off, as the README gives it ("Browsing fully out of sight", under "Windows").
+ * Theirs to run: hands never change it.
+ */
+export function occlusionNotice(browser: string): string {
+  const vendor = /edge/i.test(browser) ? "Microsoft\\Edge" : "Google\\Chrome";
+  return `${browser} stops drawing windows it thinks nobody can see, so hands' browser windows stay behind yours and show a strip at a screen edge while they are read. For browsing fully out of sight, run \`reg add HKCU\\Software\\Policies\\${vendor} /v NativeWindowOcclusionEnabled /t REG_DWORD /d 0 /f\` and restart ${browser} (the README says more, under "Windows", "Browsing fully out of sight").`;
+}
+
 /** Every line of the log from here on begins with the time it was written. */
 function stamp(): void {
   for (const level of ["log", "error"] as const) {
@@ -1214,7 +1224,17 @@ async function shutdown(code: number): Promise<void> {
   process.exit(code);
 }
 
-const USAGE = `usage: bun live [--quiet] [--say "words"]... [--every SECONDS] [--out DIR]
+/** What a cold microphone loses at the start of each press. On Windows the key is a press only once it has been held alone for a fifth of a second (shell-windows.ts), and a microphone opened then takes about 60 ms more to start. */
+const coldMicLoss = (): string =>
+  onWindows()
+    ? `Cold, about a quarter
+                 of a second at the start of each press is lost: the key counts only once it has been held for a
+                 fifth of a second, and the microphone starts after that.`
+    : `Cold, about a tenth of
+                 a second at the start of each press is lost.`;
+
+/** How to run it. A function, so that nothing in it (the work folder is looked up) is worked out unless it is asked for. */
+export const usage = (): string => `usage: bun live [--quiet] [--say "words"]... [--every SECONDS] [--out DIR]
 
 Hold the ${TALK_KEY} key, say what you want done, and let go. ${config.liveModel()} hears it and sends out hands:
 one, or several at once, each working in windows of its own behind yours. The corner of the screen shows each
@@ -1224,8 +1244,7 @@ the voice to steer, stop or close hands too. What the hands make goes in ${confi
   --quiet        the voice does not speak: what it says shows in the panel only.
   --cold-mic     open the microphone only while the key is held. By default it stays open and remembers its last half
                  second (in memory only: nothing is sent until the key is held), so that a press never clips the
-                 start of a sentence; the price is the system's microphone light staying on. Cold, about a tenth of
-                 a second at the start of each press is lost.
+                 start of a sentence; the price is the system's microphone light staying on. ${coldMicLoss()}
   --say WORDS    say this to the voice instead of holding the key (synthesized speech): for trying it without a
                  microphone. Give it several times to say several things, --every SECONDS apart (default 30).
 
@@ -1236,7 +1255,7 @@ async function main(argv: string[]): Promise<void> {
     args: argv,
     options: { quiet: { type: "boolean", default: false }, "cold-mic": { type: "boolean", default: false }, say: { type: "string", multiple: true }, every: { type: "string", default: "30" }, out: { type: "string", default: join("runs", `live-${timestamp()}`) }, help: { type: "boolean", short: "h", default: false } },
   });
-  if (values.help) return void console.log(USAGE);
+  if (values.help) return void console.log(usage());
   if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set (put it in .env): the voice is OpenAI's");
   stamp();
   // Nothing that goes wrong in a timer or a handler ends the run: the voice, the panel and every hand go with it.
@@ -1255,7 +1274,7 @@ async function main(argv: string[]): Promise<void> {
     void windows
       .appInstances(config.browser())
       .then(async (running) => running.some((one) => !one.automated) && !(await windows.browserUnoccluded(config.browser())))
-      .then((occluded) => occluded && console.log(`[live] ${config.browser()} stops drawing windows it thinks nobody can see, so hands' browser windows stay behind yours and show a strip at a screen edge while they are read. For browsing fully out of sight, set the Chrome policy NativeWindowOcclusionEnabled to 0 (see the README, "Windows") and restart the browser.`))
+      .then((occluded) => occluded && console.log(`[live] ${occlusionNotice(config.browser())}`))
       .catch(() => {});
   }
   const runs = resolve(values.out);
