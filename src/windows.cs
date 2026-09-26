@@ -1886,7 +1886,7 @@ static class Flash
  */
 static class Seat
 {
-    const uint Slack = 100; // ms after the helper's own input within which the last input is taken for it
+    const uint Slack = 50; // ms after the helper's own input within which the last input is taken for it: three of the clock's 15.6 ms ticks
     const int Wander = 4; // px the cursor may be from where the helper's input left it before the user is taken to have moved it
 
     static uint injectedAt; // the tick after the helper's last SendInput, 0 before any

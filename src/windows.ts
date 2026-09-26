@@ -1720,12 +1720,15 @@ export interface AppWindow {
   frame: Frame;
 }
 
-/** An app's ordinary windows, front to back, those on the hand's own desktop included. One that is covered by another still counts; a minimized one does not. */
 const POPUP_CLASSES = new Set(["Xaml_WindowedPopupClass", "tooltips_class32", "#32768"]); // a WinUI popup or tooltip (Notepad's "New tab" tip was captured as the window, measured), a classic tooltip, a menu
 
+/** A window that counts as one of an app's: covered or not, but not minimized, not a popup or a tip, not a sliver. */
+const ordinary = (w: WindowEntry): boolean => !w.iconic && !POPUP_CLASSES.has(w.cls) && w.frame[2] > MIN_WINDOW_SIDE_PT && w.frame[3] > MIN_WINDOW_SIDE_PT;
+
+/** An app's ordinary windows, front to back, those on the hand's own desktop included. One that is covered by another still counts; a minimized one does not. */
 export function appWindows(pid: number): AppWindow[] {
   return windowList()
-    .filter((w) => w.pid === pid && !w.iconic && !POPUP_CLASSES.has(w.cls) && w.frame[2] > MIN_WINDOW_SIDE_PT && w.frame[3] > MIN_WINDOW_SIDE_PT)
+    .filter((w) => w.pid === pid && ordinary(w))
     .map(({ hwnd, frame }) => ({ id: hwnd, frame }));
 }
 
@@ -2068,13 +2071,14 @@ async function reveal(windowId: number): Promise<boolean> {
  * of them, a minimized one if that is all it has), and never one of the user's, even when all of its own are gone
  * (null then: the hand opens another). In an app it only took up as it was, the app's front window.
  */
-export const mainWindowId = (pid: number): number | null => {
-  const list = windowList();
+export const mainWindowId = (pid: number): number | null => mainIn(pid, windowList());
+
+function mainIn(pid: number, list: WindowEntry[]): number | null {
   const mine = list.filter((w) => w.pid === pid && own.get(w.hwnd) === pid);
   if (mine.length > 0) return (mine.find((w) => !w.iconic) ?? mine[0]!).hwnd;
   if (opened.has(pid)) return null;
-  return appWindows(pid)[0]?.id ?? null;
-};
+  return list.find((w) => w.pid === pid && ordinary(w))?.hwnd ?? null;
+}
 
 /**
  * The window to look at and act in, for a hand working in `pid`: `preferred` (its browser window, say) or its main
@@ -2083,9 +2087,9 @@ export const mainWindowId = (pid: number): number | null => {
  * app has no window, or `preferred` is gone.
  */
 export function workingWindow(pid: number, preferred?: number): WorkingWindow | null {
-  const base = preferred ?? mainWindowId(pid);
-  if (base === null) return null;
   const list = windowList();
+  const base = preferred ?? mainIn(pid, list);
+  if (base === null) return null;
   const entry = list.find((w) => w.hwnd === base);
   if (!entry) return null;
   const dialog = dialogOf(entry, list);
