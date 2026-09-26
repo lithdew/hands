@@ -56,17 +56,27 @@ export function shut(quietly = false): void {
   if (!quietly) hooks?.keyboard();
 }
 
+/** What the keys did to the dock, done at once: a dock resting small again after Esc does not animate its way there. */
+function instantly(change: () => void): void {
+  dock.dataset.instant = "";
+  change();
+  void dock.offsetHeight;
+  delete dock.dataset.instant;
+}
+
 box.addEventListener("submit", (event) => {
   event.preventDefault();
   const text = input.value.trim();
-  shut();
-  if (text) asked(text, hooks?.send({ cmd: "ask", text }) ?? false);
+  instantly(() => {
+    shut();
+    if (text) asked(text, hooks?.send({ cmd: "ask", text }) ?? false);
+  });
 });
 input.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   event.preventDefault();
   event.stopPropagation();
-  shut();
+  instantly(() => shut());
 });
 // The dock opens the box, and a click on it with the box out (on the palm, say) gives the box back its caret; a click
 // anywhere else puts it away. A click that opens a sheet has put it away already.

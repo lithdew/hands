@@ -234,16 +234,21 @@ function log(hand: string, entries: LogEntry[], reset = false): void {
 
 clear.addEventListener("click", () => send({ cmd: "clear" }));
 
+/** A change the keyboard asked for, made at once: what the keyboard does gets no animation, on any card it moves. */
+function instantly(change: () => void): void {
+  const all = [...cards.values()].map((card) => card.root);
+  for (const root of all) root.classList.add("instant");
+  change();
+  void deck.offsetHeight;
+  for (const root of all) root.classList.remove("instant");
+}
+
 document.addEventListener("keydown", (event) => {
   if (!open) return;
   const card = cards.get(open);
   if (event.key === "Escape") {
-    // Put away at once: what the keyboard does gets no animation.
     event.preventDefault();
-    card?.root.classList.add("instant");
-    toggle(null);
-    void card?.root.offsetHeight;
-    card?.root.classList.remove("instant");
+    instantly(() => toggle(null));
   } else if (closes(event, windows)) {
     // Close the hand, but only from an empty box: with words in it, the keys are the user's to edit with.
     // Ctrl+Backspace is never a close: in a text box it deletes a word.
@@ -261,7 +266,7 @@ document.addEventListener("keydown", (event) => {
       return;
     }
     const next = neighbour(order(last.hands).map((hand) => hand.id), card.id, key === "next" ? 1 : -1);
-    if (next) toggle(next, true);
+    if (next) instantly(() => toggle(next, true));
   }
 });
 

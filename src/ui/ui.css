@@ -1207,6 +1207,10 @@ html:not(.windows) [data-cmd="show"] {
   gap: 6px;
   padding: 0 14px 12px;
 }
+.controls button {
+  flex: none;
+  white-space: nowrap; /* the keys' hint gives way first */
+}
 .keys {
   min-width: 0;
   margin-left: auto;
@@ -1411,6 +1415,10 @@ html:not(.windows) [data-cmd="show"] {
 }
 #dock.asking .words {
   display: none;
+}
+#dock[data-instant],
+#dock[data-instant] * {
+  transition-duration: 0s !important; /* what the keys did in the box (ask.ts, instantly) */
 }
 #dock.typed .words {
   font: 600 18px/24px var(--display);
