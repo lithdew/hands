@@ -20,6 +20,7 @@ import type { Command } from "./agent.ts";
 import { timestamp } from "./cli.ts";
 import * as config from "./config.ts";
 import { type Cue, POSES, quote } from "./hand.ts";
+import { type Intent, intent, type Out, type Outcome, plan, progress, told } from "./intent.ts";
 import { onWindows, PERMISSION, platform as macos, startShell } from "./platform.ts";
 import { type Earlier, jev, type Route, route, warmUp } from "./route.ts";
 import { cushion, type Shell, type Talk } from "./shell.ts";
@@ -831,6 +832,50 @@ export function dispatch(name: string, args: Record<string, unknown>, runs: stri
   return outcomes.length === 1 ? outcomes[0] : outcomes;
 }
 
+/**
+ * A line the user typed into the dock, read by Jev (src/intent.ts) and done as its reading asks: a new task goes out as
+ * the voice's backend would start it, a word for a hand is said to it, stop and close are the backend's tools too, and
+ * pause, carry on and show are the card's own buttons. A question is answered in the dock from what the voice would be
+ * told: a Live session takes the user's audio and notes for it to say, not a typed turn, so the voice is not asked. The
+ * dock is told what came of the line at once; the voice's conversation has the line and that, and when something was
+ * done, the voice is told what, so that a spoken turn later follows on. `read` is Jev's reading, which tests replace.
+ */
+export async function ask(text: string, read: (typed: string, out: Out[]) => Promise<Intent> = (typed, out) => intent(jev, typed, out)): Promise<string> {
+  const typed = text.trim();
+  if (!typed) return "";
+  // Typed, not said: what the user last said is of something else, and a typed task is its own words (dispatch gives
+  // Jev's routing the words last said only when a response asked for one thing: as if this asked for more).
+  const TYPED = 2;
+  const out = (): Out[] =>
+    ordered(hands.values()).map((one) => ({ id: one.id, name: one.name, status: one.status, task: one.task, kind: one.kind, window: onWindows() && one.window !== null, ...(one.status === "needs_you" && one.answer ? { needs: voiceSummary(one.answer, ANSWER_CHARS) } : {}) }));
+  addTurn(`User (typed): ${typed}`);
+  let said: string;
+  try {
+    const reading = await read(typed, out());
+    console.log(`[ask] “${cap(typed, 80)}”: ${reading.what}${reading.hand ? ` ${reading.hand}` : ""} (${reading.confidence.toFixed(2)}), ${reading.ms} ms${reading.why ? `, ${reading.why}` : ""}`);
+    const outcomes: Outcome[] = [];
+    const words: string[] = [];
+    for (const step of plan(reading.what, reading.hand, typed, out())) {
+      if ("say" in step) words.push(step.say);
+      else if ("answer" in step) words.push(progress(step.answer.flatMap((id) => hands.get(id) ?? []).map((one) => brief(one))));
+      else if ("tool" in step) outcomes.push(...[dispatch(step.tool, step.args, runsDir, TYPED)].flat().map((output) => ({ ...(output as Outcome), fresh: step.fresh })));
+      else if (hands.get(step.hand)?.gone && step.button !== "show") outcomes.push({ error: `${step.name} has gone: its process ended. Ask for a new hand if its task is still wanted` });
+      else {
+        command({ cmd: step.button, hand: step.hand });
+        outcomes.push({ hand: step.name, state: step.button });
+      }
+    }
+    said = [...(outcomes.length ? [told(outcomes)] : []), ...words].join(" ");
+    if (outcomes.length) aside(`The user typed “${cap(typed, 300)}” into the panel, and it was done: ${said}`);
+  } catch (error) {
+    console.error(`[ask] “${cap(typed, 80)}”: ${(error as Error).stack ?? error}`);
+    said = `That didn't go through: ${(error as Error).message ?? error}`;
+  }
+  addTurn(`Panel: ${said}`);
+  publish({ type: "answer", asked: typed, said });
+  return said;
+}
+
 let known = ""; // what the user's profile says, as last read: when a session starts, and after the backend adds to it
 
 function readProfile(): string {
@@ -1372,7 +1417,7 @@ function show(hand: Hand): void {
 
 /** What the panel's buttons and its box ask for. */
 export function command(message: ClientMessage): void {
-  if (message.cmd === "ask") return; // the dock's typed ask: src/intent.ts, next
+  if (message.cmd === "ask") return void ask(message.text); // what the user typed into the dock, as Jev reads it (src/intent.ts)
   if (process.env.HANDS_DEBUG) console.error(`[panel] ${JSON.stringify(message)}`);
   if (message.cmd === "size") {
     const room = shell?.panel.room();

@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeEach, expect, jest, mock, spyOn, test } from
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { Intent, Out, What } from "../src/intent.ts";
 import * as live from "../src/live.ts";
 import type { Earlier, Way } from "../src/route.ts";
 import type { Shell } from "../src/shell.ts";
@@ -947,4 +948,120 @@ test("both: facts that come while the hand is paused or waits on the user are to
     { type: "prompt", text: museum },
     { type: "steer", text: "write it in Notepad instead" },
   ]);
+});
+
+// ------------------------------------------------------------------ a line typed into the dock (live.ask)
+
+/** Jev's reading of a typed line, as the test says it, and the hands it was shown. */
+const reads = (what: What, hand: string | null = null) => {
+  const shown: Out[][] = [];
+  const read = async (_typed: string, out: Out[]): Promise<Intent> => (shown.push(out), { what, hand, confidence: 0.9, ms: 1, why: "the test says so" });
+  return Object.assign(read, { shown });
+};
+
+test("a typed line Jev reads as a new task goes out as the voice's would, and Jev's routing hears the typed words alone, not what was last said", async () => {
+  process.env.HANDS_WEB = "jev";
+  way = "computer";
+  live.voice.heard = "open my email and read the latest one"; // said earlier, of something else
+  expect(await live.ask("  find me a hotel in Tokyo  ", reads("new_task"))).toBe("Lefty is on it.");
+  await settle();
+  expect(routes[0]).toMatchObject({ task: "find me a hotel in Tokyo", userSaid: "" });
+  expect(hands[0]!.told).toEqual([{ type: "prompt", text: "find me a hotel in Tokyo" }]);
+  expect(await live.ask("find me a hotel in Tokyo", reads("new_task"))).toBe("Lefty is already on it.");
+  expect(await live.ask("   ", reads("new_task"))).toBe(""); // nothing typed, nothing done
+  expect(hands.length).toBe(1);
+});
+
+test("a typed word for a hand goes to it, the words the user's own; to a hand that has finished it is new work", async () => {
+  live.dispatch("start_hands", { tasks: ["find flights to Tokyo"] }, runs);
+  hands[0]!.say({ type: "status", status: "working" });
+  await Bun.sleep(5);
+  const read = reads("steer", "lefty");
+  expect(await live.ask("only direct ones", read)).toBe("Told Lefty.");
+  expect(read.shown[0]).toEqual([{ id: "lefty", name: "Lefty", status: "working", task: "find flights to Tokyo", kind: "hand", window: false }]);
+  expect(hands[0]!.told.at(-1)).toEqual({ type: "steer", text: "only direct ones" });
+  hands[0]!.say({ type: "status", status: "done", answer: "Two direct flights." });
+  await Bun.sleep(5);
+  expect(await live.ask("now book the cheaper one", reads("steer", "lefty"))).toBe("Lefty is on it.");
+  expect(known()[0]!.task).toBe("now book the cheaper one");
+});
+
+test("typed, stop and close are the voice's; pause, carry on and show are the card's buttons; a paused hand stops as its card's Stop does", async () => {
+  live.dispatch("start_hands", { tasks: ["find flights to Tokyo"] }, runs);
+  const lefty = hands[0]!;
+  lefty.say({ type: "status", status: "working" });
+  lefty.say({ type: "cue", subject: { window: 4242, origin: [0, 0] }, size: [1280, 800] });
+  await Bun.sleep(5);
+  expect(await live.ask("hold on", reads("pause", "lefty"))).toBe("Pausing Lefty.");
+  expect(lefty.told.at(-1)).toEqual({ type: "pause" });
+  lefty.say({ type: "status", status: "paused" });
+  await Bun.sleep(5);
+  expect(await live.ask("pause it", reads("pause", "lefty"))).toBe("Lefty is paused.");
+  expect(await live.ask("carry on", reads("resume", "lefty"))).toBe("Lefty carries on.");
+  expect(lefty.told.at(-1)).toEqual({ type: "resume" });
+  expect(await live.ask("never mind", reads("stop"))).toBe("Stopping Lefty."); // the only hand out; paused, so as its card's Stop
+  expect(lefty.told.at(-1)).toEqual({ type: "stop" });
+  expect(await live.ask("show me", reads("show", "lefty"))).toBe("Lefty has no window to show."); // the Mac: no Show
+  process.env.HANDS_PLATFORM = "windows";
+  try {
+    expect(await live.ask("show me", reads("show", "lefty"))).toBe("Brought Lefty's window to you.");
+    expect(lefty.told.at(-1)).toEqual({ type: "show", window: 4242 });
+  } finally {
+    delete process.env.HANDS_PLATFORM;
+  }
+  lefty.say({ type: "status", status: "working" });
+  await Bun.sleep(5);
+  expect(await live.ask("stop", reads("stop", "lefty"))).toBe("Stopping Lefty.");
+  expect(lefty.told.at(-1)).toEqual({ type: "stop" });
+  expect(await live.ask("close it", reads("close", "lefty"))).toBe("Closed Lefty.");
+  expect(known()).toBe("No hands are out." as never);
+});
+
+test("a typed question is answered in the dock from what the voice would be told, and nothing is done", async () => {
+  live.dispatch("start_hands", { tasks: ["find flights to Tokyo", "write a haiku about lunch"] }, runs);
+  hands[0]!.say({ type: "status", status: "working" });
+  hands[0]!.say({ type: "cue", label: "click “Search”" });
+  hands[1]!.say({ type: "status", status: "working" });
+  hands[1]!.say({ type: "status", status: "done", answer: "Wrote it:\n\nLunch waits in warm light" });
+  await Bun.sleep(5);
+  const told = hands.map((one) => one.told.length);
+  expect(await live.ask("how's it going?", reads("question"))).toBe("Lefty is working: click “Search”.\nRighty is done: Wrote it: Lunch waits in…");
+  expect(await live.ask("what did righty write?", reads("question", "righty"))).toBe("Righty is done: Wrote it: Lunch waits in warm light");
+  expect(hands.map((one) => one.told.length)).toEqual(told);
+});
+
+test("a typed line with no hand to be sure of asks which, a thank-you does nothing, and a reading that throws is said, not lost", async () => {
+  live.dispatch("start_hands", { tasks: ["find flights to Tokyo", "open Notepad"] }, runs);
+  hands[0]!.say({ type: "status", status: "working" });
+  hands[1]!.say({ type: "status", status: "working" });
+  await Bun.sleep(5);
+  expect(await live.ask("stop", reads("stop"))).toBe("Which hand? Lefty or Righty.");
+  expect(await live.ask("thanks!", reads("nothing"))).toBe("Nothing to do.");
+  expect(hands.map((one) => one.told.at(-1)!.type)).toEqual(["prompt", "prompt"]);
+  const broken = async (): Promise<Intent> => {
+    throw new Error("the socket went");
+  };
+  expect(await live.ask("stop lefty", broken)).toBe("That didn't go through: the socket went");
+});
+
+test("the voice knows what was typed: the line and what came of it are in its conversation, and what was done is a note for it", async () => {
+  live.dispatch("start_hands", { tasks: ["open Paint"] }, runs);
+  hands[0]!.say({ type: "status", status: "working" });
+  live.dispatch("start_hands", { tasks: ["open Notepad"] }, runs);
+  hands[1]!.say({ type: "status", status: "done", answer: "Notepad is open." }); // a note to say opens a session
+  await Bun.sleep(5);
+  const first = sessions.at(-1)!;
+  expect(await live.ask("stop lefty", reads("stop", "lefty"))).toBe("Stopping Lefty.");
+  expect(first.notes("session.thinking.append").at(-1)).toBe("For you to know, not to say: The user typed “stop lefty” into the panel, and it was done: Stopping Lefty.");
+  const notes = first.sent.length;
+  await live.ask("how's it going?", reads("question"));
+  expect(first.sent.length).toBe(notes); // a question does nothing, and the voice is not told of it
+  first.emit("session.closed", {});
+  hands[0]!.say({ type: "status", status: "stopped" });
+  live.dispatch("start_hands", { tasks: ["open Calculator"] }, runs);
+  hands[2]!.say({ type: "status", status: "done", answer: "Calculator is open." });
+  await Bun.sleep(5);
+  const again = sessions.at(-1)!.sent[0]!.session.input[0].content[0].text as string;
+  expect(again).toContain("User (typed): stop lefty\nPanel: Stopping Lefty.");
+  expect(again).toContain("User (typed): how's it going?");
 });
