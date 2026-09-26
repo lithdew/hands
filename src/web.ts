@@ -157,7 +157,7 @@ const LINK = new RegExp(String.raw`\[([^\]]+)\]\(${URL_TEXT}\)`, "g");
  * The answer as plain text: a citation in brackets goes, a link in a sentence keeps its words (the sources are listed
  * apart), and Markdown's marks go (a heading's #, a bullet, **bold**, *italics* and _italics_), where a model writes
  * them in spite of its prompt. Numbers, dates and a numbered list's numbers stay as they are, and so does a * or _
- * inside a word, a sum or a name such as __init__.
+ * inside a word, a sum, a power such as 10**6 or a name such as __init__.
  */
 export function plain(text: string): string {
   return text
@@ -165,7 +165,7 @@ export function plain(text: string): string {
     .replace(LINK, "$1")
     .replace(/^[ \t]{0,3}#{1,6}[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/gm, "$1")
     .replace(/^[ \t]*[-*+•][ \t]+/gm, "")
-    .replace(/\*\*(?=\S)(.+?)(?<=\S)\*\*/g, "$1")
+    .replace(/(^|[^\w*])\*\*(?=\S)(.+?)(?<=\S)\*\*(?![\w*])/gm, "$1$2")
     .replace(/(^|[^\w*])\*(?=[^\s*])([^*\n]*?[^\s*])\*(?![\w*])/gm, "$1$2")
     .replace(/(^|[^\w_])_(?=[^\s_])([^_\n]*?[^\s_])_(?![\w_])/gm, "$1$2")
     .replace(/[ \t]+([.,;:!?])/g, "$1")

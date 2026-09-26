@@ -172,6 +172,8 @@ test("plain: Markdown's bold, italics, headings and bullets go, and numbers, dat
   expect(plain("2 * 3 * 4 = 24, and 5*6 is 30; my_var_name and __init__ stay.")).toBe("2 * 3 * 4 = 24, and 5*6 is 30; my_var_name and __init__ stay.");
   expect(plain("-5 °C tonight, and 2024-07-01 is a date.")).toBe("-5 °C tonight, and 2024-07-01 is a date.");
   expect(plain("***Very*** important.")).toBe("Very important.");
+  expect(plain("A megabyte is 10**6 bytes and a mebibyte 2**20 bytes.")).toBe("A megabyte is 10**6 bytes and a mebibyte 2**20 bytes."); // powers, not bold
+  expect(plain("It is 2**20 bytes, **1 MiB**, and **(bold)** too.")).toBe("It is 2**20 bytes, 1 MiB, and (bold) too.");
 });
 
 test("plain: a citation in brackets goes, several in one pair too, a link in a sentence keeps its words, and a URL with brackets in it is one URL", () => {
