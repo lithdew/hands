@@ -129,6 +129,15 @@ test("where OCR is noisy, a control keeps its own label and a glyph read off its
   expect(clean).toEqual(["Ifi Home", "Close", "x", "OK"]); // the Mac: the longer label, and every block
 });
 
+test("where OCR is noisy, short text inside a big control is real and stays: a count in a row, a line in a document", () => {
+  const blocks = [ocrItem(0, "5", 560, 210, 572, 234), ocrItem(1, "42", 60, 300, 84, 324), ocrItem(2, "c", 1004, 12, 1016, 30)];
+  const controls = [axItem(0, "Inbox", 40, 200, 600, 244, "row"), axItem(1, "Text editor", 40, 120, 1200, 900, "textarea"), axItem(2, "Reload", 995, 5, 1025, 37)];
+  const kept = mergeSources(blocks, controls, 255, { noisyOcr: true }).map((it) => [it.text, it.source]);
+  expect(kept).toContainEqual(["5", "ocr"]);
+  expect(kept).toContainEqual(["42", "ocr"]);
+  expect(kept).not.toContainEqual(["c", "ocr"]); // the glyph read off the Reload icon still goes
+});
+
 test("a field's value survives the merge", () => {
   const control = { ...axItem(0, "Search", 100, 100, 300, 130, "field"), value: "cheap flights" };
   expect(mergeSources([ocrItem(0, "Search", 100, 100, 300, 130)], [control])[0]).toMatchObject({ text: "Search", value: "cheap flights" });

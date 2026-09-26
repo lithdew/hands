@@ -33,6 +33,12 @@ export interface CaptureOptions {
   url?: string;
   browser?: string;
   timing?: Timing;
+  /**
+   * The display is looked at only to read it (a hand with nothing of its own open, answering what is on the user's
+   * screen): the hand shows it is looking without riding the display, where it would sit over the user's windows, in
+   * their way and clickable, after the look was long over.
+   */
+  onlyToRead?: boolean;
 }
 
 /**
@@ -54,7 +60,8 @@ export async function capture(options: CaptureOptions = {}): Promise<Screen> {
   });
   const window = await phase(timing, "window", () => (replay ? null : macos.frontmostWindowBounds(pid)));
   const display = macos.displayFor(window);
-  if (!replay) hand.look({ origin: [display.frame[0], display.frame[1]] }, [display.frame[2], display.frame[3]]);
+  if (!replay && options.onlyToRead) void hand.cue("look", "looking");
+  else if (!replay) hand.look({ origin: [display.frame[0], display.frame[1]] }, [display.frame[2], display.frame[3]]);
   const image = await phase(timing, "screenshot", () => {
     if (imagePath) return macos.captureAt(imagePath);
     if (!options.out) throw new Error("capture needs somewhere to write the screenshot");
@@ -81,14 +88,26 @@ export async function capture(options: CaptureOptions = {}): Promise<Screen> {
  * One window, read where it lies. The capture is the window and nothing else, so its origin is the
  * window's own corner and everything downstream works unchanged. There is no focused field: the
  * keyboard focus belongs to whatever the user is doing.
+ *
+ * A window the user minimized is not among an app's windows. On Windows the capture restores it first,
+ * without activation, and puts one of the hand's own back behind the user's windows (src/windows.ts
+ * screenshotWindow), so it is captured all the same and found where it came back; only a window that
+ * is really gone is said to be.
  */
 async function captureWindow(target: { pid: number; windowId: number }, { out, url, timing }: CaptureOptions): Promise<Screen> {
   macos.releaseElements();
-  const window = await phase(timing, "window", () => macos.appWindows(target.pid).find((w) => w.id === target.windowId)?.frame ?? null);
-  if (!window) throw new Error("the window is gone: closed, minimized, or on another desktop");
+  const frameOf = () => macos.appWindows(target.pid).find((w) => w.id === target.windowId)?.frame ?? null;
+  const gone = () => new Error("the window is gone: closed, minimized, or on another desktop");
+  let window = await phase(timing, "window", frameOf);
+  if (!window && !onWindows()) throw gone();
   if (!out) throw new Error("capture needs somewhere to write the screenshot");
-  hand.look({ window: target.windowId, origin: [window[0], window[1]] }, [window[2], window[3]]);
+  if (window) hand.look({ window: target.windowId, origin: [window[0], window[1]] }, [window[2], window[3]]);
   const image = await phase(timing, "screenshot", () => macos.screenshotWindow(target.windowId, out));
+  if (!window) {
+    window = frameOf();
+    if (!window) throw gone();
+    hand.look({ window: target.windowId, origin: [window[0], window[1]] }, [window[2], window[3]]);
+  }
   return {
     image,
     scale: image.width / window[2],
@@ -558,10 +577,13 @@ export const axItems = (screen: Screen, budget: number): Item[] => toAxItems(axN
 /**
  * Windows OCR reads an icon as a letter or two ('x' on Close, 'c' on Reload) and garbles the words beside one ('Ifi
  * Home', 'B open'), where the accessibility label is clean. So there a control keeps its own label, and a fragment
- * lying on a control is dropped. The Mac's OCR does neither, and keeps the longer label, which is often the fuller one.
+ * lying on an icon-sized control is dropped. Short text inside a big control (a count in a list row, a day in a
+ * calendar, a price on a card, a line in a document) is real, and stays. The Mac's OCR does neither, and keeps the
+ * longer label, which is often the fuller one.
  */
 const NOISY_OCR = onWindows();
 const FRAGMENT_CHARS = 2;
+const ICON_SPAN = 6; // an icon's control is at most this many of its glyph's heights across, whatever the display's scale
 
 export interface MergeOptions {
   noisyOcr?: boolean;
@@ -594,7 +616,9 @@ export function mergeWithOrigins(ocrItems: Item[], controls: Item[], budget = MA
     const value = control.value === undefined ? {} : { value: control.value };
     merged.push([{ ...block, text: label, role: control.role, source: "ax+ocr", ...value }, origin]);
   });
-  const fragment = (block: Item) => noisyOcr && block.text.trim().length <= FRAGMENT_CHARS && controls.some((control) => boxOverlap(control, block) >= MIN_BOX_OVERLAP);
+  const iconSized = (control: Item, block: Item) => Math.max(control.x2 - control.x1, control.y2 - control.y1) <= ICON_SPAN * Math.max(1, block.y2 - block.y1);
+  const fragment = (block: Item) =>
+    noisyOcr && block.text.trim().length <= FRAGMENT_CHARS && controls.some((control) => boxOverlap(control, block) >= MIN_BOX_OVERLAP && iconSized(control, block));
   ocrItems.forEach((block, i) => void (taken.has(i) || fragment(block) || merged.push([block, null])));
   const kept = keptByBudget(merged.map(([it]) => it), budget).map((i) => merged[i]!);
   return readingOrder(kept.map(([it]) => it)).map((j, i) => [{ ...kept[j]![0], index: i }, kept[j]![1]]);
