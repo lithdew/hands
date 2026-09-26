@@ -68,6 +68,29 @@ export const handColor = (): string | undefined => process.env.HANDS_COLOR || un
 export const liveModel = (): string => process.env.HANDS_LIVE_MODEL || "gpt-live-1";
 export const liveVoice = (): string => process.env.HANDS_LIVE_VOICE || "marin";
 export const liveBackend = (): string => process.env.HANDS_LIVE_BACKEND || "gpt-5.6-luna";
+/** Lookups (src/web.ts): the model that answers a question from a web search, and the one tried once when the account does not have it. */
+export const DEFAULT_WEB_MODEL = "gpt-6-luna";
+export const FALLBACK_WEB_MODEL = "gpt-5.6-luna";
+export const webModel = (): string => process.env.HANDS_WEB_MODEL || DEFAULT_WEB_MODEL;
+/**
+ * Where a task the voice sends out goes (src/route.ts). jev, the default: Jev decides between a web lookup, a hand, or
+ * a hand with the facts looked up alongside. off: every task to a hand, and hands without the `web` tool, for when the
+ * computer use is what is to be seen. always: every task looked up first, without Jev, for trying lookups out.
+ */
+export type WebMode = "off" | "jev" | "always";
+export function webMode(): WebMode {
+  const mode = (process.env.HANDS_WEB ?? "").trim().toLowerCase();
+  if (["off", "0", "false", "no"].includes(mode)) return "off";
+  return mode === "always" ? "always" : "jev";
+}
+/** Roughly where the user is, for a search that depends on it (the weather, opening hours): HANDS_LOCATION, as "Hong Kong" or "Hong Kong, HK". The time zone always goes with a search. */
+export function webLocation(): { city?: string; country?: string } {
+  const parts = (process.env.HANDS_LOCATION ?? "").split(",").map((part) => part.trim()).filter(Boolean);
+  const country = parts.length > 1 && /^[a-z]{2}$/i.test(parts.at(-1)!) ? parts.pop()!.toUpperCase() : undefined;
+  const city = parts.join(", ") || undefined;
+  return { ...(city ? { city } : {}), ...(country ? { country } : {}) };
+}
+
 /** Where the hands `hands live` sends out keep what they make: Hands in the user's Documents (~/Documents/Hands on a Mac), or HANDS_WORK. */
 export const workFolder = (): string => process.env.HANDS_WORK || join(documentsFolder(), "Hands");
 

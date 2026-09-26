@@ -96,6 +96,8 @@ The language model goes through [pi-ai](https://github.com/earendil-works/pi/tre
 | `CLICKER_EMAIL` | none | enables the clicker's `type_email` action, offered only for a goal that asks for an email, a username or a sign-in, and no text given |
 | `OPENAI_API_KEY` | required by `bun live` | the voice |
 | `HANDS_LIVE_MODEL`, `HANDS_LIVE_VOICE`, `HANDS_LIVE_BACKEND` | `gpt-live-1`, `marin`, `gpt-5.6-luna` | the voice, how it sounds, and the Responses model behind it that turns what was said into tool calls |
+| `HANDS_WEB` | `jev` | where a task the voice sends out goes (see [Lookups](#lookups)): `jev` lets Jev decide between a web lookup and a hand, `off` sends every task to a hand and gives hands no `web` tool, `always` looks every task up first |
+| `HANDS_WEB_MODEL`, `HANDS_LOCATION` | `gpt-6-luna` (then `gpt-5.6-luna` if the account lacks it), none | the model that answers from a web search, and roughly where you are for one, as `Hong Kong` or `Hong Kong, HK` (the time zone always goes with it) |
 | `HANDS_WORK`, `HANDS_PROFILE` | `~/Documents/Hands`, `~/.hands/profile.md` | where `bun live`'s hands work, and what the voice knows of you (names as they are spelled), which it adds to |
 | `HANDS_KEY`, `HANDS_DESKTOP`, `HANDS_RECORDABLE` | `left-ctrl`, unset, unset | Windows only: the talk key, a virtual desktop per hand, and the hands and panel left in screen recordings |
 | `HANDS_SCREEN` | `0` | which display `bun live` sets itself up on: `1` puts the panel on the second display and lays each hand's browser window out there in a cascade, which is how the demos were filmed |
@@ -166,6 +168,16 @@ How it is put together (`src/live.ts` is the wiring, and none of the three parts
 
 Tested with synthesized speech through `--say`, which goes down the same path as the microphone: two hands from one sentence, a correction spoken a second after a request (it became a `steer_hand` to the hand already on it), a clarification ("book a table" … "Dim Sum Library, tomorrow, three people" became one complete task), a status question answered from the notes, closing everything, and a session hung up on and started again mid-conversation. The key is tested against posted key events and the warm microphone on its own; the speaker against a recording of the voice replayed at its measured cadence, stalls and a network hiccup included, with `HANDS_DEBUG` printing every time silence had to go into the middle of speech (in a real exchange: never).
 
+### Lookups
+
+Not everything said is work for the computer: "what's the weather?" wants an answer, not a browser. Every task the voice sends out gets its card and its name at once, and Jev decides, with one TypeSafe request of three questions (`src/route.ts`, about 0.3 s), which way it goes:
+
+- **web**: a question about public facts (a price, the weather, the news, opening hours, how to do something, a comparison). A lookup card answers it from one OpenAI Responses call with the hosted `web_search` tool (`src/web.ts`, `gpt-6-luna` at low reasoning): the card shows what is being searched for, then the answer and the pages it cites, and the voice says "Lefty looked it up: …". Measured on six varied questions: 2.6 to 6.3 s, median 4 s, where a hand looking up one fact in the browser took 35 s in an earlier run.
+- **computer**: anything to be done or seen on the computer. A hand, as before.
+- **both**: public facts to be found and then used on the computer ("find flights to Tokyo and put them in a document"). The hand starts at once, and the facts looked up alongside reach it as a message marked as data from web pages, if its run has not ended when they come; a hand that is paused or waiting on you is given them when it carries on.
+
+A task that needs anything of your own (accounts, mail, calendar, files, your screen) goes to a hand, so nothing of yours goes into a search; so does one that names the app or site to use, or asks to be shown something, and one Jev is less than 0.6 sure of, and any that Jev fails on (with no `TYPESAFE_API_KEY`, every task) or takes more than 1.5 s over. A lookup whose search fails becomes a hand on the same card. Stop, close and steer work on a lookup as on a hand; told something after it answered, it is decided again with what it found, so "open the first one" becomes a hand that is told which page. A source on a card opens in your default browser, and only an address some card lists is opened. Hands have the same search in their `web` tool, for what a task needs to know, and still work the app or site when the task is to do something there. On 23 labelled requests, traps included ("open my email", "look up the Pricing page on typesafe.ai and show me", "show me pictures of red pandas", "how do I freeze the top row in Excel?"), Jev sent 23 the right way. `HANDS_WEB=off` turns all of it off, for when the computer use is what is to be seen.
+
 ## Behind your windows
 
 Every hand works this way, in any app. Everything names its target, and nothing goes through the seat but the one action a hand borrows it for (see [Use](#use)). On the Mac:
@@ -218,6 +230,7 @@ The clipboard is yours, and hands leave it alone. A right click borrows the seat
 | `click` | an item by index (pressed through accessibility when the app declared it, so it lands under a cookie banner) or a point; double and right clicks |
 | `type` `key` `scroll` `drag` | a field's value, or text where the window's cursor is; chords like `cmd+shift+t`; scrolling; press-drag-release strokes for canvases and sliders |
 | `menu` `press_offscreen` | a menu command by its path; `AXPress` on a control the app exposes but does not show |
+| `web` | a question about public facts answered from a web search in a few seconds, with its sources numbered (a price, an address, how to do something in an app, the exact URL to open); only with `OPENAI_API_KEY` set and `HANDS_WEB` not `off` |
 | `wait` | for a page or an animation, or until some text shows |
 | `finish` | end the task as `done`, `needs_you` (what you must do) or `could_not` (why); the hand's status follows it |
 
