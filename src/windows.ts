@@ -517,12 +517,6 @@ function refusal(error: unknown): Error {
   return at === undefined ? (error as Error) : new Error(message.slice(at));
 }
 
-/** Long text goes through the clipboard: one paste instead of two events per character. */
-export async function pasteText(text: string): Promise<void> {
-  native.call("clipboard", { text });
-  await press("v", ["ctrl"]);
-}
-
 export async function clearField(): Promise<void> {
   await press("a", ["ctrl"]);
   await press("delete");
@@ -867,11 +861,6 @@ function adopt(windowId: number, pid: number): void {
 
 /** The names of every virtual desktop, in order. */
 export const desktops = (): string[] => native.call("desktops") as string[];
-
-/** Switch the screen to a desktop by name. */
-export function switchDesktop(name: string): void {
-  native.call("switch", { name });
-}
 
 /** Remove a desktop by name; Windows moves what is left on it to the current desktop. A desktop that is not there is nothing to do. */
 export function removeDesktop(name: string = desktopName()): void {
@@ -2158,7 +2147,7 @@ export async function screenshot(display: Display, path: string): Promise<Captur
 }
 
 const REPAINT_MS = 300; // how long a page given a strip of screen takes to paint again
-const stale = new Set<number>(); // windows whose latest capture may be an old picture (see captureMayBeStale)
+const stale = new Set<number>(); // windows whose latest capture may be an old picture: a Chromium page covered on every side, which could not be given a strip of screen (its accessibility items are current all the same)
 const staleShots = new Map<string, { windowId: number; origin: Point; size: Point }>(); // such a capture, by its path, and where its window lay: its text is read from the page (see pageText)
 const PAGE_TEXT_NODES = 3000;
 const PAGE_TEXT_MS = 1500;
@@ -2212,9 +2201,6 @@ function pageText({ windowId, origin: [ox, oy], size: [width, height] }: { windo
   }
   return lines;
 }
-
-/** Whether the latest capture of a window may show an old picture: a Chromium page covered on every side, which could not be given a strip of screen. Its accessibility items are current all the same. */
-export const captureMayBeStale = (windowId: number): boolean => stale.has(windowId);
 
 /** A capture already on disk. The helper decodes it and keeps it, which the OCR that follows needs anyway. */
 export function captureAt(path: string): Capture {

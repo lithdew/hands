@@ -221,22 +221,19 @@ test("key tables: letters, digits and punctuation are virtual keys, delete delet
 });
 
 test("a key for nobody goes to the seat with its modifiers; a character a key code cannot spell goes as text", async () => {
-  helper({ windows: desk(), input: { ok: true }, clipboard: { ok: true } });
+  helper({ windows: desk(), input: { ok: true } });
   await windows.press("l", ["cmd", "shift"]);
   await windows.typeText("seat");
-  await windows.pasteText("long text");
   await windows.press("*");
   await windows.press("plus", ["ctrl"]);
   await windows.press("win");
   expect(asked("input")).toEqual([
     { kind: "key", vk: 0x4c, modifiers: [0x11, 0x10] },
     { kind: "text", text: "seat" },
-    { kind: "key", vk: 0x56, modifiers: [0x11] },
     { kind: "text", text: "*" },
     { kind: "key", vk: 0xbb, modifiers: [0x11, 0x10] }, // ctrl and '+', which is shift and '='
     { kind: "key", vk: 0x5b, modifiers: [] }, // a modifier alone is a key
   ]);
-  expect(asked("clipboard")).toEqual([{ text: "long text" }]);
   await expect(windows.press("hyper")).rejects.toThrow("unknown key");
   await expect(windows.press("a", ["hyper"])).rejects.toThrow("unknown modifier");
   await expect(windows.press("a", [], 999)).rejects.toThrow("no window");
@@ -538,7 +535,6 @@ test("before a capture, a covered Chromium window of the hand's own is slid unti
   expect(moved.length).toBeGreaterThan(0);
   expect(moved[0]).toMatchObject({ hwnd: 46 });
   expect((moved.at(-1)!.x as number) + 1000).toBeGreaterThan(1400); // it now reaches past the cover's right edge
-  expect(windows.captureMayBeStale(46)).toBe(false);
   await windows.screenshotWindow(46, "w.png"); // already showing: nothing moves
   expect(asked("move")).toHaveLength(moved.length);
   windows.releaseDesktop();

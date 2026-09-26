@@ -19,8 +19,8 @@ import { windowsSeat } from "./windows-seat.ts";
 type Used =
   | "accessibilityTrusted" | "activate" | "actionableElements" | "appName" | "appWindows" | "axFocus" | "axPerform" | "axPress" | "axSetValue" | "axValue"
   | "browserLoading" | "browserTabs" | "browserUrl" | "captureAt" | "checkAbort" | "clearField" | "clickAt" | "displayFor" | "displays" | "drag" | "focusedField"
-  | "frontmostApp" | "frontmostAppAndPid" | "frontmostWindowBounds" | "interrupt" | "isWebContentApp" | "mainWindowId" | "menu" | "openBackgroundWindow"
-  | "openUrl" | "pasteText" | "press" | "recognizeText" | "releaseElements" | "revealWindow" | "runInBackground" | "screenshot" | "screenshotWindow"
+  | "frontmostAppAndPid" | "frontmostWindowBounds" | "interrupt" | "isWebContentApp" | "menu" | "openBackgroundWindow"
+  | "openUrl" | "press" | "recognizeText" | "releaseElements" | "revealWindow" | "runInBackground" | "screenshot" | "screenshotWindow"
   | "scroll" | "scrollPage" | "sleepWatching" | "stageWindow" | "tabCommand" | "typeText" | "windowPointer"; // prettier-ignore
 
 export type Platform = Pick<typeof mac, Used>;
