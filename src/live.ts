@@ -860,7 +860,7 @@ export async function ask(text: string, jevs: { read(typed: string, out: Out[]):
     console.log(`[ask] “${cap(typed, 80)}”: ${reading.what}${reading.hand ? ` ${reading.hand}` : ""} (${reading.confidence.toFixed(2)}), ${reading.ms} ms${reading.why ? `, ${reading.why}` : ""}`);
     const outcomes: Outcome[] = [];
     const words: string[] = [];
-    for (const step of plan(reading.what, reading.hand, typed, out())) {
+    for (const step of plan(reading.what, reading.hand, typed, out(), CAST.map(([name]) => name))) {
       if ("say" in step) words.push(step.say);
       else if ("answer" in step) words.push(progress(step.answer.flatMap((id) => hands.get(id) ?? []).map((one) => brief(one))));
       else if ("tool" in step) outcomes.push(...[dispatch(step.tool, step.args, runsDir, TYPED)].flat().map((output) => ({ ...(output as Outcome), fresh: step.fresh })));

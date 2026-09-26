@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { APITimeoutError, AuthenticationError } from "@typesafe-ai/sdk";
 import { DEFAULT_JEV_MODEL } from "../src/config.ts";
-import { addressed, aimed, ASK_MS, intent, type Out, plan, progress, SURE, told, WHAT, WHATS, WHICH } from "../src/intent.ts";
+import { absent, addressed, aimed, ASK_MS, intent, NONE, type Out, plan, progress, SURE, SURE_OTHER, told, WHAT, WHATS, WHICH } from "../src/intent.ts";
 
 // intent.ts against a scripted TypeSafe client: what it asks, and what it makes of the answers; and, with no client at
 // all, which hands a reading is for, what doing it comes to, and what the dock says. No call here reaches TypeSafe.
@@ -51,9 +51,9 @@ test("one request: the typed line and the hands once, by id, in state; what and 
     },
   });
   expect(request.questions.what).toEqual({ type: "choice", instructions: WHAT, criteria: WHATS });
-  expect(Object.keys(WHATS)).toEqual(["new_task", "steer", "stop", "pause", "resume", "close", "show", "question", "nothing"]);
+  expect(Object.keys(WHATS)).toEqual(["new_task", "steer", "stop", "pause", "resume", "close", "clear", "show", "question", "nothing"]);
   expect(request.questions.which!.instructions).toBe(WHICH);
-  expect(request.questions.which!.criteria).toMatchObject({ lefty: null, righty: null, pinky: null, all: expect.any(String), none_of_these: expect.any(String) });
+  expect(request.questions.which!.criteria).toMatchObject({ lefty: null, righty: null, pinky: null, all: expect.any(String), unsaid: expect.any(String), none_of_these: expect.any(String) });
   expect(request.model).toBe(DEFAULT_JEV_MODEL);
   expect(options).toEqual({ timeout: ASK_MS, retry: { maxRetries: 0 } });
   expect(ASK_MS).toBe(1500);
@@ -86,18 +86,43 @@ test("a timeout, an error, no key, an answer without its questions, or one Jev i
   expect((await intent(jev(() => answers("stop", 0.6, "lefty")).client, "stop lefty", two)).what).toBe("stop"); // at the line, not past it
 });
 
-test("the hand: Jev's when it is sure, else the one the line names; a line that begins with a hand's name is new work for that hand", async () => {
+test("the hand: Jev's when it is sure, else the one the line names, else something else when Jev is sure of that", async () => {
   expect((await intent(jev(() => answers("stop", 0.9, "lefty", 0.49)).client, "stop it", two)).hand).toBeNull();
-  expect((await intent(jev(() => answers("stop", 0.9, "none_of_these", 0.6)).client, "stop Righty please", two)).hand).toBe("righty");
+  expect((await intent(jev(() => answers("stop", 0.9, "none_of_these", 0.6)).client, "stop Righty please", two)).hand).toBe("righty"); // the name, over Jev
   expect((await intent(jev(() => answers("close", 0.9, "all")).client, "close everyone", two)).hand).toBe("all");
   expect((await intent(jev(() => answers("stop", 0.9, "thumbs")).client, "stop", two)).hand).toBeNull(); // not a hand that is out
+  expect((await intent(jev(() => answers("stop", 0.96, "unsaid", 0.98)).client, "stop", two)).hand).toBeNull();
+  // Jev sure the line is about something that is not a hand out: said so, for plan() to make new work of.
+  expect(SURE_OTHER).toBe(0.6);
+  expect(await intent(jev(() => answers("stop", 0.9, "none_of_these", 0.97)).client, "stop the music", two)).toMatchObject({ what: "stop", hand: NONE });
+  expect((await intent(jev(() => answers("pause", 0.9, "none_of_these", 0.59)).client, "hold on a sec", two)).hand).toBeNull(); // not surely
+});
+
+test("a line that calls a hand is new work for it; one that only begins with a hand's name is when Jev reads it so", async () => {
   const called = await intent(jev(() => answers("new_task", 0.51, "righty", 0.88)).client, "Righty, now write one about dinner", two);
   expect(called).toMatchObject({ what: "steer", hand: "righty" });
   expect(called.why).toContain("begins with Righty's name");
+  expect((await intent(jev(() => answers("new_task", 0.95, "none_of_these")).client, "Righty, now write one about dinner", two)).what).toBe("steer"); // set off: called, whatever Jev reads
   expect((await intent(jev(() => answers("new_task", 0.9, "none_of_these")).client, "find a hotel near Lefty's airport", two)).what).toBe("new_task");
-  expect(addressed("hey lefty: only direct ones", two)?.id).toBe("lefty");
+  // Only the name first: "Palm Springs hotels" is a new task, as Jev reads it; "Righty now …" is Righty's when Jev says so.
+  expect(await intent(jev(() => answers("new_task", 0.99, "none_of_these", 0.99)).client, "Palm Springs hotels for the weekend", [LEFTY, PALM])).toMatchObject({ what: "new_task", hand: null });
+  expect(await intent(jev(() => answers("new_task", 0.9, "righty", 0.8)).client, "Righty now write one about dinner", two)).toMatchObject({ what: "steer", hand: "righty" });
+  expect(await intent(jev(() => answers("new_task", 0.55, "none_of_these", 0.5)).client, "Righty now write one about dinner", two)).toMatchObject({ what: "steer", hand: "righty" }); // Jev unsure it is new work
+  expect(addressed("hey lefty: only direct ones", two)).toEqual({ hand: LEFTY, surely: true });
+  expect(addressed("hey lefty only direct ones", two)).toEqual({ hand: LEFTY, surely: true });
+  expect(addressed("Lefty! only direct ones", two)).toEqual({ hand: LEFTY, surely: true });
+  expect(addressed("lefty only direct ones", two)).toEqual({ hand: LEFTY, surely: false });
   expect(addressed("Righty's window", two)).toBeUndefined();
   expect(addressed("Leftyish", two)).toBeUndefined();
+});
+
+test("a hand's name that is not out: named when the line names no hand that is", () => {
+  const cast = ["Lefty", "Righty", "Thumbs", "Palm"];
+  expect(absent("close righty", [LEFTY], cast)).toBe("Righty");
+  expect(absent("close Righty's window", [LEFTY], cast)).toBe("Righty");
+  expect(absent("tell lefty what righty found", [LEFTY], cast)).toBeUndefined(); // names Lefty, who is out
+  expect(absent("close righty", two, cast)).toBeUndefined();
+  expect(absent("close the palmtop", [LEFTY], cast)).toBeUndefined(); // not the word
 });
 
 test("which hands a reading is for: the one named, every one it fits for all, the only one it can be, or none, so the user is asked", () => {
@@ -105,7 +130,17 @@ test("which hands a reading is for: the one named, every one it fits for all, th
   expect(ids(aimed("stop", "righty", two))).toEqual(["righty"]); // named: the dock says it has finished
   expect(ids(aimed("stop", "all", [...two, THUMBS]))).toEqual(["lefty", "thumbs"]);
   expect(ids(aimed("close", "all", two))).toEqual(["lefty", "righty"]);
-  expect(ids(aimed("pause", "all", [RIGHTY]))).toEqual(["righty"]); // it fits none: every one, for the dock to say why
+  expect(ids(aimed("pause", "all", [RIGHTY]))).toEqual([]); // it fits none
+  // Everyone: a word goes to the hands still at it, not as new work to a finished one, nor to one waiting for the user;
+  // carry on goes to the paused and stopped ones. Clearing is of the finished hands, and no others.
+  const everyone = [LEFTY, RIGHTY, THUMBS, PINKY, PALM, { ...RIGHTY, id: "digit", name: "Digit", status: "stopped" as const }];
+  expect(ids(aimed("steer", "all", everyone))).toEqual(["lefty", "thumbs", "palm"]);
+  expect(ids(aimed("resume", "all", everyone))).toEqual(["thumbs", "digit"]);
+  expect(ids(aimed("clear", "all", everyone))).toEqual(["righty", "digit"]);
+  expect(ids(aimed("clear", null, everyone))).toEqual(["righty", "digit"]);
+  expect(ids(aimed("clear", "lefty", everyone))).toEqual(["lefty"]); // named: closed, as close would
+  expect(ids(aimed("close", "all", everyone))).toEqual(ids(everyone));
+  expect(ids(aimed("question", NONE, two))).toEqual(["lefty", "righty"]); // something else: every hand's news
   expect(ids(aimed("stop", null, [RIGHTY]))).toEqual(["righty"]); // the only hand out
   expect(ids(aimed("stop", null, two))).toEqual(["lefty"]); // the only one at work
   expect(ids(aimed("stop", null, [LEFTY, PALM]))).toEqual([]); // two at work: which?
@@ -140,6 +175,41 @@ test("what a reading comes to: the backend's tools, the card's buttons, an answe
   expect(plan("question", null, "how's it going?", two)).toEqual([{ answer: ["lefty", "righty"] }]);
   expect(plan("nothing", null, "thanks!", two)).toEqual([{ say: "Nothing to do." }]);
   expect(plan("stop", null, "stop", [LEFTY, PALM, RIGHTY])).toEqual([{ say: "Which hand? Lefty, Palm or Righty." }]);
+});
+
+test("what a reading comes to for every hand: clear only the finished, a word only to the ones at it, and a line when it is for none", () => {
+  const close = (id: string) => ({ tool: "close_hands" as const, args: { hands: [id] } });
+  const palm = { ...RIGHTY, id: "palm", name: "Palm" }; // finished too
+  expect(plan("clear", "all", "clear the finished ones", [LEFTY, RIGHTY, THUMBS, PINKY, palm])).toEqual([close("righty"), close("palm")]);
+  expect(plan("clear", null, "clear the done ones away", [LEFTY, RIGHTY, palm])).toEqual([close("righty"), close("palm")]);
+  expect(plan("clear", null, "clear the finished ones", [LEFTY, THUMBS])).toEqual([{ say: "No hand has finished." }]);
+  expect(plan("steer", "all", "everyone, use Edge not Chrome", [LEFTY, RIGHTY, THUMBS, PINKY])).toEqual([
+    { tool: "steer_hand", args: { hand: "lefty", message: "everyone, use Edge not Chrome" }, fresh: false },
+    { tool: "steer_hand", args: { hand: "thumbs", message: "everyone, use Edge not Chrome" }, fresh: false },
+  ]);
+  expect(plan("steer", "all", "everyone, use Edge", [RIGHTY, PINKY])).toEqual([{ say: "No hand is at work to tell." }]);
+  expect(plan("resume", "all", "carry on everyone", [LEFTY, THUMBS, PINKY])).toEqual([{ button: "resume", hand: "thumbs", name: "Thumbs" }]);
+  expect(plan("resume", "all", "carry on everyone", [LEFTY, PINKY])).toEqual([{ say: "No hand is paused or stopped." }]);
+  expect(plan("pause", "all", "pause everyone", [RIGHTY, PALM])).toEqual([{ say: "No hand is at work to pause." }]);
+  expect(plan("stop", "all", "stop everything", [RIGHTY])).toEqual([{ say: "No hand is at work." }]);
+});
+
+test("a reading of something that is not a hand out is not done to one: a name not out is said, anything else is new work", () => {
+  const cast = ["Lefty", "Righty", "Thumbs"];
+  const start = (typed: string) => [{ tool: "start_hands" as const, args: { tasks: [typed] } }];
+  // Righty was closed: "close righty" does not fall on Lefty, the only hand out.
+  expect(plan("close", NONE, "close righty", [LEFTY], cast)).toEqual([{ say: "No hand called Righty is out." }]);
+  expect(plan("close", null, "close righty", [LEFTY], cast)).toEqual([{ say: "No hand called Righty is out." }]);
+  expect(plan("question", null, "how's thumbs doing?", [LEFTY], cast)).toEqual([{ say: "No hand called Thumbs is out." }]);
+  expect(plan("steer", NONE, "righty, now one about dinner", [LEFTY], cast)).toEqual([{ say: "No hand called Righty is out." }]);
+  // An app, music, a video: new work, as every typed line was before, not stop or close of the hand the action fits.
+  for (const what of ["stop", "pause", "resume", "close", "clear", "show"] as const) expect(plan(what, NONE, "close Notepad", [LEFTY, RIGHTY], cast)).toEqual(start("close Notepad"));
+  expect(plan("stop", NONE, "stop the music", [LEFTY], cast)).toEqual(start("stop the music"));
+  // A word for a hand and a question are about the hands whatever Jev says of which: the one at work, every hand.
+  expect(plan("steer", NONE, "don't forget the leak in the bathroom", two, cast)).toEqual([{ tool: "steer_hand", args: { hand: "lefty", message: "don't forget the leak in the bathroom" }, fresh: false }]);
+  expect(plan("question", NONE, "how's it going?", two, cast)).toEqual([{ answer: ["lefty", "righty"] }]);
+  // A steer with no hand named does not look for names: "the index page" is not Index.
+  expect(plan("steer", null, "also check the index page", [LEFTY], ["Lefty", "Index"])).toEqual([{ tool: "steer_hand", args: { hand: "lefty", message: "also check the index page" }, fresh: false }]);
 });
 
 test("what the dock says came of it: a few words, one outcome said once for several hands, an error as it came", () => {

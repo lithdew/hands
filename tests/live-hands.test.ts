@@ -1075,3 +1075,24 @@ test("the voice knows what was typed: the line and what came of it are in its co
   expect(again).toContain("User (typed): stop lefty\nPanel: Stopping Lefty.");
   expect(again).toContain("User (typed): how's it going?");
 });
+
+test("typed: a hand that is not out is said to be so, not another closed; clearing closes only the finished; an app is new work", async () => {
+  process.env.HANDS_WEB = "off";
+  live.dispatch("start_hands", { tasks: ["find flights to Tokyo", "write a haiku", "open Paint"] }, runs);
+  hands[0]!.say({ type: "status", status: "working" });
+  hands[1]!.say({ type: "status", status: "done", answer: "Wrote it." });
+  hands[2]!.say({ type: "status", status: "done", answer: "Paint is open." });
+  await Bun.sleep(5);
+  expect(await live.ask("clear the finished ones", reads("clear", "all"))).toBe("Closed Righty and Thumbs.");
+  await Bun.sleep(5);
+  expect(known().map((one) => one.hand)).toEqual(["Lefty"]);
+  // Righty is gone: "close righty" is not Lefty's end, though Lefty is the only hand out.
+  expect(await live.ask("close righty", reads("close", "none_of_these"))).toBe("No hand called Righty is out.");
+  expect(await live.ask("close righty", reads("close"))).toBe("No hand called Righty is out.");
+  expect(hands[0]!.killed).toBe(false);
+  expect(known().map((one) => one.hand)).toEqual(["Lefty"]);
+  // Music is not a hand: a new hand stops it, and Lefty goes on.
+  expect(await live.ask("stop the music", reads("stop", "none_of_these"))).toBe("Righty is on it.");
+  expect(hands[0]!.told.map((one) => one.type)).toEqual(["prompt"]);
+  expect(hands.at(-1)!.told).toEqual([{ type: "prompt", text: "stop the music" }]);
+});
