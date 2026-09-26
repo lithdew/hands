@@ -833,6 +833,8 @@ export function releaseDesktop(): void {
   inFront.clear();
   primed.clear();
   stale.clear();
+  parked.clear();
+  occlusion.clear(); // asked again next run: a browser restarted since may run another way
   groundedNote = null;
   desktopsBroken = false;
 }
@@ -959,10 +961,13 @@ export async function appInstances(app: string): Promise<{ pid: number; automate
   return (await instances(app)).map(({ pid, automated }) => ({ pid, automated }));
 }
 
+/** The Chromium feature that stops a browser painting a window it thinks nobody can see. */
+export const OCCLUSION_FEATURE = "CalculateNativeWinOcclusion";
+
 /** Whether a browser's command line, or the Chrome policy, has its native window occlusion tracking off. */
 export function unoccludedBy(cmd: string, policy: string | null): boolean {
   const features = cmd.match(/--disable-features=("[^"]*"|\S+)/g) ?? [];
-  if (features.some((flag) => /\bCalculateNativeWinOcclusion\b/.test(flag))) return true;
+  if (features.some((flag) => new RegExp(`\\b${OCCLUSION_FEATURE}\\b`).test(flag))) return true;
   return policy !== null && Number(policy) === 0;
 }
 
@@ -1234,8 +1239,10 @@ export async function borrow<T>(target: KeyTarget, since: number, work: () => Pr
   const away = root.cloaked === true; // on the hand's desktop, where the seat cannot reach it
   const watched = before === target.windowId || before === root.hwnd; // the user had it in front: it stays there
   handBack = null; // the borrow brings the window forward itself, and puts everything back as it ends
+  const offScreen = parked.has(root.hwnd); // the seat's pointer reaches only what lies on a screen
   try {
     if (away) native.call("recall", { hwnd: root.hwnd });
+    if (offScreen) unpark(root.hwnd, true);
     native.call("activate", { hwnd: target.windowId });
     const front = frontWindow();
     const shown = windowList();
@@ -1253,7 +1260,8 @@ export async function borrow<T>(target: KeyTarget, since: number, work: () => Pr
       if (mine && !watched) {
         if (away && sent.has(root.hwnd) && desktopsEnabled()) native.call("send", { hwnd: root.hwnd, name: desktopName() });
         else native.call("sink", { hwnd: root.hwnd });
-      }
+        if (offScreen) moveWindow(root.hwnd, offScreenX(), parked.get(root.hwnd)?.[1] ?? 0);
+      } else if (offScreen) parked.delete(root.hwnd); // the user has it in front: it stays where they can see it
     } catch {
       // the window or the shell went away mid-way: there is nothing more to put back
     }
@@ -1598,9 +1606,12 @@ async function navigateBehind(hwnd: number, url: string): Promise<boolean> {
 }
 
 /** The exe and the arguments that open `url` in the user's browser: its single instance takes them over and opens the window. After `--`, nothing is read as a switch. */
-const browserCommand = (browser: string, url: string, newWindow: boolean) => {
+const browserCommand = (browser: string, url: string, newWindow: boolean, starting = false) => {
   const { file, args } = launcherFor(browser);
-  return { file, args: `${args} ${newWindow ? "--new-window " : ""}-- "${safeUrl(url)}"`.trim() };
+  // A browser the hands start themselves is started painting what it cannot show (see browserUnoccluded), so that its
+  // windows can be worked out of sight. One the user started is theirs to set: they are told how, once (src/live.ts).
+  const unseen = starting ? `--disable-features=${OCCLUSION_FEATURE} ` : "";
+  return { file, args: `${args} ${unseen}${newWindow ? "--new-window " : ""}-- "${safeUrl(url)}"`.trim() };
 };
 
 /**
@@ -1715,7 +1726,7 @@ export async function openBackgroundWindow(browser: string, url: string): Promis
 async function openWindowAlone(browser: string, url: string): Promise<PinnedWindow> {
   const seat = (native.call("foreground") as { hwnd: number }).hwnd;
   const before = new Set(windowList().map((w) => w.hwnd)); // minimized ones too: one the user restores meanwhile is not new
-  const { file, args } = browserCommand(browser, url, true);
+  const { file, args } = browserCommand(browser, url, true, (await userInstance(browser)) === null);
   let opened: PinnedWindow | null = null;
   try {
     native.call("launch", { file, args, show: 4 });
@@ -1728,11 +1739,42 @@ async function openWindowAlone(browser: string, url: string): Promise<PinnedWind
     if (seat) await returnSeat(seat, (w) => !before.has(w.hwnd), opened?.windowId, pace.browserWatchMs);
   }
   if (!opened) throw new Error(`${browser} opened no new window`);
-  // Once the seat is back: a browser that works unseen takes its window to the hand's desktop; any other keeps it here, sunk behind the user's.
+  // Once the seat is back: a browser that paints unseen has its window parked off the screens; any other keeps it here,
+  // sunk behind the user's. Never on the hand's desktop: a click that brings a browser window forward there switches the
+  // user's screen to that desktop and back (measured), and a browser window is brought forward by every posted click.
   adopt(opened.windowId, opened.pid);
   browserWindows.set(opened.windowId, opened.pid);
-  if (desktopsEnabled() && (await browserUnoccluded(browser))) await sendToDesktop(opened.windowId, opened.pid, browser);
+  if (!process.env.HANDS_SCREEN && (await browserUnoccluded(browser))) park(opened.windowId);
   return opened;
+}
+
+// ------------------------------------------------------------------ a browser window parked off the screens
+
+const PARK_GAP_PX = 64;
+const parked = new Map<number, Frame>(); // the hand's browser windows kept past the right edge of every screen, with where each was
+
+/** Just past the right edge of the rightmost screen: no screen shows it, and it lies on none. */
+const offScreenX = (): number => Math.max(...displays().map((d) => d.frame[0] + d.frame[2])) + PARK_GAP_PX;
+
+/**
+ * Keep a browser window of the hand's off every screen. A browser whose occlusion tracking is off paints a window there
+ * and captures it current, and a posted click that brings it forward changes nothing the user can see: their window
+ * keeps its place and only loses the keyboard for the moment the click guard takes to hand it back (all measured).
+ */
+function park(windowId: number): void {
+  const entry = windowList().find((w) => w.hwnd === windowId);
+  if (!entry) return;
+  parked.set(windowId, entry.frame);
+  moveWindow(windowId, offScreenX(), entry.frame[1]);
+}
+
+/** Back where it was before it was parked, for the user to see or the seat to reach; true when it had been parked. `keep` leaves it counted as parked, to go back after. */
+function unpark(windowId: number, keep = false): boolean {
+  const frame = parked.get(windowId);
+  if (!frame) return false;
+  if (!keep) parked.delete(windowId);
+  moveWindow(windowId, frame[0], frame[1]);
+  return true;
 }
 
 /** The frontmost app's topmost on-screen window as x, y, w, h in pixels. Pass the pid when the caller already has it. */
@@ -1792,14 +1834,14 @@ export async function screenshotWindow(windowId: number, path: string): Promise<
   const list = own.size > 0 ? windowList() : [];
   const entry = list.find((w) => w.hwnd === windowId);
   stale.delete(windowId);
-  if (entry && !entry.iconic && !entry.cloaked && entry.cls.startsWith("Chrome_WidgetWin") && isOwn(entry, list) && !showing(windowId)) {
+  if (entry && !entry.iconic && !entry.cloaked && !parked.has(windowId) && entry.cls.startsWith("Chrome_WidgetWin") && isOwn(entry, list) && !showing(windowId)) {
     if (await reveal(windowId)) await sleep(REPAINT_MS);
     else stale.add(windowId);
   }
   const reply = native.call("capture", { hwnd: windowId, path, format: "png" }) as { width: number; height: number; gone?: boolean };
   if (reply.gone) throw new Error("the window is gone; look again");
   if (entry?.iconic && isOwn(entry, list)) native.call("sink", { hwnd: rootOf(entry, list).hwnd });
-  return { path, width: reply.width, height: reply.height };
+  return { path, width: reply.width, height: reply.height, ...(stale.has(windowId) ? { stale: true } : {}) };
 }
 
 /** Whether the latest capture of a window may show an old picture: a Chromium page covered on every side, which could not be given a strip of screen. Its accessibility items are current all the same. */
@@ -2296,6 +2338,7 @@ export function present(windowId: number): boolean {
     }
   }
   sent.delete(windowId); // the user has it now: it is not sent back to the hand's desktop
+  unpark(windowId);
   inFront.set(windowId, performance.now());
   return Boolean((native.call("activate", { hwnd: windowId }) as { ok: boolean }).ok);
 }
@@ -2319,13 +2362,16 @@ export function sweepDesktops(): number {
  * stopped. Nothing here throws: a window may be gone, or the helper.
  */
 export function release(keepBrowser: boolean): void {
-  if (!keepBrowser) {
-    try {
-      const list = windowList();
-      for (const [windowId, pid] of browserWindows) if (list.some((w) => w.hwnd === windowId && w.pid === pid)) native.call("close", { hwnd: windowId });
-    } catch {
-      // the helper went away: the windows stay, and the user can close them
+  try {
+    const list = windowList();
+    for (const [windowId, pid] of browserWindows) {
+      if (!list.some((w) => w.hwnd === windowId && w.pid === pid)) continue;
+      if (keepBrowser) unpark(windowId); // kept, it comes back on screen behind the user's windows, where they can find it
+      else native.call("close", { hwnd: windowId });
     }
+  } catch {
+    // the helper went away: the windows stay, and the user can close them
   }
+  parked.clear();
   releaseDesktop();
 }

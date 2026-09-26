@@ -353,7 +353,7 @@ function heard(hand: Hand, event: HandEvent): void {
       const window = event.subject.window ?? null;
       if (window !== hand.window) [hand.picture, hand.shot] = ["none", 0]; // a window of its own it has not been filmed in yet
       [hand.window, hand.size] = [window, event.subject.window === undefined ? null : (event.size ?? null)];
-    }
+    } else if (event.size && hand.window !== null) hand.size = event.size; // the same window, resized or maximized
     if (event.at) hand.at = event.at;
     if (event.pose) hand.glyph = POSES[event.pose][0];
     if (event.label && event.label !== hand.action && event.pose !== "think" && event.pose !== "look") hand.recent = [...hand.recent, event.label].slice(-RECENT);
@@ -1215,6 +1215,13 @@ async function main(argv: string[]): Promise<void> {
     } catch (error) {
       console.error(`[live] cannot look for desktops an earlier run left behind: ${(error as Error).message}`);
     }
+    // Said once, to the user and not to any hand: a browser the user started paints only what can be seen, so hands'
+    // browser windows have to lie behind the user's and show a strip at a screen's edge to be read. Hands never change it.
+    void windows
+      .appInstances(config.browser())
+      .then(async (running) => running.some((one) => !one.automated) && !(await windows.browserUnoccluded(config.browser())))
+      .then((occluded) => occluded && console.log(`[live] ${config.browser()} stops drawing windows it thinks nobody can see, so hands' browser windows stay behind yours and show a strip at a screen edge while they are read. For browsing fully out of sight, set the Chrome policy NativeWindowOcclusionEnabled to 0 (see the README, "Windows") and restart the browser.`))
+      .catch(() => {});
   }
   const runs = resolve(values.out);
   mkdirSync(runs, { recursive: true });

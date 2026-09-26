@@ -100,6 +100,7 @@ test("a hand released closes the browser windows it opened, unless they are to b
     launch: () => (launched++, { pid: 0 }),
     activate: ({ hwnd }) => ((front = { hwnd: hwnd as number, pid: 100 }), { ok: true }),
     close: { ok: true },
+    reg: { value: null },
   });
   spyOn(process, "kill").mockImplementation(() => true);
   windows.releaseDesktop();
@@ -112,6 +113,52 @@ test("a hand released closes the browser windows it opened, unless they are to b
   await windows.runInBackground("Notepad");
   windows.release(false);
   expect(asked("close")).toEqual([{ hwnd: 46 }]); // Notepad stays, with whatever the hand wrote in it
+});
+
+test("a browser that paints unseen has the hand's window parked off every screen, never sent to a desktop; the seat and the user get it back on screen", async () => {
+  process.env.HANDS_DESKTOP = "1";
+  let front = { hwnd: 11, pid: 100 };
+  let launched = 0;
+  let chrome = { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Example - Google Chrome", frame: [50, 60, 1200, 800] as Frame, core: 0, exe: "chrome.exe", caption: true };
+  helper({
+    processes: ({ exe }) => (exe === "chrome.exe" ? [{ pid: 400, cmd: '"C:\\chrome.exe" --disable-features=CalculateNativeWinOcclusion' }] : []),
+    windows: () => [terminal, ...(launched > 0 ? [chrome] : [])],
+    foreground: () => front,
+    launch: () => (launched++, { pid: 0 }),
+    activate: ({ hwnd }) => ((front = { hwnd: hwnd as number, pid: 100 }), { ok: true, foreground: hwnd }),
+    move: ({ hwnd, x, y }) => ((chrome = { ...chrome, frame: [x as number, y as number, 1200, 800] }), { ok: true, hwnd }),
+    reg: { value: null },
+    input: { ok: true },
+    setCursor: { ok: true },
+    cursor: [5, 5],
+  });
+  spyOn(process, "kill").mockImplementation(() => true);
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect(asked("desktop")).toEqual([]);
+  expect(asked("send")).toEqual([]);
+  expect(asked("move")).toEqual([{ hwnd: 46, x: 2560 + 64, y: 60 }]); // just past the right edge of the only screen
+  calls = [];
+  await windows.borrow({ pid: 400, windowId: 46 }, 0, async () => {
+    expect(chrome.frame.slice(0, 2)).toEqual([50, 60]); // on screen for the seat's pointer
+  });
+  expect(chrome.frame.slice(0, 2)).toEqual([2560 + 64, 60]); // and parked again after
+  windows.release(true);
+  expect(chrome.frame.slice(0, 2)).toEqual([50, 60]); // kept, it comes back where the user can find it
+});
+
+test("a browser the hands start themselves is started painting what it cannot show", async () => {
+  let launched = 0;
+  const chrome = { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Example - Google Chrome", frame: [50, 60, 1200, 800] as Frame, core: 0, exe: "chrome.exe", caption: true };
+  helper({
+    processes: ({ exe }) => (exe === "chrome.exe" && launched ? [{ pid: 400, cmd: '"C:\\chrome.exe"' }] : []),
+    windows: () => [terminal, ...(launched > 0 ? [chrome] : [])],
+    launch: () => (launched++, { pid: 0 }),
+    reg: { value: null },
+  });
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect(String(asked("launch")[0]?.args)).toContain("--disable-features=CalculateNativeWinOcclusion");
 });
 
 test("a window of the hand's that climbed over the user's is put behind them again, but not one the user has in front, nor for a while after", async () => {

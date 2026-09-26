@@ -720,6 +720,8 @@ export function describe(screen: Screen, items: Item[]): string {
   // Notepad opens the tabs of its earlier sessions in a new window too (measured), and those are nobody's work of this task.
   const tabs = items.filter((it) => it.role === "tab").length;
   if (/^notepad$/i.test(screen.app) && tabs > 1) lines.push(`this window has ${tabs} tabs: Notepad reopens the tabs of earlier sessions, so any but the one you made may be the user's.`);
+  // Excel names every cell by its address alone, full or empty, so the grid's cells are left out of the list: hundreds of them said nothing.
+  if (onWindows() && /^excel$/i.test(screen.app) && !screen.dialog) lines.push("Excel's grid cells are not listed: read them off the text below, and to go to a cell click where it lies, or set the 'Name Box' field to its address (submit=true) before typing.");
   if (screen.window && screen.windowId === undefined) {
     const [x, y, w, h] = screen.window.map(Math.round) as [number, number, number, number];
     lines.push(`window: x=${x - screen.origin[0]} y=${y - screen.origin[1]} w=${w} h=${h}`);
