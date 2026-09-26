@@ -952,11 +952,15 @@ test("both: facts that come while the hand is paused or waits on the user are to
 
 // ------------------------------------------------------------------ a line typed into the dock (live.ask)
 
-/** Jev's reading of a typed line, as the test says it, and the hands it was shown. */
+/** Jev's reading of a typed line, as the test says it; the hands it was shown, and how often its connection was opened. */
 const reads = (what: What, hand: string | null = null) => {
-  const shown: Out[][] = [];
-  const read = async (_typed: string, out: Out[]): Promise<Intent> => (shown.push(out), { what, hand, confidence: 0.9, ms: 1, why: "the test says so" });
-  return Object.assign(read, { shown });
+  const jevs = {
+    shown: [] as Out[][],
+    warmed: 0,
+    read: async (_typed: string, out: Out[]): Promise<Intent> => (jevs.shown.push(out), { what, hand, confidence: 0.9, ms: 1, why: "the test says so" }),
+    warm: () => void jevs.warmed++,
+  };
+  return jevs;
 };
 
 test("a typed line Jev reads as a new task goes out as the voice's would, and Jev's routing hears the typed words alone, not what was last said", async () => {
@@ -968,7 +972,10 @@ test("a typed line Jev reads as a new task goes out as the voice's would, and Je
   expect(routes[0]).toMatchObject({ task: "find me a hotel in Tokyo", userSaid: "" });
   expect(hands[0]!.told).toEqual([{ type: "prompt", text: "find me a hotel in Tokyo" }]);
   expect(await live.ask("find me a hotel in Tokyo", reads("new_task"))).toBe("Lefty is already on it.");
-  expect(await live.ask("   ", reads("new_task"))).toBe(""); // nothing typed, nothing done
+  // An empty line is the box coming out: nothing is done, and Jev's connection is opened for the line to come.
+  const jevs = reads("new_task");
+  expect(await live.ask("   ", jevs)).toBe("");
+  expect(jevs).toMatchObject({ warmed: 1, shown: [] });
   expect(hands.length).toBe(1);
 });
 
@@ -976,9 +983,9 @@ test("a typed word for a hand goes to it, the words the user's own; to a hand th
   live.dispatch("start_hands", { tasks: ["find flights to Tokyo"] }, runs);
   hands[0]!.say({ type: "status", status: "working" });
   await Bun.sleep(5);
-  const read = reads("steer", "lefty");
-  expect(await live.ask("only direct ones", read)).toBe("Told Lefty.");
-  expect(read.shown[0]).toEqual([{ id: "lefty", name: "Lefty", status: "working", task: "find flights to Tokyo", kind: "hand", window: false }]);
+  const jevs = reads("steer", "lefty");
+  expect(await live.ask("only direct ones", jevs)).toBe("Told Lefty.");
+  expect(jevs.shown[0]).toEqual([{ id: "lefty", name: "Lefty", status: "working", task: "find flights to Tokyo", kind: "hand", window: false }]);
   expect(hands[0]!.told.at(-1)).toEqual({ type: "steer", text: "only direct ones" });
   hands[0]!.say({ type: "status", status: "done", answer: "Two direct flights." });
   await Bun.sleep(5);
@@ -1038,8 +1045,11 @@ test("a typed line with no hand to be sure of asks which, a thank-you does nothi
   expect(await live.ask("stop", reads("stop"))).toBe("Which hand? Lefty or Righty.");
   expect(await live.ask("thanks!", reads("nothing"))).toBe("Nothing to do.");
   expect(hands.map((one) => one.told.at(-1)!.type)).toEqual(["prompt", "prompt"]);
-  const broken = async (): Promise<Intent> => {
-    throw new Error("the socket went");
+  const broken = {
+    read: async (): Promise<Intent> => {
+      throw new Error("the socket went");
+    },
+    warm() {},
   };
   expect(await live.ask("stop lefty", broken)).toBe("That didn't go through: the socket went");
 });

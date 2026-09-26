@@ -33,7 +33,10 @@ export function wire(given: Hooks): void {
 /** Whether the box is out. */
 export const out = (): boolean => !box.hidden;
 
-/** Out, at a click on the dock: a sheet that was out goes, and the keyboard comes to the box. */
+/**
+ * Out, at a click on the dock: a sheet that was out goes, and the keyboard comes to the box. The orchestrator is told
+ * with an empty line, so that Jev's connection is open by the time the line is sent (src/live.ts ask).
+ */
 function open(): void {
   if (out() || !resting() || !hooks) return;
   box.hidden = false; // first: the sheet goes with the box out, so the keyboard is not given back between them
@@ -41,6 +44,7 @@ function open(): void {
   typing(true);
   input.focus({ preventScroll: true }); // at once: the window takes the keyboard as it comes (panel.cs), and gives it here
   hooks.keyboard();
+  hooks.send({ cmd: "ask", text: "" });
 }
 
 /** Away, and what was in it with it. `quietly`: a sheet takes the keyboard next, so it is not given back first. */

@@ -838,11 +838,16 @@ export function dispatch(name: string, args: Record<string, unknown>, runs: stri
  * pause, carry on and show are the card's own buttons. A question is answered in the dock from what the voice would be
  * told: a Live session takes the user's audio and notes for it to say, not a typed turn, so the voice is not asked. The
  * dock is told what came of the line at once; the voice's conversation has the line and that, and when something was
- * done, the voice is told what, so that a spoken turn later follows on. `read` is Jev's reading, which tests replace.
+ * done, the voice is told what, so that a spoken turn later follows on. An empty line is the box coming out: Jev's
+ * connection is opened then, while the user types (measured: a first reading took 460 to 580 ms on a cold connection,
+ * and 290 to 330 ms on one opened so). `jevs` is Jev, which tests replace.
  */
-export async function ask(text: string, read: (typed: string, out: Out[]) => Promise<Intent> = (typed, out) => intent(jev, typed, out)): Promise<string> {
+export async function ask(text: string, jevs: { read(typed: string, out: Out[]): Promise<Intent>; warm(): void } = { read: (typed, out) => intent(jev, typed, out), warm: warmUp }): Promise<string> {
   const typed = text.trim();
-  if (!typed) return "";
+  if (!typed) {
+    jevs.warm();
+    return "";
+  }
   // Typed, not said: what the user last said is of something else, and a typed task is its own words (dispatch gives
   // Jev's routing the words last said only when a response asked for one thing: as if this asked for more).
   const TYPED = 2;
@@ -851,7 +856,7 @@ export async function ask(text: string, read: (typed: string, out: Out[]) => Pro
   addTurn(`User (typed): ${typed}`);
   let said: string;
   try {
-    const reading = await read(typed, out());
+    const reading = await jevs.read(typed, out());
     console.log(`[ask] “${cap(typed, 80)}”: ${reading.what}${reading.hand ? ` ${reading.hand}` : ""} (${reading.confidence.toFixed(2)}), ${reading.ms} ms${reading.why ? `, ${reading.why}` : ""}`);
     const outcomes: Outcome[] = [];
     const words: string[] = [];
