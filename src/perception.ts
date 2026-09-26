@@ -1,7 +1,7 @@
 /** Turn the display into clickable items: OCR text blocks and accessibility controls. */
 
 import sharp from "sharp";
-import { MAX_OPTIONS, MIN_OCR_CONFIDENCE } from "./config.ts";
+import { MAX_OPTIONS, MIN_OCR_CONFIDENCE, OFFSCREEN_SHOWN } from "./config.ts";
 import { hand } from "./hand.ts";
 import { onWindows, platform as macos } from "./platform.ts";
 import { type AxNode, type Box, type Capture, center, type Frame, fromAx, type Item, item, type Point, roleWord, type Screen, sizePt, toPoints } from "./models.ts";
@@ -547,6 +547,27 @@ export function offscreenControls(nodes: AxNode[], items: Item[]): AxNode[] {
     seen.add(key);
     return true;
   });
+}
+
+const PLAIN_WORDS = new Set("a an and are as at be by for from go in into is it its me my now of on open or page please the then this to with".split(" "));
+/** The words of a text worth matching on: lower case, a plural's s dropped, and the small ones left out. */
+const wordsOf = (text: string): Set<string> =>
+  new Set((text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter((word) => word.length > 1 && !PLAIN_WORDS.has(word)).map((word) => (word.length > 3 ? word.replace(/s$/, "") : word)));
+
+/**
+ * Which off-screen controls to offer the classifier for a goal: the `cap` that share the most words with it, as their
+ * positions in `nodes`, in the order the app gave them. A long page keeps a hundred or more of them out of view (a
+ * footer, a table of contents, one with a label of 300 characters), and each one it reads is one more distractor.
+ */
+export function offscreenFor(nodes: AxNode[], goal: string, cap = OFFSCREEN_SHOWN): number[] {
+  const wanted = wordsOf(goal);
+  const shared = (node: AxNode) => [...wordsOf(node.label)].filter((word) => wanted.has(word)).length;
+  return nodes
+    .map((node, i): [number, number] => [i, shared(node)])
+    .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+    .slice(0, cap)
+    .map(([i]) => i)
+    .sort((a, b) => a - b);
 }
 
 /** Controls as items, converted from global screen points to pixels on the captured display. A field's value comes along. */

@@ -1,8 +1,8 @@
-/** Logging, annotated screenshots, and the human-readable payload dump. */
+/** Logging, annotated screenshots, the human-readable payload dump, and a run told in a line. */
 
 import { appendFileSync } from "node:fs";
 import sharp from "sharp";
-import { baseState, type ChoiceAnswer, itemCriteria, kindCriteria, offscreenCriteria, siteCriteria } from "./decide.ts";
+import { type ChoiceAnswer, type Decision, NONE, type Request, request } from "./decide.ts";
 import { fieldRecord, fromAx, type Item, region, repr, type Screen, toPoints } from "./models.ts";
 
 const RULE = "=".repeat(78);
@@ -26,15 +26,20 @@ export const axCount = (items: Item[]): number => items.filter(fromAx).length;
 
 const json = (value: unknown) => JSON.stringify(value, null, 2);
 
-/** Exactly what goes to TypeSafe for this screen, plus a table of every item. */
+/** Exactly what goes to TypeSafe for this screen in `bun clicker` (which `clicker inspect` shows), plus a table of every item. */
 export function renderPayload(goal: string, screen: Screen, items: Item[], history: string[], browser: string, email: string | null): string {
-  const parts = [
-    RULE, "STATE  (sent as `state`)", RULE, json(baseState(goal, screen, items, history)), "",
-    RULE, "QUESTION kind  (Choice criteria)", RULE, json(kindCriteria(browser, email, screen.offscreen.length > 0)), "",
-    RULE, "QUESTION item  (Choice criteria)", RULE, json(itemCriteria(screen, items)), "",
-    RULE, "QUESTION site  (Choice criteria)", RULE, json(siteCriteria()), "",
-  ]; // prettier-ignore
-  if (screen.offscreen.length) parts.push(RULE, "QUESTION offscreen  (Choice criteria)", RULE, json(offscreenCriteria(screen.offscreen)), "");
+  return renderRequest(request({ goal, screen, items, history, email, browse: browser, write: true }), screen, items);
+}
+
+/** A request as it is sent, question by question, and every item with where it came from and where a click lands. */
+export function renderRequest(req: Request, screen: Screen, items: Item[]): string {
+  const parts = [RULE, "STATE  (sent as `state`)", RULE, json(req.state), ""];
+  for (const [name, question] of Object.entries(req.questions)) {
+    const criteria = "criteria" in question ? question.criteria : null;
+    parts.push(RULE, `QUESTION ${name}  (${question.type})`, RULE, String(question.instructions ?? ""));
+    if (criteria) parts.push(json(criteria));
+    parts.push("");
+  }
   parts.push(
     RULE,
     `ITEMS  (${items.length} after merge/filter, ${axCount(items)} from the accessibility tree; ` +
@@ -50,14 +55,14 @@ export function renderPayload(goal: string, screen: Screen, items: Item[], histo
     );
   }
   if (screen.offscreen.length) {
-    parts.push("", RULE, `OFFSCREEN CONTROLS  (${screen.offscreen.length} the app exposes without showing; pressed through accessibility, never clicked)`, RULE);
-    screen.offscreen.forEach((node, i) => parts.push(`[${String(i).padStart(3)}] role=${node.role.padEnd(22)} ${repr(node.label)}`));
+    parts.push("", RULE, `OFFSCREEN CONTROLS  (${screen.offscreen.length} the app exposes without showing, ${req.offscreen.length} offered; pressed through accessibility, never clicked)`, RULE);
+    screen.offscreen.forEach((node, i) => parts.push(`[${String(i).padStart(3)}]${req.offscreen.includes(i) ? "*" : " "} role=${node.role.padEnd(22)} ${repr(node.label)}`));
   }
   if (screen.field) parts.push("", "FOCUSED FIELD", json(fieldRecord(screen.field)));
   return `${parts.join("\n")}\n`;
 }
 
-/** Blue boxes for OCR blocks, orange for accessibility controls, red for the chosen one, green for the focused field. */
+/** Blue boxes for OCR blocks, orange for accessibility controls, red for the one acted on, green for the focused field. */
 export async function annotate(screen: Screen, items: Item[], chosen: string, out: string): Promise<void> {
   const { width, height } = screen.image;
   const s = screen.scale;
@@ -78,4 +83,26 @@ export async function annotate(screen: Screen, items: Item[], chosen: string, ou
     .composite([{ input: Buffer.from(svg) }])
     .png({ compressionLevel: 3 })
     .toFile(out);
+}
+
+/** A run in one line, for the hand that called the clicker: how it ended and why, how long it took, and what it did. */
+export function runLine({ outcome, reason, history, seconds }: { outcome: string; reason: string | null; history: string[]; seconds: number }): string {
+  const count = `${history.length} action${history.length === 1 ? "" : "s"}`;
+  const did = history.length ? `: ${history.map((line, i) => `${i + 1}. ${line}`).join("; ")}` : "";
+  return `Jev ${outcome}${reason ? ` (${reason})` : ""}, after ${count} in ${seconds}s${did}.`;
+}
+
+/**
+ * Where Jev leaned when it stopped short of acting: its likeliest kinds, and its likeliest items and fields by their
+ * index in the listing, so the hand can act on one itself or give Jev a sharper goal.
+ */
+export function leaning(decision: Decision, items: Item[], n = 3): string {
+  const text = (id: string) => repr((items.find((it) => String(it.index) === id)?.text ?? "").slice(0, 60));
+  const picks = (answer: ChoiceAnswer | null, what: string) => {
+    const best = answer ? top(answer, n + 1).filter(([id]) => id !== NONE).slice(0, n) : [];
+    return best.length ? `; ${what} ${best.map(([id, p]) => `${id} ${text(id)} ${p.toFixed(2)}`).join(", ")}` : "";
+  };
+  const kinds = top(decision.kind, n).map(([kind, p]) => `${kind} ${p.toFixed(2)}`).join(", ");
+  const met = decision.goalMet === null ? "" : `; goal_met ${decision.goalMet.toFixed(2)}`;
+  return `Jev leaned toward ${kinds}${picks(decision.item, "items")}${picks(decision.field, "fields")}${met}.`;
 }
