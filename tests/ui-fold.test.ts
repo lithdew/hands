@@ -28,6 +28,29 @@ test("folded, a hand at work is its header; one that has stopped keeps two lines
   expect(folded({ status: "done" }, WIDE, true)).toBe(SIZE.strip);
 });
 
+test("folded, a hand at work that holds the seat or waits for it keeps its line about that, and the column counts it", () => {
+  // card.ts keeps the words under such a card (it is not quiet): "Using your mouse and keyboard.", "Waiting for you to pause."
+  expect(folded({ status: "working", seat: "holding" }, WIDE)).toBe(SIZE.strip + SIZE.pad + 2 * SIZE.line);
+  expect(folded({ status: "working", seat: "waiting" }, WIDE)).toBe(SIZE.strip + SIZE.pad + 2 * SIZE.line);
+  expect(folded({ status: "working", seat: "" }, WIDE)).toBe(SIZE.strip);
+  expect(folded({ status: "working", seat: "holding" }, WIDE, true)).toBe(SIZE.strip);
+  // Eight hands, two at work with the seat and their windows in front (so they stay folded): the column as card.ts
+  // draws it, words and all, fits the room it was arranged in.
+  const hands = ["lefty", "righty", "thumbs", "pinky", "index", "palm", "knuckles", "digit"].map((id, index) => ({
+    ...hand(id, (["working", "done", "done", "working", "needs_you", "working", "working", "working"] as Status[])[index]!, index, index === 0 || index === 6),
+    seat: index === 0 ? ("holding" as const) : index === 6 ? ("waiting" as const) : ("" as const),
+  }));
+  const room = 900;
+  const layout = arrange(hands, shapes(...hands.map((one) => one.id)), room, null);
+  const busy = (status: Status) => status === "working" || status === "starting";
+  // card.ts: a folded card shows two lines of words unless it is bare, or its hand is at work and not at the seat.
+  const drawn = (one: (typeof hands)[number]) => SIZE.strip + (layout.bare.has(one.id) || (busy(one.status) && !one.seat) ? 0 : SIZE.pad + 2 * SIZE.line);
+  const height = hands.reduce<number>((sum, one) => sum + SIZE.gap + (layout.unfolded.has(one.id) ? unfolded(WIDE, layout.picture) : drawn(one)), BASE);
+  expect(layout.unfolded.has("lefty")).toBe(false);
+  expect(height).toBeLessThanOrEqual(room);
+  expect(layout.over).toBe(false);
+});
+
 test("with room for everything, every card unfolds at full size", () => {
   const hands = [hand("lefty", "working", 1), hand("righty", "done", 2)];
   const layout = arrange(hands, shapes("lefty", "righty"), 2000, null);
@@ -100,9 +123,53 @@ test("an open card is the only one unfolded, the others are headers, and its tra
   const left = room - BASE - 2 * SIZE.gap - 2 * SIZE.strip - SIZE.rule - SIZE.sheet;
   expect(cramped.picture).toBe(tall(WIDE, SIZE.open[1]));
   expect(cramped.log).toBe(left - cramped.picture);
-  const tiny = arrange(hands, shapes("lefty", "righty"), 440, "lefty");
+  const small = BASE + 2 * SIZE.gap + 2 * SIZE.strip + SIZE.rule + SIZE.sheet + SIZE.open[0] + SIZE.log[0]; // just room for both at their smallest
+  const tiny = arrange(hands, shapes("lefty", "righty"), small, "lefty");
+  expect(tiny.unfolded.has("lefty")).toBe(true);
   expect(tiny.log).toBe(SIZE.log[0]);
   expect(tiny.picture).toBe(SIZE.open[0]);
+});
+
+/** How tall the column is drawn with a sheet out: the open card's picture (if it has one), transcript and box, and the others as headers. */
+const opened = (hands: { id: string }[], layout: ReturnType<typeof arrange>, open: string): number =>
+  hands.reduce<number>((sum, one) => sum + SIZE.gap + (one.id === open ? SIZE.strip + (layout.picture ? SIZE.rule + layout.picture : 0) + layout.log + SIZE.sheet : SIZE.strip), BASE);
+
+test("with a sheet out and no room for both a picture and a transcript, the picture goes and the transcript takes the rest", () => {
+  const hands = Array.from({ length: 8 }, (_, index) => hand(`h${index}`, index === 0 ? "needs_you" : "working", index));
+  const ids = hands.map((one) => one.id);
+  // 1080p at 125% (the room shell-windows gives it): the smallest picture and transcript would have run 25 px over the top.
+  const room = 806;
+  const layout = arrange(hands, shapes(...ids), room, "h7");
+  expect(layout.picture).toBe(0);
+  expect(layout.unfolded.size).toBe(0); // the open card is folded, its sheet out: nothing of it is filmed
+  expect(layout.log).toBeGreaterThan(SIZE.log[0]);
+  expect(opened(hands, layout, "h7")).toBe(room);
+  expect(layout.over).toBe(false);
+  // One pixel short of the smallest of both: the picture goes rather than the column running over.
+  const hands2 = [hand("lefty", "working", 1), hand("righty", "done", 2)];
+  const both = BASE + 2 * SIZE.gap + 2 * SIZE.strip + SIZE.rule + SIZE.sheet + SIZE.open[0] + SIZE.log[0];
+  const short = arrange(hands2, shapes("lefty", "righty"), both - 1, "lefty");
+  expect(short.picture).toBe(0);
+  expect(opened(hands2, short, "lefty")).toBe(both - 1);
+});
+
+test("with a sheet out on a room too small even for a line of its transcript, the column says it runs over, so its cards scroll", () => {
+  const hands = Array.from({ length: 8 }, (_, index) => hand(`h${index}`, index === 0 ? "needs_you" : "working", index));
+  const ids = hands.map((one) => one.id);
+  // 1080p at 150% with a 48 px taskbar: the dock is kept at its tallest, and then there is no room for a transcript.
+  const layout = arrange(hands, shapes(...ids), 672, "h7");
+  expect(layout.picture).toBe(0);
+  expect(layout.log).toBe(2 * SIZE.line);
+  expect(layout.over).toBe(true);
+});
+
+test("hands too many even for their headers say the column runs over; with room, it does not", () => {
+  const hands = Array.from({ length: 8 }, (_, index) => hand(`h${index}`, "working", index));
+  const ids = hands.map((one) => one.id);
+  const headers = BASE + 8 * (SIZE.strip + SIZE.gap);
+  expect(arrange(hands, shapes(...ids), headers - 1, null).over).toBe(true);
+  expect(arrange(hands, shapes(...ids), headers, null).over).toBe(false);
+  expect(arrange(hands, shapes(...ids), 2000, null).over).toBe(false);
 });
 
 test("with too many finished hands for two lines each, the oldest fold to their headers", () => {

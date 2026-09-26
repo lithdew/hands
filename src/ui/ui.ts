@@ -7,16 +7,19 @@
  * the column is, which cards show a picture (only those are filmed), and what the user asked of a hand.
  */
 
-import { build, busy, type Card, elapsed, frame, paint, part, says, write } from "./card.ts";
+import { build, busy, type Card, elapsed, frame, paint, part, says, track, write } from "./card.ts";
 import { extra, level, speak } from "./dock.ts";
 import { arrange, finished, order, type Shape } from "./fold.ts";
 import { deal, glide, sweep, where } from "./motion.ts";
+import { anew, closes } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, ServerMessage } from "./state.ts";
 
 const column = document.getElementById("column") as HTMLElement;
 const deck = document.getElementById("deck") as HTMLElement;
 const clear = document.getElementById("clear") as HTMLButtonElement;
-// On Windows the type is Windows' own, and a hand is closed with Ctrl+W.
+const dock = document.getElementById("dock") as HTMLElement;
+// On Windows the type is Windows' own, a hand is closed with Ctrl+W, and Show can bring its window forward (ui.css
+// hides Show elsewhere).
 const windows = /Windows/.test(navigator.userAgent);
 document.documentElement.classList.toggle("windows", windows);
 const CLOSE_KEY = windows ? "Ctrl+W" : "⌘W";
@@ -128,11 +131,15 @@ function update(): void {
   const shapes = new Map<string, Shape>();
   for (const hand of hands) {
     const card = cards.get(hand.id);
+    if (card) track(card, hand); // first: a picture of a window the hand has left may go, and change the card's shape
     // A picture's shape is the last frame's; before the first, the window's own, when the hand has one.
     const ratio = card?.url ? card.ratio : hand.size ? hand.size[0] / hand.size[1] : null;
     shapes.set(hand.id, { ratio, words: says(hand) !== "" });
   }
   const layout = arrange(hands, shapes, room - extra(), open);
+  // Crowded past folding: the column stops at the room and the cards scroll inside it, so the top ones stay reachable.
+  column.style.setProperty("--room", `${room}px`);
+  column.classList.toggle("over", layout.over);
   for (const [index, hand] of order(hands).entries()) {
     const card = cards.get(hand.id);
     if (!card) continue;
@@ -164,6 +171,14 @@ function toggle(id: string | null, on = open !== id): void {
 }
 
 function log(hand: string, entries: LogEntry[], reset = false): void {
+  const was = cards.get(hand);
+  if (was && anew(entries, reset)) {
+    // A new hand under a name whose card is still out (rules.ts, anew): that card goes, as it would have, and the
+    // new hand's comes with the next state, starting from its task.
+    retire(was);
+    entries = entries.slice(entries.findIndex((entry) => entry.kind === "task"));
+    reset = true;
+  }
   logs.set(hand, [...(reset ? [] : (logs.get(hand) ?? [])), ...entries]);
   const card = cards.get(hand);
   if (card) write(card, entries, reset);
@@ -181,7 +196,7 @@ document.addEventListener("keydown", (event) => {
     toggle(null);
     void card?.root.offsetHeight;
     card?.root.classList.remove("instant");
-  } else if ((windows ? event.ctrlKey : event.metaKey) && !event.altKey && event.key.toLowerCase() === "w") {
+  } else if (closes(event, windows)) {
     // Close the hand, but only from an empty box: with words in it, the keys are the user's to edit with.
     // Ctrl+Backspace is never a close: in a text box it deletes a word.
     event.preventDefault();
@@ -226,7 +241,11 @@ function report(): void {
     if (send({ cmd: "size", width, height, dpr: devicePixelRatio })) reported = size;
   }, 0);
 }
-new ResizeObserver(report).observe(column);
+// The dock and the chip are watched as well as the column: the dock rests small by its own timer once the voice has
+// stopped, and opens out under the pointer, often with the column's size unchanged, and where they are solid changes.
+const watch = new ResizeObserver(report);
+for (const one of [column, dock, clear]) watch.observe(one);
+deck.addEventListener("scroll", report, { passive: true }); // a crowded column's cards move under the pointer
 /** A move to a display of another scale, or a change of scale, is said too. */
 function rescaled(): void {
   const scale = matchMedia(`(resolution: ${devicePixelRatio}dppx)`);
@@ -250,14 +269,23 @@ function film(hands: string[]): void {
 // In WebView2 the page takes the mouse over every pixel of its window, even where it shows nothing, so it tells its
 // window where it is solid (src/panel.cs lets the mouse through everywhere else), over the web view's own channel.
 const host = (window as { chrome?: { webview?: { postMessage(message: unknown): void } } }).chrome?.webview;
-const dock = document.getElementById("dock") as HTMLElement;
 let solid = "";
 let following = 0;
 
-/** The cards, the chip and the dock, each with its shadow, as rectangles in CSS pixels: sent when they change, and every frame while they move. */
+/**
+ * The cards, the chip and the dock, each with its shadow, as rectangles in CSS pixels: sent when they change, and every
+ * frame while they move. Cards scrolled out of a crowded column are cut to what shows of them.
+ */
 function outline(): void {
   if (!host) return;
-  const parts = column.hidden ? [] : [...deck.children, clear, dock].filter((part) => !(part as HTMLElement).hidden).map((part) => part.getBoundingClientRect());
+  const scroll = column.classList.contains("over") ? deck.getBoundingClientRect() : null;
+  const cut = (part: Element): { left: number; top: number; width: number; height: number } => {
+    const box = part.getBoundingClientRect();
+    if (!scroll || part.parentElement !== deck) return box;
+    const [top, bottom] = [Math.max(box.top, scroll.top), Math.min(box.bottom, scroll.bottom)];
+    return { left: box.left, top, width: box.width, height: Math.max(0, bottom - top) };
+  };
+  const parts = column.hidden ? [] : [...deck.children, clear, dock].filter((part) => !(part as HTMLElement).hidden).map(cut);
   const boxes = parts.filter((box) => box.width && box.height).map((box) => [Math.floor(box.left), Math.floor(box.top), Math.ceil(box.width) + 5, Math.ceil(box.height) + 5]);
   const said = JSON.stringify(boxes);
   if (said !== solid) host.postMessage({ solid: boxes, dpr: devicePixelRatio });

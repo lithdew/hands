@@ -89,6 +89,33 @@ body {
 #deck:empty {
   display: none;
 }
+/*
+ * Crowded past what folding can do (fold.ts, over): the column stops at the room, and the cards scroll inside it
+ * under no scroll bar, with room kept for their shadows, so the ones at the top are not lost off the screen. An open
+ * card stays in sight at the edge it would leave by.
+ */
+#column.over {
+  box-sizing: border-box;
+  max-height: var(--room);
+}
+#column.over #deck {
+  min-height: 0;
+  margin: -2px -6px -6px -2px;
+  padding: 2px 6px 6px 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+#column.over #base,
+#column.over #deck > .card {
+  flex: none; /* the cards scroll, whole: a card squeezed to fit would clip what it shows */
+}
+#column.over .card.open {
+  position: sticky;
+  z-index: 1;
+  top: 2px;
+  bottom: 6px;
+}
 /* the dock, and beside it what acts on all the hands at once */
 #base {
   display: flex;
@@ -391,8 +418,12 @@ html.windows .name {
   position: absolute;
   z-index: 2;
   font: 24px/1 "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
-  /* the glove colour again, as the outline of the hand in the picture */
-  filter: drop-shadow(1.5px 0 0 var(--glove)) drop-shadow(-1.5px 0 0 var(--glove)) drop-shadow(0 1.5px 0 var(--glove)) drop-shadow(0 -1.5px 0 var(--glove)) drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
+  /*
+   * the glove colour again, as the outline of the hand in the picture, and a soft shadow in ink. A black one could
+   * darken a near-black pixel of a dimmed frame to exactly the key colour, a hole in the card. Under ink a pixel's red
+   * goes no lower than its own or ink's, and no pixel of a picture, dimmed or not, has a red as low as the key's 1.
+   */
+  filter: drop-shadow(1.5px 0 0 var(--glove)) drop-shadow(-1.5px 0 0 var(--glove)) drop-shadow(0 1.5px 0 var(--glove)) drop-shadow(0 -1.5px 0 var(--glove)) drop-shadow(0 2px 3px rgb(28 20 8 / 0.5));
   transition:
     left var(--t-move) var(--ease-glide),
     top var(--t-move) var(--ease-glide);
@@ -441,6 +472,10 @@ html.windows .name {
 .card[data-status="needs_you"] .view .show {
   opacity: 1;
   pointer-events: auto;
+}
+/* Show brings the hand's window to the user, which only Windows can do yet: elsewhere there is no Show to press */
+html:not(.windows) [data-cmd="show"] {
+  display: none !important;
 }
 
 /* what it is doing, or what came of it: the clamp is on the words, so no half line shows in the padding */
@@ -863,7 +898,11 @@ html.windows .name {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* every duration: a sheet put away no more slides the cards above it than one coming out does */
   :root {
+    --t-tap: 0ms;
+    --t-swap: 0ms;
+    --t-quick: 0ms;
     --t-move: 0ms;
     --t-enter: 0ms;
     --t-pop: 0ms;
