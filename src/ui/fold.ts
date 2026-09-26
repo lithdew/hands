@@ -20,6 +20,7 @@ export const SIZE = {
   pad: 18, // above and below those words
   picture: [150, 240], // a picture on a card whose sheet is not out: at 240 a landscape window fills the width, and it shrinks as far as 150 before a card stays folded for want of room
   brief: 84, // what the hand was asked, where its picture will be
+  subtitle: 20, // under that task, what a hand at work is doing, until its picture comes
   mini: 70, // a finished hand's small picture, beside its answer
   receipt: 5, // lines of a finished hand's answer
   dock: 100, // the dock at its tallest, three lines of words: kept free, so that no card folds because the voice is talking
@@ -68,15 +69,17 @@ const said = (shape: Shape, most: number): number => (shape.words ? Math.min(mos
 export const folded = (hand: Of, shape: Shape, bare = false): number => SIZE.strip + (shape.words && !bare && (!busy(hand.status) || !!hand.seat) ? SIZE.pad + said(shape, 2) : 0);
 
 /**
- * An unfolded card: its header, its picture, and three lines of words. A finished hand's (when `hand` says whose it
- * is) is a receipt instead: its answer first, in as many as five lines, with a small picture beside it.
+ * An unfolded card: its header, its picture, and three lines of words. When `hand` says whose it is: a hand at work
+ * with no picture yet has what it is doing under its task, and a finished hand's is a receipt instead, its answer
+ * first, in as many as five lines, with a small picture beside it.
  */
 export const unfolded = (shape: Shape, most: number = SIZE.picture[1], hand?: Of): number => {
   if (hand && finished(hand.status)) {
     const body = Math.max(shape.ratio ? SIZE.mini : 0, said(shape, SIZE.receipt));
     return SIZE.strip + (body ? SIZE.pad + body : 0);
   }
-  return SIZE.strip + SIZE.rule + tall(shape, most) + (shape.words ? SIZE.pad + said(shape, 3) : 0);
+  const picture = shape.ratio ? tall(shape, most) : SIZE.brief + (hand?.status === "working" ? SIZE.subtitle : 0);
+  return SIZE.strip + SIZE.rule + picture + (shape.words ? SIZE.pad + said(shape, 3) : 0);
 };
 
 export interface Layout {

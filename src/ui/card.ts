@@ -1,16 +1,16 @@
 /// <reference lib="dom" />
 /**
  * A hand's card. Headed in its glove colour, with a glyph that is always that hand's own; under the header a
- * picture of the window it works in, with its hand drawn where the real one is; under that, what it is doing or
- * what came of it. Open, it has a sheet: what it was told, did and said, and a box to tell it something. All that
- * came from the hand, and so often from a web page, is set as text, never as HTML.
+ * picture of the window it works in, with its hand drawn where the real one is and what it is doing as a subtitle;
+ * under that, what came of it, or what it needs. Open, it has a sheet: what it was told, did and said, and a box to
+ * tell it something. All that came from the hand, and so often from a web page, is set as text, never as HTML.
  */
 
 import { finished } from "./fold.ts";
 import { ms, settle } from "./motion.ts";
-import { sight } from "./rules.ts";
+import { says, sentence, sight } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, Status } from "./state.ts";
-import { blocks, gist } from "./text.ts";
+import { blocks } from "./text.ts";
 
 /** Who each hand is, whatever pose it strikes out on the screen. */
 const IDENTITY: Record<string, string> = { lefty: "👈", righty: "👉", thumbs: "👍", pinky: "👌", index: "☝️", palm: "🖐️", knuckles: "✊", digit: "✌️" };
@@ -57,9 +57,6 @@ const put = (target: HTMLElement, text: string): boolean => {
   return true;
 };
 
-/** Starts with a capital, as a sentence does: "click “Search”" becomes "Click “Search”". */
-const sentence = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
-
 export function build(id: string, act: (message: ClientMessage) => void, toggle: (id: string) => void, closeKey: string): Card {
   const root = (template.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
   const card: Card = { id, root, view: null, frames: [...root.querySelectorAll<HTMLImageElement>(".screen img")], url: "", frame: 0, ratio: null, of: undefined, clock: "", leaving: false };
@@ -81,18 +78,6 @@ export function build(id: string, act: (message: ClientMessage) => void, toggle:
     });
   }
   return card;
-}
-
-/** What a card says under its picture: what the hand is doing, or what came of it. Empty when the header says it all. */
-export function says(hand: HandView): string {
-  if (hand.seat === "holding") return hand.seatWhy ? `${sentence(hand.seatWhy)} with your mouse and keyboard.` : "Using your mouse and keyboard.";
-  if (hand.seat === "waiting") return `Waiting for you to pause${hand.seatWhy ? `, before ${hand.seatWhy}` : ""}.`;
-  if (hand.status === "working") return sentence(hand.action || "thinking");
-  if (hand.status === "paused") return "Paused. Tell it what to change, or let it carry on.";
-  if (hand.status === "needs_you") return gist(hand.answer) || "It needs you to do something in its window.";
-  if (hand.status === "failed") return hand.reason || gist(hand.answer) || "It ran into an error and stopped.";
-  if (hand.status === "starting") return ""; // the task stands where the picture will be
-  return gist(hand.answer); // done or stopped: the chip says which, and this says what came of it, if anything did
 }
 
 /** The card brought up to date with its hand. `folded`, `bare` and `open` are the column's say (fold.ts). */
@@ -173,12 +158,18 @@ function forget(card: Card): void {
 function picture(card: Card): void {
   const hand = card.view!;
   const has = shown(card);
+  card.root.classList.toggle("pictured", has);
   part(card, ".screen").hidden = !has;
   part(card, ".brief").hidden = has;
   // The word is about the frame under it, stepped back: with no frame yet, the task shows, and nothing covers it.
   const caption = part(card, ".caption");
   caption.hidden = !has || (hand.picture !== "blank" && hand.picture !== "minimized");
   put(caption, hand.picture === "minimized" ? "Minimized" : "Not drawing while out of sight");
+  // What it is doing, as a subtitle on the picture, or under the task until the picture comes.
+  const subtitle = part(card, ".subtitle");
+  subtitle.hidden = hand.status !== "working";
+  subtitle.dataset.glyph = hand.glyph;
+  if (put(subtitle, sentence(hand.action || "thinking")) && !subtitle.hidden) settle(subtitle);
   if (!card.ratio && hand.size) card.root.style.setProperty("--ratio", String(hand.size[0] / hand.size[1])); // until the first frame says otherwise
   const marker = part(card, ".marker");
   // The hand is placed in its window's own points: over another window's picture, it would point at nothing there.

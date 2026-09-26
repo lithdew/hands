@@ -437,12 +437,43 @@ html.windows .name {
   text-align: center;
   text-wrap: balance;
 }
+/* at work: what it is doing, on its picture, as a subtitle; under its task until the picture comes */
+.subtitle {
+  position: absolute;
+  z-index: 3;
+  left: 8px;
+  bottom: 8px;
+  max-width: calc(100% - 16px);
+  box-sizing: border-box;
+  margin: 0;
+  padding: 4px 10px 5px 8px;
+  border-radius: 9px;
+  background: var(--ink);
+  color: var(--sheet);
+  box-shadow: 0 0 0 1.5px var(--glove);
+  font: 600 12.5px/1.25 var(--face);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.subtitle::before {
+  content: attr(data-glyph);
+  margin-right: 6px;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
+}
+.card[data-status="working"]:not(.pictured) .view {
+  min-height: 104px; /* the task, and under it the subtitle, until the picture comes */
+}
+.card[data-status="working"]:not(.pictured) .brief {
+  padding-bottom: 38px;
+}
 .caption {
   position: absolute;
   z-index: 3;
   left: 50%;
-  bottom: 10px;
-  translate: -50% 0;
+  top: 50%;
+  translate: -50% -50%; /* the middle of a dimmed picture: the subtitle is at its foot, the tools at its head */
   margin: 0;
   padding: 4px 10px 5px;
   border-radius: 999px;

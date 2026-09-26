@@ -1,10 +1,28 @@
 /**
  * The page's small decisions about what it is sent and what it is asked, made without a page, so they are tested
- * without one: which lines start a new hand under a name a card still has, what becomes of a picture when its hand
- * moves to another window, and which keys close a hand.
+ * without one: what a card says, which lines start a new hand under a name a card still has, what becomes of a
+ * picture when its hand moves to another window, and which keys close a hand.
  */
 
 import type { HandView, LogEntry } from "./state.ts";
+import { gist } from "./text.ts";
+
+/** Starts with a capital, as a sentence does: "click “Search”" becomes "Click “Search”". */
+export const sentence = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
+
+/**
+ * What a card says under its picture: what came of the hand, or what it needs. Empty when the header and the picture
+ * say it all: a hand at work says what it is doing on its picture, and one starting shows its task there.
+ */
+export function says(hand: Pick<HandView, "status" | "seat" | "seatWhy" | "answer" | "reason">): string {
+  if (hand.seat === "holding") return hand.seatWhy ? `${sentence(hand.seatWhy)} with your mouse and keyboard.` : "Using your mouse and keyboard.";
+  if (hand.seat === "waiting") return `Waiting for you to pause${hand.seatWhy ? `, before ${hand.seatWhy}` : ""}.`;
+  if (hand.status === "paused") return "Paused. Tell it what to change, or let it carry on.";
+  if (hand.status === "needs_you") return gist(hand.answer) || "It needs you to do something in its window.";
+  if (hand.status === "failed") return hand.reason || gist(hand.answer) || "It ran into an error and stopped.";
+  if (hand.status === "working" || hand.status === "starting") return "";
+  return gist(hand.answer); // done or stopped: the chip says which, and this says what came of it, if anything did
+}
 
 /**
  * Whether these lines start a hand's transcript. A task is its first line and comes at no other time, so lines that

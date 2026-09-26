@@ -28,8 +28,10 @@ test("a finished hand unfolds as a receipt, never a full picture, and working ha
   expect(unfolded({ ratio: null, words: true, lines: 2 }, MOST, { status: "done" })).toBe(SIZE.strip + SIZE.pad + 2 * SIZE.line);
   expect(unfolded({ ratio: 1.6, words: false }, MOST, { status: "stopped" })).toBe(SIZE.strip + SIZE.pad + SIZE.mini);
   expect(unfolded({ ratio: null, words: false }, MOST, { status: "stopped" })).toBe(SIZE.strip);
-  // A hand still at work keeps its picture.
+  // A hand still at work keeps its picture; before it has one, what it is doing stands under its task.
   expect(unfolded(WIDE, MOST, { status: "working" })).toBe(unfolded(WIDE));
+  expect(unfolded({ ratio: null, words: false }, MOST, { status: "working" })).toBe(SIZE.strip + SIZE.rule + SIZE.brief + SIZE.subtitle);
+  expect(unfolded({ ratio: null, words: false }, MOST, { status: "starting" })).toBe(SIZE.strip + SIZE.rule + SIZE.brief);
   // Two done and one at work, with room for the receipts and a middling picture: the picture takes the rest.
   const hands = [hand("lefty", "done", 1), hand("righty", "working", 2), hand("thumbs", "done", 3)];
   const short: Shape = { ratio: 16 / 10, words: true, lines: 1 };

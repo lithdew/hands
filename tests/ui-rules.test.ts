@@ -1,5 +1,19 @@
 import { expect, test } from "bun:test";
-import { anew, closes, type Press, sight } from "../src/ui/rules.ts";
+import { anew, closes, type Press, says, sight } from "../src/ui/rules.ts";
+import type { HandView } from "../src/ui/state.ts";
+
+const view = (extra: Partial<HandView>): HandView => ({ id: "lefty", name: "Lefty", color: "4f8cff", task: "Book a table", status: "working", action: "", glyph: "👆", at: null, size: null, viewing: false, answer: "", reason: "", seat: "", seatWhy: "", picture: "none", since: 0, ...extra }); // prettier-ignore
+
+test("a hand at work says what it is doing on its picture, not under it; the rest say what came of it", () => {
+  expect(says(view({ action: "click “Search”" }))).toBe("");
+  expect(says(view({ status: "starting" }))).toBe("");
+  expect(says(view({ seat: "holding", seatWhy: "pressing ctrl+s" }))).toBe("Pressing ctrl+s with your mouse and keyboard.");
+  expect(says(view({ status: "paused" }))).toBe("Paused. Tell it what to change, or let it carry on.");
+  expect(says(view({ status: "needs_you", answer: "Sign in, then tell me to carry on." }))).toBe("Sign in, then tell me to carry on.");
+  expect(says(view({ status: "failed", reason: "The page would not load." }))).toBe("The page would not load.");
+  expect(says(view({ status: "done", answer: "Wrote the haiku:\n\nLunch waits" }))).toBe("Wrote the haiku:\nLunch waits");
+  expect(says(view({ status: "stopped" }))).toBe("");
+});
 
 test("a task in lines for a card still out is a new hand under its name; the same task sent afresh on connecting is not", () => {
   expect(anew([{ kind: "task", text: "Book a table" }])).toBe(true);
