@@ -156,17 +156,57 @@ test("an open card is the only one unfolded, the others are headers, and its tra
   expect([...roomy.unfolded]).toEqual(["lefty"]);
   expect([...roomy.bare]).toEqual(["righty"]);
   expect(roomy.log).toBe(SIZE.log[1]);
-  expect(roomy.picture).toBe(tall(WIDE, SIZE.open[1]));
+  // Open, the card is wide: a landscape picture is as tall as the most an open one may be.
+  expect(roomy.picture).toBe(tall(WIDE, SIZE.open[1], SIZE.wide));
+  expect(roomy.picture).toBe(SIZE.open[1]);
   const room = 700;
   const cramped = arrange(hands, shapes("lefty", "righty"), room, "lefty");
   const left = room - BASE - 2 * SIZE.gap - 2 * SIZE.strip - SIZE.rule - SIZE.sheet;
-  expect(cramped.picture).toBe(tall(WIDE, SIZE.open[1]));
+  expect(cramped.picture).toBe(Math.min(tall(WIDE, SIZE.open[1], SIZE.wide), left - SIZE.log[0]));
   expect(cramped.log).toBe(left - cramped.picture);
   const small = BASE + 2 * SIZE.gap + 2 * SIZE.strip + SIZE.rule + SIZE.sheet + SIZE.open[0] + SIZE.log[0]; // just room for both at their smallest
   const tiny = arrange(hands, shapes("lefty", "righty"), small, "lefty");
   expect(tiny.unfolded.has("lefty")).toBe(true);
   expect(tiny.log).toBe(SIZE.log[0]);
   expect(tiny.picture).toBe(SIZE.open[0]);
+});
+
+test("a watched card is wide and tall, and the others fold for it, down to a point", () => {
+  const hands = [hand("lefty", "working", 1), hand("righty", "working", 2), hand("thumbs", "done", 3)];
+  const ids = hands.map((one) => one.id);
+  const plain: Shape = { ratio: 16 / 10, words: false };
+  const pictures = new Map(ids.map((id) => [id, plain]));
+  // With room, it is as tall as the wide card makes it; the others still unfold.
+  const roomy = arrange(hands, pictures, 2000, null, "lefty");
+  expect(roomy.theater).toBe(tall(plain, SIZE.theater[1], SIZE.wide));
+  expect(roomy.theater).toBe(348);
+  expect([...roomy.unfolded].sort()).toEqual(ids.sort());
+  // Short of room, it keeps its picture and the others fold: it goes first.
+  const headers = BASE + 3 * (SIZE.gap + SIZE.strip);
+  const short = arrange(hands, pictures, headers + SIZE.rule + 300, null, "lefty");
+  expect(short.theater).toBe(300);
+  expect([...short.unfolded]).toEqual(["lefty"]);
+  // A tall window is no taller than the most.
+  expect(arrange(hands, new Map([["lefty", { ratio: 0.5, words: false }]]), 2000, null, "lefty").theater).toBe(SIZE.theater[1]);
+  // Too short even for its smallest picture: it is not watched big, and the column is arranged as ever.
+  const none = arrange(hands, pictures, headers + SIZE.rule + SIZE.theater[0] - 1, null, "lefty");
+  expect(none.theater).toBe(0);
+  expect(none).toEqual(arrange(hands, pictures, headers + SIZE.rule + SIZE.theater[0] - 1, null));
+  // A sheet out wins: nothing is watched big behind it.
+  expect(arrange(hands, pictures, 2000, "righty", "lefty").theater).toBe(0);
+});
+
+test("a finished card watched big shows its picture and its words, and older finished hands give up their lines for it", () => {
+  const hands = [hand("lefty", "done", 1), hand("righty", "done", 2)];
+  const said: Shape = { ratio: 16 / 10, words: true, lines: 2 };
+  const pictures = new Map([["lefty", said], ["righty", said]]);
+  const two = folded({ status: "done" }, said);
+  const chrome = SIZE.rule + SIZE.pad + 2 * SIZE.line - (two - SIZE.strip); // what watching Righty adds, less its picture
+  const room = BASE + 2 * SIZE.gap + 2 * two + chrome + SIZE.theater[0] - 10; // 10 short, until Lefty gives up its lines
+  const layout = arrange(hands, pictures, room, null, "righty");
+  expect([...layout.bare]).toEqual(["lefty"]);
+  expect(layout.theater).toBe(SIZE.theater[0] - 10 + (two - SIZE.strip));
+  expect([...layout.unfolded]).toEqual(["righty"]);
 });
 
 /** How tall the column is drawn with a sheet out: the open card's picture (if it has one), transcript and box, and the others as headers. */

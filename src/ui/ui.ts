@@ -31,6 +31,7 @@ const RECEIPT_CHARS = 28;
 const cards = new Map<string, Card>();
 const logs = new Map<string, LogEntry[]>();
 let open: string | null = null;
+let watching: string | null = null; // the hand watched big (theater), if any
 let last: { hands: HandView[]; room: number } = { hands: [], room: 800 };
 
 // ------------------------------------------------------------------ the socket
@@ -101,7 +102,7 @@ function show(hands: HandView[], room: number): void {
   const dealt: Card[] = [];
   for (const hand of hands) {
     if (cards.has(hand.id)) continue;
-    const card = build(hand.id, send, (id) => toggle(id), KEYS);
+    const card = build(hand.id, send, { toggle: (id) => toggle(id), watch }, KEYS);
     write(card, logs.get(hand.id) ?? [], true); // lines that came before the card did
     deck.append(card.root);
     cards.set(hand.id, card);
@@ -123,6 +124,7 @@ function retire(card: Card): void {
     open = null;
     send({ cmd: "focus", on: false });
   }
+  if (watching === card.id) watching = null;
   void sweep(card.root).then(() => {
     URL.revokeObjectURL(card.url);
     report();
@@ -143,17 +145,21 @@ function update(): void {
     const chars = finished(hand.status) && card?.url ? RECEIPT_CHARS : CARD_CHARS;
     shapes.set(hand.id, { ratio, words: said !== "", lines: lines(said, chars), tally: (card?.steps.length ?? 0) > 0, sources: hand.kind === "lookup" && !!hand.sources?.length });
   }
-  const layout = arrange(hands, shapes, room - extra(), open);
+  const layout = arrange(hands, shapes, room - extra(), open, watching);
+  // Watched with no room for it even at its smallest: it is not watched after all.
+  if (!layout.theater) watching = null;
+  big = watching;
   // Crowded past folding: the column stops at the room and the cards scroll inside it, so the top ones stay reachable.
   column.style.setProperty("--room", `${room}px`);
   column.classList.toggle("over", layout.over);
   for (const [index, hand] of order(hands).entries()) {
     const card = cards.get(hand.id);
     if (!card) continue;
+    const theater = hand.id === watching;
     card.root.style.order = String(index);
-    paint(card, hand, { folded: !layout.unfolded.has(hand.id), bare: layout.bare.has(hand.id), open: hand.id === open });
+    paint(card, hand, { folded: !layout.unfolded.has(hand.id), bare: layout.bare.has(hand.id), open: hand.id === open, theater });
     card.root.style.setProperty("--log", `${layout.log}px`);
-    card.root.style.setProperty("--tall", `${layout.picture}px`);
+    card.root.style.setProperty("--tall", `${theater ? layout.theater : layout.picture}px`);
   }
   const over = hands.filter((hand) => finished(hand.status)).length;
   clear.hidden = over === 0;
@@ -162,11 +168,22 @@ function update(): void {
   report();
 }
 
+/**
+ * Watch a hand big, or stop: its card widens to the left and its picture grows, filmed sharper and faster. Unlike a
+ * sheet it takes no keyboard, so the user goes on in their own app while they watch; a sheet that was out goes.
+ */
+function watch(id: string): void {
+  watching = watching === id ? null : id;
+  if (watching && open) toggle(null);
+  else moving(update);
+}
+
 /** Open a hand's sheet, which takes the keyboard for its box, or put it away, which gives the keyboard back. */
 function toggle(id: string | null, on = open !== id): void {
   const next = on ? id : null;
   if (next === open) return;
   open = next;
+  if (open) watching = null; // a sheet is the other way to see a hand larger: one at a time
   update();
   const card = open ? cards.get(open) : undefined;
   if (card) {
@@ -268,8 +285,8 @@ function report(): void {
 }
 // The dock and the chip are watched as well as the column: the dock rests small by its own timer once the voice has
 // stopped, and opens out under the pointer, often with the column's size unchanged, and where they are solid changes.
-const watch = new ResizeObserver(report);
-for (const one of [column, dock, clear]) watch.observe(one);
+const resized = new ResizeObserver(report);
+for (const one of [column, dock, clear]) resized.observe(one);
 deck.addEventListener("scroll", report, { passive: true }); // a crowded column's cards move under the pointer
 /** A move to a display of another scale, or a change of scale, is said too. */
 function rescaled(): void {
@@ -284,12 +301,16 @@ rescaled();
 let filmed = "";
 let pictured: string[] = [];
 let hot: string | null = null;
+let big: string | null = null;
 
-/** The hands whose card shows its picture, and the one under the pointer, when either changes: only they are filmed, that one first. */
+/**
+ * The hands whose card shows its picture, the one under the pointer and the one watched big, when any of them
+ * changes: only those are filmed, the last two first, and the one watched big sharper.
+ */
 function film(hands = pictured): void {
   pictured = hands;
-  const said = `${[...hands].sort().join(" ")} ${hot}`;
-  if (said !== filmed && send({ cmd: "visible", hands, hot })) filmed = said;
+  const said = `${[...hands].sort().join(" ")} ${hot} ${big}`;
+  if (said !== filmed && send({ cmd: "visible", hands, hot, big })) filmed = said;
 }
 
 // The card under the pointer is the one being looked at: its picture comes four times a second.

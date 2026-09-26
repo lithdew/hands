@@ -21,6 +21,7 @@
   --alarm: #d7263d;
   --alarm-on-ink: #ff8e8e; /* the alarm, bright enough to read on ink */
   --column: 380px;
+  --wide: 560px; /* a card watched big, or with its sheet out: it widens to the left, into the window's clear side */
 
   --face: "Avenir Next", "Avenir", -apple-system, sans-serif;
   --display: var(--face);
@@ -168,8 +169,24 @@ kbd {
   background: var(--ink);
   overflow: hidden;
   transition:
+    width var(--t-move) var(--ease-out),
     transform var(--t-tap) var(--ease-out),
     box-shadow var(--t-tap) var(--ease-out);
+}
+/* watched big (theater), or with its sheet out: wide, the picture growing with it; a click on the picture again
+   puts it back. The picture's cursor says which. */
+.card.theater,
+.card.open {
+  width: var(--wide);
+}
+.card.pictured:not(.theater) .screen {
+  cursor: zoom-in;
+}
+.card.theater .screen {
+  cursor: zoom-out;
+}
+.card.theater .subtitle {
+  font-size: 14px;
 }
 @media (hover: hover) and (pointer: fine) {
   /* a cut-out card lifts off the page under the pointer, and goes down when pressed */

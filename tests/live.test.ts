@@ -132,6 +132,15 @@ test("the card under the pointer is filmed first, four times a second, and the o
   expect(nextShot([card("lefty", 800, { viewing: true }), card("righty", 900)], null, 1050, ["lefty"])).toBeNull();
 });
 
+test("the card watched big comes before the one under the pointer, and both before the rest", () => {
+  const card = (id: string, shot: number) => ({ id, window: 1, viewing: false, last: false, shot });
+  const three = [card("lefty", 700), card("righty", 800), card("thumbs", 0)];
+  expect(nextShot(three, null, 1050, ["righty", "lefty"])?.id).toBe("righty");
+  expect(nextShot(three, null, 1000, ["righty", "lefty"])?.id).toBe("lefty"); // Righty not due yet: Lefty is
+  expect(nextShot(three, null, 900, ["righty", "lefty"])?.id).toBeUndefined(); // neither due, and Thumbs waits its second
+  expect(nextShot(three, null, 1000, ["righty", null])?.id).toBe("thumbs");
+});
+
 test("a card knows its window is in front only once that has lasted a second, and the same going back", () => {
   const one = { window: 7, viewing: false, front: { value: false, since: 0 } };
   expect(glance(one, 7, 1000)).toBe(false);

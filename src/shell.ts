@@ -359,7 +359,8 @@ export interface Shell {
   mic: ReturnType<typeof sound>["mic"];
   speaker: ReturnType<typeof sound>["speaker"];
   panel: Panel;
-  thumbnail(windowId: number): Shot;
+  /** A picture of a window, at most `maxPx` wide where the platform can say (the card watched big wants it sharper). */
+  thumbnail(windowId: number, maxPx?: number): Shot;
   /** Hold the talk key down from inside: a run that speaks from a file has no finger. */
   holdKey(down: boolean): void;
   /** The ordinary window in front of all others, the one the user is looking at. */

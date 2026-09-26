@@ -35,6 +35,7 @@ const RECENT = 6;
 const TICK_MS = 100; // how often the camera looks for a picture that is due
 const ALONE_MS = 250; // the one card that shows a picture is refreshed four times a second
 const EACH_MS = 1000; // several are refreshed once a second each, in turn
+const BIG_PX = 1280; // how wide a frame of the card watched big may be: that card is 556 CSS px wide, at up to two device pixels each
 const VIEWING_MS = 1000; // the user has a hand's window in front of them (or no longer does) once it has lasted this long
 const IDLE_MS = 60_000; // an open session is sent audio all the time and costs by the minute: after this long with nobody talking it is closed, and started again, told the conversation so far, when next needed
 const SAYING_MS = 15_000; // and not within this long of being given something to say, which it may not have begun yet
@@ -1062,6 +1063,7 @@ const viewers = new Set<Bun.ServerWebSocket<unknown>>();
 let dirty = false;
 let visible: Set<string> | null = null; // the hands whose cards show a picture, as the page last said: until it says, every one
 let hot: string | null = null; // the one under the pointer, filmed first
+let big: string | null = null; // the one watched big, filmed first and sharper
 
 const publish = (message: ServerMessage) => {
   for (const viewer of viewers) viewer.send(JSON.stringify(message));
@@ -1109,7 +1111,7 @@ export function command(message: ClientMessage): void {
     return;
   }
   if (message.cmd === "focus") return shell?.panel.focus(message.on);
-  if (message.cmd === "visible") return void ([visible, hot] = [new Set(message.hands), message.hot ?? null]);
+  if (message.cmd === "visible") return void ([visible, hot, big] = [new Set(message.hands), message.hot ?? null, message.big ?? null]);
   if (message.cmd === "clear") return void [...hands.values()].filter(finished).forEach((one) => void close(one));
   if (message.cmd === "open") return; // a lookup's source: opened once lookups exist (src/web.ts)
   const target = hands.get(message.hand);
@@ -1161,8 +1163,8 @@ export function glance(hand: Pick<Hand, "window" | "viewing" | "front">, front: 
 /**
  * The hand whose window is to be photographed now, if any. Only cards that show a picture are filmed, and not while
  * the user has the window itself in front of them: one card alone four times a second, several once a second each,
- * the longest waiting first. The ones `first` names (the card under the pointer) are filmed four times a second
- * however many there are, ahead of the rest. A hand that has finished is filmed once more, and then not again.
+ * the longest waiting first. The ones `first` names (the card watched big, the card under the pointer) are filmed
+ * four times a second however many there are, ahead of the rest. A hand that has finished is filmed once more, and then not again.
  */
 export function nextShot<T extends Pick<Hand, "id" | "window" | "viewing" | "last" | "shot">>(all: Iterable<T>, visible: Set<string> | null, now: number, first: (string | null)[] = []): T | null {
   const shown = [...all].filter((one) => one.window !== null && !one.viewing && !one.last && (!visible || visible.has(one.id)));
@@ -1184,11 +1186,11 @@ function film(): void {
       const front = shell?.frontWindow() ?? null;
       for (const one of hands.values()) if (glance(one, front, now)) changed();
       if (!viewers.size || !shell) return;
-      const one = nextShot(hands.values(), visible, now, [hot]);
+      const one = nextShot(hands.values(), visible, now, [big, hot]);
       if (!one) return;
       one.shot = now;
       if (finished(one)) one.last = true; // its final frame
-      const shot = shell.thumbnail(one.window!);
+      const shot = shell.thumbnail(one.window!, one.id === big ? BIG_PX : undefined);
       if (!shot) return;
       const picture = "jpeg" in shot ? "live" : "blank" in shot ? "blank" : "minimized"; // a frame that shows nothing, or none at all, is not sent: the card keeps its last
       if (one.picture !== picture) {

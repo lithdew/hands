@@ -78,11 +78,23 @@ export interface Keys {
   mod: string;
 }
 
-export function build(id: string, act: (message: ClientMessage) => void, toggle: (id: string) => void, keys: Keys): Card {
+/** What a click on a card asks of the column: its sheet out or away, or its picture watched big or not. */
+export interface Asks {
+  toggle(id: string): void;
+  watch(id: string): void;
+}
+
+export function build(id: string, act: (message: ClientMessage) => void, asks: Asks, keys: Keys): Card {
   const root = (template.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
   root.dataset.id = id;
   const card: Card = { id, root, view: null, frames: [...root.querySelectorAll<HTMLImageElement>(".screen img")], url: "", frame: 0, ratio: null, of: undefined, clock: "", leaving: false, steps: [], act: "", taps: null, shotAt: 0 };
-  for (const selector of ["header", ".fold", ".tell"]) part(card, selector).addEventListener("click", () => toggle(id));
+  // The header and the words open the sheet; the picture is watched big, and its small copy on a receipt too.
+  for (const selector of ["header", ".tell"]) part(card, selector).addEventListener("click", () => asks.toggle(id));
+  part(card, ".fold").addEventListener("click", () => (shown(card) && card.view?.kind !== "lookup" ? asks.watch(id) : asks.toggle(id)));
+  part(card, ".mini").addEventListener("click", (event) => {
+    event.stopPropagation();
+    asks.watch(id);
+  });
   part(card, ".close-key").textContent = keys.close;
   part(card, ".move-key").textContent = `${keys.mod} ↑↓`;
   part(card, ".hold-key").textContent = `${keys.mod} .`;
@@ -127,8 +139,8 @@ function brought(card: Card): void {
   part(card, ".flash").animate([{ opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 1, offset: 0.85 }, { opacity: 0 }], { duration: 1500 });
 }
 
-/** The card brought up to date with its hand. `folded`, `bare` and `open` are the column's say (fold.ts). */
-export function paint(card: Card, hand: HandView, place: { folded: boolean; bare: boolean; open: boolean }): void {
+/** The card brought up to date with its hand. `folded`, `bare`, `open` and `theater` (watched big) are the column's say (fold.ts). */
+export function paint(card: Card, hand: HandView, place: { folded: boolean; bare: boolean; open: boolean; theater: boolean }): void {
   const before = card.view;
   card.view = hand;
   const { root } = card;
@@ -139,6 +151,7 @@ export function paint(card: Card, hand: HandView, place: { folded: boolean; bare
   root.dataset.kind = hand.kind ?? "hand";
   root.classList.toggle("strip", place.folded);
   root.classList.toggle("open", place.open);
+  root.classList.toggle("theater", place.theater);
   root.classList.toggle("viewed", hand.viewing && !place.open);
   if (busy(hand) || !card.clock) card.clock = elapsed(hand.since);
 
@@ -171,7 +184,7 @@ export function paint(card: Card, hand: HandView, place: { folded: boolean; bare
   const said = says(hand);
   put(part(card, ".said"), said);
   // Over, and unfolded: a receipt, its answer first and a small picture of its window beside it.
-  const receipt = finished(hand.status) && !place.folded && !place.open;
+  const receipt = finished(hand.status) && !place.folded && !place.open && !place.theater;
   root.classList.toggle("receipt", receipt);
   root.classList.toggle("quiet", !(said || (receipt && (shown(card) || card.steps.length > 0))) || place.open || place.bare || (place.folded && busy(hand) && !hand.seat));
   put(part(card, ".tally"), card.steps.length ? tally(card.steps, card.clock) : "");
