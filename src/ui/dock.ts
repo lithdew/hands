@@ -5,11 +5,13 @@
  * a ring around the dock spreads with it), drum while it thinks, move while it speaks, and spring up once when a
  * hand has finished. Above the words, a line when a hand has borrowed your mouse and keyboard or is waiting to, and a
  * line when the voice has a problem. Once you have spoken to it, it rests as a small palm in the corner until the key
- * goes down again, counting the hands that need you.
+ * goes down again, counting the hands that need you. Typed to instead (ask.ts), it holds the box while it is out, then
+ * shows your line as your words while its fingers drum, and then what came of it, for as long as that takes to read.
  */
 
 import { identity } from "./card.ts";
 import { settle } from "./motion.ts";
+import { lingers } from "./rules.ts";
 import type { HandView, VoiceView } from "./state.ts";
 
 const dock = document.getElementById("dock") as HTMLElement;
@@ -31,13 +33,68 @@ let done: Set<string> | null = null; // the hands that were done at the last wor
 let cheer = -Infinity; // when one last finished
 
 const CHEER_MS = 260; // how long the fingers are held up for a hand that has finished
+const UNANSWERED_MS = 8000; // a typed line whose answer never came stops being shown after this long
+
+let boxed = false; // the box is out (ask.ts): the dock is for typing
+/** A line the user typed: shown as their words until what came of it is known (said), then that, and then it goes. */
+let typed: { asked: string; said: string | null; timer: ReturnType<typeof setTimeout> } | null = null;
+
+/** Whether the voice is at rest, so the dock can be typed to: not while it listens, thinks or speaks. */
+export const resting = (): boolean => state === "idle" || state === "offline";
+
+/**
+ * Whether a hand has the user's mouse and keyboard, or waits for them to pause to take them: the banner says so. The
+ * box does not come out then: the panel lets every click through while a hand holds them (panel.cs), and a hand that
+ * waits takes them, and the foreground, at the user's next pause.
+ */
+export const seated = (): boolean => !banner.hidden;
+
+/** The box is out, or put away: while it is out the dock holds it, and whatever the dock was showing of a typed line goes. */
+export function typing(on: boolean): void {
+  boxed = on;
+  if (on) forget();
+  redraw();
+}
+
+/** A line was typed and sent (or could not be: `went` false), shown at once as the user's own words while it is read. */
+export function asked(text: string, went: boolean): void {
+  spoken = true; // the dock is known: it can rest small afterwards
+  show(text, went ? null : "Not sent: hands is not answering. Try again in a moment.");
+}
+
+/** What came of a typed line, as the orchestrator says it: shown for as long as it takes to read. */
+export function answered(text: string, said: string): void {
+  show(text, said);
+}
+
+function show(text: string, said: string | null): void {
+  forget();
+  const timer = setTimeout(() => {
+    typed = null;
+    redraw();
+  }, said === null ? UNANSWERED_MS : lingers(said));
+  typed = { asked: text, said, timer };
+  redraw();
+}
+
+function forget(): void {
+  if (typed) clearTimeout(typed.timer);
+  typed = null;
+}
+
+const redraw = (): void => {
+  if (last) speak(...last);
+};
 
 /** The dock brought up to date: the voice's state and words, the seat, and any trouble. */
 export function speak(voice: VoiceView, hands: HandView[], talkKey: string): void {
   last = [voice, hands, talkKey];
   const was = state;
   state = voice.state === "connecting" ? "listening" : voice.state;
-  if (state === "listening" || state === "thinking" || state === "speaking") spoken = true;
+  if (state === "listening" || state === "thinking" || state === "speaking") {
+    spoken = true;
+    forget(); // the voice has the dock now: a typed line's answer is not shown over it, nor after it
+  }
   if (was === "speaking" && state === "idle" && voice.said.trim()) {
     if (lingering) clearTimeout(lingering.timer);
     const timer = setTimeout(() => {
@@ -72,16 +129,26 @@ export function speak(voice: VoiceView, hands: HandView[], talkKey: string): voi
 
   const heard = voice.heard.trim();
   const said = voice.said.trim();
-  if (state === "idle" && lingering) write("said", lingering.said);
-  else if (state === "idle" || state === "offline") hint(talkKey, hands.length > 0, needy[0]?.name);
+  const still = resting();
+  // What the dock is showing of a typed line, when it is: the box, the line, or what came of it.
+  const mode = !still ? "" : boxed ? "asking" : typed?.said === null ? "typed" : typed ? "answered" : "";
+  if (mode === "typed") write("typed", typed!.asked, false, true);
+  else if (mode === "answered") reply(typed!.asked, typed!.said!);
+  else if (mode === "asking") showing = "asking"; // the box stands where the words were: they are set down afresh after it
+  else if (state === "idle" && lingering) write("said", lingering.said);
+  else if (still) hint(talkKey, hands.length > 0, needy[0]?.name);
   else if (state === "speaking") write("said", said || "…", !said);
   // Only while the key is held does it say "Listening…": the transcript trails the speech, and a dock still saying so after the key is up looks like one that has not let go.
   else write("heard", heard || (state === "listening" ? "Listening…" : "…"), !heard);
 
-  const compact = spoken && state === "idle" && !lingering && banner.hidden && notice.hidden;
-  dock.className = `${state === "idle" && lingering ? "idle lingering" : state}${compact ? " compact" : ""}`;
-  // A long sentence keeps its newest words in sight, and its oldest line fades out at the top.
-  words.scrollTop = words.scrollHeight;
+  const compact = spoken && state === "idle" && !lingering && !mode && banner.hidden && notice.hidden;
+  // At rest, and saying how to talk to it: it can be clicked to type to, unless a hand has the mouse and keyboard, or
+  // waits to take them (the panel lets every click through then: panel.cs).
+  const hinting = still && !mode && !(state === "idle" && lingering) && banner.hidden;
+  dock.className = `${state === "idle" && lingering && !mode ? "idle lingering" : state}${mode ? ` ${mode}` : ""}${hinting ? " hint" : ""}${compact ? " compact" : ""}`;
+  // A long sentence keeps its newest words in sight, and its oldest line fades out at the top. What came of a typed
+  // line is read from its start.
+  words.scrollTop = mode === "answered" ? 0 : words.scrollHeight;
   words.classList.toggle("long", words.scrollTop > 0);
   wake();
 }
@@ -89,11 +156,42 @@ export function speak(voice: VoiceView, hands: HandView[], talkKey: string): voi
 /** How much taller the dock is than its words make it: the seat's banner and the notice, when they show. The cards make room for them. */
 export const extra = (): number => (banner.hidden ? 0 : banner.offsetHeight + 8) + (notice.hidden ? 0 : notice.offsetHeight + 9);
 
-/** The words: one voice's, set down afresh when the speaker changes and simply replaced as a transcript grows. */
-function write(whose: string, text: string, waiting = false): void {
+/**
+ * The words: one voice's, set down afresh when the speaker changes and simply replaced as a transcript grows. A line
+ * the user has just typed is there at once (`instant`): what the keyboard does is not animated.
+ */
+function write(whose: string, text: string, waiting = false, instant = false): void {
   if (words.textContent !== text || words.firstElementChild) words.textContent = text;
   words.classList.toggle("waiting", waiting);
-  if (showing !== whose) settle(words);
+  if (showing !== whose && !instant) settle(words);
+  showing = whose;
+}
+
+/**
+ * What came of a typed line: the line itself, small, as what was asked, and under it the answer. An answer of several
+ * lines (a line a hand) keeps each to one line, cut where the dock ends; one of a single line wraps, up to three.
+ */
+function reply(text: string, said: string): void {
+  const whose = `answer ${text}\n${said}`;
+  if (showing === whose) return;
+  const asked = document.createElement("q");
+  asked.textContent = text;
+  const answer = document.createElement("span");
+  answer.className = "reply";
+  const lines = said.split("\n");
+  if (lines.length === 1) answer.textContent = said;
+  else
+    answer.replaceChildren(
+      ...lines.map((one) => {
+        const line = document.createElement("span");
+        line.className = "line";
+        line.textContent = one;
+        return line;
+      }),
+    );
+  words.replaceChildren(asked, answer);
+  words.classList.remove("waiting");
+  settle(words);
   showing = whose;
 }
 

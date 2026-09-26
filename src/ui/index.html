@@ -16,6 +16,8 @@
           <div class="talk">
             <div class="palm" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
             <p class="words" aria-live="polite"></p>
+            <form class="box" hidden><input type="text" autocomplete="off" spellcheck="false" enterkeyhint="send" maxlength="500" aria-label="Ask hands" placeholder="Ask hands…" /><kbd aria-hidden="true">↵</kbd></form>
+            <button class="type" type="button" aria-label="Type to hands" title="Type instead"><svg viewBox="0 0 20 14" aria-hidden="true"><rect x="1" y="1" width="18" height="12" rx="2.6" /><path d="M4.6 4.8h.8M7.8 4.8h.8M11 4.8h.8M14.2 4.8h1.2M4.6 7.4h1.6M8.6 7.4h.8M11.8 7.4h.8M14.6 7.4h.8M6.6 10h6.8" /></svg></button>
           </div>
         </section>
       </div>
@@ -61,7 +63,10 @@
               <img class="mini" alt="" />
               <div class="text">
                 <p class="said"></p>
-                <p class="tally"></p>
+                <div class="foot">
+                  <p class="tally"></p>
+                  <p class="seen" hidden title="Jev read its window when it finished, and saw the answer there"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.4 6.4l2.3 2.3 4.9-5.2" /></svg>Jev saw it</p>
+                </div>
                 <div class="sources"></div>
                 <div class="ask">
                   <button type="button" data-cmd="show">Show me</button>

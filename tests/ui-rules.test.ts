@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { anew, clock, closes, controls, driver, hold, moved, neighbour, type Press, recount, STALE_MS, says, searching, shortcut, sight, site, stale, steps, tally } from "../src/ui/rules.ts";
+import { anew, clock, closes, controls, driver, hold, lingers, moved, neighbour, type Press, recount, SEEN, STALE_MS, says, searching, seen, shortcut, sight, site, stale, steps, tally } from "../src/ui/rules.ts";
 import type { HandView } from "../src/ui/state.ts";
 
 const view = (extra: Partial<HandView>): HandView => ({ id: "lefty", name: "Lefty", color: "4f8cff", task: "Book a table", status: "working", action: "", glyph: "👆", at: null, size: null, viewing: false, answer: "", reason: "", seat: "", seatWhy: "", picture: "none", since: 0, ...extra }); // prettier-ignore
@@ -140,11 +140,24 @@ test("a live picture says nothing while frames come, and how long ago the last o
   expect(stale(200_000, 60_000)).toBe("2m ago");
 });
 
-test("a lookup says what it is searching for, in the words its action gives", () => {
-  expect(searching("searching 'best ramen near King's Cross'")).toBe("Searching “best ramen near King's Cross”");
-  expect(searching("searching “tate modern hours”")).toBe("Searching “tate modern hours”");
+test("a lookup says what it is searching for, in the words its action gives, and that it is still going", () => {
+  expect(searching("searching 'best ramen near King's Cross'")).toBe("Searching “best ramen near King's Cross”…");
+  expect(searching("searching “tate modern hours”")).toBe("Searching “tate modern hours”…");
+  expect(searching("searching the web")).toBe("Searching the web…"); // live.ts's first word: not a search for "the web"
   expect(searching("reading 3 pages")).toBe("Reading 3 pages");
-  expect(searching("")).toBe("Searching the web");
+  expect(searching("")).toBe("Searching the web…");
+});
+
+test("a done hand's receipt says Jev saw its answer only when Jev was sure, and a typed line's answer stays as long as it takes to read", () => {
+  expect(SEEN).toBe(0.8);
+  expect(seen({ status: "done", checked: 0.93 })).toBe(true);
+  expect(seen({ status: "done", checked: 0.8 })).toBe(true);
+  expect(seen({ status: "done", checked: 0.79 })).toBe(false); // unsure: nothing is said, never a warning
+  expect(seen({ status: "done" })).toBe(false); // not checked
+  expect(seen({ status: "failed", checked: 0.99 })).toBe(false);
+  expect(lingers("Told Lefty.")).toBe(3000);
+  expect(lingers("x".repeat(100))).toBe(7500);
+  expect(lingers("x".repeat(400))).toBe(10_000);
 });
 
 test("a source's chip names its site as a reader would, with the letter of its own name", () => {

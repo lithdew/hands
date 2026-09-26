@@ -2,16 +2,18 @@
 /**
  * The panel's page. A card per hand (card.ts), standing in a column in the bottom right corner of a window that is
  * otherwise not there; as they pile up (there can be eight) the cards that matter least fold down to their headers,
- * so the column always fits (fold.ts). Click a card for its sheet. Under the cards, the dock: the voice (dock.ts).
- * The orchestrator sends state, log lines, microphone levels and JPEG frames down one socket, and hears back how big
- * the column is, which cards show a picture (only those are filmed), and what the user asked of a hand.
+ * so the column always fits (fold.ts). Click a card for its sheet. Under the cards, the dock: the voice (dock.ts), and
+ * a box to type to the hands instead (ask.ts). The orchestrator sends state, log lines, microphone levels, what came of
+ * a typed line and JPEG frames down one socket, and hears back how big the column is, which cards show a picture (only
+ * those are filmed), what the user asked of a hand, and what they typed.
  */
 
+import { out as boxed, shut, wire } from "./ask.ts";
 import { build, type Card, frame, fresh, measured, paint, part, track, write } from "./card.ts";
-import { extra, level, speak } from "./dock.ts";
+import { answered, extra, level, resting, speak } from "./dock.ts";
 import { arrange, finished, lines, order, type Shape } from "./fold.ts";
 import { deal, glide, sweep, where } from "./motion.ts";
-import { anew, busy, closes, elapsed, hold, neighbour, says, shortcut } from "./rules.ts";
+import { anew, busy, closes, elapsed, hold, neighbour, says, seen, shortcut } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, ServerMessage } from "./state.ts";
 
 const column = document.getElementById("column") as HTMLElement;
@@ -79,11 +81,13 @@ function receive({ data }: MessageEvent): void {
   const message = JSON.parse(data) as ServerMessage;
   if (message.type === "level") return level(message.value);
   if (message.type === "log") return log(message.hand, message.entries, message.reset);
+  if (message.type === "answer") return moving(() => answered(message.asked, message.said));
   column.hidden = false; // there is something to show from the first state on: the dock, at least
   moving(() => {
     speak(message.voice, message.hands, message.talkKey); // first: the dock's height is part of what the cards fit around
     show(message.hands, message.room);
   });
+  if (boxed() && !resting()) moving(() => shut()); // the key went down while the box was out: the voice has the dock, and the user their keyboard
   if (message.focus && cards.has(message.focus)) toggle(message.focus, true); // the hand itself was clicked, out on the screen
 }
 
@@ -122,7 +126,7 @@ function retire(card: Card): void {
   logs.delete(card.id);
   if (open === card.id) {
     open = null;
-    send({ cmd: "focus", on: false });
+    keyboard();
   }
   if (watching === card.id) watching = null;
   void sweep(card.root).then(() => {
@@ -147,7 +151,8 @@ function update(): void {
     const words = `${chars} ${said}`;
     if (card && card.drawn.words !== words) card.drawn = { words, lines: 0 };
     const count = Math.max(lines(said, chars), card?.drawn.lines ?? 0);
-    shapes.set(hand.id, { ratio, words: said !== "", lines: count, tally: (card?.steps.length ?? 0) > 0, sources: hand.kind === "lookup" && !!hand.sources?.length });
+    // Under a receipt's words, a line for its tally of steps, and for Jev having seen its answer.
+    shapes.set(hand.id, { ratio, words: said !== "", lines: count, tally: (card?.steps.length ?? 0) > 0 || seen(hand), sources: hand.kind === "lookup" && !!hand.sources?.length });
   }
   const layout = arrange(hands, shapes, room - extra(), open, watching);
   // Watched with no room for it even at its smallest: it is not watched after all.
@@ -182,12 +187,18 @@ function watch(id: string): void {
   else moving(update);
 }
 
-/** Open a hand's sheet, which takes the keyboard for its box, or put it away, which gives the keyboard back. */
+/**
+ * Open a hand's sheet, which takes the keyboard for its box, or put it away, which gives the keyboard back. The dock's
+ * box, if it was out, goes as a sheet comes: the sheet has the keyboard next.
+ */
 function toggle(id: string | null, on = open !== id): void {
   const next = on ? id : null;
   if (next === open) return;
   open = next;
-  if (open) watching = null; // a sheet is the other way to see a hand larger: one at a time
+  if (open) {
+    watching = null; // a sheet is the other way to see a hand larger: one at a time
+    shut(true);
+  }
   update();
   const card = open ? cards.get(open) : undefined;
   if (card) {
@@ -195,8 +206,17 @@ function toggle(id: string | null, on = open !== id): void {
     log.scrollTop = log.scrollHeight;
     part<HTMLInputElement>(card, "input").focus({ preventScroll: true }); // at once, as the sheet starts to open
   }
-  send({ cmd: "focus", on: open !== null });
+  keyboard();
 }
+
+let keyed = false; // whether the page has the keyboard, as it last told its window
+
+/** The keyboard is the page's while a sheet or the dock's box is out, and goes back to the user's app when neither is. */
+function keyboard(): void {
+  const want = open !== null || boxed();
+  if (want !== keyed && send({ cmd: "focus", on: want })) keyed = want;
+}
+wire({ send, keyboard, sheet: () => toggle(null) });
 
 function log(hand: string, entries: LogEntry[], reset = false): void {
   const was = cards.get(hand);
@@ -214,16 +234,21 @@ function log(hand: string, entries: LogEntry[], reset = false): void {
 
 clear.addEventListener("click", () => send({ cmd: "clear" }));
 
+/** A change the keyboard asked for, made at once: what the keyboard does gets no animation, on any card it moves. */
+function instantly(change: () => void): void {
+  const all = [...cards.values()].map((card) => card.root);
+  for (const root of all) root.classList.add("instant");
+  change();
+  void deck.offsetHeight;
+  for (const root of all) root.classList.remove("instant");
+}
+
 document.addEventListener("keydown", (event) => {
   if (!open) return;
   const card = cards.get(open);
   if (event.key === "Escape") {
-    // Put away at once: what the keyboard does gets no animation.
     event.preventDefault();
-    card?.root.classList.add("instant");
-    toggle(null);
-    void card?.root.offsetHeight;
-    card?.root.classList.remove("instant");
+    instantly(() => toggle(null));
   } else if (closes(event, windows)) {
     // Close the hand, but only from an empty box: with words in it, the keys are the user's to edit with.
     // Ctrl+Backspace is never a close: in a text box it deletes a word.
@@ -241,7 +266,7 @@ document.addEventListener("keydown", (event) => {
       return;
     }
     const next = neighbour(order(last.hands).map((hand) => hand.id), card.id, key === "next" ? 1 : -1);
-    if (next) toggle(next, true);
+    if (next) instantly(() => toggle(next, true));
   }
 });
 

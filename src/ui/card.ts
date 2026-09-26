@@ -8,7 +8,7 @@
 
 import { finished, SIZE } from "./fold.ts";
 import { EASE_OUT, ms, settle, still } from "./motion.ts";
-import { busy, clock, type Control, controls, driver, hold, moved, recount, says, searching, sentence, type Step, sight, site, stale, steps, tally } from "./rules.ts";
+import { busy, clock, type Control, controls, driver, hold, moved, recount, says, searching, seen, sentence, type Step, sight, site, stale, steps, tally } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, Status } from "./state.ts";
 import { blocks } from "./text.ts";
 
@@ -168,7 +168,7 @@ export function paint(card: Card, hand: HandView, place: { folded: boolean; bare
   put(part(card, ".who"), identity(hand.name));
   put(part(card, ".name"), hand.name);
   put(part(card, "time"), card.clock);
-  put(part(card, ".doing"), hand.status === "working" ? (hand.kind === "lookup" ? searching(hand.action) : label || "thinking") : hand.status === "starting" ? hand.task : "");
+  put(part(card, ".doing"), hand.status === "working" ? (hand.kind === "lookup" ? searching(hand.action) : label || "thinking…") : hand.status === "starting" ? hand.task : "");
   const chip = part(card, ".chip.state");
   const word = hand.seat === "holding" ? "using your mouse" : hand.seat === "waiting" ? "waiting for you" : CHIP[hand.status];
   if (put(chip, word) && before) settle(chip); // a status change, set down where the eye is
@@ -182,8 +182,9 @@ export function paint(card: Card, hand: HandView, place: { folded: boolean; bare
   // Over, and unfolded: a receipt, its answer first and a small picture of its window beside it.
   const receipt = finished(hand.status) && !place.folded && !place.open && !place.theater;
   root.classList.toggle("receipt", receipt);
-  root.classList.toggle("quiet", !(said || (receipt && (shown(card) || card.steps.length > 0))) || place.open || place.bare || (place.folded && busy(hand) && !hand.seat));
+  root.classList.toggle("quiet", !(said || (receipt && (shown(card) || card.steps.length > 0 || seen(hand)))) || place.open || place.bare || (place.folded && busy(hand) && !hand.seat));
   put(part(card, ".tally"), card.steps.length ? tally(card.steps, card.clock) : "");
+  part(card, ".seen").hidden = !seen(hand); // Jev saw the answer on its last screen: said only when it was sure
   sources(card, hand);
   put(part(card, ".brief"), hand.task);
   picture(card);
@@ -296,7 +297,7 @@ function picture(card: Card): void {
   const subtitle = part(card, ".subtitle");
   subtitle.hidden = hand.status !== "working";
   subtitle.dataset.glyph = hand.glyph;
-  const doing = hand.kind === "lookup" ? searching(hand.action) : sentence(driver(hand.action).label || "thinking");
+  const doing = hand.kind === "lookup" ? searching(hand.action) : sentence(driver(hand.action).label || "thinking…");
   if (put(subtitle, doing) && !subtitle.hidden) settle(subtitle);
   if (!card.ratio && hand.size) card.root.style.setProperty("--ratio", String(hand.size[0] / hand.size[1])); // until the first frame says otherwise
   // A beating dot while frames come; with none for a while it goes grey and says how long (ui.ts, stale).
@@ -371,7 +372,8 @@ export async function frame(card: Card, jpeg: Uint8Array<ArrayBuffer>): Promise<
   mini(card); // before the last frame is let go of
   fresh(card, card.shotAt);
   if (first && card.view) picture(card);
-  if (!reshaped) await back.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ms(120), easing: "linear" }).finished.catch(() => {});
+  // A fade, not a movement: it keeps its time with less motion asked for too.
+  if (!reshaped) await back.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: "linear" }).finished.catch(() => {});
   URL.revokeObjectURL(old);
   return reshaped;
 }

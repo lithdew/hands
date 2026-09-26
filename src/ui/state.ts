@@ -65,7 +65,8 @@ export interface VoiceView {
 export type ServerMessage =
   | { type: "state"; hands: HandView[]; voice: VoiceView; focus: string | null; room: number; talkKey: string } // room: how tall the panel may grow, in points; talkKey: the key to hold, as the user would name it
   | { type: "level"; value: number } // how loud the microphone is this instant, 0 to 1: the dock's fingers move with it
-  | { type: "log"; hand: string; entries: LogEntry[]; reset?: boolean };
+  | { type: "log"; hand: string; entries: LogEntry[]; reset?: boolean }
+  | { type: "answer"; asked: string; said: string }; // what came of a line typed into the dock (src/live.ts ask), for the dock to say
 
 export type ClientMessage =
   | { cmd: "size"; width: number; height: number; dpr?: number }
