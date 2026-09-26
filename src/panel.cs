@@ -42,6 +42,10 @@ static class Panel
         var window = new PanelWindow(url, dataDir, dll);
         IntPtr handle = window.Handle; // created hidden: the first `fit` shows it
         window.Open();
+        // It could not even start (no loader entry point, or the runtime said no at once): the process ends, and says
+        // so, and the orchestrator tries another later. Application.Exit before the loop has begun does not stop the
+        // loop Application.Run would begin, which would run for nothing, and nobody would know.
+        if (window.Failed) return 3;
         var stdin = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
         var reader = new Thread(delegate ()
         {
@@ -102,6 +106,7 @@ class PanelWindow : Form
     Rectangle[] solid = new Rectangle[0]; // where the page shows something, in the window's pixels, as it last said
     bool through = true; // whether the mouse goes through the window now, all of it
     readonly System.Windows.Forms.Timer pointer = new System.Windows.Forms.Timer { Interval = 30 }; // how often the pointer is looked for over the page
+    readonly string[] seat = SeatLocks();
     public bool Failed = false;
 
     public PanelWindow(string url, string dataDir, string dll)
@@ -136,6 +141,12 @@ class PanelWindow : Form
     {
         if (m.Msg == HandNative.WM_MOUSEACTIVATE && !keyboard) { m.Result = (IntPtr)HandNative.MA_NOACTIVATE; return; } // a click on a card never takes the user out of their app
         base.WndProc(ref m);
+        // The window itself was given the focus while a sheet is open: the foreground came back to it from a hand's
+        // window (a borrow of the seat, a guarded click into a browser window, a window handed back). Activating a
+        // window focuses the window, not the page in it, and the box would stop hearing the keys with its caret still
+        // showing: the focus goes on into the page, which gives it back to the box that had it.
+        if (m.Msg == PanelNative.WM_SETFOCUS && keyboard && controller != null)
+            BeginInvoke((Action)delegate { if (keyboard && controller != null) controller.MoveFocus(0); });
     }
 
     // ------------------------------------------------------------------ the web view
@@ -181,8 +192,10 @@ class PanelWindow : Form
 
     /**
      * A panel, not a browser: no menu of the browser's own, no zoom (it would change the page's size under a window
-     * fitted to it), no status bar, no error page (a page that failed to load is nothing, not an opaque box in the
-     * corner of the screen), no browser keys (F5, Ctrl+P, F12: the editing keys stay), and dev tools only under HANDS_DEBUG.
+     * fitted to it), and no pinch zoom either (a pinch scales what is drawn and not the page, and the solid places the
+     * page gives would no longer be where it is drawn), no status bar, no error page (a page that failed to load is
+     * nothing, not an opaque box in the corner of the screen), no browser keys (F5, Ctrl+P, F12: the editing keys
+     * stay), and dev tools only under HANDS_DEBUG.
      */
     void Configure()
     {
@@ -194,7 +207,7 @@ class PanelWindow : Form
         settings.put_IsStatusBarEnabled(0);
         settings.put_IsBuiltInErrorPageEnabled(0);
         settings.put_AreDevToolsEnabled(debug ? 1 : 0);
-        int keys = 1;
+        int keys = 1, pinch = 1;
         try
         {
             ICoreWebView2Settings3 more = (ICoreWebView2Settings3)settings;
@@ -202,26 +215,40 @@ class PanelWindow : Form
             more.get_AreBrowserAcceleratorKeysEnabled(out keys);
         }
         catch (InvalidCastException) { } // a runtime older than the setting: its keys stay
+        try
+        {
+            ICoreWebView2Settings5 touch = (ICoreWebView2Settings5)settings;
+            touch.put_IsPinchZoomEnabled(0);
+            touch.get_IsPinchZoomEnabled(out pinch);
+        }
+        catch (InvalidCastException) { } // a runtime older than the setting: a pinch still zooms
         if (!debug) return;
         int menus, zoom, bar, tools, script;
         settings.get_AreDefaultContextMenusEnabled(out menus); settings.get_IsZoomControlEnabled(out zoom); settings.get_IsStatusBarEnabled(out bar); settings.get_AreDevToolsEnabled(out tools); settings.get_IsScriptEnabled(out script);
-        Console.Error.WriteLine("panel: script " + script + ", context menus " + menus + ", zoom " + zoom + ", status bar " + bar + ", dev tools " + tools + ", browser keys " + keys);
+        Console.Error.WriteLine("panel: script " + script + ", context menus " + menus + ", zoom " + zoom + ", pinch zoom " + pinch + ", status bar " + bar + ", dev tools " + tools + ", browser keys " + keys);
     }
 
     /**
      * One of the web view's processes went away. A page whose renderer crashed or hung is loaded again (it reconnects
      * and is sent everything afresh); a browser process that went away took the web view with it, which is made
-     * again, three times at most. Anything else (the GPU process, a utility) the runtime starts again by itself.
+     * again, three times at most. Anything else (the GPU process, a utility) the runtime starts again by itself, and
+     * the page stays as it was. A page loaded again has no sheet out and says nothing solid yet: the keyboard is
+     * handed back (the page will never say it can go, and a click on a card would take the user out of their app),
+     * and the mouse goes through until the page says where it is.
      */
     void Recover(int kind)
     {
         Console.Error.WriteLine("panel: a WebView2 process went away (kind " + kind + ")");
-        if (kind == WebView2ProcessFailed.RENDERER_EXITED || kind == WebView2ProcessFailed.RENDERER_HUNG || kind == WebView2ProcessFailed.UNKNOWN)
+        bool reload = kind == WebView2ProcessFailed.RENDERER_EXITED || kind == WebView2ProcessFailed.RENDERER_HUNG || kind == WebView2ProcessFailed.UNKNOWN;
+        if (!reload && kind != WebView2ProcessFailed.BROWSER_EXITED) return;
+        Keyboard(false);
+        solid = new Rectangle[0];
+        Pass();
+        if (reload)
         {
             if (web != null) web.Navigate(url);
             return;
         }
-        if (kind != WebView2ProcessFailed.BROWSER_EXITED) return;
         if (++restarts > 3) { Fail("the WebView2 browser process keeps going away"); return; }
         try { if (controller != null) controller.Close(); } catch (Exception) { }
         controller = null;
@@ -327,18 +354,58 @@ class PanelWindow : Form
      * The mouse goes through the whole window, web view and all (WS_EX_TRANSPARENT), unless the pointer is over a
      * part of the page that is solid. Looked at every 30 ms and whenever the page moves, and left as it is while a
      * button is held, so a press or a drag that has begun ends where it began.
+     *
+     * But while any hand holds the seat's lock, all of it lets the mouse through, wherever the pointer is and whatever
+     * is held. A hand holds that lock while it borrows the mouse and keyboard (and while it waits for the user to
+     * pause first), and for a guarded click into a browser window of its own. A borrow's clicks and drags are sent to
+     * where the hand's window is, and the panel, on top of everything and out of every capture, is where the hand
+     * cannot see it: a click sent where a card is must not land on the card (the pointer may have been resting there
+     * when the borrow began, or a drag may have started under one) and open its sheet, whose box would then take the
+     * borrowed typing. Until the lock is let go, the cards cannot be clicked; the on-screen hand and the voice can
+     * still stop a hand.
      */
     void Pass()
     {
-        if ((PanelNative.GetAsyncKeyState(PanelNative.VK_LBUTTON) & 0x8000) != 0 || (PanelNative.GetAsyncKeyState(PanelNative.VK_RBUTTON) & 0x8000) != 0) return;
-        HandNative.POINT cursor;
-        HandNative.GetCursorPos(out cursor);
+        bool seated = Seated();
         bool over = false;
-        foreach (Rectangle part in solid) if (part.Contains(cursor.x - Left, cursor.y - Top)) { over = true; break; }
+        if (!seated)
+        {
+            if ((PanelNative.GetAsyncKeyState(PanelNative.VK_LBUTTON) & 0x8000) != 0 || (PanelNative.GetAsyncKeyState(PanelNative.VK_RBUTTON) & 0x8000) != 0) return;
+            HandNative.POINT cursor;
+            HandNative.GetCursorPos(out cursor);
+            foreach (Rectangle part in solid) if (part.Contains(cursor.x - Left, cursor.y - Top)) { over = true; break; }
+        }
         if (over != through) return;
         through = !over;
         int style = HandNative.GetWindowLong(Handle, HandNative.GWL_EXSTYLE);
         HandNative.SetWindowLong(Handle, HandNative.GWL_EXSTYLE, through ? style | HandNative.WS_EX_TRANSPARENT : style & ~HandNative.WS_EX_TRANSPARENT);
+    }
+
+    /**
+     * Where the seat's lock is: the directory "hands-seat.lock" in the temp folder, where src/windows.ts takes it
+     * (SEAT_LOCK, under os.tmpdir()). Bun finds the temp folder in TEMP, then TMP, and Windows in TMP, then TEMP: every
+     * place either could have put it is looked at, which is one place when they agree, as they do.
+     */
+    static string[] SeatLocks()
+    {
+        var found = new List<string>();
+        foreach (string root in new[] { Environment.GetEnvironmentVariable("TEMP"), Environment.GetEnvironmentVariable("TMP"), Path.GetTempPath() })
+        {
+            if (string.IsNullOrEmpty(root)) continue;
+            string path;
+            try { path = Path.GetFullPath(Path.Combine(root, "hands-seat.lock")); }
+            catch (Exception) { continue; }
+            bool known = false;
+            foreach (string one in found) if (string.Equals(one, path, StringComparison.OrdinalIgnoreCase)) known = true;
+            if (!known) found.Add(path);
+        }
+        return found.ToArray();
+    }
+    /** Whether a hand holds the seat's lock now. */
+    bool Seated()
+    {
+        foreach (string path in seat) if (Directory.Exists(path)) return true;
+        return false;
     }
 
     public void Quit()
@@ -354,7 +421,7 @@ class PanelWindow : Form
 static class PanelNative
 {
     public const uint SWP_SHOWWINDOW = 0x40, SWP_HIDEWINDOW = 0x80, LOAD_WITH_ALTERED_SEARCH_PATH = 8;
-    public const int VK_LBUTTON = 1, VK_RBUTTON = 2;
+    public const int VK_LBUTTON = 1, VK_RBUTTON = 2, WM_SETFOCUS = 0x7;
     [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
@@ -536,6 +603,39 @@ interface ICoreWebView2Settings3
     [PreserveSig] int put_UserAgent(IntPtr agent);
     [PreserveSig] int get_AreBrowserAcceleratorKeysEnabled(out int enabled);
     [PreserveSig] int put_AreBrowserAcceleratorKeysEnabled(int enabled);
+}
+
+[ComImport, Guid("183E7052-1D03-43A0-AB99-98E043B66B39"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface ICoreWebView2Settings5
+{
+    [PreserveSig] int get_IsScriptEnabled(out int enabled);
+    [PreserveSig] int put_IsScriptEnabled(int enabled);
+    [PreserveSig] int get_IsWebMessageEnabled(out int enabled);
+    [PreserveSig] int put_IsWebMessageEnabled(int enabled);
+    [PreserveSig] int get_AreDefaultScriptDialogsEnabled(out int enabled);
+    [PreserveSig] int put_AreDefaultScriptDialogsEnabled(int enabled);
+    [PreserveSig] int get_IsStatusBarEnabled(out int enabled);
+    [PreserveSig] int put_IsStatusBarEnabled(int enabled);
+    [PreserveSig] int get_AreDevToolsEnabled(out int enabled);
+    [PreserveSig] int put_AreDevToolsEnabled(int enabled);
+    [PreserveSig] int get_AreDefaultContextMenusEnabled(out int enabled);
+    [PreserveSig] int put_AreDefaultContextMenusEnabled(int enabled);
+    [PreserveSig] int get_AreHostObjectsAllowed(out int allowed);
+    [PreserveSig] int put_AreHostObjectsAllowed(int allowed);
+    [PreserveSig] int get_IsZoomControlEnabled(out int enabled);
+    [PreserveSig] int put_IsZoomControlEnabled(int enabled);
+    [PreserveSig] int get_IsBuiltInErrorPageEnabled(out int enabled);
+    [PreserveSig] int put_IsBuiltInErrorPageEnabled(int enabled);
+    [PreserveSig] int get_UserAgent(out IntPtr agent);
+    [PreserveSig] int put_UserAgent(IntPtr agent);
+    [PreserveSig] int get_AreBrowserAcceleratorKeysEnabled(out int enabled);
+    [PreserveSig] int put_AreBrowserAcceleratorKeysEnabled(int enabled);
+    [PreserveSig] int get_IsPasswordAutosaveEnabled(out int enabled);
+    [PreserveSig] int put_IsPasswordAutosaveEnabled(int enabled);
+    [PreserveSig] int get_IsGeneralAutofillEnabled(out int enabled);
+    [PreserveSig] int put_IsGeneralAutofillEnabled(int enabled);
+    [PreserveSig] int get_IsPinchZoomEnabled(out int enabled);
+    [PreserveSig] int put_IsPinchZoomEnabled(int enabled);
 }
 
 [ComImport, Guid("79E0AEA4-990B-42D9-AA1D-0FCC2E5BC7F1"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
