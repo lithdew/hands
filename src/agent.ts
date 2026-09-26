@@ -11,6 +11,7 @@ import { type BashSpawnContext, createCodingTools } from "@earendil-works/pi-cod
 import { timestamp } from "./cli.ts";
 import * as config from "./config.ts";
 import { nowContext } from "./dates.ts";
+import { jevClient, warm } from "./decide.ts";
 import { hand, quote, tintOf } from "./hand.ts";
 import { onPayload, resolveModel, runtime } from "./llm.ts";
 import { onWindows, PERMISSION, platform as macos } from "./platform.ts";
@@ -206,6 +207,7 @@ export function scrubbed(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 export async function createAgent(options: { cwd: string; runDir: string; model?: string; thinking?: string }) {
   mkdirSync(options.cwd, { recursive: true });
   mkdirSync(options.runDir, { recursive: true });
+  if (process.env.TYPESAFE_API_KEY) warm(jevClient()); // Jev's connection opened while the hand starts: a first clicker step on a cold one waits half a second more
   const models = await runtime();
   const shell = { bash: { spawnHook: (spawn: BashSpawnContext): BashSpawnContext => ({ ...spawn, env: scrubbed(spawn.env) }) } };
   const agent: Agent = new Agent({
@@ -380,10 +382,11 @@ async function manage(agent: Agent, record: (line: string) => void): Promise<voi
   const emit = (event: object) => process.stdout.write(`${JSON.stringify(event)}\n`);
   let lastPlace = 0;
   agent.subscribe((event) => {
-    if (event.type === "tool_execution_start") emit({ type: "tool", name: event.toolName, args: brief(event.args, 300) });
+    if (event.type === "tool_execution_start") emit({ type: "tool", id: event.toolCallId, name: event.toolName, args: brief(event.args, 300) });
     else if (event.type === "tool_execution_end") {
       const blocks: { type: string; text?: string }[] = event.result?.content ?? [];
-      emit({ type: "result", error: event.isError, text: brief(blocks.map((block) => block.text ?? `[${block.type}]`).join(" "), 300) });
+      const moves = (event.result?.details as Details)?.moves;
+      emit({ type: "result", id: event.toolCallId, error: event.isError, text: brief(blocks.map((block) => block.text ?? `[${block.type}]`).join(" "), 300), ...(moves === undefined ? {} : { moves }) });
     } else if (event.type === "message_end" && event.message.role === "assistant") {
       for (const block of event.message.content) if (block.type === "text" && block.text.trim()) emit({ type: "say", text: block.text });
     }

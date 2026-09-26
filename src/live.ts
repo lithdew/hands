@@ -123,8 +123,8 @@ const ordered = <T extends Pick<HandView, "status">>(all: Iterable<T>): T[] => {
 };
 
 const view = (hand: Hand): HandView => {
-  const { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since, window, kind, sources, pose, taps, glide } = hand;
-  return { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since, window, kind, sources, pose, taps, glide };
+  const { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since, until, window, kind, sources, pose, taps, glide } = hand;
+  return { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since, until, window, kind, sources, pose, taps, glide };
 };
 
 /** What the panel is shown of every card, now. */
@@ -278,8 +278,8 @@ function tell(hand: Hand, command: Command): boolean {
   }
 }
 
-function record(hand: Hand, kind: LogEntry["kind"], text: string): void {
-  const entry = { kind, text };
+function record(hand: Hand, kind: LogEntry["kind"], text: string, more: Pick<LogEntry, "call" | "moves"> = {}): void {
+  const entry: LogEntry = { kind, text, ...more };
   hand.log.push(entry);
   publish({ type: "log", hand: hand.id, entries: [entry] });
 }
@@ -550,8 +550,8 @@ async function drain(hand: Hand): Promise<void> {
 type HandEvent =
   | { type: "ready" | "clicked" }
   | { type: "status"; status: Status; answer?: string; reason?: string }
-  | { type: "tool"; name: string; args: string }
-  | { type: "result"; error: boolean; text: string }
+  | { type: "tool"; id?: string; name: string; args: string }
+  | { type: "result"; id?: string; error: boolean; text: string; moves?: number }
   | { type: "say"; text: string }
   | ({ type: "cue" } & Cue);
 
@@ -562,14 +562,14 @@ function heard(hand: Hand, event: HandEvent): void {
     return;
   }
   if (event.type === "ready") return void clearTimeout(hand.starting); // its task is already waiting for it
-  if (event.type === "tool") record(hand, "tool", `${event.name} ${event.args}`);
-  else if (event.type === "result") record(hand, event.error ? "error" : "result", event.text);
+  if (event.type === "tool") record(hand, "tool", `${event.name} ${event.args}`, event.id ? { call: event.id } : {});
+  else if (event.type === "result") record(hand, event.error ? "error" : "result", event.text, { ...(event.id ? { call: event.id } : {}), ...(event.moves === undefined ? {} : { moves: event.moves }) });
   else if (event.type === "say") record(hand, "say", event.text);
   else if (event.type === "clicked") focus = hand.id; // the user clicked the hand itself: it has stopped where it was, and its card opens
   else if (event.type === "status") {
     clearTimeout(hand.starting);
     if (event.status === "working") {
-      [hand.status, hand.answer, hand.reason, hand.reported, hand.last] = ["working", "", "", false, false]; // what it said when it was paused is not a result: a resumed run has none yet
+      [hand.status, hand.answer, hand.reason, hand.reported, hand.last, hand.until] = ["working", "", "", false, false, undefined]; // what it said when it was paused is not a result: a resumed run has none yet
       if (hand.held) tell(hand, { type: "steer", text: hand.held }); // the facts looked up alongside, come while it was paused or waited on the user
       hand.held = "";
     } else settle(hand, event.status, event.answer ?? "", event.reason ?? "");
@@ -602,6 +602,7 @@ function settle(hand: Hand, status: Status, answer: string, reason = "", quietly
     [hand.search, hand.held] = [null, ""];
   }
   [hand.status, hand.answer, hand.reason, hand.seat, hand.seatWhy, hand.reported] = [status, answer, reason, "", "", false];
+  hand.until = finished({ status }) || status === "paused" || status === "needs_you" ? Date.now() : undefined; // the card's clock stops here, even for a page loaded later
   record(hand, "status", status);
   console.log(`[${hand.name}] ${status}${answer ? `: ${answer}` : ""}${reason ? ` (${reason})` : ""}`);
   const summary = voiceSummary(status === "failed" ? reason || answer : answer);

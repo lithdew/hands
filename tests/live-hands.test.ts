@@ -196,6 +196,21 @@ test("a steer is delivered, not done; to a hand at work it is the latest word on
   expect(known()[0]!.answer).toBeUndefined();
 });
 
+test("a card says when its run stopped, so a card drawn later still says how long it took, and a resumed run clears it", async () => {
+  live.dispatch("start_hands", { tasks: ["find flights to Tokyo"] }, runs);
+  const card = () => live.cards().find((one) => one.id === "lefty")!;
+  hands[0]!.say({ type: "status", status: "working" });
+  await Bun.sleep(5);
+  expect(card().until).toBeUndefined();
+  const before = Date.now();
+  hands[0]!.say({ type: "status", status: "needs_you", answer: "Sign in to Google Flights." });
+  await Bun.sleep(5);
+  expect(card().until).toBeGreaterThanOrEqual(before);
+  hands[0]!.say({ type: "status", status: "working" });
+  await Bun.sleep(5);
+  expect(card().until).toBeUndefined();
+});
+
 test("a stop is asked for, not done, and only of a hand at work", async () => {
   live.dispatch("start_hands", { tasks: ["watch YouTube Shorts"] }, runs);
   expect(live.dispatch("stop_hands", { hands: ["Lefty"] }, runs)).toEqual({ hand: "Lefty", state: "stop requested", result: "pending" });

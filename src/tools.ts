@@ -129,7 +129,7 @@ export interface Finish {
 }
 
 /** `listing` marks a result that describes the screen, which goes stale and is cut from the transcript like any other; `finish` carries the model's verdict. */
-export type Details = { listing?: true; finish?: Finish } | undefined;
+export type Details = { listing?: true; finish?: Finish; moves?: number } | undefined; // moves: a clicker run's count of Jev's actions, for the card's ticks
 type Result = AgentToolResult<Details>;
 const say = (text: string): Result => ({ content: [{ type: "text", text }], details: undefined });
 
@@ -983,7 +983,7 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
           seen = { content: [{ type: "text", text: describe(screen, items) }], details: { listing: true } };
         } else [seen] = await see(false);
         const unsure = state.decision && state.view && !["done", "step limit"].includes(state.outcome) ? [leaning(state.decision, state.view[1])] : [];
-        return { ...seen, content: [{ type: "text", text: [runLine(state), ...unsure].join("\n") }, ...seen.content] };
+        return { ...seen, content: [{ type: "text", text: [runLine(state), ...unsure].join("\n") }, ...seen.content], details: { ...seen.details, moves: state.history.length } };
       },
     ),
     // Offered only where a hand can look things up (src/web.ts): lookups on, and an OpenAI key to make them with.
