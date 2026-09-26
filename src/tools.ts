@@ -81,16 +81,16 @@ export const settling = { unchangedMs: 800 };
 /**
  * The click guard's own wait for the user to pause (src/windows.ts, before a click into a Chromium window) shown on the
  * hand and its card as a borrow's wait is, so a hand held up by a busy user does not look as if it were clicking. Only
- * where the platform tells of that wait: Windows, through its `onSeatWait` (a listener it calls with "waiting" and
- * "free"). A platform without one says nothing, and the guard waits unseen.
+ * where the platform tells of that wait: Windows, through `hooks.onSeatWait` (a listener it calls with "waiting" and
+ * "free"). A platform without it says nothing, and the guard waits unseen.
  */
 function seatWaits(tell: (state: "waiting" | "free", why: string) => void): void {
-  const hook = (windows as unknown as { onSeatWait?: unknown }).onSeatWait;
-  if (!onWindows() || typeof hook !== "function") return;
-  hook((state: "waiting" | "free", why: string) => {
+  const hooks = (windows as unknown as { hooks?: { onSeatWait?: unknown } }).hooks;
+  if (!onWindows() || !hooks || !("onSeatWait" in hooks)) return;
+  hooks.onSeatWait = (state: "waiting" | "free", why: string) => {
     guardWaiting = state === "waiting";
     tell(state, why);
-  });
+  };
 }
 let guardWaiting = false; // the guard's wait is shown on the hand: a tool that ends any way at all (an Abort, say) shows it over
 
