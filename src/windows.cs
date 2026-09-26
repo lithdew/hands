@@ -171,11 +171,11 @@ static class Program
             case "exe": return Exe(Int("pid"));
             case "assoc": return Assoc(Str("ext"));
             case "launch": return Launch(Str("file"), Str("args"), Has("show") ? Int("show") : 4);
-            case "activate": { Flash.Quiet(Hwnd()); bool ok = Activate(Hwnd()); return new Dictionary<string, object> { { "ok", ok }, { "foreground", Win.GetForegroundWindow().ToInt64() } }; }
+            case "activate": { Flash.Quiet(Hwnd()); Opening.Quiet(Hwnd()); bool ok = Activate(Hwnd()); return new Dictionary<string, object> { { "ok", ok }, { "foreground", Win.GetForegroundWindow().ToInt64() } }; }
             case "move": return Move();
             case "unmaximize": return Unmaximize();
             case "park": return Parking.Park(Hwnd());
-            case "unpark": Flash.Quiet(IntPtr.Zero); return Parking.Unpark(Hwnd(), Bool("keep"));
+            case "unpark": Flash.Quiet(IntPtr.Zero); Opening.Quiet(IntPtr.Zero); return Parking.Unpark(Hwnd(), Bool("keep"));
             case "show": Win.ShowWindow(Hwnd(), Win.IsIconic(Hwnd()) ? 4 : 8); return Ok();
             case "close": Win.PostMessage(Hwnd(), 0x0010, IntPtr.Zero, IntPtr.Zero); return Ok();
             case "topmost": if (Bool("on")) Flash.Quiet(IntPtr.Zero); Win.SetWindowPos(Hwnd(), new IntPtr(Bool("on") ? -1 : -2), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); return Ok();
@@ -192,6 +192,7 @@ static class Program
             case "release": Uia.Release(); return Ok();
             case "post": return Input.Post(Hwnd(), Str("kind"), Int("x"), Int("y"));
             case "guard": if (Bool("begin")) { Flash.Driven(Hwnd(), !Has("sink") || Bool("sink")); return Ok(); } return Flash.EndDriven();
+            case "opening": return Has("seat") ? Opening.Begin() : Opening.State();
             case "chars": return Input.Chars(Hwnd(), Str("text"), Bool("direct"));
             case "vkey": return Input.VKey(Hwnd(), Int("vk"), Bool("direct"));
             case "wheel": return Input.Wheel(Hwnd(), Int("x"), Int("y"), Int("delta"), Bool("horizontal"));
@@ -266,7 +267,7 @@ static class Program
     }
 
     /** Every process started by `pid`, and by those, as far down as it goes: an app's launcher can hand over to a child. */
-    static object Children(int pid)
+    public static object Children(int pid)
     {
         Dictionary<uint, List<uint>> kids = new Dictionary<uint, List<uint>>();
         IntPtr snap = Win.CreateToolhelp32Snapshot(0x2, 0); // TH32CS_SNAPPROCESS
@@ -455,7 +456,7 @@ static class Desk
     }
 
     /** A process's executable by file name and its package family ("" for an app that is not packaged). */
-    static string[] ProcessOf(uint pid)
+    public static string[] ProcessOf(uint pid)
     {
         IntPtr h = Win.OpenProcess(0x1000, false, pid);
         if (h == IntPtr.Zero) return new string[] { "", "" };
@@ -2232,6 +2233,9 @@ static class Flash
     static Moment behind; // the moment whose watch goes on after its answer (see Behind)
     static readonly List<object> late = new List<object>(); // windows a click in a window of the hand's opened after its answer: the next answer hands them over
 
+    /** Whether a guarded moment is under way, or watched behind its answer: its watch sees to the windows it brings forward. */
+    public static bool Watching { get { lock (gate) return pending != null || behind != null; } }
+
     public static Moment Begin(IntPtr root, bool sink)
     {
         Quiet(IntPtr.Zero); // this moment's own watch sees to the window from here on
@@ -2446,6 +2450,165 @@ static class Flash
     }
 }
 
+// ------------------------------------------------------------ an opening's watch of the seat
+
+/**
+ * The rest of an opening's watch of the seat (returnSeat in src/windows.ts), on a thread of its own. A window opened
+ * from behind can take the foreground a beat after it exists (a browser's window, or its bubble over it; an app as it
+ * finishes loading: Excel took it 1.7 s in). Bun watches the first moments itself, and once nothing has taken the seat
+ * for a while it goes on with the opening and hands the rest of the watch here: a late take is given back within a
+ * few milliseconds, whatever Bun is doing meanwhile (a look's capture, OCR and tree read keep it busy a second and
+ * more, and a watch of its own would wait for that).
+ *
+ * Which windows are the opening's is said as data, as Bun's own watch tells them: the window opened and what it owns
+ * (`roots`); a process's windows (`pid`), its children's too (`children`), but not those there before (`before`); any
+ * window of the executables `exes`, or of the package `package`. A take is given back to the window that had the seat,
+ * unless another hand holds the seat's lock (`lock`, its owner file; `me` is Bun's own pid): the foreground is then that
+ * hand's to move. Either way the window opened (`window`) goes behind the user's. The watch pauses while this hand
+ * borrows the seat or watches a guarded click, which put back what they move themselves, and ends when its time is up
+ * (`ms`), 800 ms after its first handback, or when Bun brings a window of the opening's forward on purpose (Quiet). As
+ * it ends, the window opened goes behind the user's, unless it has the foreground or Bun has it out.
+ */
+static class Opening
+{
+    const int RoundMs = 10;
+    const int AfterMs = 800; // after the first handback, a while more for a second take, as Bun's own watch waits
+    const int StaleMs = 30000; // LOCK_STALE_MS in src/windows.ts: a lock that has shown no sign of life this long is no one's
+
+    class Watch
+    {
+        public IntPtr seat, window;
+        public int ms;
+        public uint pid, me;
+        public bool children;
+        public string package = "", owner = "";
+        public readonly HashSet<long> roots = new HashSet<long>(), before = new HashSet<long>();
+        public readonly HashSet<string> exes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public volatile bool stop, over;
+
+        /** Whether a window is one of the opening's (openingTakes in src/windows.ts). */
+        public bool Takes(IntPtr h)
+        {
+            if (roots.Contains(h.ToInt64()) || roots.Contains(Flash.Root(h).ToInt64())) return true;
+            uint p = Desk.Describe(h).pid; // a UWP frame's app is its CoreWindow's process
+            if (pid != 0 && !before.Contains(h.ToInt64()) && (p == pid || (children && ((List<object>)Program.Children((int)pid)).Contains((long)p)))) return true;
+            if (exes.Count == 0 && package.Length == 0) return false;
+            string[] process = Desk.ProcessOf(p);
+            return (process[0].Length > 0 && exes.Contains(process[0])) || (package.Length > 0 && process[1] == package);
+        }
+    }
+
+    static readonly object gate = new object();
+    static readonly object acting = new object(); // each round is made under this lock: a handback under way ends before Bun's own move (Quiet)
+    static Watch current;
+
+    /** The rest of an opening's watch, from Bun's request: {ok}. One opening at a time (Bun's open lock sees to it). */
+    public static object Begin()
+    {
+        Watch w = new Watch();
+        w.seat = new IntPtr(Program.Long("seat"));
+        w.window = new IntPtr(Program.Long("window"));
+        w.ms = Program.Int("ms");
+        w.pid = (uint)Program.Long("pid");
+        w.children = Program.Bool("children");
+        w.package = Program.Str("package");
+        w.owner = Program.Str("lock");
+        w.me = (uint)Program.Long("me");
+        foreach (object h in Program.Arr("roots")) w.roots.Add(Convert.ToInt64(h, CultureInfo.InvariantCulture));
+        foreach (object h in Program.Arr("before")) w.before.Add(Convert.ToInt64(h, CultureInfo.InvariantCulture));
+        foreach (object e in Program.Arr("exes")) w.exes.Add(Convert.ToString(e, CultureInfo.InvariantCulture));
+        lock (gate)
+        {
+            if (current != null) current.stop = true;
+            current = w;
+        }
+        Thread thread = new Thread(delegate () { Run(w); });
+        thread.IsBackground = true;
+        thread.Start();
+        return new Dictionary<string, object> { { "ok", true } };
+    }
+
+    /** {watching}: whether an opening's watch still goes on, which Bun holds its open lock through. */
+    public static object State()
+    {
+        lock (gate) return new Dictionary<string, object> { { "watching", current != null && !current.over && !current.stop } }; // a stopped watch moves nothing more
+    }
+
+    /**
+     * Bun is bringing a window forward on purpose: one of the opening's (Show, a borrow of it, the app it started brought
+     * to the front), or any window back from off the screens (`activating` zero). The watch ends there, or it would give
+     * back what is now meant to be in front; a handback to a window of the user's leaves it watching. A round of the
+     * watch under way ends first: after this, nothing of it moves the foreground.
+     */
+    public static void Quiet(IntPtr activating)
+    {
+        Watch w;
+        lock (gate) w = current;
+        if (w == null || w.over) return;
+        try { if (activating != IntPtr.Zero && !w.Takes(activating)) return; }
+        catch (Exception) { return; }
+        w.stop = true;
+        if (Monitor.TryEnter(acting, 1000)) Monitor.Exit(acting);
+    }
+
+    static void Run(Watch w)
+    {
+        Stopwatch clock = Stopwatch.StartNew();
+        long returned = -1;
+        IntPtr seen = IntPtr.Zero; // the window last found in front, and whether it is the opening's: asked once for each
+        bool takes = false;
+        try
+        {
+            while (!w.stop && clock.ElapsedMilliseconds < w.ms && (returned < 0 || clock.ElapsedMilliseconds < returned + AfterMs))
+            {
+                lock (acting)
+                {
+                    if (w.stop) break;
+                    IntPtr fg = Win.GetForegroundWindow();
+                    if (fg != IntPtr.Zero && fg != w.seat && !Hold.Holding && !Flash.Watching)
+                    {
+                        if (fg != seen) { seen = fg; takes = w.Takes(fg); }
+                        if (takes)
+                        {
+                            if (Win.IsWindow(w.seat) && !SeatElsewhere(w)) Program.Activate(w.seat);
+                            if (w.window != IntPtr.Zero) Sink(w.window); // and the window itself behind the user's, not only behind the one in front
+                            if (returned < 0) returned = clock.ElapsedMilliseconds;
+                        }
+                    }
+                }
+                Thread.Sleep(RoundMs);
+            }
+            lock (acting)
+            {
+                IntPtr fg = Win.GetForegroundWindow();
+                if (!w.stop && w.window != IntPtr.Zero && Win.IsWindow(w.window) && !Hold.Holding && !Flash.Watching && fg != w.window && Flash.Root(fg) != w.window) Sink(w.window);
+            }
+        }
+        catch (Exception) { /* a window that went away under the watch: nothing left to give back */ }
+        finally
+        {
+            w.over = true;
+            lock (gate) { if (current == w) current = null; }
+        }
+    }
+
+    /** Whether another hand holds the seat's lock (seatElsewhere in src/windows.ts): its owner, alive, and not this hand. */
+    static bool SeatElsewhere(Watch w)
+    {
+        try
+        {
+            if (w.owner.Length == 0 || !File.Exists(w.owner)) return false;
+            uint pid;
+            if (!uint.TryParse(File.ReadAllText(w.owner).Trim(), out pid) || pid == 0 || pid == w.me) return false;
+            if ((DateTime.UtcNow - File.GetLastWriteTimeUtc(w.owner)).TotalMilliseconds > StaleMs) return false;
+            using (Process p = Process.GetProcessById((int)pid)) return !p.HasExited;
+        }
+        catch (Exception) { return false; }
+    }
+
+    static void Sink(IntPtr h) { Win.SetWindowPos(h, new IntPtr(1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); } // HWND_BOTTOM, no activation
+}
+
 // ------------------------------------------------------------ the seat, as a hand borrows it
 
 /**
@@ -2578,10 +2741,13 @@ static class Seat
  */
 static class Hold
 {
-    static bool holding;
+    static volatile bool holding;
     static IntPtr before, root;
     static int x, y;
     static bool sink;
+
+    /** Whether this hand is borrowing the seat: its borrow puts back what it moves. */
+    public static bool Holding { get { return holding; } }
 
     public static object Command(string state)
     {

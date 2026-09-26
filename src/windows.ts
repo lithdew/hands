@@ -1644,12 +1644,11 @@ async function openWindow(start: () => Omit<Launching, "before">, timeout: numbe
       found = await freshWindow(launching, timeout);
       return found;
     } finally {
-      const started = launching;
-      let kids: Set<number> | null = null;
-      const children = () => (kids ??= childrenOf(started?.pid ?? 0));
-      const taken = (w: WindowEntry) => started !== null && ofLaunch(w, started, children);
+      // The launch's windows, as a launch is known (ofLaunch): of what it started, its children, or its executables or package.
+      const started: Launching | null = launching;
+      const of: OpeningOf = started ? { pid: started.pid, children: true, exes: [...started.exes], package: started.package } : {};
       if (seat) {
-        const watch = returnSeat(seat, taken, undefined, pace.seatWatchMs); // where the window goes (behind, or to the hand's desktop) is the caller's to say
+        const watch = returnSeat(seat, of, undefined, pace.seatWatchMs); // where the window goes (behind, or to the hand's desktop) is the caller's to say
         behind(watch.done);
         await watch.ready;
       }
@@ -2038,35 +2037,68 @@ export async function openUrl(
 }
 
 const SEAT_QUIET_MS = 600; // how long an opening's watch of the seat must see nothing take it before the opening goes on, the watch behind it
+const OPENING_POLL_MS = 100; // how often the helper is asked whether an opening's watch is over, for the open lock
+const OPENING_OVER_MS = 1000; // how long past its time an opening's watch in the helper is waited for, before the open lock goes anyway
+
+/**
+ * Which windows are an opening's, for its watch of the seat, said as data since the helper watches the rest of it
+ * (Opening in windows.cs): the window opened, and what it brings up over itself (`roots`); a process's windows (`pid`),
+ * its children's too (`children`), but not those there before (`before`); any window of these executables, lower case
+ * (`exes`), or of this package.
+ */
+interface OpeningOf {
+  roots?: number[];
+  pid?: number;
+  children?: boolean;
+  before?: number[];
+  exes?: string[];
+  package?: string | null;
+}
+
+/** Whether a window is one of an opening's (as Opening.Takes in windows.cs tells them). */
+function openingTakes(of: OpeningOf): (w: WindowEntry, list: WindowEntry[]) => boolean {
+  let kids: Set<number> | null = null;
+  const children = () => (kids ??= of.children ? childrenOf(of.pid ?? 0) : new Set<number>());
+  const before = new Set(of.before ?? []);
+  return (w, list) =>
+    (of.roots ?? []).some((root) => w.hwnd === root || rootOf(w, list).hwnd === root) ||
+    (of.pid !== undefined && of.pid > 0 && !before.has(w.hwnd) && (w.pid === of.pid || children().has(w.pid))) ||
+    (Boolean(w.exe) && (of.exes ?? []).includes(w.exe!.toLowerCase())) ||
+    (Boolean(of.package) && w.package === of.package);
+}
 
 /**
  * Give the seat back to the window that had it, each time something the hand opened takes it: the one visible moment
- * of opening a window from behind. `taken` says which windows are the opening's (by handle: the user's own Chrome
- * window shares the new one's process, and a click of theirs into it is theirs). Chrome activates a beat after the
- * window exists, and once more when it shows a bubble over it, so this watches for up to `watchMs`, and until a moment
- * after the first handback. While another hand borrows the seat the foreground is its borrow's to move (see takeBack):
- * the window only goes behind the user's.
+ * of opening a window from behind. `of` says which windows are the opening's (by handle: the user's own Chrome window
+ * shares the new one's process, and a click of theirs into it is theirs). Chrome activates a beat after the window
+ * exists, and once more when it shows a bubble over it, so this watches for up to `watchMs`, and until a moment after
+ * the first handback. While another hand borrows the seat the foreground is its borrow's to move (see takeBack): the
+ * window only goes behind the user's.
  *
  * The opening goes on (`ready`) once the watch is over, or once it has seen nothing take the seat for SEAT_QUIET_MS:
  * a take comes a beat after the window exists, when it comes (a browser that works unseen took it in none of 8 opens,
- * measured), and the rest of the watch, 1.9 s that every such open used to wait out, goes on behind the opening
- * (`done`). A take that comes late is still given back there, at the next of its 50 ms rounds that the process is free
- * for, where waiting it out would have held the whole hand; the caller keeps the open lock until then, so that no other
- * hand's opening starts while this one can still take the seat. The hand's own borrow or guarded click, which bring
- * its window forward on purpose, is left to put back what it moved, and a window shown to the user (present) is
- * theirs: the watch ends there. Behind the opening nothing throws: the helper may be gone by then.
+ * measured), and the rest of the watch, 1.9 s that every such open used to wait out, goes on in the helper, on a
+ * thread of its own (Opening in windows.cs), which gives a late take back within a few milliseconds whatever this
+ * process is doing meanwhile: the look that follows an opening holds it for a second and more at a time, and no round
+ * of a watch here could run until that was over. `done` is when that watch is over; the caller keeps the open lock
+ * until then, so that no other hand's opening starts while this one can still take the seat. The hand's own borrow or
+ * guarded click, which bring its window forward on purpose, is left to put back what it moved, and a window shown to
+ * the user (present, which the helper hears as an activation of the window) is theirs: the watch ends there. Behind
+ * the opening nothing throws: the helper may be gone by then.
  */
-function returnSeat(seat: number, taken: (w: WindowEntry, list: WindowEntry[]) => boolean, window?: number, watchMs = 2500): { ready: Promise<void>; done: Promise<void> } {
+function returnSeat(seat: number, of: OpeningOf, window?: number, watchMs = 2500): { ready: Promise<void>; done: Promise<void> } {
+  const taken = openingTakes(of);
   let behind = false;
   let go = (): void => {};
   let fail = (_error: unknown): void => {};
   const ready = new Promise<void>((resolve, reject) => ((go = resolve), (fail = reject)));
   const done = (async () => {
     const start = performance.now();
+    const end = start + watchMs;
     const shown = () => window !== undefined && (presented.get(window) ?? Number.NEGATIVE_INFINITY) >= start;
     let returned = 0;
     try {
-      for (const end = start + watchMs; !shown(); await sleep(50)) {
+      for (; !shown(); await sleep(50)) {
         if (borrowed === null && !guarding) {
           const front = (native.call("foreground") as { hwnd: number }).hwnd;
           const list = front && front !== seat ? windowList() : [];
@@ -2079,12 +2111,17 @@ function returnSeat(seat: number, taken: (w: WindowEntry, list: WindowEntry[]) =
         }
         const now = performance.now();
         if (now >= end || (returned > 0 && now >= returned + 800)) break;
-        if (!behind && returned === 0 && now - start >= SEAT_QUIET_MS) {
+        if (returned === 0 && now - start >= SEAT_QUIET_MS) {
           behind = true;
           go();
+          native.call("opening", { seat, window, ms: Math.round(end - now), ...of, lock: join(locks.root, SEAT_LOCK, "owner"), me: process.pid });
+          do await sleep(OPENING_POLL_MS);
+          while (performance.now() < end + OPENING_OVER_MS && (native.call("opening") as { watching?: boolean }).watching);
+          return;
         }
       }
-      if (window !== undefined && !shown()) native.call("sink", { hwnd: window });
+      // Not while the hand's own borrow or guarded click has it out, nor while it has the keyboard: the user would type into a window they cannot see.
+      if (window !== undefined && !shown() && borrowed === null && !guarding && frontWindow() !== window) native.call("sink", { hwnd: window });
     } catch (error) {
       if (!behind) fail(error);
     } finally {
@@ -2175,10 +2212,10 @@ async function openWindowAlone(browser: string, url: string, behind: (watch: Pro
     if (!opened && cold && pages.length === 1 && only) opened = { pid: only.pid, windowId: only.hwnd, scripted: String(only.hwnd) }; // the page went elsewhere (a redirect), and it is the one new browser window
   } finally {
     // Only the new window, and what it brings up over itself, is handed back from: a window the user opens meanwhile is theirs.
-    const taken = (w: WindowEntry, list: WindowEntry[]) =>
-      opened !== null ? w.hwnd === opened.windowId || rootOf(w, list).hwnd === opened.windowId : w.pid === pid && !before.has(w.hwnd);
+    const found = opened as PinnedWindow | null;
+    const of: OpeningOf = found !== null ? { roots: [found.windowId] } : { pid: pid ?? 0, before: [...before] };
     if (seat) {
-      const watch = returnSeat(seat, taken, opened?.windowId, pace.browserWatchMs);
+      const watch = returnSeat(seat, of, found?.windowId, pace.browserWatchMs);
       behind(watch.done);
       await watch.ready;
     }
