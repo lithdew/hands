@@ -447,6 +447,7 @@ export async function typeText(text: string, pid?: number): Promise<void> {
  * one of those opened, or, in an app the hand has no window of its own in, the window it was pointed at.
  */
 function keysFor(target: KeyTarget): WindowEntry {
+  refuseTheirs(target.windowId);
   const list = windowList();
   const entry = list.find((w) => w.hwnd === target.windowId);
   if (!entry) throw new Error("the window is gone; look again");
@@ -835,15 +836,18 @@ function cameByItself(windowId: number, now: number): boolean {
 /**
  * From the first window of its own, the hand looks once a second, between actions too: a Chrome window climbed four
  * seconds after it was sunk, with the hand idle (measured). Only while the hand is at work, though: AWAKE_MS after it
- * last did anything, the watcher leaves the windows be, and a finished hand's windows are the user's to arrange. Not
+ * last did anything, the watcher leaves the windows be, and a finished hand's windows are the user's to arrange. It still
+ * looks for a link of the user's landing in a browser window of the hand's (watchLinks), which can happen at any time. Not
  * under test, where the helper is a script.
  */
 function watchOwn(): void {
   if (watcher || process.env.NODE_ENV === "test") return;
   watcher = setInterval(() => {
-    if (performance.now() - lastCall > AWAKE_MS || borrowed !== null || guarding) return; // asleep, or in the middle of a borrow or a guarded click, which put their window back themselves
+    if (borrowed !== null || guarding) return; // in the middle of a borrow or a guarded click, which put their window back themselves
     watching = true;
     try {
+      watchLinks(); // asleep or not: a link of the user's can land in a browser window of the hand's at any time
+      if (performance.now() - lastCall > AWAKE_MS) return; // asleep: the rest is left be
       keepOnDesktop();
     } catch {
       // the helper is busy or gone: the next action looks again
@@ -910,6 +914,8 @@ export function releaseDesktop(): void {
   stale.clear();
   parked.clear();
   tabsSeen.clear();
+  touchedAt.clear();
+  givenUp.clear();
   seenBehind.clear();
   popups.length = 0;
   userFront = 0;
@@ -1304,6 +1310,7 @@ export function popupsOpened(): number[] {
  */
 async function guarded<T>(hwnd: number, web: boolean, work: () => Promise<T>): Promise<T> {
   if (!web) return work();
+  refuseTheirs(hwnd);
   const list = windowList();
   const entry = list.find((w) => w.hwnd === hwnd);
   const sink = entry !== undefined && isOwn(entry, list);
@@ -1411,6 +1418,7 @@ let seatAbandoned: object | null = null; // a borrow abandonSeat has ended alrea
  */
 export async function borrow<T>(target: KeyTarget, since: number, work: () => Promise<T>, onHolding?: () => void): Promise<T> {
   checkStopped(); // told "not now" as the seat was taken: nothing has moved yet
+  refuseTheirs(target.windowId);
   const before = frontWindow();
   const cursor = mouseLocation();
   const list = windowList();
@@ -1773,7 +1781,11 @@ function viewOf(hwnd: number): BrowserView {
   } catch {
     view = native.call("browser", { hwnd }) as BrowserView; // UI Automation's cache races a tab that has just opened (IndexOutOfRangeException): asked once more
   }
-  if (browserWindows.has(hwnd)) tabsSeen.set(hwnd, view.tabs.length);
+  if (browserWindows.has(hwnd)) {
+    const seen = tabsSeen.get(hwnd);
+    if (seen !== undefined && view.tabs.length > seen && !openedByTheHand(hwnd)) giveUp(hwnd); // a link of the user's (see openedByTheHand)
+    else tabsSeen.set(hwnd, view.tabs.length);
+  }
   return view;
 }
 
@@ -2037,6 +2049,11 @@ async function openWindowAlone(browser: string, url: string): Promise<PinnedWind
   // user's screen to that desktop and back (measured), and a browser window is brought forward by every posted click.
   adopt(opened.windowId, opened.pid);
   browserWindows.set(opened.windowId, opened.pid);
+  try {
+    viewOf(opened.windowId); // its tabs counted from the start: a link of the user's can land in it before the hand first looks
+  } catch {
+    // still opening: the hand's first look counts them
+  }
   if (!process.env.HANDS_SCREEN && (await browserUnoccluded(browser))) park(opened.windowId);
   return opened;
 }
@@ -2224,11 +2241,13 @@ export function recognizeText(path: string, rect?: Box): OcrLine[] {
 // one from an older capture is refused rather than sent to a control that is gone.
 let live = new Set<number>();
 const webRefs = new Map<number, boolean>(); // the handles of controls in a Chromium window, where a press brings the window forward (see flashing), and whether that window is the hand's own
+const refWindows = new Map<number, number>(); // and the window each of those is in
 
 /** Drop every handle the previous capture gave out. Perception calls this as a new capture starts. */
 export function releaseElements(): void {
   live = new Set();
   webRefs.clear();
+  refWindows.clear();
   native.call("release");
 }
 
@@ -2259,6 +2278,7 @@ export function focusedField(): Field | null {
 
 const act = (ref: unknown, action: string): boolean => {
   if (!alive(ref)) return false;
+  if (refWindows.has(ref)) refuseTheirs(refWindows.get(ref)!);
   const front = frontWindow();
   const web = webRefs.has(ref);
   const run = () => {
@@ -2319,6 +2339,7 @@ export const holdsText = (value: string | null, text: string): boolean => plainT
  */
 export function axSetValue(ref: unknown, value: string): boolean {
   if (!alive(ref)) return false;
+  if (refWindows.has(ref)) refuseTheirs(refWindows.get(ref)!);
   const front = frontWindow();
   const web = webRefs.has(ref);
   const set = () => native.call("setValue", { id: ref, text: value, ...(web ? { sink: webRefs.get(ref) } : {}) }) as { ok: boolean; posted?: boolean; why?: string };
@@ -2570,6 +2591,7 @@ export function menu(pid: number, path: string[]): { pressed: string } | { items
 
 /** Page a window's largest scroll area, or, when nothing in it takes that, a wheel posted at its center. */
 export function scrollPage(_pid: number, windowId: number, direction: "up" | "down" | "left" | "right"): boolean {
+  refuseTheirs(windowId);
   const front = frontWindow();
   try {
     return Boolean((native.call("scrollPage", { hwnd: windowId, direction }) as { ok: boolean }).ok);
@@ -2694,7 +2716,10 @@ export function actionableElements(pid: number, display: Frame, options: WalkOpt
   const mine = window !== undefined && isOwn(window, list);
   for (const node of [...found, ...offscreen]) {
     live.add(node.ref as number);
-    if (web) webRefs.set(node.ref as number, mine);
+    if (web) {
+      webRefs.set(node.ref as number, mine);
+      refWindows.set(node.ref as number, hwnd);
+    }
     else webRefs.delete(node.ref as number); // an id the helper gave out again, since an earlier look
     const value = byId.get(node.ref as number)?.value;
     if (value !== undefined) node.value = value; // what the field holds, which the listing shows after its label
@@ -2805,6 +2830,98 @@ function holdsUnseenTabs(windowId: number): boolean {
   } catch {
     return false;
   }
+}
+
+// ------------------------------------------------------------------ a link of the user's in a window of the hand's
+
+// A link the user opens from another app goes to the browser's last active window, and the browser brings that window
+// forward. Measured: with the hand's window opened after the user's, and the user in another app, the link opened as a
+// new tab in the hand's window, which took the foreground where it was parked, off every screen: the user saw nothing
+// happen but their app losing the keyboard, and the hand's next action would have been in the user's tab. So that
+// window is the user's from then on: it comes onto a screen, nothing more is sent into it, it is never closed with the
+// hand's windows, and the hand is told, and opens another.
+
+/** Said to the model when a window of its has been given up to the user; the tools say it too, as they forget the window. */
+export const LINK_LANDED =
+  "a link the user opened from another app landed in your browser window (the browser puts one in the window it had in front last), so that window is theirs now and nothing more is done in it: `browser` open a url for a new window of your own";
+
+const givenUp = new Set<number>(); // browser windows of the hand's that a link of the user's landed in: theirs now
+
+/** Whether a browser window of the hand's has been given up to the user, a link of theirs having landed in it. */
+export function isGivenUp(windowId: number): boolean {
+  return givenUp.has(windowId);
+}
+
+const TOUCH_MS = 5000; // a tab that comes this soon after the hand's last input into its window may be the hand's (a link its click opened in a new tab)
+const touchedAt = new Map<number, number>(); // when the hand last sent anything into each browser window of its
+
+/** Whether a window is in front with nothing the hand is doing now having brought it there: a borrow and a guarded click do. */
+const forwardByItself = (hwnd: number): boolean => borrowed === null && !guarding && frontWindow() === hwnd;
+
+/**
+ * Whether a tab more than the hand last saw in a browser window of its is the hand's own: the hand sent input into the
+ * window lately (a link its click opened in a new tab), and the window has not come forward since, but by the hand's
+ * last action (see takeBack). A tab that came any other way is a link of the user's: the browser brings the window
+ * forward for one when it may, and flashes it on the taskbar when it may not (both measured).
+ */
+function openedByTheHand(hwnd: number): boolean {
+  const now = performance.now();
+  if (now - (touchedAt.get(hwnd) ?? Number.NEGATIVE_INFINITY) > TOUCH_MS) return false;
+  return !forwardByItself(hwnd) || (handBack !== null && now <= handBack.until);
+}
+
+/**
+ * A browser window of the hand's in front that nothing the hand is doing brought there: the browser brought it forward
+ * for a link of the user's, or the user did (its taskbar button, Alt+Tab). One that holds a tab the hand did not open
+ * is given up to the user. Any other is theirs to look at, as Show makes it: back on a screen from where it was parked,
+ * and left in front (see keepOnDesktop), unless the hand's last action may have brought it up, which takeBack sees to.
+ * Asked by the watcher every second, and before anything is sent into a browser window of the hand's.
+ */
+function watchLinks(): void {
+  if (browserWindows.size === 0 || borrowed !== null || guarding) return;
+  const front = frontWindow();
+  if (!browserWindows.has(front)) return;
+  if (holdsUnseenTabs(front) && !openedByTheHand(front)) return giveUp(front);
+  const now = performance.now();
+  if (handBack && now <= handBack.until) return;
+  if (unpark(front)) inFront.set(front, now);
+}
+
+/** The window is the user's from now on: on a screen where they can find it (in front, if the browser brought it there), and no longer the hand's to work in, sink or close. */
+function giveUp(hwnd: number): void {
+  givenUp.add(hwnd);
+  own.delete(hwnd);
+  browserWindows.delete(hwnd);
+  tabsSeen.delete(hwnd);
+  touchedAt.delete(hwnd);
+  seenBehind.delete(hwnd);
+  inFront.set(hwnd, performance.now());
+  try {
+    if (unpark(hwnd) && frontWindow() !== hwnd) native.call("sink", { hwnd });
+  } catch {
+    // the window went away: nothing left to show
+  }
+  console.error(`a link the user opened landed in the browser window ${hwnd}, which is theirs now`);
+}
+
+/**
+ * Before anything is sent into a window: LINK_LANDED, when it is a browser window of the hand's that a link of the
+ * user's has landed in. Its tabs are counted again first when the hand has left it alone a while, since a link that
+ * the browser could only flash on the taskbar may have landed unseen.
+ */
+function refuseTheirs(hwnd: number): void {
+  if (browserWindows.has(hwnd)) {
+    watchLinks();
+    if (!givenUp.has(hwnd) && performance.now() - (touchedAt.get(hwnd) ?? Number.NEGATIVE_INFINITY) > TOUCH_MS) {
+      try {
+        viewOf(hwnd);
+      } catch {
+        // the window is busy or gone: the action says so
+      }
+    }
+  }
+  if (givenUp.has(hwnd)) throw new Error(LINK_LANDED);
+  if (browserWindows.has(hwnd)) touchedAt.set(hwnd, performance.now());
 }
 
 /**

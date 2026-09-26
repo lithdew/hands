@@ -438,6 +438,10 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort }: ToolOpti
       return listing({ ...screen, field: null, readOnly: true }, screenshot);
     }
     const { app, pid, pinned } = target;
+    if (pinned && onWindows() && windows.isGivenUp(pinned.windowId)) {
+      forgetWindow();
+      throw new Error(windows.LINK_LANDED);
+    }
     if (pinned && !alive(pinned)) {
       forgetWindow();
       throw new Error("your browser window was closed: `browser` open a url for a new one");
@@ -767,10 +771,13 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort }: ToolOpti
         tabsSeen = null;
         let pinned = target?.pinned ?? webWindow;
         let note = "";
-        if (pinned && !alive(pinned)) {
+        let lost: string | null = null; // why the window the hand had is not its to use any more
+        if (pinned && onWindows() && windows.isGivenUp(pinned.windowId)) lost = "a link the user opened from another app had landed in your earlier window, which is theirs now";
+        else if (pinned && !alive(pinned)) lost = "your earlier window had been closed";
+        if (lost) {
           forgetWindow();
           pinned = null;
-          note = " (your earlier window had been closed, so this is a new one)";
+          note = ` (${lost}, so this is a new one)`;
         }
         if (action === "open") {
           if (!url || !/^(https?|file):\/\//.test(url)) throw new Error("open needs a url starting with https:// (or file:// for a local page)");
@@ -788,7 +795,7 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort }: ToolOpti
           target = { app: browser, pid: pinned.pid, pinned };
           return moved((screen) => `opened ${screen.url ?? url}${new_tab ? " in a new tab" : ""} in your own window${note}`);
         }
-        if (!pinned) throw new Error(`${note ? "your browser window was closed" : "no page is open yet"}: \`browser\` open a url first`);
+        if (!pinned) throw new Error(`${lost ?? "no page is open yet"}: \`browser\` open a url first`);
         // Back in the browser from another app: the capture of that app no longer says where input goes, so the next action looks first.
         if (target?.pinned?.windowId !== pinned.windowId) view = null;
         target = { app: browser, pid: pinned.pid, pinned };

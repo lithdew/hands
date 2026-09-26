@@ -461,6 +461,31 @@ test("the browser: the verified url is reported, a page that did not open is an 
   expect(made).toHaveBeenCalledTimes(2);
 });
 
+test("on Windows, a browser window that a link of the user's landed in is theirs: the hand forgets it, is told why, and opens one of its own", async () => {
+  desk({ app: "Google Chrome" });
+  const made = spyOn(macos, "openBackgroundWindow").mockImplementation(async () => ({ pid: PID, windowId: WINDOW, scripted: String(WINDOW) }));
+  spyOn(macos, "stageWindow").mockImplementation(async () => {});
+  spyOn(macos, "browserLoading").mockImplementation(async () => false);
+  spyOn(macos, "browserUrl").mockImplementation(async () => "https://example.com/");
+  spyOn(macos, "browserTabs").mockImplementation(async () => []);
+  await asOnWindows(async () => {
+    const { call } = hands();
+    await call("browser", { action: "open", url: "https://example.com" });
+    const givenUp = new Set([WINDOW]);
+    spyOn(windows, "isGivenUp").mockImplementation((id) => givenUp.has(id));
+    made.mockImplementation(async () => ({ pid: PID, windowId: 77, scripted: "77" }));
+    spyOn(macos, "appWindows").mockImplementation((pid) => (pid === PID ? [{ id: 77, frame: FRAME }] : []));
+    // Straight to the next open, as after an action that was refused: the window is let go, and the new one says why.
+    expect(await call("browser", { action: "open", url: "https://example.com/next" })).toContain(
+      "(a link the user opened from another app had landed in your earlier window, which is theirs now, so this is a new one)",
+    );
+    expect(made).toHaveBeenCalledTimes(2);
+    givenUp.add(77);
+    await expect(call("screen", {})).rejects.toThrow(windows.LINK_LANDED); // or at the next look, which forgets it
+    await expect(call("browser", { action: "back" })).rejects.toThrow("no page is open yet: `browser` open a url first");
+  });
+});
+
 test("a browser window's own tab strip, toolbar and bookmarks give way to one line about its tabs", async () => {
   const chrome = [
     { ...button("Tab search", 110, 55), role: "AXButton" },

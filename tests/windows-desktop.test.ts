@@ -429,6 +429,96 @@ test("a browser window holding tabs the hand never saw is not closed with it: a 
   expect(asked("close")).toEqual([{ hwnd: 46 }]); // what it saw is what it closes
 });
 
+/** A Chrome whose hand window is parked, with the tabs `tabs()` says and the window in front `front()` says. */
+function linkBrowser(state: { tabs: number; front: { hwnd: number; pid: number } }) {
+  let launched = 0;
+  const window = { chrome: { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Example - Google Chrome", frame: [50, 60, 1200, 800] as Frame, core: 0, exe: "chrome.exe", caption: true } };
+  helper({
+    processes: ({ exe }) => (exe === "chrome.exe" ? [{ pid: 400, cmd: '"C:\\chrome.exe" --disable-features=CalculateNativeWinOcclusion' }] : []),
+    windows: () => [terminal, ...(launched > 0 ? [window.chrome] : [])],
+    foreground: () => state.front,
+    launch: () => (launched++, { pid: 0 }),
+    activate: ({ hwnd }) => ((state.front = { hwnd: hwnd as number, pid: 100 }), { ok: true }),
+    ...parking(() => window.chrome, (frame) => (window.chrome = { ...window.chrome, frame })),
+    browser: () => ({ tabs: Array.from({ length: state.tabs }, (_, i) => ({ title: `Tab ${i}`, active: i === state.tabs - 1, frame: null, close: null })), url: "https://example.com/", omnibox: [0, 0, 500, 30], omniboxValue: "example.com", buttons: {}, loading: false }),
+    idle: { idleMs: 60_000, held: [], quiet: true, tick: 1 },
+    guard: { back: true, popups: [] },
+    post: { ok: true },
+    close: { ok: true },
+    reg: { value: null },
+  });
+  spyOn(process, "kill").mockImplementation(() => true);
+  return window;
+}
+
+test("a link the user opened from another app lands in the hand's parked window: that window comes onto a screen and is theirs, never sent anything more or closed", async () => {
+  const state = { tabs: 1, front: { hwnd: 11, pid: 100 } };
+  const window = linkBrowser(state);
+  const quiet = spyOn(console, "error").mockImplementation(() => {});
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect(window.chrome.frame[0]).toBe(2560 + 64); // parked
+  await windows.browserTabs("Google Chrome"); // the hand looks: one tab
+  // The browser puts the link in its last active window, the hand's, as a new tab, and brings the window forward (measured).
+  state.tabs = 2;
+  state.front = { hwnd: 46, pid: 400 };
+  expect(await windows.browserTabs("Google Chrome")).toHaveLength(2); // a look meanwhile does not take the tab for the hand's
+  calls = [];
+  await expect(windows.windowPointer({ pid: 400, windowId: 46, frame: window.chrome.frame, web: true }, [[100, 100]])).rejects.toThrow(windows.LINK_LANDED);
+  expect(asked("post")).toEqual([]); // nothing went into the user's tab
+  expect(window.chrome.frame.slice(0, 2)).toEqual([50, 60]); // back on the screen where it was, in front: the user sees their page
+  expect(asked("sink")).toEqual([]);
+  expect(windows.isGivenUp(46)).toBe(true);
+  await expect(windows.pressIn({ pid: 400, windowId: 46 }, "a")).rejects.toThrow(windows.LINK_LANDED);
+  windows.release(false);
+  expect(asked("close")).toEqual([]);
+  expect(quiet).toHaveBeenCalledWith("a link the user opened landed in the browser window 46, which is theirs now");
+});
+
+test("a tab the hand's own click opened is the hand's; its window brought forward by the user, with no tab of theirs, is shown to them and stays the hand's", async () => {
+  const state = { tabs: 1, front: { hwnd: 11, pid: 100 } };
+  const window = linkBrowser(state);
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  const target = { pid: 400, windowId: 46, frame: window.chrome.frame, web: true };
+  await windows.windowPointer(target, [[100, 100]]);
+  state.tabs = 2; // the hand's click opened a page in a new tab, in its window behind the user's
+  await windows.browserTabs("Google Chrome");
+  expect(windows.isGivenUp(46)).toBe(false);
+  const later = performance.now() + 3000; // past the click's handback, when a window that comes up is taken for the click's doing
+  const clock = spyOn(performance, "now").mockImplementation(() => later);
+  state.front = { hwnd: 46, pid: 400 }; // the user brings it forward: its taskbar button, Alt+Tab
+  calls = [];
+  await windows.windowPointer(target, [[100, 100]]);
+  clock.mockRestore();
+  expect(windows.isGivenUp(46)).toBe(false);
+  expect(asked("unpark")).toEqual([{ hwnd: 46, keep: false }]); // shown to them where it was, as Show does
+  expect(window.chrome.frame.slice(0, 2)).toEqual([50, 60]);
+  expect(asked("post").length).toBeGreaterThan(0);
+  windows.release(false);
+  expect(asked("close")).toEqual([{ hwnd: 46 }]);
+});
+
+test("a link of the user's that the browser could only flash on the taskbar is found at the hand's next action there, and that window is brought onto a screen behind theirs", async () => {
+  const state = { tabs: 1, front: { hwnd: 11, pid: 100 } };
+  const window = linkBrowser(state);
+  const quiet = spyOn(console, "error").mockImplementation(() => {});
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/"); // its one tab counted as it opens
+  state.tabs = 2; // the link landed with the hand's window left where it was: no input from the hand there since
+  const clock = spyOn(performance, "now");
+  const later = performance.now() + 60_000;
+  clock.mockImplementation(() => later);
+  calls = [];
+  await expect(windows.pressIn({ pid: 400, windowId: 46 }, "a")).rejects.toThrow(windows.LINK_LANDED);
+  clock.mockRestore();
+  expect(asked("vkey")).toEqual([]);
+  expect(asked("chars")).toEqual([]);
+  expect(window.chrome.frame.slice(0, 2)).toEqual([50, 60]); // on a screen, where the flashing taskbar button finds it
+  expect(asked("sink")).toEqual([{ hwnd: 46 }]); // behind the user's windows: the browser did not bring it forward, and nor does the hand
+  expect(quiet).toHaveBeenCalledTimes(1);
+});
+
 test("a hand whose process ends without a close still puts back what it had out: its parked windows come back on screen, kept", async () => {
   let launched = 0;
   let chrome = { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Example - Google Chrome", frame: [50, 60, 1200, 800] as Frame, core: 0, exe: "chrome.exe", caption: true };
