@@ -153,12 +153,12 @@ static class Program
             case "ocr": return Ocr.Read(Str("path"), Arr("rect"));
             case "tree": return Uia.Tree(Hwnd(), Has("cap") ? Int("cap") : 4000, Has("ms") ? Int("ms") : 600);
             case "focused": return Uia.Focused();
-            case "act": return Uia.Act(Int("id"), Str("action"));
-            case "setValue": return Uia.SetValue(Int("id"), Str("text"));
+            case "act": return Uia.Act(Int("id"), Str("action"), !Has("sink") || Bool("sink"));
+            case "setValue": return Uia.SetValue(Int("id"), Str("text"), !Has("sink") || Bool("sink"));
             case "value": return Uia.Value(Int("id"));
             case "release": Uia.Release(); return Ok();
             case "post": return Input.Post(Hwnd(), Str("kind"), Int("x"), Int("y"));
-            case "guard": if (Bool("begin")) { Flash.Begin(); return Ok(); } return Flash.End(Hwnd());
+            case "guard": if (Bool("begin")) { Flash.Begin(); return Ok(); } return Flash.End(Hwnd(), !Has("sink") || Bool("sink"));
             case "chars": return Input.Chars(Hwnd(), Str("text"), Bool("direct"));
             case "vkey": return Input.VKey(Hwnd(), Int("vk"), Bool("direct"));
             case "wheel": return Input.Wheel(Hwnd(), Int("x"), Int("y"), Int("delta"), Bool("horizontal"));
@@ -1153,7 +1153,7 @@ static class Uia
      * it first (the scroll-item pattern, which works from behind), since a click outside the page lands on the toolbar or
      * on nothing: "not visible" when it will not come.
      */
-    static string PressChromium(Node n)
+    static string PressChromium(Node n, bool sink)
     {
         System.Windows.Rect r = CurrentRect(n.element);
         if (r.IsEmpty) return "no rect";
@@ -1173,7 +1173,7 @@ static class Uia
             }
             return ClickOn(n, 1) ? "ok" : "no rect";
         }
-        finally { Flash.End(n.root); }
+        finally { Flash.End(n.root, sink); }
     }
 
     delegate string Work();
@@ -1198,13 +1198,14 @@ static class Uia
         return result;
     }
 
-    public static object Act(int id, string action)
+    /** An action on an element. `sink`: the element's window is the hand's own, to go back behind the user's after a click brings it forward (see Flash). */
+    public static object Act(int id, string action, bool sink)
     {
         Node n = Of(id);
         string result;
         if (action == "AXPress")
         {
-            if (n.chromium) result = PressChromium(n);
+            if (n.chromium) result = PressChromium(n, sink);
             else result = Timed(delegate
             {
                 object p;
@@ -1242,10 +1243,10 @@ static class Uia
      * characters posted (see SetChromium). Anything else takes ValuePattern, which on some apps focuses the control but
      * not the window.
      */
-    public static object SetValue(int id, string text)
+    public static object SetValue(int id, string text, bool sink)
     {
         Node n = Of(id);
-        if (n.chromium) return SetChromium(n, text);
+        if (n.chromium) return SetChromium(n, text, sink);
         string result = Timed(delegate
         {
             object handle = n.element.GetCurrentPropertyValue(AutomationElement.NativeWindowHandleProperty, true);
@@ -1274,7 +1275,7 @@ static class Uia
      * in when this returns and nothing is still typing behind a refusal. A line break would be Enter, which sends in a
      * chat app: text with one is refused.
      */
-    static object SetChromium(Node n, string text)
+    static object SetChromium(Node n, string text, bool sink)
     {
         if (text.IndexOf('\n') >= 0 || text.IndexOf('\r') >= 0) throw new Exception(LineBreak);
         if (focusing != null && focusing.IsAlive) return new Dictionary<string, object> { { "ok", false }, { "why", "the last field is still being clicked into: look again first" }, { "posted", false } };
@@ -1299,7 +1300,7 @@ static class Uia
                 return "ok";
             }, ActTimeoutMs, out clicks);
         }
-        finally { Flash.End(n.root); }
+        finally { Flash.End(n.root, sink); }
         if (focused == null)
         {
             focusing = clicks;
@@ -1854,8 +1855,11 @@ static class Flash
         return false;
     }
 
-    /** Watch the moment after a guarded click in `root`, and give back what it takes: {taken, back}. */
-    public static object End(IntPtr root)
+    /**
+     * Watch the moment after a guarded click in `root`, and give back what it takes: {taken, back}. The window goes
+     * behind the user's again when `sink` (it is the hand's own); a window of the user's is only handed back.
+     */
+    public static object End(IntPtr root, bool sink)
     {
         Stopwatch clock = Stopwatch.StartNew();
         bool taken = false, back = true;
@@ -1863,12 +1867,12 @@ static class Flash
         {
             IntPtr fg = Win.GetForegroundWindow();
             bool took = fg != IntPtr.Zero && fg != front && Root(fg) == root;
-            bool over = front != IntPtr.Zero && Win.IsWindow(front) && Above(root, front);
+            bool over = sink && front != IntPtr.Zero && Win.IsWindow(front) && Above(root, front);
             if ((took || over) && clock.ElapsedMilliseconds >= SettleMs)
             {
                 taken |= took;
                 if (took && front != IntPtr.Zero && Win.IsWindow(front)) back = Program.Activate(front);
-                Win.SetWindowPos(root, new IntPtr(1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // HWND_BOTTOM, no activation
+                if (sink) Win.SetWindowPos(root, new IntPtr(1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // HWND_BOTTOM, no activation
             }
             Thread.Sleep(5);
         }

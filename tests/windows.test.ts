@@ -277,16 +277,17 @@ test("a window's pointer is posted messages: move, press, drags every few pixels
 
 test("a click into a Chromium window waits for the user to pause, under the seat's lock, and is watched so the window goes back at once", async () => {
   let idleMs = 100; // the user is typing
-  helper({ post: { ok: true }, idle: () => ({ idleMs: (idleMs += 150), held: [], quiet: true, tick: 5 }) });
+  const chrome = { hwnd: 44, pid: 400, cls: "Chrome_WidgetWin_1", title: "Mail", frame: [0, 0, 900, 600], core: 0, exe: "chrome.exe", caption: true };
+  helper({ windows: [chrome], post: { ok: true }, idle: () => ({ idleMs: (idleMs += 150), held: [], quiet: true, tick: 5 }) });
   const target = { pid: 400, windowId: 44, frame: [0, 0, 900, 600] as Frame, web: true };
   await windows.windowPointer(target, [[150, 150]]);
-  const order = calls.map(([c, a]) => (c === "guard" ? (a.begin ? "begin" : "end") : c)).filter((c) => c !== "foreground");
+  const order = calls.map(([c, a]) => (c === "guard" ? (a.begin ? "begin" : "end") : c)).filter((c) => c !== "foreground" && c !== "windows");
   expect(order).toEqual(["idle", "idle", "begin", "post", "post", "post", "end"]); // it waited for 400 ms of quiet
-  expect(asked("guard").at(-1)).toEqual({ hwnd: 44 });
+  expect(asked("guard").at(-1)).toEqual({ hwnd: 44, sink: false }); // handed back, and not sunk: the window is not the hand's
 });
 
 test("a click into a Chromium window is refused when the user never pauses, and another hand's lock is waited for", async () => {
-  helper({ post: { ok: true }, idle: { idleMs: 50, held: ["the left mouse button"], quiet: true, tick: 5 } });
+  helper({ windows: [], post: { ok: true }, idle: { idleMs: 50, held: ["the left mouse button"], quiet: true, tick: 5 } });
   const target = { pid: 400, windowId: 44, frame: [0, 0, 900, 600] as Frame, web: true };
   const clock = spyOn(performance, "now");
   let now = 0;
@@ -693,7 +694,7 @@ test("the browser's tabs, URL and loading state are read off its windows, and a 
   expect(asked("post").map((a) => [a.hwnd, a.kind, a.x, a.y])).toEqual([[45, "move", 711, 246], [45, "down", 711, 246], [45, "up", 711, 246]]);
   expect(asked("chars")).toEqual([{ hwnd: 45, text: "https://example.com/", direct: true }]);
   expect(asked("vkey")).toEqual([{ hwnd: 45, vk: 0x0d, direct: true }]);
-  expect(asked("guard")).toEqual([{ begin: true }, { hwnd: 45 }]); // the click brings Chrome forward for a moment, and it goes straight back
+  expect(asked("guard")).toEqual([{ begin: true }, { hwnd: 45, sink: false }]); // the click brings Chrome forward for a moment, and it goes straight back
   expect(await windows.tabCommand("Google Chrome", "back", "44", undefined, true)).toBe("Flights | https://flights.example.com/");
   expect(asked("post").at(-1)).toEqual({ hwnd: 44, kind: "up", x: 196, y: 245 });
   expect(await windows.tabCommand("Google Chrome", "close_tab", "44", 1, true)).toBe("Inbox | ");

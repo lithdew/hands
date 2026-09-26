@@ -1152,15 +1152,21 @@ function flashingSync<T>(work: () => T, fallback: T): T {
   }
 }
 
-/** A posted click or drag into a window: guarded (see flashing) when the window is Chromium's, the helper watching the moment after it. */
+/**
+ * A posted click or drag into a window: guarded (see flashing) when the window is Chromium's, the helper watching the
+ * moment after it and handing the foreground back; a window of the hand's own also goes back behind the user's.
+ */
 async function guarded<T>(hwnd: number, web: boolean, work: () => Promise<T>): Promise<T> {
   if (!web) return work();
+  const list = windowList();
+  const entry = list.find((w) => w.hwnd === hwnd);
+  const sink = entry !== undefined && isOwn(entry, list);
   return flashing(async () => {
     native.call("guard", { begin: true });
     try {
       return await work();
     } finally {
-      native.call("guard", { hwnd });
+      native.call("guard", { hwnd, sink });
     }
   });
 }
@@ -1801,7 +1807,7 @@ export function recognizeText(path: string, rect?: Box): OcrLine[] {
 // Element handles given out to a Screen stay in the helper's table until the next capture replaces them. Pressing
 // one from an older capture is refused rather than sent to a control that is gone.
 let live = new Set<number>();
-const webRefs = new Set<number>(); // the handles of controls in a Chromium window, where a press brings the window forward (see flashing)
+const webRefs = new Map<number, boolean>(); // the handles of controls in a Chromium window, where a press brings the window forward (see flashing), and whether that window is the hand's own
 
 /** Drop every handle the previous capture gave out. Perception calls this as a new capture starts. */
 export function releaseElements(): void {
@@ -1838,15 +1844,16 @@ export function focusedField(): Field | null {
 const act = (ref: unknown, action: string): boolean => {
   if (!alive(ref)) return false;
   const front = frontWindow();
+  const web = webRefs.has(ref);
   const run = () => {
     try {
-      return Boolean((native.call("act", { id: ref, action }) as { ok: boolean }).ok);
+      return Boolean((native.call("act", { id: ref, action, ...(web ? { sink: webRefs.get(ref) } : {}) }) as { ok: boolean }).ok);
     } catch {
       return false;
     }
   };
   try {
-    return action === AX_PRESS && webRefs.has(ref) ? flashingSync(run, false) : run();
+    return action === AX_PRESS && web ? flashingSync(run, false) : run();
   } finally {
     giveBack(front);
     keepOnDesktop();
@@ -1888,9 +1895,10 @@ export const holdsText = (value: string | null, text: string): boolean => plainT
 export function axSetValue(ref: unknown, value: string): boolean {
   if (!alive(ref)) return false;
   const front = frontWindow();
-  const set = () => native.call("setValue", { id: ref, text: value }) as { ok: boolean; posted?: boolean };
+  const web = webRefs.has(ref);
+  const set = () => native.call("setValue", { id: ref, text: value, ...(web ? { sink: webRefs.get(ref) } : {}) }) as { ok: boolean; posted?: boolean };
   try {
-    const { ok: taken, posted } = webRefs.has(ref) ? flashingSync(set, { ok: false }) : set();
+    const { ok: taken, posted } = web ? flashingSync(set, { ok: false }) : set();
     // A Chromium field takes the text as posted keystrokes, and its tree shows them a beat later: WhatsApp's composer
     // read back empty when asked at once and full 250 ms on (measured), and a long message takes longer to show. So the
     // value is waited for, a second and a half and more for a longer text, up to eight seconds.
@@ -2224,9 +2232,11 @@ export function actionableElements(pid: number, display: Frame, options: WalkOpt
   };
   const actions = (id: number) => byId.get(id)?.actions ?? [];
   const [found, offscreen, capped] = walkActionable(ROOT, children, attrs, actions, display, walk);
+  const mine = window !== undefined && isOwn(window, list);
   for (const node of [...found, ...offscreen]) {
     live.add(node.ref as number);
-    if (web) webRefs.add(node.ref as number);
+    if (web) webRefs.set(node.ref as number, mine);
+    else webRefs.delete(node.ref as number); // an id the helper gave out again, since an earlier look
   }
   return [tidy(found, byId, window), offscreen, capped || reply.capped];
 }

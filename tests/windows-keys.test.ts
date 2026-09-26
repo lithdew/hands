@@ -143,6 +143,7 @@ test("a field's value is read back until it shows the text, spaces and quotes as
   expect(windows.holdsText(value, "it's  here")).toBe(true);
   expect(asked("value")).toHaveLength(1); // it matched on the first read-back
   expect(asked("guard")).toEqual([]); // the helper guards its own clicks into the field
+  expect(asked("setValue")[0]).toEqual({ id: 7, text: "it's  here", sink: false }); // and hands the foreground back without sinking a window that is not the hand's
   expect(asked("idle")).toHaveLength(1); // after waiting, under the seat's lock, for the user to pause
   expect(() => windows.axSetValue(field!.ref, "one\ntwo")).toThrow(/^line break:/);
   expect(windows.plainText("  a\u00a0b \u201cc\u201d\u2019 ")).toBe("a b \"c\"'");
