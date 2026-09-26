@@ -7,7 +7,7 @@
  * the column is, which cards show a picture (only those are filmed), and what the user asked of a hand.
  */
 
-import { build, busy, type Card, elapsed, frame, paint, part, track, write } from "./card.ts";
+import { build, busy, type Card, elapsed, frame, fresh, paint, part, track, write } from "./card.ts";
 import { extra, level, speak } from "./dock.ts";
 import { arrange, finished, lines, order, type Shape } from "./fold.ts";
 import { deal, glide, sweep, where } from "./motion.ts";
@@ -211,8 +211,14 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+// The clocks of the hands at work, and whether their pictures are still coming.
 setInterval(() => {
-  for (const card of cards.values()) if (card.view && busy(card.view)) part(card, "time").textContent = card.clock = elapsed(card.view.since);
+  const now = performance.now();
+  for (const card of cards.values()) {
+    if (!card.view || !busy(card.view)) continue;
+    part(card, "time").textContent = card.clock = elapsed(card.view.since);
+    fresh(card, now);
+  }
 }, 1000);
 
 // ------------------------------------------------------------------ what the orchestrator is told

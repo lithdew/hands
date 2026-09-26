@@ -74,6 +74,16 @@ export function moved(before: string, after: string): boolean {
   return next !== "" && next !== driver(before).label && !RESTING.test(next);
 }
 
+/** How long a picture may go without a new frame before it says it is not live: frames come once a second at the least. */
+export const STALE_MS = 3000;
+
+/** What a live picture's dot says of the last frame: nothing while frames come, and how long ago once they stop. */
+export function stale(now: number, shotAt: number): string {
+  const seconds = Math.floor((now - shotAt) / 1000);
+  if (now - shotAt <= STALE_MS) return "";
+  return seconds < 60 ? `${seconds}s ago` : `${Math.floor(seconds / 60)}m ago`;
+}
+
 /** What a lookup is searching for, from its action ("searching 'ramen near King's Cross'"), as its card says it. */
 export function searching(action: string): string {
   const query = /^searching\s+(.+)$/i.exec(action.trim())?.[1]?.trim();

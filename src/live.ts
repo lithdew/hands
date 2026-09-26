@@ -358,8 +358,11 @@ function heard(hand: Hand, event: HandEvent): void {
       if (window !== hand.window) [hand.picture, hand.shot] = ["none", 0]; // a window of its own it has not been filmed in yet
       [hand.window, hand.size] = [window, event.subject.window === undefined ? null : (event.size ?? null)];
     } else if (event.size && hand.window !== null) hand.size = event.size; // the same window, resized or maximized
-    if (event.at) hand.at = event.at;
-    if (event.pose) hand.glyph = POSES[event.pose][0];
+    if (event.at) [hand.at, hand.glide] = [event.at, event.ms ?? 0]; // a place with no time is followed closely, as a drag streams them
+    if (event.pose) {
+      [hand.glyph, hand.pose] = [POSES[event.pose][0], event.pose === "stop" ? "wait" : event.pose]; // stopped, it holds its palm up, as it does waiting
+      if (event.pose === "press") hand.taps = (hand.taps ?? 0) + (event.count ?? 1);
+    }
     if (event.label && event.label !== hand.action && event.pose !== "think" && event.pose !== "look") hand.recent = [...hand.recent, event.label].slice(-RECENT);
     if (event.label !== undefined) hand.action = event.label;
     if (event.seat) [hand.seat, hand.seatWhy] = event.seat.state === "free" ? ["", ""] : [event.seat.state, event.seat.why];

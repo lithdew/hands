@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { anew, closes, driver, moved, type Press, says, searching, sight, site, steps, tally } from "../src/ui/rules.ts";
+import { anew, closes, driver, moved, type Press, STALE_MS, says, searching, sight, site, stale, steps, tally } from "../src/ui/rules.ts";
 import type { HandView } from "../src/ui/state.ts";
 
 const view = (extra: Partial<HandView>): HandView => ({ id: "lefty", name: "Lefty", color: "4f8cff", task: "Book a table", status: "working", action: "", glyph: "👆", at: null, size: null, viewing: false, answer: "", reason: "", seat: "", seatWhy: "", picture: "none", since: 0, ...extra }); // prettier-ignore
@@ -62,6 +62,13 @@ test("Jev's moves are told by its name before the action, and counted once each,
   expect(moved("thinking", "Jev › looking")).toBe(false);
   expect(moved("thinking", "Jev › clicker: “x”")).toBe(false);
   expect(moved("thinking", "")).toBe(false);
+});
+
+test("a live picture says nothing while frames come, and how long ago the last one was once they stop", () => {
+  expect(stale(10_000, 9_000)).toBe("");
+  expect(stale(10_000, 10_000 - STALE_MS)).toBe("");
+  expect(stale(10_000, 5_500)).toBe("4s ago");
+  expect(stale(200_000, 60_000)).toBe("2m ago");
 });
 
 test("a lookup says what it is searching for, in the words its action gives", () => {

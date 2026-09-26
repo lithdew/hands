@@ -489,8 +489,132 @@ html.windows .name {
   filter: drop-shadow(1.5px 0 0 var(--glove)) drop-shadow(-1.5px 0 0 var(--glove)) drop-shadow(0 1.5px 0 var(--glove)) drop-shadow(0 -1.5px 0 var(--glove)) drop-shadow(0 2px 3px rgb(28 20 8 / 0.5));
   transition:
     left var(--t-move) var(--ease-glide),
-    top var(--t-move) var(--ease-glide);
+    top var(--t-move) var(--ease-glide); /* its duration is the real hand's glide (card.ts) */
   pointer-events: none;
+}
+/*
+ * It moves as the hand on the screen does, about a third as far: bobbing while it thinks, scribbling as it writes,
+ * scanning as it looks, waving hello, popping up when done. Its translate holds where its fingertip is, so these
+ * move it by transform, rotate and scale alone, and only on a card that shows its picture.
+ */
+.card[data-status="working"]:not(.strip) .marker[data-pose="think"] {
+  animation: bob 1.7s ease-in-out infinite;
+}
+.card[data-status="working"]:not(.strip) .marker[data-pose="write"] {
+  animation: scribble 0.5s ease-in-out infinite;
+}
+.card[data-status="working"]:not(.strip) .marker[data-pose="look"] {
+  animation: scan 1.8s ease-in-out infinite;
+}
+.card:not(.strip) .marker[data-pose="wave"] {
+  transform-origin: 70% 90%;
+  animation: wave 1.1s ease-in-out 2;
+}
+.card:not(.strip) .marker[data-pose="done"] {
+  animation: pop 437ms var(--spring);
+}
+@keyframes bob {
+  50% {
+    transform: translateY(-2px);
+  }
+}
+@keyframes scribble {
+  25% {
+    transform: translate(2px, -1px);
+  }
+  75% {
+    transform: translate(3px, 0);
+  }
+}
+@keyframes scan {
+  0%,
+  100% {
+    transform: translateX(-3px);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+}
+@keyframes wave {
+  25% {
+    rotate: 17deg;
+  }
+  50% {
+    rotate: -9deg;
+  }
+  75% {
+    rotate: 17deg;
+  }
+}
+@keyframes pop {
+  from {
+    scale: 0.4;
+  }
+  60% {
+    scale: 1.2;
+  }
+}
+/* a press: a ring leaves the fingertip, and the last three spots it pressed stay marked, fainter each time */
+.tap,
+.crumb {
+  position: absolute;
+  z-index: 1;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.tap {
+  border: 2.5px solid var(--sheet);
+  box-shadow: 0 0 0 1.5px var(--glove);
+  opacity: 0;
+}
+.crumb {
+  z-index: 1;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border: 2px solid var(--glove);
+  background: var(--sheet);
+  opacity: 0.55;
+}
+.crumb + .crumb {
+  opacity: 0.35;
+}
+.crumb + .crumb + .crumb {
+  opacity: 0.18;
+}
+/* LIVE while frames come, a dot beating with each; grey, and how long ago, when they stop */
+.live {
+  position: absolute;
+  z-index: 3;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px 3px 6px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--sheet);
+  font: 700 10px/1 var(--face);
+  letter-spacing: 0.06em;
+  pointer-events: none;
+}
+.live i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--alarm-on-ink);
+}
+.live.stale {
+  color: rgb(255 255 255 / 0.7);
+  letter-spacing: 0.02em;
+}
+.live.stale i {
+  background: var(--shade);
 }
 .brief {
   margin: 0;
@@ -1241,6 +1365,7 @@ html:not(.windows) [data-cmd="show"] {
   .ticks::after,
   .subtitle,
   .subtitle::before,
+  .marker,
   #dock::after,
   #dock.thinking .palm i {
     animation: none !important;

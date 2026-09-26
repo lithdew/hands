@@ -7,8 +7,8 @@
  */
 
 import { finished } from "./fold.ts";
-import { EASE_OUT, ms, settle } from "./motion.ts";
-import { driver, moved, says, searching, sentence, type Step, sight, site, steps, tally } from "./rules.ts";
+import { EASE_OUT, ms, settle, still } from "./motion.ts";
+import { driver, moved, says, searching, sentence, type Step, sight, site, stale, steps, tally } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, Status } from "./state.ts";
 import { blocks } from "./text.ts";
 
@@ -40,6 +40,8 @@ export interface Card {
   leaving: boolean;
   steps: Step[]; // its tool calls, from its transcript, as the header's ticks show them
   act: string; // the action it was last painted with, so each of Jev's moves is counted once
+  taps: number | null; // how many presses its hand had made when last painted: each new one ripples (null: not painted yet)
+  shotAt: number; // when the last frame came, on the page's clock: a picture that has not changed for a while says so
 }
 
 const TICKS = 24; // the most steps the header shows: the latest
@@ -65,7 +67,7 @@ const put = (target: HTMLElement, text: string): boolean => {
 export function build(id: string, act: (message: ClientMessage) => void, toggle: (id: string) => void, closeKey: string): Card {
   const root = (template.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
   root.dataset.id = id;
-  const card: Card = { id, root, view: null, frames: [...root.querySelectorAll<HTMLImageElement>(".screen img")], url: "", frame: 0, ratio: null, of: undefined, clock: "", leaving: false, steps: [], act: "" };
+  const card: Card = { id, root, view: null, frames: [...root.querySelectorAll<HTMLImageElement>(".screen img")], url: "", frame: 0, ratio: null, of: undefined, clock: "", leaving: false, steps: [], act: "", taps: null, shotAt: 0 };
   for (const selector of ["header", ".fold", ".tell"]) part(card, selector).addEventListener("click", () => toggle(id));
   part(card, ".close-key").textContent = closeKey;
   part<HTMLFormElement>(card, "form").addEventListener("submit", (event) => {
@@ -227,6 +229,10 @@ function forget(card: Card): void {
   card.url = "";
   card.ratio = null;
   card.of = undefined;
+  for (const crumb of card.root.querySelectorAll<HTMLElement>(".crumb")) {
+    crumb.hidden = true; // where it clicked in the last window says nothing of the next
+    crumb.style.left = crumb.style.top = "";
+  }
   mini(card);
 }
 
@@ -249,15 +255,39 @@ function picture(card: Card): void {
   const doing = hand.kind === "lookup" ? searching(hand.action) : sentence(driver(hand.action).label || "thinking");
   if (put(subtitle, doing) && !subtitle.hidden) settle(subtitle);
   if (!card.ratio && hand.size) card.root.style.setProperty("--ratio", String(hand.size[0] / hand.size[1])); // until the first frame says otherwise
+  // A beating dot while frames come; with none for a while it goes grey and says how long (ui.ts, stale).
+  part(card, ".live").hidden = !(has && busy(hand) && hand.picture === "live");
   const marker = part(card, ".marker");
   // The hand is placed in its window's own points: over another window's picture, it would point at nothing there.
   marker.hidden = !(has && hand.at && hand.size) || card.of !== hand.window;
+  const [taps, tapped] = [hand.taps ?? 0, card.taps];
+  card.taps = taps;
   if (!hand.at || !hand.size) return;
   put(marker, hand.glyph);
+  // It strikes the pose the real one does, and glides as long as the real one takes, so both land together.
+  marker.dataset.pose = hand.pose ?? "";
+  marker.style.transitionDuration = `${ms(hand.glide || 80)}ms`;
   const [x, y] = TOUCH[hand.glyph] ?? [0.3, 0.1];
   marker.style.left = `${(100 * hand.at[0]) / hand.size[0]}%`;
   marker.style.top = `${(100 * hand.at[1]) / hand.size[1]}%`;
   marker.style.translate = `${-100 * x}% ${-100 * y}%`;
+  if (tapped !== null && taps > tapped && !marker.hidden) tap(card, marker);
+}
+
+/**
+ * A press: the hand in the picture dips, a ring leaves its fingertip, and the spot stays marked, the last three
+ * fainter each time, so a picture that comes once a second still shows where it has been clicking.
+ */
+function tap(card: Card, marker: HTMLElement): void {
+  const [ring, ...crumbs] = [part(card, ".tap"), ...card.root.querySelectorAll<HTMLElement>(".crumb")];
+  for (let index = crumbs.length - 1; index > 0; index--) {
+    [crumbs[index]!.style.left, crumbs[index]!.style.top] = [crumbs[index - 1]!.style.left, crumbs[index - 1]!.style.top];
+  }
+  for (const spot of [ring!, crumbs[0]!]) [spot.style.left, spot.style.top] = [marker.style.left, marker.style.top];
+  for (const crumb of crumbs) crumb.hidden = !crumb.style.left;
+  marker.animate([{ scale: 1 }, { scale: 0.8 }, { scale: 1 }], { duration: ms(200), easing: EASE_OUT, composite: "add" });
+  // With less motion asked for, the ring does not grow: it shows a moment where the press was, and goes.
+  ring!.animate([{ scale: 0.3, opacity: 0.9 }, { scale: 1.7, opacity: 0 }], still() ? { duration: 150, easing: "steps(1, end)" } : { duration: 420, easing: EASE_OUT });
 }
 
 /**
@@ -293,11 +323,22 @@ export async function frame(card: Card, jpeg: Uint8Array<ArrayBuffer>): Promise<
   const old = card.url;
   card.frames = [back, front];
   card.url = url;
+  card.shotAt = performance.now();
   mini(card); // before the last frame is let go of
+  fresh(card, card.shotAt);
   if (first && card.view) picture(card);
   if (!reshaped) await back.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ms(120), easing: "linear" }).finished.catch(() => {});
   URL.revokeObjectURL(old);
   return reshaped;
+}
+
+/** The live dot: it beats as a frame comes, and goes grey, saying how long ago, when frames stop coming (rules.ts, stale). */
+export function fresh(card: Card, now = performance.now()): void {
+  const live = part(card, ".live");
+  const late = stale(now, card.shotAt);
+  live.classList.toggle("stale", late !== "");
+  put(part(card, ".live b"), late || "LIVE");
+  if (!late && now === card.shotAt && !live.hidden) part(card, ".live i").animate([{ scale: 1.8 }, { scale: 1 }], { duration: ms(260), easing: EASE_OUT });
 }
 
 export const elapsed = (since: number, now = Date.now()): string => {
