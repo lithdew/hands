@@ -627,6 +627,7 @@ const own = new Map<number, number>(); // the windows this hand opened, each wit
 const opened = new Set<number>(); // the processes this hand has opened a window in: there, it works in its own windows or none, never the user's
 const browserWindows = new Map<number, number>(); // the browser windows this hand opened, with their pid: closed when it is released
 const inFront = new Map<number, number>(); // when each of the hand's windows was last seen in front, which is the user's doing
+const presented = new Map<number, number>(); // when each window was last shown to the user (present), whatever the hand was doing
 let groundedNote: string | null = null; // for the model, once, the first time an app it opens is grounded
 let watcher: ReturnType<typeof setInterval> | null = null; // keeps the hand's windows where they belong while it thinks, once it has any
 let watching = false; // the watcher is making its round: its calls are not the hand's doing
@@ -900,6 +901,7 @@ export function releaseDesktop(): void {
   opened.clear();
   browserWindows.clear();
   inFront.clear();
+  presented.clear();
   primed.clear();
   unlifted.clear();
   stale.clear();
@@ -1154,13 +1156,19 @@ function holdLock(name: string): void {
   }
 }
 
-/** `work` under a lock; after `waitMs` without it, anyway: a hand that holds it that long has hung, and the lock goes stale soon. */
-async function withLock<T>(name: string, work: () => Promise<T>, waitMs = 20_000): Promise<T> {
+/**
+ * `work` under a lock; after `waitMs` without it, anyway: a hand that holds it that long has hung, and the lock goes
+ * stale soon. The work may hand over a watch that goes on after it returns (`behind`, see returnSeat): the lock is let
+ * go once that is over too.
+ */
+async function withLock<T>(name: string, work: (behind: (watch: Promise<void>) => void) => Promise<T>, waitMs = 20_000): Promise<T> {
   const release = await takeLock(name, performance.now() + waitMs);
+  let watch: Promise<void> | null = null;
   try {
-    return await work();
+    return await work((done) => void (watch = done));
   } finally {
-    release?.();
+    if (watch) void (watch as Promise<void>).finally(() => release?.());
+    else release?.();
   }
 }
 
@@ -1611,7 +1619,7 @@ async function freshWindow(launching: Launching, timeout: number): Promise<{ pid
  * window of another app that the user opens in that moment is theirs, and keeps it.
  */
 async function openWindow(start: () => Omit<Launching, "before">, timeout: number): Promise<{ pid: number; windowId: number } | null> {
-  return withLock(OPEN_LOCK, async () => {
+  return withLock(OPEN_LOCK, async (behind) => {
     const before = new Set(windowList().map((w) => w.hwnd));
     const seat = (native.call("foreground") as { hwnd: number }).hwnd;
     let launching: Launching | null = null;
@@ -1625,7 +1633,11 @@ async function openWindow(start: () => Omit<Launching, "before">, timeout: numbe
       let kids: Set<number> | null = null;
       const children = () => (kids ??= childrenOf(started?.pid ?? 0));
       const taken = (w: WindowEntry) => started !== null && ofLaunch(w, started, children);
-      if (seat) await returnSeat(seat, taken, undefined, pace.seatWatchMs); // where the window goes (behind, or to the hand's desktop) is the caller's to say
+      if (seat) {
+        const watch = returnSeat(seat, taken, undefined, pace.seatWatchMs); // where the window goes (behind, or to the hand's desktop) is the caller's to say
+        behind(watch.done);
+        await watch.ready;
+      }
     }
   });
 }
@@ -1983,6 +1995,8 @@ export async function openUrl(
   return navigateBehind(at.hwnd, href);
 }
 
+const SEAT_QUIET_MS = 600; // how long an opening's watch of the seat must see nothing take it before the opening goes on, the watch behind it
+
 /**
  * Give the seat back to the window that had it, each time something the hand opened takes it: the one visible moment
  * of opening a window from behind. `taken` says which windows are the opening's (by handle: the user's own Chrome
@@ -1990,21 +2004,52 @@ export async function openUrl(
  * window exists, and once more when it shows a bubble over it, so this watches for up to `watchMs`, and until a moment
  * after the first handback. While another hand borrows the seat the foreground is its borrow's to move (see takeBack):
  * the window only goes behind the user's.
+ *
+ * The opening goes on (`ready`) once the watch is over, or once it has seen nothing take the seat for SEAT_QUIET_MS:
+ * a take comes a beat after the window exists, when it comes (a browser that works unseen took it in none of 8 opens,
+ * measured), and the rest of the watch, 1.9 s that every such open used to wait out, goes on behind the opening
+ * (`done`). A take that comes late is still given back there, at the next of its 50 ms rounds that the process is free
+ * for, where waiting it out would have held the whole hand; the caller keeps the open lock until then, so that no other
+ * hand's opening starts while this one can still take the seat. The hand's own borrow or guarded click, which bring
+ * its window forward on purpose, is left to put back what it moved, and a window shown to the user (present) is
+ * theirs: the watch ends there. Behind the opening nothing throws: the helper may be gone by then.
  */
-async function returnSeat(seat: number, taken: (w: WindowEntry, list: WindowEntry[]) => boolean, window?: number, watchMs = 2500): Promise<void> {
-  let returned = 0;
-  for (const end = performance.now() + watchMs; ; await sleep(50)) {
-    const front = (native.call("foreground") as { hwnd: number }).hwnd;
-    const list = front && front !== seat ? windowList() : [];
-    const entry = list.find((w) => w.hwnd === front);
-    if (entry && taken(entry, list)) {
-      if (!seatElsewhere()) native.call("activate", { hwnd: seat });
-      if (window !== undefined) native.call("sink", { hwnd: window }); // and the window itself goes behind the user's, not only behind the one in front
-      returned ||= performance.now();
+function returnSeat(seat: number, taken: (w: WindowEntry, list: WindowEntry[]) => boolean, window?: number, watchMs = 2500): { ready: Promise<void>; done: Promise<void> } {
+  let behind = false;
+  let go = (): void => {};
+  let fail = (_error: unknown): void => {};
+  const ready = new Promise<void>((resolve, reject) => ((go = resolve), (fail = reject)));
+  const done = (async () => {
+    const start = performance.now();
+    const shown = () => window !== undefined && (presented.get(window) ?? Number.NEGATIVE_INFINITY) >= start;
+    let returned = 0;
+    try {
+      for (const end = start + watchMs; !shown(); await sleep(50)) {
+        if (borrowed === null && !guarding) {
+          const front = (native.call("foreground") as { hwnd: number }).hwnd;
+          const list = front && front !== seat ? windowList() : [];
+          const entry = list.find((w) => w.hwnd === front);
+          if (entry && taken(entry, list)) {
+            if (!seatElsewhere()) native.call("activate", { hwnd: seat });
+            if (window !== undefined) native.call("sink", { hwnd: window }); // and the window itself goes behind the user's, not only behind the one in front
+            returned ||= performance.now();
+          }
+        }
+        const now = performance.now();
+        if (now >= end || (returned > 0 && now >= returned + 800)) break;
+        if (!behind && returned === 0 && now - start >= SEAT_QUIET_MS) {
+          behind = true;
+          go();
+        }
+      }
+      if (window !== undefined && !shown()) native.call("sink", { hwnd: window });
+    } catch (error) {
+      if (!behind) fail(error);
+    } finally {
+      go();
     }
-    if (performance.now() >= end || (returned > 0 && performance.now() >= returned + 800)) break;
-  }
-  if (window !== undefined) native.call("sink", { hwnd: window });
+  })();
+  return { ready, done };
 }
 
 /** Whether the front window's active tab is still loading: the toolbar shows Stop instead of Reload. A browser that is not running is not. */
@@ -2060,10 +2105,10 @@ export async function tabCommand(browser: string, command: TabCommand, window?: 
 export async function openBackgroundWindow(browser: string, url: string): Promise<PinnedWindow> {
   // One hand at a time, across processes: a new window is told from the rest by not having been there before, and two
   // hands opening at once would both claim the first to appear.
-  return withLock(OPEN_LOCK, () => openWindowAlone(browser, url));
+  return withLock(OPEN_LOCK, (behind) => openWindowAlone(browser, url, behind));
 }
 
-async function openWindowAlone(browser: string, url: string): Promise<PinnedWindow> {
+async function openWindowAlone(browser: string, url: string, behind: (watch: Promise<void>) => void): Promise<PinnedWindow> {
   const seat = (native.call("foreground") as { hwnd: number }).hwnd;
   const before = new Set(windowList().map((w) => w.hwnd)); // minimized ones too: one the user restores meanwhile is not new
   const cold = (await userInstance(browser)) === null;
@@ -2090,7 +2135,11 @@ async function openWindowAlone(browser: string, url: string): Promise<PinnedWind
     // Only the new window, and what it brings up over itself, is handed back from: a window the user opens meanwhile is theirs.
     const taken = (w: WindowEntry, list: WindowEntry[]) =>
       opened !== null ? w.hwnd === opened.windowId || rootOf(w, list).hwnd === opened.windowId : w.pid === pid && !before.has(w.hwnd);
-    if (seat) await returnSeat(seat, taken, opened?.windowId, pace.browserWatchMs);
+    if (seat) {
+      const watch = returnSeat(seat, taken, opened?.windowId, pace.browserWatchMs);
+      behind(watch.done);
+      await watch.ready;
+    }
   }
   if (!opened) throw new Error(`${browser} opened no new window${cold ? ` showing ${url} (it may be asking which profile to use, or restoring the user's last session)` : ""}`);
   // Once the seat is back: a browser that paints unseen has its window parked off the screens; any other keeps it here,
@@ -2936,6 +2985,7 @@ export function present(windowId: number): boolean {
     // the window went away: activating it says so
   }
   inFront.set(rootOf(entry, list).hwnd, performance.now());
+  presented.set(rootOf(entry, list).hwnd, performance.now()); // nor handed back from by an opening's watch of the seat (returnSeat)
   return Boolean((native.call("activate", { hwnd: windowId }) as { ok: boolean }).ok);
 }
 

@@ -204,6 +204,64 @@ test("a new browser window is handed back from, and only it: a window the user o
   expect(front.hwnd).toBe(77);
 });
 
+/** A Chrome whose new window appears as it is launched, and the window in front `state.front` says. */
+function chromeOpening(state: { front: { hwnd: number; pid: number }; takes?: boolean }) {
+  let launched = false;
+  const chrome = window(46, 400, "chrome.exe", { cls: "Chrome_WidgetWin_1", title: "Example - Google Chrome" });
+  helper({
+    processes: ({ exe }) => (exe === "chrome.exe" ? [{ pid: 400, cmd: '"C:\\chrome.exe"' }] : []),
+    windows: () => (launched ? [chrome, terminal] : [terminal]),
+    foreground: () => state.front,
+    launch: () => ((launched = true), state.takes && (state.front = { hwnd: 46, pid: 400 }), { pid: 0 }),
+    activate: ({ hwnd }) => ((state.front = { hwnd: hwnd as number, pid: 100 }), { ok: true }),
+    reg: { value: null },
+  });
+  spyOn(process, "kill").mockImplementation(() => true);
+}
+
+test("a new window nothing brings forward lets the opening go on after a moment; the watch goes on behind it, under the lock, and still gives back a late take", async () => {
+  windows.pace.browserWatchMs = 1500;
+  const state = { front: { hwnd: 11, pid: 100 } };
+  chromeOpening(state);
+  const lock = join(lockRoot, "hands-open-window.lock");
+  const began = performance.now();
+  expect((await windows.openBackgroundWindow("Google Chrome", "https://example.com/")).windowId).toBe(46);
+  const took = performance.now() - began;
+  expect(took).toBeGreaterThanOrEqual(550); // it watched a moment first
+  expect(took).toBeLessThan(1200); // not the whole watch
+  expect(asked("activate")).toEqual([]);
+  expect(existsSync(lock)).toBe(true); // no other hand opens a window while this one's can still take the seat
+  state.front = { hwnd: 46, pid: 400 }; // Chrome takes the seat late
+  for (const end = performance.now() + 3000; existsSync(lock) && performance.now() < end; ) await Bun.sleep(50);
+  expect(asked("activate")).toEqual([{ hwnd: 11 }]); // given back all the same
+  expect(state.front.hwnd).toBe(11);
+  expect(existsSync(lock)).toBe(false); // and the lock let go once the watch was over
+});
+
+test("a new window that takes the seat as it opens holds the opening until the handback has been watched a moment past, as before", async () => {
+  windows.pace.browserWatchMs = 1500;
+  const state = { front: { hwnd: 11, pid: 100 }, takes: true };
+  chromeOpening(state);
+  const began = performance.now();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect(performance.now() - began).toBeGreaterThanOrEqual(750); // 800 ms past the handback, for a second take
+  expect(asked("activate")).toEqual([{ hwnd: 11 }]);
+  expect(state.front.hwnd).toBe(11);
+});
+
+test("a window shown to the user while its opening's watch goes on is theirs: the watch ends, and does not take it back", async () => {
+  windows.pace.browserWatchMs = 1500;
+  const state = { front: { hwnd: 11, pid: 100 } };
+  chromeOpening(state);
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect(windows.present(46)).toBe(true); // Show, from the panel
+  const lock = join(lockRoot, "hands-open-window.lock");
+  for (const end = performance.now() + 3000; existsSync(lock) && performance.now() < end; ) await Bun.sleep(50);
+  expect(asked("activate")).toEqual([{ hwnd: 46 }]); // the user's Show, and no handback after it
+  expect(state.front.hwnd).toBe(46);
+  expect(asked("sink")).not.toContainEqual({ hwnd: 46 });
+});
+
 test("a document that opens no window of the hand's own is an error", async () => {
   const dir = mkdtempSync(join(tmpdir(), "hands-test-doc-"));
   const file = join(dir, "notes.txt");
