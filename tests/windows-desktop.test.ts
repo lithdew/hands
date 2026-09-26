@@ -31,6 +31,7 @@ let lockRoot: string;
 let desktop: string | undefined;
 beforeEach(() => {
   calls = [];
+  windows.interrupt(false);
   windows.pace.persistMs = 0;
   windows.pace.seatWatchMs = 0;
   windows.pace.browserWatchMs = 0;
@@ -115,8 +116,62 @@ test("a hand released closes the browser windows it opened, unless they are to b
   expect(asked("close")).toEqual([{ hwnd: 46 }]); // Notepad stays, with whatever the hand wrote in it
 });
 
+/**
+ * The helper's parking of a window (Parking in windows.cs), as a fake: park puts the window past the right edge of
+ * every screen and keeps where it was; unpark puts it back, forgetting it unless kept; a window it never parked that
+ * lies on no screen is brought onto the primary one.
+ */
+function parking(window: () => { frame: Frame }, moveTo: (frame: Frame) => void) {
+  let kept: Frame | null = null;
+  return {
+    park: () => ((kept ??= window().frame), moveTo([2560 + 64, kept[1], kept[2], kept[3]]), { ok: true }),
+    unpark: ({ keep }: Args) => {
+      if (kept) moveTo(kept);
+      else if (window().frame[0] >= 2560) moveTo([680, 400, window().frame[2], window().frame[3]]);
+      if (!keep) kept = null;
+      return { ok: true };
+    },
+  };
+}
+
 test("a browser that paints unseen has the hand's window parked off every screen, never sent to a desktop; the seat and the user get it back on screen", async () => {
   process.env.HANDS_DESKTOP = "1";
+  let front = { hwnd: 11, pid: 100 };
+  let launched = 0;
+  let chrome = { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Example - Google Chrome", frame: [50, 60, 1200, 800] as Frame, core: 0, exe: "chrome.exe", caption: true };
+  const helperParks = parking(() => chrome, (frame) => (chrome = { ...chrome, frame }));
+  helper({
+    processes: ({ exe }) => (exe === "chrome.exe" ? [{ pid: 400, cmd: '"C:\\chrome.exe" --disable-features=CalculateNativeWinOcclusion' }] : []),
+    windows: () => [terminal, ...(launched > 0 ? [chrome] : [])],
+    foreground: () => front,
+    launch: () => (launched++, { pid: 0 }),
+    activate: ({ hwnd }) => ((front = { hwnd: hwnd as number, pid: 100 }), { ok: true, foreground: hwnd }),
+    ...helperParks,
+    reg: { value: null },
+    input: { ok: true },
+    setCursor: { ok: true },
+    seat: { ok: true },
+    cursor: [5, 5],
+  });
+  spyOn(process, "kill").mockImplementation(() => true);
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect(asked("desktop")).toEqual([]);
+  expect(asked("send")).toEqual([]);
+  expect(asked("park")).toEqual([{ hwnd: 46 }]); // the helper keeps where it was, and puts it back if the hand is killed
+  expect(chrome.frame.slice(0, 2)).toEqual([2560 + 64, 60]); // just past the right edge of the only screen
+  calls = [];
+  await windows.borrow({ pid: 400, windowId: 46 }, 0, async () => {
+    expect(chrome.frame.slice(0, 2)).toEqual([50, 60]); // on screen for the seat's pointer
+  });
+  expect(asked("unpark")).toEqual([{ hwnd: 46, keep: true }]);
+  expect(chrome.frame.slice(0, 2)).toEqual([2560 + 64, 60]); // and parked again after
+  windows.release(true);
+  expect(chrome.frame.slice(0, 2)).toEqual([50, 60]); // kept, it comes back where the user can find it
+  expect(asked("close")).toEqual([]);
+});
+
+test("Show, in the hand's own process, brings a parked window back where it was for good, and no action's handback takes it away", async () => {
   let front = { hwnd: 11, pid: 100 };
   let launched = 0;
   let chrome = { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Example - Google Chrome", frame: [50, 60, 1200, 800] as Frame, core: 0, exe: "chrome.exe", caption: true };
@@ -125,27 +180,48 @@ test("a browser that paints unseen has the hand's window parked off every screen
     windows: () => [terminal, ...(launched > 0 ? [chrome] : [])],
     foreground: () => front,
     launch: () => (launched++, { pid: 0 }),
-    activate: ({ hwnd }) => ((front = { hwnd: hwnd as number, pid: 100 }), { ok: true, foreground: hwnd }),
-    move: ({ hwnd, x, y }) => ((chrome = { ...chrome, frame: [x as number, y as number, 1200, 800] }), { ok: true, hwnd }),
+    activate: ({ hwnd }) => ((front = { hwnd: hwnd as number, pid: 400 }), { ok: true }),
+    ...parking(() => chrome, (frame) => (chrome = { ...chrome, frame })),
     reg: { value: null },
+    vkey: { ok: true },
+    idle: { idleMs: 60_000, held: [], quiet: true, tick: 1 },
     input: { ok: true },
+    seat: { ok: true },
     setCursor: { ok: true },
     cursor: [5, 5],
   });
   spyOn(process, "kill").mockImplementation(() => true);
   windows.releaseDesktop();
   await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
-  expect(asked("desktop")).toEqual([]);
-  expect(asked("send")).toEqual([]);
-  expect(asked("move")).toEqual([{ hwnd: 46, x: 2560 + 64, y: 60 }]); // just past the right edge of the only screen
+  await windows.pressIn({ pid: 400, windowId: 46 }, "return"); // an action from behind: its handback holds for a while after
   calls = [];
-  await windows.borrow({ pid: 400, windowId: 46 }, 0, async () => {
-    expect(chrome.frame.slice(0, 2)).toEqual([50, 60]); // on screen for the seat's pointer
-  });
-  expect(chrome.frame.slice(0, 2)).toEqual([2560 + 64, 60]); // and parked again after
-  windows.release(true);
-  expect(chrome.frame.slice(0, 2)).toEqual([50, 60]); // kept, it comes back where the user can find it
+  expect(windows.present(46)).toBe(true);
+  expect(chrome.frame.slice(0, 2)).toEqual([50, 60]); // on screen where it was, before it takes the keyboard
+  expect(asked("unpark")).toEqual([{ hwnd: 46 }]);
+  expect(front.hwnd).toBe(46);
+  await windows.screenshotWindow(46, "w.png"); // the next look: the window is the user's now, not one that came up by itself
+  expect(asked("activate")).toEqual([{ hwnd: 46 }]);
+  expect(asked("sink")).toEqual([]);
+  await windows.borrow({ pid: 400, windowId: 46 }, 0, async () => {}); // nor parked again after a borrow
+  expect(asked("park")).toEqual([]);
+  expect(chrome.frame.slice(0, 2)).toEqual([50, 60]);
 });
+
+test("Show from a process that never parked the window (its hand is gone) still brings it onto a screen before it takes the keyboard", () => {
+  let chrome = { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Example - Google Chrome", frame: [2560 + 64, 60, 1200, 800] as Frame, core: 0, exe: "chrome.exe", caption: true };
+  const order: string[] = [];
+  helper({
+    windows: () => [terminal, chrome],
+    ...parking(() => chrome, (frame) => (order.push("moved"), (chrome = { ...chrome, frame }))),
+    activate: () => (order.push("activated"), { ok: true }),
+  });
+  windows.releaseDesktop();
+  expect(windows.present(46)).toBe(true);
+  expect(order).toEqual(["moved", "activated"]);
+  expect(chrome.frame.slice(0, 2)).toEqual([680, 400]); // onto the primary screen
+});
+
+const view = (url: string | null, omnibox = true) => ({ tabs: [], url, omnibox: omnibox ? [0, 0, 500, 30] : null, omniboxValue: url ?? "", buttons: {}, loading: false });
 
 test("a browser the hands start themselves is started painting what it cannot show", async () => {
   let launched = 0;
@@ -154,11 +230,30 @@ test("a browser the hands start themselves is started painting what it cannot sh
     processes: ({ exe }) => (exe === "chrome.exe" && launched ? [{ pid: 400, cmd: '"C:\\chrome.exe"' }] : []),
     windows: () => [terminal, ...(launched > 0 ? [chrome] : [])],
     launch: () => (launched++, { pid: 0 }),
+    browser: view("https://example.com/"),
     reg: { value: null },
   });
   windows.releaseDesktop();
   await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
   expect(String(asked("launch")[0]?.args)).toContain("--disable-features=CalculateNativeWinOcclusion");
+});
+
+test("a browser the hands start themselves may restore the user's session or ask for a profile: the hand's window is the one showing its page", async () => {
+  let launched = 0;
+  const window = (hwnd: number, title: string) => ({ hwnd, pid: 400, cls: "Chrome_WidgetWin_1", title, frame: [50, 60, 1200, 800] as Frame, core: 0, exe: "chrome.exe", caption: true });
+  const [restored, picker, mine] = [window(47, "Inbox - Google Chrome"), window(48, "Google Chrome"), window(49, "Example - Google Chrome")];
+  helper({
+    processes: ({ exe }) => (exe === "chrome.exe" && launched ? [{ pid: 400, cmd: '"C:\\chrome.exe"' }] : []),
+    windows: () => [terminal, ...(launched > 0 ? [restored, picker, mine] : [])],
+    launch: () => (launched++, { pid: 0 }),
+    browser: ({ hwnd }) => ({ 47: view("https://mail.example.org/inbox"), 48: view(null, false), 49: view("https://www.example.com/") })[hwnd as number],
+    close: { ok: true },
+    reg: { value: null },
+  });
+  windows.releaseDesktop();
+  expect((await windows.openBackgroundWindow("Google Chrome", "https://example.com/")).windowId).toBe(49);
+  windows.release(false);
+  expect(asked("close")).toEqual([{ hwnd: 49 }]); // the user's restored window, and the picker, are left alone
 });
 
 test("a window of the hand's that climbed over the user's is put behind them again, but not one the user has in front, nor for a while after", async () => {
@@ -232,4 +327,127 @@ test("a hand's desktop is taken down with the windows still on it brought behind
   calls = [];
   windows.release(false);
   expect(calls.map(([c]) => c).filter((c) => c !== "windows")).toEqual(["recall", "sink", "removeDesktop"]);
+});
+
+test("a hand's Chrome window that climbed over the user's own Chrome windows is put behind them again: the same process is not the same owner", async () => {
+  const userChrome = { hwnd: 44, pid: 400, cls: "Chrome_WidgetWin_1", title: "Inbox - Google Chrome", frame: [0, 0, 1200, 800] as Frame, core: 0, exe: "chrome.exe", caption: true };
+  const handChrome = { ...userChrome, hwnd: 46, title: "Example - Google Chrome" };
+  let launched = false;
+  let list: object[] = [userChrome];
+  helper({
+    processes: ({ exe }) => (exe === "chrome.exe" ? [{ pid: 400, cmd: '"C:\\chrome.exe"' }] : []),
+    windows: () => list,
+    launch: () => ((launched = true), (list = [userChrome, handChrome]), { pid: 0 }),
+    foreground: { hwnd: 44, pid: 400 },
+    reg: { value: null },
+  });
+  spyOn(process, "kill").mockImplementation(() => true);
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect(launched).toBe(true);
+  calls = [];
+  list = [handChrome, userChrome]; // it climbed, with nothing of another process behind it
+  await windows.screenshotWindow(46, "w.png");
+  expect(asked("sink")).toEqual([{ hwnd: 46 }]);
+});
+
+test("a window of the hand's that comes in front by itself, with no input from the user since it was behind, gives them back the window they had", async () => {
+  let front = { hwnd: 11, pid: 100 };
+  let list: object[] = [terminal];
+  let idleMs = 60_000;
+  helper({
+    windows: () => list,
+    foreground: () => front,
+    launch: () => ((list = [terminal, notepad]), { pid: 0 }),
+    activate: ({ hwnd }) => ((front = { hwnd: hwnd as number, pid: 100 }), { ok: true }),
+    idle: () => ({ idleMs, held: [], quiet: true, tick: 1 }),
+  });
+  windows.releaseDesktop();
+  await windows.runInBackground("Notepad");
+  let now = 100_000;
+  spyOn(performance, "now").mockImplementation(() => now);
+  await windows.screenshotWindow(55, "w.png"); // seen behind the user's window
+  calls = [];
+  now += 1000;
+  front = { hwnd: 55, pid: 500 }; // Notepad came forward by itself (an app that activates late)
+  list = [notepad, terminal];
+  await windows.screenshotWindow(55, "w.png");
+  expect(asked("activate")).toEqual([{ hwnd: 11 }]);
+  expect(asked("sink")).toEqual([{ hwnd: 55 }]);
+  expect(front.hwnd).toBe(11);
+  calls = [];
+  now += 1000;
+  front = { hwnd: 55, pid: 500 }; // this time the user brought it forward: they touched the mouse since the last look
+  idleMs = 300;
+  await windows.screenshotWindow(55, "w.png");
+  expect(asked("activate")).toEqual([]);
+  expect(asked("sink")).toEqual([]);
+});
+
+test("a window of the hand's that the user minimized is still the hand's to look at: restored behind their windows when it does, never taken for closed", async () => {
+  let list: object[] = [terminal];
+  helper({ windows: () => list, launch: () => ((list = [terminal, notepad]), { pid: 0 }), show: ({ hwnd }) => ((list = [terminal, notepad]), { ok: true, hwnd }) });
+  windows.releaseDesktop();
+  await windows.runInBackground("Notepad");
+  list = [terminal, { ...notepad, iconic: true }]; // the user minimized it
+  expect(windows.appWindows(500)).toEqual([{ id: 55, frame: [0, 0, 400, 500] }]); // still there: not closed
+  calls = [];
+  expect(windows.workingWindow(500)).toEqual({ windowId: 55, dialog: null, theirs: false });
+  expect(asked("show")).toEqual([{ hwnd: 55 }]); // restored without activation...
+  expect(asked("sink")).toEqual([{ hwnd: 55 }]); // ...behind the user's windows
+  const theirs = { ...notepad, hwnd: 66, title: "notes.txt - Notepad", iconic: true };
+  list = [terminal, theirs];
+  expect(windows.appWindows(500)).toEqual([]); // a minimized window of the user's is theirs, where they put it
+});
+
+test("a browser window holding tabs the hand never saw is not closed with it: a link the user opened may have landed there", async () => {
+  let launched = 0;
+  let tabs = 1;
+  const chrome = { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Example - Google Chrome", frame: [50, 50, 1200, 800] as Frame, core: 0, exe: "chrome.exe", caption: true };
+  helper({
+    processes: ({ exe }) => (exe === "chrome.exe" ? [{ pid: 400, cmd: '"C:\\chrome.exe"' }] : []),
+    windows: () => [terminal, ...(launched > 0 ? [chrome] : [])],
+    launch: () => (launched++, { pid: 0 }),
+    browser: () => ({ tabs: Array.from({ length: tabs }, (_, i) => ({ title: `Tab ${i}`, active: i === 0, frame: null, close: null })), url: "https://example.com/", omnibox: [0, 0, 500, 30], omniboxValue: "example.com", buttons: {}, loading: false }),
+    close: { ok: true },
+    reg: { value: null },
+  });
+  spyOn(process, "kill").mockImplementation(() => true);
+  const quiet = spyOn(console, "error").mockImplementation(() => {});
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect(await windows.browserTabs("Google Chrome")).toHaveLength(1); // the hand looks: one tab
+  tabs = 2; // a tab it never saw
+  windows.release(false);
+  expect(asked("close")).toEqual([]);
+  expect(quiet).toHaveBeenCalledTimes(1);
+  launched = 0;
+  tabs = 1;
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  await windows.browserTabs("Google Chrome");
+  windows.release(false);
+  expect(asked("close")).toEqual([{ hwnd: 46 }]); // what it saw is what it closes
+});
+
+test("a hand whose process ends without a close still puts back what it had out: its parked windows come back on screen, kept", async () => {
+  let launched = 0;
+  let chrome = { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Example - Google Chrome", frame: [50, 60, 1200, 800] as Frame, core: 0, exe: "chrome.exe", caption: true };
+  helper({
+    processes: ({ exe }) => (exe === "chrome.exe" ? [{ pid: 400, cmd: '"C:\\chrome.exe" --disable-features=CalculateNativeWinOcclusion' }] : []),
+    windows: () => [terminal, ...(launched > 0 ? [chrome] : [])],
+    launch: () => (launched++, { pid: 0 }),
+    ...parking(() => chrome, (frame) => (chrome = { ...chrome, frame })),
+    reg: { value: null },
+    close: { ok: true },
+  });
+  spyOn(process, "kill").mockImplementation(() => true);
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect(chrome.frame[0]).toBe(2560 + 64);
+  windows.onExit(); // what process.on("exit") runs: a run from the command line that is done, or an error
+  expect(chrome.frame.slice(0, 2)).toEqual([50, 60]);
+  expect(asked("close")).toEqual([]); // its pages may be what the user was told to look at
+  calls = [];
+  windows.onExit(); // released already: nothing more to do
+  expect(calls.filter(([c]) => c !== "windows")).toEqual([]);
 });

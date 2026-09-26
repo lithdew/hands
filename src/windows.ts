@@ -285,10 +285,31 @@ const sleep = (ms: number) => Bun.sleep(ms);
 // ------------------------------------------------------------------ escape hatch
 
 let interrupted = false;
-/** Ctrl-C lands here so a run unwinds through the same path as the mouse corner, and still writes its summary. */
+/**
+ * Ctrl-C lands here so a run unwinds through the same path as the mouse corner, and still writes its summary; so do a
+ * stop, a pause and a click on the hand (src/agent.ts halt), which every wait for the seat then ends on (checkStopped).
+ */
 export function interrupt(on = true): void {
   interrupted = on;
 }
+
+/**
+ * Abort, once the hand has been stopped, paused or clicked (interrupt). Every wait for the seat asks this, before it
+ * waits, on every round, and once more just before it acts: a hand told "not now" never takes the mouse and keyboard,
+ * or makes a guarded click, afterwards.
+ */
+export function checkStopped(): void {
+  if (interrupted) throw new Abort("stopped");
+}
+
+/** What the tools hear of the machine's side of the seat (src/tools.ts sets them). */
+export const hooks = {
+  /**
+   * A click into a page has waited long enough for the user to pause that the wait is worth showing ("waiting"), and
+   * that wait is over ("free"), with what it is for: the hand and its card show it as they show a borrow's wait.
+   */
+  onSeatWait: null as ((state: "waiting" | "free", why: string) => void) | null,
+};
 
 /** The mouse in physical pixels of the virtual screen, y down from the top of the primary display. */
 export function mouseLocation(): Point {
@@ -350,16 +371,20 @@ export function displayFor(frame: Frame | null): Display {
 // ------------------------------------------------------------------ input
 
 let borrowed: number | null = null; // the helper's tick when the seat was borrowed (see borrow): its input then stops at the user's first touch
+let borrowedRoot = 0; // the window borrowed, which its input goes to and nothing else
 
 /**
  * Input for the seat goes through SendInput: it lands wherever the focus is, exactly as the user's would. The helper
  * sends none while the user holds a modifier or a mouse button, and during a borrow none once the user has touched the
- * mouse or keyboard: the borrow ends there, with SeatTaken.
+ * mouse or keyboard, once another window has come in front of the borrowed one, or when something lies over the point
+ * a click is for: the borrow ends there, with SeatTaken. A hand stopped mid-borrow sends nothing more either (Abort).
  */
 const input = async (args: object, delay = EVENT_DELAY_MS) => {
-  const reply = native.call("input", borrowed === null ? args : { ...args, since: borrowed }) as { ok?: boolean; taken?: string };
+  if (borrowed !== null) checkStopped();
+  const reply = native.call("input", borrowed === null ? args : { ...args, since: borrowed, root: borrowedRoot }) as { ok?: boolean; taken?: string };
   if (reply.ok === false) {
-    if (borrowed !== null) throw new SeatTaken(`${reply.taken ?? "the user took the mouse or keyboard back"}: the seat is theirs again`);
+    const taken = reply.taken ?? "the user took the mouse or keyboard back";
+    if (borrowed !== null) throw new SeatTaken(`${taken}: ${taken.startsWith("the user") ? "the seat is theirs again" : "nothing more was sent"}`);
     throw new Error(`${reply.taken ?? "the user is busy"}: nothing was sent`);
   }
   if (borrowed !== null) holdLock(SEAT_LOCK);
@@ -421,59 +446,74 @@ export async function typeText(text: string, pid?: number): Promise<void> {
  * The window keys for a target go to, once it is known to be one they may go to: a window the hand opened, a dialog
  * one of those opened, or, in an app the hand has no window of its own in, the window it was pointed at.
  */
-function keysFor(target: KeyTarget): number {
+function keysFor(target: KeyTarget): WindowEntry {
   const list = windowList();
   const entry = list.find((w) => w.hwnd === target.windowId);
   if (!entry) throw new Error("the window is gone; look again");
   if (!isOwn(entry, list) && opened.has(entry.pid)) throw new Error(`that window is not one this hand opened: in ${entry.exe || "that app"}, keys go only to the hand's own windows`);
-  return target.windowId;
+  return entry;
 }
 
 /** Why a key cannot be posted: a posted key carries no modifier state, so a chord (or a modifier alone) needs the real keyboard. */
 const chordFromBehind = (key: string, modifiers: string[]) =>
   new Error(`${[...modifiers, key].join("+")} cannot be sent to a window from behind: a posted key carries no ctrl, alt, shift or win. It needs the real keyboard for a moment (borrow the seat), or the command's own button or menu item.`);
 
+/** Said when a tab is refused in a browser window; the helper refuses it too, in the same words (Input.TabKey in windows.cs). */
+export const TAB_KEY =
+  "tab: in a page, Tab can walk out of the page into the browser's own toolbar, where the next key presses the browser's buttons (a posted Enter there once bookmarked the page in the user's profile, measured). Click the field you want instead";
+
+/** Whether a window is a browser's own, where a Tab past the page's last control walks into the browser's toolbar (an Electron app's page has none). */
+const isBrowserWindow = (w: WindowEntry): boolean => w.cls.startsWith("Chrome_WidgetWin") && WEB_EXES.has(basename((w.exe ?? "").toLowerCase(), ".exe"));
+
 /**
  * A key posted to one window, which need not be in front: to the control its thread has the focus on when that is
  * inside this window, else to its text control (a thread that is not in front has no focus to say), else to the window
  * itself (Chrome runs all its windows on one thread, so its focus is often in the user's; a Chromium window is told it
  * is active first, without which it drops posted keys). Shift with a character is that character; any other modifier,
- * or a modifier alone, throws: a posted key carries none, and would arrive as the bare key.
+ * or a modifier alone, throws: a posted key carries none, and would arrive as the bare key. Tab in a browser's window
+ * throws an error starting "tab:" (see TAB_KEY).
  */
 export async function pressIn(target: KeyTarget, key: string, modifiers: string[] = []): Promise<void> {
   const stroke = keystroke(key, modifiers);
   const lone = !("text" in stroke) && Object.values(MODIFIERS).includes(stroke.vk);
   if (lone || ("mods" in stroke && stroke.mods.length > 0)) throw chordFromBehind(key, modifiers);
-  const hwnd = keysFor(target);
+  const entry = keysFor(target);
+  if (!("text" in stroke) && stroke.vk === KEYCODES.tab && isBrowserWindow(entry)) throw new Error(TAB_KEY);
+  const hwnd = entry.hwnd;
   const front = frontWindow();
-  if ("text" in stroke) native.call("chars", { hwnd, text: stroke.text });
-  else native.call("vkey", { hwnd, vk: stroke.vk });
+  try {
+    if ("text" in stroke) native.call("chars", { hwnd, text: stroke.text });
+    else native.call("vkey", { hwnd, vk: stroke.vk });
+  } catch (error) {
+    throw refusal(error);
+  }
   await sleep(EVENT_DELAY_MS);
   giveBack(front); // Enter on a button that opens a dialog: the dialog comes up in front
 }
 
 /**
  * Text posted to one window, into wherever its own cursor is (see pressIn for which control that is). A line break is
- * text in a classic or rich edit control, Enter elsewhere, and refused in a Chromium window, where Enter sends a chat
- * message: that throws an error starting "line break:".
+ * text in a classic or rich edit control, Enter elsewhere, and refused in a window that shows a page, where Enter sends
+ * a chat message: that throws an error starting "line break:". A tab in a browser's window throws one starting "tab:".
  */
 export async function typeIn(target: KeyTarget, text: string): Promise<void> {
   if (!text) return;
-  const hwnd = keysFor(target);
+  const entry = keysFor(target);
+  if (text.includes("\t") && isBrowserWindow(entry)) throw new Error(TAB_KEY);
   const front = frontWindow();
   try {
-    native.call("chars", { hwnd, text });
+    native.call("chars", { hwnd: entry.hwnd, text });
   } catch (error) {
-    throw lineBreak(error);
+    throw refusal(error);
   }
   giveBack(front);
 }
 
-/** The helper's refusal of a line break as the tools know it, "line break: …"; any other error as it was. */
-function lineBreak(error: unknown): Error {
+/** The helper's refusal of a line break or a tab as the tools know it, "line break: …" or "tab: …"; any other error as it was. */
+function refusal(error: unknown): Error {
   const message = String((error as Error)?.message ?? error);
-  const at = message.indexOf("line break:");
-  return at >= 0 ? new Error(message.slice(at)) : (error as Error);
+  const at = /\b(line break|tab): /.exec(message)?.index;
+  return at === undefined ? (error as Error) : new Error(message.slice(at));
 }
 
 /** Long text goes through the clipboard: one paste instead of two events per character. */
@@ -722,7 +762,10 @@ async function sendToDesktop(windowId: number, pid: number, app: string): Promis
  *
  * A window the user has in front is theirs to look at, and so for a while after: one they brought forward, or one
  * the panel presented to them, is neither sunk nor sent back until they have left it alone for FRONT_MS, and one
- * that left the hand's desktop that way stays on theirs. A minimized window stays where the user put it.
+ * that left the hand's desktop that way stays on theirs. A minimized window stays where the user put it. But one that
+ * came in front with no input from the user since it was last seen behind (an app that brings itself forward late:
+ * Excel as its add-ins load, a dialog after a slow operation) did not come by their doing: the window they had in
+ * front gets the keyboard back, and the hand's goes behind theirs.
  */
 function keepOnDesktop(): void {
   if (sent.size === 0 && own.size === 0) return;
@@ -730,8 +773,19 @@ function keepOnDesktop(): void {
   const now = performance.now();
   let front = (native.call("foreground") as { hwnd: number }).hwnd;
   if (takeBack(front, list)) front = 0; // it came up by itself after an action, and is behind the user's windows again
-  const frontRoot = list.find((w) => w.hwnd === front);
-  if (frontRoot) inFront.set(rootOf(frontRoot, list).hwnd, now);
+  const frontEntry = list.find((w) => w.hwnd === front);
+  const frontRoot = frontEntry && rootOf(frontEntry, list);
+  let sunk = 0;
+  if (frontRoot && isOwn(frontRoot, list) && cameByItself(frontRoot.hwnd, now)) {
+    if (userFront && list.some((w) => w.hwnd === userFront)) native.call("activate", { hwnd: userFront });
+    native.call("sink", { hwnd: (sunk = frontRoot.hwnd) });
+    front = 0;
+  } else if (frontRoot) {
+    inFront.set(frontRoot.hwnd, now);
+    if (!isOwn(frontRoot, list)) userFront = frontRoot.hwnd;
+  }
+  const shown = front ? frontRoot?.hwnd : undefined;
+  for (const windowId of own.keys()) if (windowId !== shown) seenBehind.set(windowId, now);
   const theirs = (windowId: number) => windowId === front || now - (inFront.get(windowId) ?? -Infinity) < FRONT_MS;
   for (const [windowId, entry] of sent) {
     const window = list.find((w) => w.hwnd === windowId);
@@ -752,8 +806,29 @@ function keepOnDesktop(): void {
   for (const [windowId, pid] of own) {
     const at = list.findIndex((w) => w.hwnd === windowId);
     if (at < 0 || list[at]!.pid !== pid) own.delete(windowId); // gone, or its handle is another window's now
-    else if (sent.has(windowId) || list[at]!.cloaked || list[at]!.iconic || theirs(windowId)) continue;
-    else if (list.slice(at + 1).some((w) => !w.cloaked && !w.iconic && w.pid !== pid)) native.call("sink", { hwnd: windowId }); // a window of someone else's lies behind it: it has climbed
+    else if (sent.has(windowId) || list[at]!.cloaked || list[at]!.iconic || theirs(windowId) || windowId === sunk) continue;
+    // A window that is not the hand's lies behind it: it has climbed. Judged by the window, not the process: the
+    // user's own Chrome windows are the same process as the hand's.
+    else if (list.slice(at + 1).some((w) => !w.cloaked && !w.iconic && own.get(w.hwnd) !== w.pid)) native.call("sink", { hwnd: windowId });
+  }
+}
+
+const SEEN_MS = 3 * WATCH_MS; // a window last seen behind longer ago than this may have been brought forward by anyone since
+const seenBehind = new Map<number, number>(); // when each window of the hand's was last seen not in front
+let userFront = 0; // the window of the user's last seen in front, which gets the keyboard back from a window that took it by itself
+
+/**
+ * Whether a window of the hand's in front came there by itself: it was seen behind a moment ago, the user has not had
+ * it in front lately, and they have touched neither the mouse nor the keyboard since (a click on it, on its taskbar
+ * button, or alt+tab would have been input). When the helper cannot say, it was the user's doing.
+ */
+function cameByItself(windowId: number, now: number): boolean {
+  const behind = seenBehind.get(windowId);
+  if (behind === undefined || now - behind > SEEN_MS || now - (inFront.get(windowId) ?? -Infinity) < FRONT_MS) return false;
+  try {
+    return idle().idleMs >= now - behind;
+  } catch {
+    return false;
   }
 }
 
@@ -834,14 +909,14 @@ export function releaseDesktop(): void {
   primed.clear();
   stale.clear();
   parked.clear();
+  tabsSeen.clear();
+  seenBehind.clear();
+  popups.length = 0;
+  userFront = 0;
   occlusion.clear(); // asked again next run: a browser restarted since may run another way
   groundedNote = null;
   desktopsBroken = false;
 }
-// A hand that ends without being released still takes its desktop down; native.call starts a helper for it if it must.
-process.on("exit", () => {
-  if (desktopMade) releaseDesktop();
-});
 
 /** The names an app goes by and the executable behind each. */
 const EXES: Record<string, string> = {
@@ -1070,16 +1145,6 @@ export async function takeLock(name: string, until: number, onWait?: () => void,
   }
 }
 
-/** takeLock for a caller that cannot wait asynchronously: the process sleeps between tries. */
-function takeLockSync(name: string, until: number, staleMs = LOCK_STALE_MS): (() => void) | null {
-  for (;;) {
-    const release = tryLock(name, staleMs);
-    if (release) return release;
-    if (performance.now() >= until) return null;
-    Bun.sleepSync(50);
-  }
-}
-
 /** A sign of life from a lock's holder, so that a long hold is not taken for a dead one. */
 function holdLock(name: string): void {
   const owner = join(locks.root, name, "owner");
@@ -1115,43 +1180,104 @@ export const idle = (): Idle => native.call("idle") as Idle;
 /** Whether the user has left the seat alone for `quietMs`, holds nothing, and is not in something full screen. */
 export const paused = (seat: Idle, quietMs: number): boolean => seat.idleMs >= quietMs && seat.held.length === 0 && seat.quiet;
 
+const SEAT_POLL_MS = 50;
 const FLASH_QUIET_MS = 400; // the pause a guarded click waits for: short, since nothing is sent into the seat
 const FLASH_WAIT_MS = 20_000;
-const FLASH_WAIT_SYNC_MS = 5_000; // a press or a value cannot wait asynchronously: it gives up sooner, and the tools fall back
+const FLASH_TELL_MS = 1500; // a guarded click's wait this long is worth showing on the hand and its card (hooks.onSeatWait)
+// A press or a value cannot wait asynchronously, and the hand reads nothing (a stop, a close) while it waits: it gives
+// up soon, well inside the time a close is given before the hand is killed (src/live.ts), and the tools fall back.
+const FLASH_WAIT_SYNC_MS = 1500;
+const MENU_QUIET_MS = 1500; // an open menu holds its app's keyboard as a borrow does: it waits for the pause a borrow does (src/windows-seat.ts)
+const LIFT_WAIT_MS = 300; // a page's first read waits this little for a pause to lift its window in, and is read without the lift otherwise
+
+/** Why the user was not paused, as a SeatBusy says it: another hand held the seat's lock, or what the helper said of the seat. */
+export const busyReason = (seat: Idle, locked: boolean): string =>
+  locked
+    ? "another hand had the mouse and keyboard all this time"
+    : seat.held.length > 0
+      ? `the user was holding ${seat.held[0]}`
+      : !seat.quiet
+        ? "a full-screen app or a presentation was up"
+        : "the user kept using the mouse or keyboard";
 
 /**
- * A click into a Chromium window of the hand's brings that window forward for 30 to 60 ms (see Flash in windows.cs).
- * So such clicks go one at a time across the hands (the seat's lock), and only once the user has paused a moment with
- * nothing held, so that the moment the window is in front cannot catch their typing or their click. SeatBusy when they
- * never pause. During a borrow the window is in front already, and the click is simply made.
+ * Wait until the user has left the seat alone for `quietMs` with nothing held, and no other hand holds the seat's lock,
+ * then take the lock: the function that releases it, and what the helper said of the seat then (a borrow is timed from
+ * its tick). The lock is taken only once the user has paused, so that it stands for the moment the seat is used and no
+ * longer: the panel lets every click through while it is held (src/panel.cs), which must not happen while the user is
+ * still at work on it. `onWait` hears each round of waiting. Abort as soon as the hand is stopped (checkStopped); when
+ * `until` (performance.now()) comes first, SeatBusy saying why and that `what` did not happen.
  */
-async function flashing<T>(work: () => Promise<T>): Promise<T> {
+export async function whenPaused(quietMs: number, until: number, what: string, onWait?: () => void): Promise<{ release: () => void; seat: Idle }> {
+  for (;;) {
+    const taken = pausedNow(quietMs);
+    if (taken.release) return { release: taken.release, seat: taken.seat };
+    if (performance.now() >= until) throw new SeatBusy(`${busyReason(taken.seat, taken.locked)}, so ${what} did not happen`);
+    onWait?.();
+    await sleep(SEAT_POLL_MS);
+  }
+}
+
+/** whenPaused for a caller that cannot wait asynchronously: the process sleeps between rounds, and reads nothing meanwhile. */
+function whenPausedSync(quietMs: number, until: number, what: string): () => void {
+  for (;;) {
+    const taken = pausedNow(quietMs);
+    if (taken.release) return taken.release;
+    if (performance.now() >= until) throw new SeatBusy(`${busyReason(taken.seat, taken.locked)}, so ${what} did not happen`);
+    Bun.sleepSync(SEAT_POLL_MS);
+  }
+}
+
+/** One round of whenPaused: the seat's lock when the user has paused and it is free, and what stood in the way when not. */
+function pausedNow(quietMs: number): { release: (() => void) | null; seat: Idle; locked: boolean } {
+  checkStopped();
+  const seat = idle();
+  if (!paused(seat, quietMs)) return { release: null, seat, locked: false };
+  const release = tryLock(SEAT_LOCK, LOCK_STALE_MS);
+  if (release && interrupted) {
+    release();
+    checkStopped();
+  }
+  return { release, seat, locked: release === null };
+}
+
+/**
+ * A click into a Chromium window of the hand's brings that window forward for about 70 ms (see Flash in windows.cs).
+ * So such clicks go one at a time across the hands (the seat's lock), and only once the user has paused a moment with
+ * nothing held, so that the moment the window is in front cannot catch their typing or their click. A wait long enough
+ * to notice is shown on the hand and its card (hooks.onSeatWait). SeatBusy when they never pause; Abort when the hand
+ * is stopped meanwhile. During a borrow the window is in front already, and the click is simply made.
+ */
+async function flashing<T>(work: () => Promise<T>, why = "clicking in the page"): Promise<T> {
   if (borrowed !== null) return work();
-  const until = performance.now() + FLASH_WAIT_MS;
-  const release = await takeLock(SEAT_LOCK, until);
-  if (!release) throw new SeatBusy("another hand kept the mouse and keyboard all this time");
+  const started = performance.now();
+  let told = false;
+  const waiting = () => {
+    if (told || performance.now() - started < FLASH_TELL_MS) return;
+    told = true;
+    hooks.onSeatWait?.("waiting", why);
+  };
+  let release: () => void;
   try {
-    while (!paused(idle(), FLASH_QUIET_MS)) {
-      if (performance.now() >= until) throw new SeatBusy("the user did not pause long enough for a click");
-      await sleep(50);
-    }
+    ({ release } = await whenPaused(FLASH_QUIET_MS, started + FLASH_WAIT_MS, "the click", waiting));
+  } finally {
+    if (told) hooks.onSeatWait?.("free", why);
+  }
+  try {
     return await work();
   } finally {
     release();
   }
 }
 
-/** flashing, for a press or a value, which the platform makes synchronous: `fallback` when the user did not pause in time. */
-function flashingSync<T>(work: () => T, fallback: T): T {
+/**
+ * flashing, for what the platform makes synchronous (a press, a value, a menu, a first read): the user's pause for
+ * `quietMs` under the seat's lock, waited for `waitMs` at most, then SeatBusy. Abort when the hand was stopped.
+ */
+function pausedSync<T>(work: () => T, what: string, quietMs = FLASH_QUIET_MS, waitMs = FLASH_WAIT_SYNC_MS): T {
   if (borrowed !== null) return work();
-  const until = performance.now() + FLASH_WAIT_SYNC_MS;
-  const release = takeLockSync(SEAT_LOCK, until);
-  if (!release) return fallback;
+  const release = whenPausedSync(quietMs, performance.now() + waitMs, what);
   try {
-    while (!paused(idle(), FLASH_QUIET_MS)) {
-      if (performance.now() >= until) return fallback;
-      Bun.sleepSync(50);
-    }
     return work();
   } finally {
     release();
@@ -1159,10 +1285,22 @@ function flashingSync<T>(work: () => T, fallback: T): T {
 }
 
 let guarding = false; // a guarded click is under way: the window it brings forward for a moment is not the user's doing
+const popups: number[] = []; // windows the hand's guarded clicks opened, since the tools last asked (popupsOpened)
+
+/**
+ * The windows a click in a window of the hand's opened since the last ask (a page's pop-up, a sign-in), which are the
+ * hand's from then on: kept behind the user's windows (or off the screens with the window that opened them), and
+ * closed with its browser windows. Reading them clears them.
+ */
+export function popupsOpened(): number[] {
+  return popups.splice(0);
+}
 
 /**
  * A posted click or drag into a window: guarded (see flashing) when the window is Chromium's, the helper watching the
- * moment after it and handing the foreground back; a window of the hand's own also goes back behind the user's.
+ * moment after it and handing the foreground back; a window of the hand's own also goes back behind the user's, and a
+ * window its click opened becomes the hand's. When the helper could not hand the foreground back, it is asked once
+ * more from here, and the window is left where the user can see it rather than behind everything with their keys.
  */
 async function guarded<T>(hwnd: number, web: boolean, work: () => Promise<T>): Promise<T> {
   if (!web) return work();
@@ -1170,18 +1308,39 @@ async function guarded<T>(hwnd: number, web: boolean, work: () => Promise<T>): P
   const entry = list.find((w) => w.hwnd === hwnd);
   const sink = entry !== undefined && isOwn(entry, list);
   return flashing(async () => {
-    native.call("guard", { begin: true });
+    const front = frontWindow();
+    native.call("guard", { begin: true, hwnd, sink });
     guarding = true;
     try {
       return await work();
     } finally {
       try {
-        native.call("guard", { hwnd, sink });
+        const ended = native.call("guard", { hwnd, sink }) as { back?: boolean; popups?: number[] };
+        if (ended.back === false && front && (native.call("activate", { hwnd: front }) as { ok?: boolean }).ok && sink) native.call("sink", { hwnd });
+        if (sink) adoptPopups(ended.popups ?? [], parked.has(hwnd)); // a window the user's own page opens is theirs
       } finally {
         guarding = false;
       }
     }
   });
+}
+
+/**
+ * Windows a click in a page of the hand's opened: the hand's from now on, kept where its browser windows are kept (off
+ * the screens with them, or behind the user's), and closed with them. The tools hear of them (popupsOpened).
+ */
+function adoptPopups(opened: number[], offScreen: boolean): void {
+  if (opened.length === 0) return;
+  const list = windowList();
+  for (const popup of opened) {
+    const entry = list.find((w) => w.hwnd === popup);
+    if (!entry) continue; // closed again already
+    adopt(popup, entry.pid);
+    browserWindows.set(popup, entry.pid);
+    if (offScreen) park(popup);
+    else native.call("sink", { hwnd: popup });
+    popups.push(popup);
+  }
 }
 
 const HANDBACK_MS = 2000; // how long after an action a window of the hand's that comes up in front is taken to have done so by itself
@@ -1199,17 +1358,33 @@ function giveBack(front: number): void {
   takeBack(frontWindow());
 }
 
-/** The seat handed back from a window of the hand's that `now` (the window in front) is, while an action's handback holds: true when it was. */
+/**
+ * The seat handed back from a window of the hand's that `now` (the window in front) is, while an action's handback
+ * holds: true when it was. While another hand borrows the seat, the foreground is that borrow's to move: the window is
+ * only put behind the user's, and the borrow, which stops at a window that comes in front of its own, gives the user
+ * theirs back as it ends.
+ */
 function takeBack(now: number, list?: WindowEntry[]): boolean {
   if (!handBack || borrowed !== null || performance.now() > handBack.until || !now || now === handBack.to) return false;
   const all = list ?? windowList();
   const entry = all.find((w) => w.hwnd === now);
   if (!entry || !isOwn(entry, all)) return false;
   const root = rootOf(entry, all);
-  if (all.some((w) => w.hwnd === handBack!.to)) native.call("activate", { hwnd: handBack.to });
+  if (all.some((w) => w.hwnd === handBack!.to) && !seatElsewhere()) native.call("activate", { hwnd: handBack.to });
   native.call("sink", { hwnd: root.hwnd });
   inFront.delete(root.hwnd);
   return true;
+}
+
+/** Whether another hand holds the seat's lock at this moment: it is borrowing the seat, or making a guarded click. */
+function seatElsewhere(): boolean {
+  const owner = join(locks.root, SEAT_LOCK, "owner");
+  try {
+    const pid = Number(readFileSync(owner, "utf8"));
+    return pid !== process.pid && !staleLock(join(locks.root, SEAT_LOCK), LOCK_STALE_MS);
+  } catch {
+    return false;
+  }
 }
 
 /** The window in front, for giveBack; 0 when the helper cannot say. */
@@ -1221,25 +1396,34 @@ function frontWindow(): number {
   }
 }
 
+let seatOut: object | null = null; // the borrow under way, which abandonSeat can end from outside it
+let seatAbandoned: object | null = null; // a borrow abandonSeat has ended already: its own ending puts nothing back again
+
 /**
  * The seat itself, for one piece of work in a window. src/windows-seat.ts has taken the seat's lock and waited for the
  * user to pause, until the helper's tick `since`. The window comes onto the desktop on screen, restored and in front,
- * or the borrow is off (SeatBusy, nothing done). The work's seat input then runs until the user touches anything (see
- * input: SeatTaken). However it ends, any mouse button the work held is let go, the window the user had comes back to
- * the front, the cursor goes back where it was, and the hand's window goes behind theirs or back to its desktop.
+ * or the borrow is off (SeatBusy, nothing done; a window that is gone is an error of its own). The work's seat input
+ * then runs until the user touches anything, another window comes in front, or the hand is stopped (see input). However
+ * it ends, any mouse button the work held is let go, the window the user had comes back to the front (unless they took
+ * the seat back and went to another), the cursor goes back where it was (unless they have moved it), and the hand's
+ * window goes behind theirs, back off the screens, or back to its desktop. The helper knows all this too, for a hand
+ * that ends before the borrow does (abandonSeat, and the helper's own end).
  */
 export async function borrow<T>(target: KeyTarget, since: number, work: () => Promise<T>, onHolding?: () => void): Promise<T> {
+  checkStopped(); // told "not now" as the seat was taken: nothing has moved yet
   const before = frontWindow();
   const cursor = mouseLocation();
   const list = windowList();
   const entry = list.find((w) => w.hwnd === target.windowId);
-  if (!entry) throw new SeatBusy("the window is gone");
+  if (!entry) throw new Error("the window is gone: look again with `screen`");
   const root = rootOf(entry, list);
   const mine = isOwn(entry, list);
   const away = root.cloaked === true; // on the hand's desktop, where the seat cannot reach it
   const watched = before === target.windowId || before === root.hwnd; // the user had it in front: it stays there
   handBack = null; // the borrow brings the window forward itself, and puts everything back as it ends
   const offScreen = parked.has(root.hwnd); // the seat's pointer reaches only what lies on a screen
+  const out = {};
+  let taken = false;
   try {
     if (away) native.call("recall", { hwnd: root.hwnd });
     if (offScreen) unpark(root.hwnd, true);
@@ -1247,24 +1431,74 @@ export async function borrow<T>(target: KeyTarget, since: number, work: () => Pr
     const front = frontWindow();
     const shown = windowList();
     const frontEntry = shown.find((w) => w.hwnd === front);
-    if (front !== target.windowId && (!frontEntry || rootOf(frontEntry, shown).hwnd !== root.hwnd)) throw new SeatBusy(`${entry.title || "the window"} would not come to the front`);
+    if (front !== target.windowId && (!frontEntry || rootOf(frontEntry, shown).hwnd !== root.hwnd)) throw new SeatBusy(`${entry.title || "the window"} would not come to the front, so nothing was done`);
+    seatOut = out;
     borrowed = since;
+    borrowedRoot = root.hwnd;
+    try {
+      native.call("seat", { state: "holding", before, x: cursor[0], y: cursor[1], root: root.hwnd, sink: mine && !watched });
+    } catch {
+      // the helper's copy is for a hand that ends mid-way: the borrow goes on without it
+    }
     onHolding?.();
     return await work();
+  } catch (error) {
+    taken = error instanceof SeatTaken;
+    throw error;
   } finally {
     borrowed = null;
-    try {
-      native.call("input", { kind: "letgo" });
-      if (before && !watched && windowList().some((w) => w.hwnd === before)) native.call("activate", { hwnd: before });
-      native.call("setCursor", { x: cursor[0], y: cursor[1] });
-      if (mine && !watched) {
-        if (away && sent.has(root.hwnd) && desktopsEnabled()) native.call("send", { hwnd: root.hwnd, name: desktopName() });
-        else native.call("sink", { hwnd: root.hwnd });
-        if (offScreen) moveWindow(root.hwnd, offScreenX(), parked.get(root.hwnd)?.[1] ?? 0);
-      } else if (offScreen) parked.delete(root.hwnd); // the user has it in front: it stays where they can see it
-    } catch {
-      // the window or the shell went away mid-way: there is nothing more to put back
+    borrowedRoot = 0;
+    if (seatAbandoned === out) seatAbandoned = null; // put back already
+    else {
+      if (seatOut === out) seatOut = null;
+      try {
+        native.call("input", { kind: "letgo" });
+        // The user who took the seat back and went to a window of their own keeps it.
+        let stayed = true;
+        if (taken) {
+          const [now, front] = [windowList(), frontWindow()];
+          const frontEntry = now.find((w) => w.hwnd === front);
+          stayed = frontEntry !== undefined && rootOf(frontEntry, now).hwnd === root.hwnd;
+        }
+        if (before && !watched && stayed && windowList().some((w) => w.hwnd === before)) native.call("activate", { hwnd: before });
+        native.call("setCursor", { x: cursor[0], y: cursor[1], unlessMoved: true });
+        if (mine && !watched) {
+          if (away && sent.has(root.hwnd) && desktopsEnabled()) native.call("send", { hwnd: root.hwnd, name: desktopName() });
+          else native.call("sink", { hwnd: root.hwnd });
+          if (offScreen) park(root.hwnd);
+        } else if (offScreen) unpark(root.hwnd); // the user has it in front: it stays where they can see it
+        native.call("seat", { state: "free" });
+      } catch {
+        // the window or the shell went away mid-way: there is nothing more to put back
+      }
     }
+  }
+}
+
+/**
+ * The hand is ending in the middle of a borrow or a guarded click (a close, an error that ends the process), whose own
+ * ending will not run: what was out goes back now. The helper knows what (Hold in windows.cs): any mouse button the
+ * work holds is let go, the window the user had comes back in front unless they have gone to another, their cursor
+ * back unless they have moved it, and the hand's window behind theirs; the seat's lock is let go. Nothing here throws,
+ * and nothing is done when nothing is out.
+ */
+export function abandonSeat(): void {
+  if (seatOut === null && !guarding) return;
+  seatAbandoned = seatOut;
+  seatOut = null;
+  borrowed = null;
+  borrowedRoot = 0;
+  guarding = false;
+  try {
+    native.call("seat", { state: "abandon" });
+  } catch {
+    // the helper is gone: its own end has put everything back
+  }
+  const lock = join(locks.root, SEAT_LOCK);
+  try {
+    if (readFileSync(join(lock, "owner"), "utf8") === String(process.pid)) rmSync(lock, { recursive: true, force: true });
+  } catch {
+    // not held, or not ours
   }
 }
 
@@ -1297,25 +1531,30 @@ interface Launching {
 const mainWindow = (w: WindowEntry, dialogs = false): boolean =>
   !w.owner && (dialogs || w.cls !== "#32770") && !POPUP_CLASSES.has(w.cls) && w.cls !== "Windows.UI.Core.CoreWindow" && (w.cls !== "ApplicationFrameWindow" || w.core !== 0) && (w.caption !== false || w.popup !== true);
 
-/** Whether a window is of what was started: by its executable, the process started or one of its children, its package, or the document's name in its title. */
+/**
+ * Whether a window is of what was started: by its executable, the process started or one of its children, or its
+ * package. A document's name in a title says nothing alone: a window the user opens meanwhile in another app can carry
+ * it ("notes", "report"), and one of the app's own already matches by its executable.
+ */
 function ofLaunch(w: WindowEntry, launching: Launching, children: () => Set<number>): boolean {
   if (w.exe && launching.exes.has(w.exe.toLowerCase())) return true;
   if (launching.package && w.package === launching.package) return true;
-  if (launching.title && w.title.toLowerCase().includes(launching.title)) return true;
   return launching.pid > 0 && (w.pid === launching.pid || children().has(w.pid));
 }
 
 /**
- * Wait for the main window of what was started: one that was not there before, is of it (never a window the user or
- * another hand opened meanwhile), and is still there a moment later. The pid is the window's, since the launcher's
- * can be a stub.
+ * Wait for the main window of what was started: one that was not there before, is of it (see ofLaunch: a window of
+ * another app the user or another hand opens meanwhile is not), and is still there a moment later. The pid is the
+ * window's, since the launcher's can be a stub. A new window of the same app that the user opens in that moment
+ * cannot be told from it.
  */
 async function freshWindow(launching: Launching, timeout: number): Promise<{ pid: number; windowId: number } | null> {
   for (const end = performance.now() + timeout * 1000; performance.now() < end; await sleep(150)) {
     const list = windowList();
     let kids: Set<number> | null = null;
     const children = () => (kids ??= new Set(launching.pid > 0 ? (native.call("children", { pid: launching.pid }) as number[]) : []));
-    const fresh = list.find((w) => !launching.before.has(w.hwnd) && w.pid !== process.pid && mainWindow(w, launching.dialogs) && ofLaunch(w, launching, children));
+    const candidates = list.filter((w) => !launching.before.has(w.hwnd) && w.pid !== process.pid && mainWindow(w, launching.dialogs) && ofLaunch(w, launching, children));
+    const fresh = candidates.find((w) => launching.title !== null && w.title.toLowerCase().includes(launching.title)) ?? candidates[0]; // the document's own window first
     if (!fresh) continue;
     await sleep(pace.persistMs);
     if (windowList().some((w) => w.hwnd === fresh.hwnd && w.pid === fresh.pid)) return { pid: fresh.pid, windowId: fresh.hwnd };
@@ -1327,7 +1566,8 @@ async function freshWindow(launching: Launching, timeout: number): Promise<{ pid
  * Start something without the foreground moving, and wait for the main window it opens: one hand at a time across the
  * machine, since a window is known partly by not having been there before, and two hands starting apps at once could
  * take each other's. Whoever had the keyboard has it back on every way out: an app that takes the foreground as it
- * appears (Notepad, whatever the launcher asks: measured), or brings its existing window forward, gives it back.
+ * appears (Notepad, whatever the launcher asks: measured), or brings its existing window forward, gives it back. A
+ * window of another app that the user opens in that moment is theirs, and keeps it.
  */
 async function openWindow(start: () => Omit<Launching, "before">, timeout: number): Promise<{ pid: number; windowId: number } | null> {
   return withLock(OPEN_LOCK, async () => {
@@ -1341,10 +1581,22 @@ async function openWindow(start: () => Omit<Launching, "before">, timeout: numbe
       return found;
     } finally {
       const started = launching;
-      const taken = (w: WindowEntry) => !before.has(w.hwnd) || (started !== null && ofLaunch(w, started, () => new Set()));
+      let kids: Set<number> | null = null;
+      const children = () => (kids ??= childrenOf(started?.pid ?? 0));
+      const taken = (w: WindowEntry) => started !== null && ofLaunch(w, started, children);
       if (seat) await returnSeat(seat, taken, undefined, pace.seatWatchMs); // where the window goes (behind, or to the hand's desktop) is the caller's to say
     }
   });
+}
+
+/** Every process a process started, and those started, as far down as it goes; none when the helper cannot say. */
+function childrenOf(pid: number): Set<number> {
+  if (pid <= 0) return new Set();
+  try {
+    return new Set(native.call("children", { pid }) as number[]);
+  } catch {
+    return new Set();
+  }
 }
 
 /** ShellExecute an app (see appSpec), and when its name is not on the PATH, its Start Menu shortcut or packaged AppID: what its window will be of. */
@@ -1510,11 +1762,15 @@ async function browserWindow(browser: string, window?: WindowSelector): Promise<
     if (own.has(found.hwnd)) native.call("sink", { hwnd: found.hwnd });
     await sleep(300);
   }
-  return { hwnd: found.hwnd, index, view: native.call("browser", { hwnd: found.hwnd }) as BrowserView };
+  return { hwnd: found.hwnd, index, view: viewOf(found.hwnd) };
 }
 
-/** A view of one browser window as it is now. */
-const viewOf = (hwnd: number): BrowserView => native.call("browser", { hwnd }) as BrowserView;
+/** A view of one browser window as it is now. For a window of the hand's, how many tabs it had is remembered (see release). */
+function viewOf(hwnd: number): BrowserView {
+  const view = native.call("browser", { hwnd }) as BrowserView;
+  if (browserWindows.has(hwnd)) tabsSeen.set(hwnd, view.tabs.length);
+  return view;
+}
 
 /** Whether `test` comes true within `ms`, asked every 100 ms. */
 async function until(test: () => boolean, ms: number): Promise<boolean> {
@@ -1550,7 +1806,7 @@ export async function browserTabs(browser: string): Promise<Tab[]> {
   const pid = await userInstance(browser);
   if (pid === null) return [];
   return appWindows(pid).flatMap(({ id }, w) => {
-    const view = native.call("browser", { hwnd: id }) as BrowserView;
+    const view = viewOf(id);
     return view.tabs.map((tab, t) => ({ scripted: String(id), window: w + 1, tab: t + 1, active: tab.active, title: tab.title, url: tab.active ? (fullUrl(view) ?? "") : "" }));
   });
 }
@@ -1564,6 +1820,7 @@ export async function browserUrl(browser: string, window?: WindowSelector): Prom
 /** A posted click at the center of a frame in a browser window: it lands there whether or not the window is in front, which it then is for a moment (see guarded). */
 async function postClick(hwnd: number, frame: Frame, count = 1): Promise<void> {
   const [x, y] = [Math.round(frame[0] + frame[2] / 2), Math.round(frame[1] + frame[3] / 2)];
+  const front = frontWindow();
   await guarded(hwnd, true, async () => {
     native.call("post", { hwnd, kind: "move", x, y });
     for (let click = 0; click < count; click++) {
@@ -1572,6 +1829,7 @@ async function postClick(hwnd: number, frame: Frame, count = 1): Promise<void> {
     }
   });
   await sleep(EVENT_DELAY_MS);
+  giveBack(front); // and a window it brings up later is sent back too, as after any action from behind
 }
 
 /**
@@ -1650,15 +1908,17 @@ export async function openUrl(
  * of opening a window from behind. `taken` says which windows are the opening's (by handle: the user's own Chrome
  * window shares the new one's process, and a click of theirs into it is theirs). Chrome activates a beat after the
  * window exists, and once more when it shows a bubble over it, so this watches for up to `watchMs`, and until a moment
- * after the first handback.
+ * after the first handback. While another hand borrows the seat the foreground is its borrow's to move (see takeBack):
+ * the window only goes behind the user's.
  */
-async function returnSeat(seat: number, taken: (w: WindowEntry) => boolean, window?: number, watchMs = 2500): Promise<void> {
+async function returnSeat(seat: number, taken: (w: WindowEntry, list: WindowEntry[]) => boolean, window?: number, watchMs = 2500): Promise<void> {
   let returned = 0;
   for (const end = performance.now() + watchMs; ; await sleep(50)) {
     const front = (native.call("foreground") as { hwnd: number }).hwnd;
-    const entry = front && front !== seat ? windowList().find((w) => w.hwnd === front) : undefined;
-    if (entry && taken(entry)) {
-      native.call("activate", { hwnd: seat });
+    const list = front && front !== seat ? windowList() : [];
+    const entry = list.find((w) => w.hwnd === front);
+    if (entry && taken(entry, list)) {
+      if (!seatElsewhere()) native.call("activate", { hwnd: seat });
       if (window !== undefined) native.call("sink", { hwnd: window }); // and the window itself goes behind the user's, not only behind the one in front
       returned ||= performance.now();
     }
@@ -1698,7 +1958,7 @@ export async function tabCommand(browser: string, command: TabCommand, window?: 
   const description = `${target.title} | ${target.active ? (fullUrl(view) ?? "") : ""}`;
   if (command === "close_tab") {
     if (!target.active && target.frame) await postClick(hwnd, target.frame); // the close button only shows on a tab that is wide enough: bring it up first
-    const now = tab === undefined ? target : ((native.call("browser", { hwnd }) as BrowserView).tabs[tab - 1] ?? target);
+    const now = tab === undefined ? target : (viewOf(hwnd).tabs[tab - 1] ?? target);
     if (!now.close) return null; // a tab too narrow for its close button; Ctrl-W would need a modifier, which a posted key cannot carry
     await postClick(hwnd, now.close);
   } else {
@@ -1726,19 +1986,33 @@ export async function openBackgroundWindow(browser: string, url: string): Promis
 async function openWindowAlone(browser: string, url: string): Promise<PinnedWindow> {
   const seat = (native.call("foreground") as { hwnd: number }).hwnd;
   const before = new Set(windowList().map((w) => w.hwnd)); // minimized ones too: one the user restores meanwhile is not new
-  const { file, args } = browserCommand(browser, url, true, (await userInstance(browser)) === null);
+  const cold = (await userInstance(browser)) === null;
+  const { file, args } = browserCommand(browser, url, true, cold);
   let opened: PinnedWindow | null = null;
+  let pid: number | null = null;
   try {
     native.call("launch", { file, args, show: 4 });
+    let pages: WindowEntry[] = [];
     for (const end = performance.now() + 8000; !opened && performance.now() < end; await sleep(100)) {
-      const pid = await userInstance(browser);
-      const fresh = pid === null ? undefined : windowList().find((w) => w.pid === pid && !before.has(w.hwnd) && mainWindow(w));
-      if (fresh) opened = { pid: fresh.pid, windowId: fresh.hwnd, scripted: String(fresh.hwnd) };
+      pid = await userInstance(browser);
+      const fresh = pid === null ? [] : windowList().filter((w) => w.pid === pid && !before.has(w.hwnd) && mainWindow(w));
+      // A browser the hands start themselves starts in the user's profile, and may restore their last session in windows
+      // of its own, or show its profile picker, as it starts: the hand's is the window showing the page it was opened for.
+      // A running browser opens just the one window.
+      const views = cold ? fresh.map((w) => ({ w, view: browsing(w.hwnd) })).filter(({ view }) => view !== null) : fresh.map((w) => ({ w, view: null }));
+      pages = views.map(({ w }) => w);
+      const found = cold ? views.find(({ view }) => showsPage(view, url))?.w : pages[0];
+      if (found) opened = { pid: found.pid, windowId: found.hwnd, scripted: String(found.hwnd) };
     }
+    const only = pages[0];
+    if (!opened && cold && pages.length === 1 && only) opened = { pid: only.pid, windowId: only.hwnd, scripted: String(only.hwnd) }; // the page went elsewhere (a redirect), and it is the one new browser window
   } finally {
-    if (seat) await returnSeat(seat, (w) => !before.has(w.hwnd), opened?.windowId, pace.browserWatchMs);
+    // Only the new window, and what it brings up over itself, is handed back from: a window the user opens meanwhile is theirs.
+    const taken = (w: WindowEntry, list: WindowEntry[]) =>
+      opened !== null ? w.hwnd === opened.windowId || rootOf(w, list).hwnd === opened.windowId : w.pid === pid && !before.has(w.hwnd);
+    if (seat) await returnSeat(seat, taken, opened?.windowId, pace.browserWatchMs);
   }
-  if (!opened) throw new Error(`${browser} opened no new window`);
+  if (!opened) throw new Error(`${browser} opened no new window${cold ? ` showing ${url} (it may be asking which profile to use, or restoring the user's last session)` : ""}`);
   // Once the seat is back: a browser that paints unseen has its window parked off the screens; any other keeps it here,
   // sunk behind the user's. Never on the hand's desktop: a click that brings a browser window forward there switches the
   // user's screen to that desktop and back (measured), and a browser window is brought forward by every posted click.
@@ -1748,13 +2022,36 @@ async function openWindowAlone(browser: string, url: string): Promise<PinnedWind
   return opened;
 }
 
+/** A browser window's view when it is one (it has an omnibox, which a profile picker has not), else null. */
+function browsing(hwnd: number): BrowserView | null {
+  try {
+    const view = viewOf(hwnd);
+    return view.omnibox ? view : null;
+  } catch {
+    return null; // the window is still opening, or went away
+  }
+}
+
+/** Whether a browser window's view shows the page at `url`, or its way there: its host (or, for a file, its path) in the address. */
+function showsPage(view: BrowserView | null, url: string): boolean {
+  if (!view) return false;
+  const plain = (text: string) => {
+    try {
+      return decodeURI(text).toLowerCase();
+    } catch {
+      return text.toLowerCase(); // a stray % in an address
+    }
+  };
+  const wanted = new URL(safeUrl(url));
+  const mark = wanted.host.replace(/^www\./, "").toLowerCase() || plain(wanted.pathname);
+  return [view.url ?? "", view.omniboxValue].some((address) => plain(address).includes(mark));
+}
+
 // ------------------------------------------------------------------ a browser window parked off the screens
 
-const PARK_GAP_PX = 64;
-const parked = new Map<number, Frame>(); // the hand's browser windows kept past the right edge of every screen, with where each was
-
-/** Just past the right edge of the rightmost screen: no screen shows it, and it lies on none. */
-const offScreenX = (): number => Math.max(...displays().map((d) => d.frame[0] + d.frame[2])) + PARK_GAP_PX;
+// The hand's browser windows kept past the right edge of every screen. Where each was is the helper's to keep (Parking
+// in windows.cs), so that it goes back exactly, and goes back however the hand ends: the helper puts it back as it leaves.
+const parked = new Set<number>();
 
 /**
  * Keep a browser window of the hand's off every screen. A browser whose occlusion tracking is off paints a window there
@@ -1762,18 +2059,18 @@ const offScreenX = (): number => Math.max(...displays().map((d) => d.frame[0] + 
  * keeps its place and only loses the keyboard for the moment the click guard takes to hand it back (all measured).
  */
 function park(windowId: number): void {
-  const entry = windowList().find((w) => w.hwnd === windowId);
-  if (!entry) return;
-  parked.set(windowId, entry.frame);
-  moveWindow(windowId, offScreenX(), entry.frame[1]);
+  try {
+    if ((native.call("park", { hwnd: windowId }) as { ok: boolean }).ok) parked.add(windowId);
+  } catch {
+    // the window closed as it was being parked: nothing to keep
+  }
 }
 
 /** Back where it was before it was parked, for the user to see or the seat to reach; true when it had been parked. `keep` leaves it counted as parked, to go back after. */
 function unpark(windowId: number, keep = false): boolean {
-  const frame = parked.get(windowId);
-  if (!frame) return false;
+  if (!parked.has(windowId)) return false;
   if (!keep) parked.delete(windowId);
-  moveWindow(windowId, frame[0], frame[1]);
+  native.call("unpark", { hwnd: windowId, keep });
   return true;
 }
 
@@ -1792,11 +2089,15 @@ const POPUP_CLASSES = new Set(["Xaml_WindowedPopupClass", "tooltips_class32", "#
 /** A window that counts as one of an app's: covered or not, but not minimized, not a popup or a tip, not a sliver. */
 const ordinary = (w: WindowEntry): boolean => !w.iconic && !POPUP_CLASSES.has(w.cls) && w.frame[2] > MIN_WINDOW_SIDE_PT && w.frame[3] > MIN_WINDOW_SIDE_PT;
 
-/** An app's ordinary windows, front to back, those on the hand's own desktop included. One that is covered by another still counts; a minimized one does not. */
+/**
+ * An app's ordinary windows, front to back, those on the hand's own desktop included. One that is covered by another
+ * still counts; a minimized one does not, unless it is the hand's own: the user may minimize a window of the hand's,
+ * which the hand still works in (see workingWindow). Those come last, with the frame they go back to.
+ */
 export function appWindows(pid: number): AppWindow[] {
-  return windowList()
-    .filter((w) => w.pid === pid && ordinary(w))
-    .map(({ hwnd, frame }) => ({ id: hwnd, frame }));
+  const list = windowList().filter((w) => w.pid === pid);
+  const minimized = list.filter((w) => w.iconic && own.get(w.hwnd) === w.pid && ordinary({ ...w, iconic: false }));
+  return [...list.filter(ordinary), ...minimized].map(({ hwnd, frame }) => ({ id: hwnd, frame }));
 }
 
 /** Every ordinary window on the desktop on screen, front to back, minimized ones aside. All are solid: the hand's overlay is a tool window, which the list leaves out. */
@@ -1908,13 +2209,20 @@ const act = (ref: unknown, action: string): boolean => {
   const web = webRefs.has(ref);
   const run = () => {
     try {
-      return Boolean((native.call("act", { id: ref, action, ...(web ? { sink: webRefs.get(ref) } : {}) }) as { ok: boolean }).ok);
+      const done = native.call("act", { id: ref, action, ...(web ? { sink: webRefs.get(ref) } : {}) }) as { ok: boolean; popups?: number[] };
+      if (webRefs.get(ref)) adoptPopups(done.popups ?? [], parked.size > 0); // a press in the hand's page that opened a window: the hand's, as for a click
+      return Boolean(done.ok);
     } catch {
       return false;
     }
   };
   try {
-    return action === AX_PRESS && web ? flashingSync(run, false) : run();
+    return action === AX_PRESS && web ? pausedSync(run, "the click") : run();
+  } catch (error) {
+    // The user did not pause in the moment a press can wait here: nothing was done, and the tools' pointer click
+    // waits longer, where the wait is shown and a stop is heard (see flashing). A stop is the stop it is.
+    if (error instanceof SeatBusy) return false;
+    throw error;
   } finally {
     giveBack(front);
     keepOnDesktop();
@@ -1951,15 +2259,18 @@ export const holdsText = (value: string | null, text: string): boolean => plainT
 /**
  * Write an element's value. A classic edit control takes it as messages, a Chromium field as posted keys after a
  * click, anything else through ValuePattern. Text with a line break that a Chromium field would take as Enter throws
- * an error starting "line break:"; any other failure is false.
+ * an error starting "line break:", and one with a tab for a browser's page one starting "tab:". The clicks into a
+ * Chromium field wait for the user to pause: SeatBusy, with nothing typed, when they did not (the field itself is
+ * fine), and Abort when the hand was stopped. Any other failure is false.
  */
 export function axSetValue(ref: unknown, value: string): boolean {
   if (!alive(ref)) return false;
   const front = frontWindow();
   const web = webRefs.has(ref);
-  const set = () => native.call("setValue", { id: ref, text: value, ...(web ? { sink: webRefs.get(ref) } : {}) }) as { ok: boolean; posted?: boolean };
+  const set = () => native.call("setValue", { id: ref, text: value, ...(web ? { sink: webRefs.get(ref) } : {}) }) as { ok: boolean; posted?: boolean; why?: string };
   try {
-    const { ok: taken, posted } = web ? flashingSync(set, { ok: false }) : set();
+    const { ok: taken, posted, why } = web ? pausedSync(set, "typing into the field") : set();
+    if (!taken && why?.startsWith("busy:")) throw new SeatBusy(why.slice("busy:".length).trim()); // the user went back to work between the clicks
     // A Chromium field takes the text as posted keystrokes, and its tree shows them a beat later: WhatsApp's composer
     // read back empty when asked at once and full 250 ms on (measured), and a long message takes longer to show. So the
     // value is waited for, a second and a half and more for a longer text, up to eight seconds.
@@ -1967,8 +2278,9 @@ export function axSetValue(ref: unknown, value: string): boolean {
     if (taken && posted) for (const end = performance.now() + wait; performance.now() < end && !holdsText(axValue(ref), value); ) Bun.sleepSync(50);
     return taken;
   } catch (error) {
-    const refused = lineBreak(error);
-    if (refused instanceof Error && refused.message.startsWith("line break:")) throw refused;
+    if (error instanceof SeatBusy || error instanceof Abort) throw error;
+    const refused = refusal(error);
+    if (/^(line break|tab): /.test(refused.message)) throw refused;
     return false;
   } finally {
     giveBack(front);
@@ -1992,7 +2304,12 @@ export const pointerAvailable = (): boolean => true;
 
 const WEB_EXES = new Set(["chrome", "msedge", "brave", "vivaldi", "opera", "arc", "chromium"]);
 
-/** Whether a process draws its windows with Chromium: a browser of that family, or anything whose windows are Chrome_WidgetWin. */
+/**
+ * Whether a process shows its windows as web pages, where Enter in a box sends a chat message: a browser of Chromium's
+ * family, anything whose windows are Chrome_WidgetWin (an Electron app), or an app whose window a WebView2 fills (new
+ * Teams, new Outlook, WhatsApp), whose page is a child window of another process (see Web in windows.cs). An app with
+ * a WebView2 for a pane of its own (Office's) is not one.
+ */
 export function isWebContentApp(pid: number): boolean {
   let name = "";
   try {
@@ -2000,7 +2317,12 @@ export function isWebContentApp(pid: number): boolean {
   } catch {
     // a process that is gone, or one this user may not open
   }
-  return WEB_EXES.has(name) || windowList().some((w) => w.pid === pid && w.cls.startsWith("Chrome_WidgetWin"));
+  if (WEB_EXES.has(name) || windowList().some((w) => w.pid === pid && w.cls.startsWith("Chrome_WidgetWin"))) return true;
+  try {
+    return (native.call("web", { pid }) as { web: boolean }).web;
+  } catch {
+    return false;
+  }
 }
 
 /** The window an app holds as key: its front-most window, whether or not the app is in front. */
@@ -2153,7 +2475,9 @@ function mainIn(pid: number, list: WindowEntry[]): number | null {
  * The window to look at and act in, for a hand working in `pid`: `preferred` (its browser window, say) or its main
  * window, or the dialog that window has open (Open, Save As, a message box), which is what the user would be looking
  * at. `theirs` says the window is not one the hand opened: an app that opened no window of its own. Null when the
- * app has no window, or `preferred` is gone.
+ * app has no window, or `preferred` is gone. A window of the hand's that the user minimized is restored first, without
+ * activation, behind their windows: the hand is about to look at it, and a minimized window shows nothing (a window
+ * of the user's stays where they put it).
  */
 export function workingWindow(pid: number, preferred?: number): WorkingWindow | null {
   const list = windowList();
@@ -2161,6 +2485,11 @@ export function workingWindow(pid: number, preferred?: number): WorkingWindow | 
   if (base === null) return null;
   const entry = list.find((w) => w.hwnd === base);
   if (!entry) return null;
+  if (entry.iconic && isOwn(entry, list)) {
+    native.call("show", { hwnd: base }); // SW_SHOWNOACTIVATE
+    native.call("sink", { hwnd: rootOf(entry, list).hwnd });
+    Bun.sleepSync(REPAINT_MS); // restored, it paints before it can be captured
+  }
   const dialog = dialogOf(entry, list);
   return { windowId: dialog?.hwnd ?? base, dialog: dialog ? dialog.title || "a dialog" : null, theirs: !isOwn(entry, list) };
 }
@@ -2168,14 +2497,17 @@ export function workingWindow(pid: number, preferred?: number): WorkingWindow | 
 /**
  * A menu command, by the path a person would read off the menu bar: ["File", "New"]. A path that ends on a menu lists
  * what is in it instead. Pressing a menu bar item opens its menu on screen (Windows has no way around that), and the
- * items are pressed where they are, so the app need not be in front.
+ * items are pressed where they are, so the app need not be in front. An open menu brings its app forward and holds the
+ * keyboard for as long as it is open, where a letter the user types picks an item (measured: it took the seat), so a
+ * press waits, as a borrow does, for the user to pause, under the seat's lock: SeatBusy when they never do.
  */
 export function menu(pid: number, path: string[]): { pressed: string } | { items: string[] } {
   const hwnd = mainWindowId(pid);
   if (hwnd === null) throw new Error("this app has no window with a menu bar");
   const front = frontWindow();
+  const open = () => native.call("menu", { hwnd, path }) as { pressed: string } | { items: string[] };
   try {
-    return native.call("menu", { hwnd, path }) as { pressed: string } | { items: string[] };
+    return path.length === 0 ? open() : pausedSync(open, "opening the menu", MENU_QUIET_MS); // the menu bar alone is read, not pressed
   } finally {
     giveBack(front);
     keepOnDesktop();
@@ -2205,6 +2537,7 @@ interface TreeNode {
   label: string;
   frame: Frame | null;
   actions: string[];
+  value?: string; // a field's text, its first 120 characters, never a password's
 }
 
 const ROOT = -1;
@@ -2258,7 +2591,10 @@ function tidy(found: AxNode[], tree: Map<number, TreeNode>, window: WindowEntry 
  * sits in the stack; without one, the app's front-most window. Chrome builds a page's tree only once the page has
  * shown, so a covered Chromium window of the hand's own whose page loaded unseen is lifted (without activation) for
  * that first look (measured: 54 ms, the seat untouched). Never a window of the user's, and not one on the hand's own
- * desktop (a lift shows nothing there, and a browser is only taken there when it needs none).
+ * desktop (a lift shows nothing there, and a browser is only taken there when it needs none). The lifted window lies
+ * over the user's for the walk, where their click would land in it: so the lift waits, a moment, for the user to pause,
+ * under the seat's lock, and when they do not, the page is read without it (and looked at again next time). A field's
+ * value comes with it, when the helper read one.
  */
 export function actionableElements(pid: number, display: Frame, options: WalkOptions<number> & { windowId?: number } = {}): [AxNode[], AxNode[], boolean] {
   const { windowId, ...walk } = options;
@@ -2267,17 +2603,25 @@ export function actionableElements(pid: number, display: Frame, options: WalkOpt
   const list = windowList();
   const window = list.find((w) => w.hwnd === hwnd);
   const web = window ? window.cls.startsWith("Chrome_WidgetWin") : isWebContentApp(pid);
-  const lift = web && window !== undefined && isOwn(window, list) && !primed.has(hwnd) && !window.cloaked && !showing(hwnd);
-  if (lift) native.call("topmost", { hwnd, on: true });
-  let reply: { nodes: TreeNode[]; capped: boolean };
-  try {
-    reply = native.call("tree", { hwnd, cap: walk.nodeCap, ms: walk.timeCap === undefined ? undefined : Math.round(walk.timeCap * 1000) }) as { nodes: TreeNode[]; capped: boolean };
-  } finally {
-    if (lift) {
+  const read = () => native.call("tree", { hwnd, cap: walk.nodeCap, ms: walk.timeCap === undefined ? undefined : Math.round(walk.timeCap * 1000) }) as { nodes: TreeNode[]; capped: boolean };
+  const lifted = () => {
+    native.call("topmost", { hwnd, on: true });
+    try {
+      return read();
+    } finally {
       native.call("topmost", { hwnd, on: false });
       native.call("sink", { hwnd }); // NOTOPMOST would leave it over the user's windows: back behind them
     }
+  };
+  let reply: { nodes: TreeNode[]; capped: boolean } | null = null;
+  if (web && window !== undefined && isOwn(window, list) && !primed.has(hwnd) && !window.cloaked && !showing(hwnd)) {
+    try {
+      reply = pausedSync(lifted, "the first read of the page", FLASH_QUIET_MS, LIFT_WAIT_MS);
+    } catch (error) {
+      if (!(error instanceof SeatBusy)) throw error; // the user is busy: read as it lies
+    }
   }
+  reply ??= read();
   if (reply.nodes.some((n) => n.role !== "AXGroup" || n.label)) primed.add(hwnd);
   const byId = new Map<number, TreeNode>();
   const kids = new Map<number, number[]>();
@@ -2298,6 +2642,8 @@ export function actionableElements(pid: number, display: Frame, options: WalkOpt
     live.add(node.ref as number);
     if (web) webRefs.set(node.ref as number, mine);
     else webRefs.delete(node.ref as number); // an id the helper gave out again, since an earlier look
+    const value = byId.get(node.ref as number)?.value;
+    if (value !== undefined) node.value = value; // what the field holds, which the listing shows after its label
   }
   return [tidy(found, byId, window), offscreen, capped || reply.capped];
 }
@@ -2324,11 +2670,16 @@ export function thumbnail(windowId: number, maxPx: number): Thumbnail {
 }
 
 /**
- * Bring a window to the user: onto the desktop on screen, restored, and in front. A hand's watcher then leaves it be
- * while the user has it, and for a while after (see keepOnDesktop), in this process or the hand's own.
+ * Bring a window to the user: onto the desktop on screen, on a screen, restored, and in front. Called in the process of
+ * the hand whose window it is (src/agent.ts, "show"), which knows where it keeps it: a window it parked comes back
+ * where it was and stays there, and its watcher then leaves it be while the user has it, and for a while after (see
+ * keepOnDesktop), however recently the hand acted. Called anywhere else (the hand is gone), it still works: a window
+ * that lies on no screen at all is brought onto the primary one before it is activated, so that nothing invisible ever
+ * takes the user's keyboard.
  */
 export function present(windowId: number): boolean {
-  const entry = windowList().find((w) => w.hwnd === windowId);
+  const list = windowList();
+  const entry = list.find((w) => w.hwnd === windowId);
   if (!entry) return false;
   if (entry.cloaked) {
     try {
@@ -2338,8 +2689,14 @@ export function present(windowId: number): boolean {
     }
   }
   sent.delete(windowId); // the user has it now: it is not sent back to the hand's desktop
-  unpark(windowId);
-  inFront.set(windowId, performance.now());
+  parked.delete(windowId); // nor parked again after a borrow
+  handBack = null; // nor taken back from them as if it had come up by itself after the hand's last action
+  try {
+    native.call("unpark", { hwnd: windowId }); // back where it was; or, parked by a helper that is gone, onto a screen
+  } catch {
+    // the window went away: activating it says so
+  }
+  inFront.set(rootOf(entry, list).hwnd, performance.now());
   return Boolean((native.call("activate", { hwnd: windowId }) as { ok: boolean }).ok);
 }
 
@@ -2357,21 +2714,54 @@ export function sweepDesktops(): number {
 }
 
 /**
- * A hand is being dismissed: the browser windows it opened are closed (unless `keepBrowser`), its other windows left
- * behind the user's on the desktop on screen, where they can find them, its desktop taken down, and its watcher
- * stopped. Nothing here throws: a window may be gone, or the helper.
+ * A hand is being dismissed: a borrow or a guarded click it is in the middle of gives the seat back (abandonSeat), the
+ * browser windows it opened are closed (unless `keepBrowser`), its other windows left behind the user's on the
+ * desktop on screen, where they can find them, its desktop taken down, and its watcher stopped. Every browser window
+ * of its comes back on a screen first, behind the user's windows: kept, where they can find it; closed, so that a page
+ * that asks before it goes ("Leave site?") asks where it can be seen. A window that holds more tabs than the hand last
+ * saw in it is not closed: a link the user opened from another app may have landed in it, the browser's last active
+ * window. Nothing here throws: a window may be gone, or the helper.
  */
 export function release(keepBrowser: boolean): void {
+  abandonSeat();
   try {
     const list = windowList();
     for (const [windowId, pid] of browserWindows) {
       if (!list.some((w) => w.hwnd === windowId && w.pid === pid)) continue;
-      if (keepBrowser) unpark(windowId); // kept, it comes back on screen behind the user's windows, where they can find it
-      else native.call("close", { hwnd: windowId });
+      const strangers = !keepBrowser && holdsUnseenTabs(windowId);
+      if (unpark(windowId)) native.call("sink", { hwnd: windowId });
+      if (strangers) console.error(`kept the browser window ${windowId}: it holds tabs this hand never saw, which may be the user's`);
+      else if (!keepBrowser) native.call("close", { hwnd: windowId });
     }
   } catch {
-    // the helper went away: the windows stay, and the user can close them
+    // the helper went away: its own end has put the windows back, and the user can close them
   }
   parked.clear();
   releaseDesktop();
 }
+
+const tabsSeen = new Map<number, number>(); // how many tabs each browser window of the hand's had when it last looked
+
+/** Whether a browser window of the hand's holds more tabs now than when the hand last looked at it; false when it cannot be told. */
+function holdsUnseenTabs(windowId: number): boolean {
+  const seen = tabsSeen.get(windowId);
+  if (seen === undefined) return false;
+  try {
+    return (native.call("browser", { hwnd: windowId }) as BrowserView).tabs.length > seen;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * As the process ends, however it ends (a run from the command line that is done, an error, process.exit): what the
+ * hand has out is put back from here too. A borrow or a guarded click gives the seat back, and every browser window it
+ * parked comes back on screen behind the user's windows, kept, since its pages may be what the user was told to look
+ * at; its desktop goes. After a managed close there is nothing left to do. A hand that is killed runs none of this,
+ * and its helper does the same as it sees Bun go (Program.Leave in windows.cs).
+ */
+export function onExit(): void {
+  abandonSeat();
+  if (parked.size > 0 || desktopMade) release(true);
+}
+process.on("exit", onExit);

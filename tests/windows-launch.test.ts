@@ -161,6 +161,49 @@ test("a document is opened by the shell as a window of the hand's own, known by 
   }
 });
 
+test("a window of another app that carries the document's name is never taken for the document's, nor has its foreground taken back", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "hands-test-doc-"));
+  const file = join(dir, "notes.txt");
+  writeFileSync(file, "");
+  let front = { hwnd: 11, pid: 100 };
+  let launched = false;
+  const users = window(77, 900, "OUTLOOK.EXE", { title: "RE: notes - Message" }); // the user opens a mail about the notes meanwhile
+  const notepad = window(78, 500, "Notepad.exe", { title: "notes.txt - Notepad" });
+  helper({
+    windows: () => (launched ? [users, notepad, terminal] : [terminal]),
+    assoc: { exe: "Notepad.exe" },
+    foreground: () => front,
+    launch: () => ((launched = true), (front = { hwnd: 77, pid: 900 }), { pid: 0 }),
+    activate: ({ hwnd }) => ((front = { hwnd: hwnd as number, pid: 100 }), { ok: true }),
+  });
+  try {
+    expect(await windowsSeat.openFile(file)).toEqual({ pid: 500, windowId: 78 });
+    expect(asked("activate")).toEqual([]); // the user's mail keeps the foreground they gave it
+    expect(front.hwnd).toBe(77);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a new browser window is handed back from, and only it: a window the user opens meanwhile keeps the foreground", async () => {
+  let front = { hwnd: 11, pid: 100 };
+  let launched = false;
+  const chrome = window(46, 400, "chrome.exe", { cls: "Chrome_WidgetWin_1", title: "Example - Google Chrome" });
+  const explorer = window(77, 900, "explorer.exe", { cls: "CabinetWClass", title: "Documents" });
+  helper({
+    processes: ({ exe }) => (exe === "chrome.exe" ? [{ pid: 400, cmd: '"C:\\chrome.exe"' }] : []),
+    windows: () => (launched ? [explorer, chrome, terminal] : [terminal]),
+    foreground: () => front,
+    launch: () => ((launched = true), (front = { hwnd: 77, pid: 900 }), { pid: 0 }), // the user opened Explorer as the browser started
+    activate: ({ hwnd }) => ((front = { hwnd: hwnd as number, pid: 100 }), { ok: true }),
+    reg: { value: null },
+  });
+  spyOn(process, "kill").mockImplementation(() => true);
+  expect((await windows.openBackgroundWindow("Google Chrome", "https://example.com/")).windowId).toBe(46);
+  expect(asked("activate")).toEqual([]);
+  expect(front.hwnd).toBe(77);
+});
+
 test("a document that opens no window of the hand's own is an error", async () => {
   const dir = mkdtempSync(join(tmpdir(), "hands-test-doc-"));
   const file = join(dir, "notes.txt");

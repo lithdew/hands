@@ -3,20 +3,22 @@
  * carries no modifier, so a chord needs the seat, and so does a line break in a chat box. The window to look at follows
  * a dialog the hand's window has open. A borrow of the seat is one hand at a time across the machine, waits for the
  * user to pause, brings the window forward, sends the work's input until the user touches anything, and puts back the
- * window and the cursor they had (src/windows.ts, borrow).
+ * window and the cursor they had (src/windows.ts, borrow). A hand stopped, paused or clicked while it waits never
+ * borrows afterwards: the wait ends with Abort (windows.checkStopped).
  */
 
-import { type KeyTarget, type SeatOptions, type SeatPlatform, SeatBusy } from "./seat.ts";
+import { type KeyTarget, type SeatOptions, type SeatPlatform, SeatTaken } from "./seat.ts";
 import * as windows from "./windows.ts";
 
 const QUIET_MS = 1500; // how long the user must have left the mouse and keyboard alone before a hand takes them
 const TELL_MS = 1500; // a wait this long is worth showing on the hand and its card
 const WAIT_MS = 20_000;
-const POLL_MS = 100;
+// The user who has just taken the seat back mid-borrow is at work: for a while after, a hand waits for a longer pause
+// before it borrows again, rather than taking the mouse the moment they rest it.
+const TAKEN_COOL_MS = 30_000;
+const TAKEN_QUIET_MS = 5000;
 
-/** Why the user was not paused, as a SeatBusy says it. */
-const busy = (seat: windows.Idle): string =>
-  seat.held.length > 0 ? `the user was holding ${seat.held[0]}` : !seat.quiet ? "a full-screen app or a presentation was up" : "the user kept using the mouse or keyboard";
+let takenAt = -Infinity; // when the user last took the seat back from one of this hand's borrows
 
 export const windowsSeat: SeatPlatform = {
   chordsFromBehind: false, // a posted key carries no modifier state
@@ -32,25 +34,25 @@ export const windowsSeat: SeatPlatform = {
       return 0; // the helper cannot say: taken to be in use
     }
   },
+  /**
+   * The seat's lock is taken only once the user has paused (windows.whenPaused), and held for the borrow alone: while
+   * it is held the panel lets every click through, which it must not do while the user is still at work.
+   */
   async withSeat<T>(target: KeyTarget, work: () => Promise<T>, options: SeatOptions): Promise<T> {
     const started = performance.now();
-    const until = started + (options.waitMs ?? WAIT_MS);
     let told = false;
     const waiting = () => {
       if (told || performance.now() - started < TELL_MS) return;
       told = true;
       options.onWaiting?.();
     };
-    const release = await windows.takeLock(windows.SEAT_LOCK, until, waiting);
-    if (!release) throw new SeatBusy(`another hand had the mouse and keyboard all this time, so ${options.why} did not happen`);
+    const quietMs = started - takenAt < TAKEN_COOL_MS ? TAKEN_QUIET_MS : QUIET_MS;
+    const { release, seat } = await windows.whenPaused(quietMs, started + (options.waitMs ?? WAIT_MS), options.why, waiting);
     try {
-      for (;;) {
-        const seat = windows.idle();
-        if (windows.paused(seat, QUIET_MS)) return await windows.borrow(target, seat.tick, work, options.onHolding);
-        if (performance.now() >= until) throw new SeatBusy(`${busy(seat)}, so ${options.why} did not happen`);
-        waiting();
-        await Bun.sleep(POLL_MS);
-      }
+      return await windows.borrow(target, seat.tick, work, options.onHolding);
+    } catch (error) {
+      if (error instanceof SeatTaken) takenAt = performance.now();
+      throw error;
     } finally {
       release();
     }

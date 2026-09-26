@@ -117,6 +117,25 @@ test("a keystroke is a key and its modifiers, or text: the table the seat and th
   expect(() => windows.keystroke("a", ["meta+"])).toThrow("unknown modifier");
 });
 
+test("Tab is never posted to a browser's window: past the page it walks into the browser's toolbar, where Enter presses its buttons (measured)", async () => {
+  const chrome = { hwnd: 44, pid: 400, cls: "Chrome_WidgetWin_1", title: "Form - Google Chrome", frame: [0, 0, 900, 600] as Frame, core: 0, exe: "chrome.exe", caption: true };
+  const slack = { hwnd: 45, pid: 401, cls: "Chrome_WidgetWin_1", title: "Slack", frame: [0, 0, 900, 600] as Frame, core: 0, exe: "slack.exe", caption: true };
+  helper({ windows: [terminal, chrome, slack], chars: { ok: true }, vkey: { ok: true } });
+  await expect(windowsSeat.pressIn({ pid: 400, windowId: 44 }, "tab")).rejects.toThrow(/^tab: in a page, Tab can walk out of the page/);
+  await expect(windowsSeat.typeIn({ pid: 400, windowId: 44 }, "name\temail")).rejects.toThrow(/^tab: /);
+  expect(asked("vkey")).toEqual([]);
+  expect(asked("chars")).toEqual([]);
+  await windowsSeat.pressIn({ pid: 400, windowId: 44 }, "return"); // any other key goes
+  await windowsSeat.pressIn({ pid: 401, windowId: 45 }, "tab"); // and an app drawn like a page has no toolbar to walk into
+  expect(asked("vkey")).toEqual([{ hwnd: 44, vk: 0x0d }, { hwnd: 45, vk: 0x09 }]);
+});
+
+test("the helper's own refusal of a tab comes back as an error starting 'tab:'", async () => {
+  const chrome = { hwnd: 44, pid: 400, cls: "Chrome_WidgetWin_1", title: "Form", frame: [0, 0, 900, 600] as Frame, core: 0, exe: "chrome.exe", caption: true };
+  helper({ windows: [terminal, { ...chrome, exe: "" }], vkey: () => { throw new Error("vkey: Exception: tab: in a page, Tab can walk out of the page into the browser's own toolbar"); } }); // prettier-ignore
+  await expect(windowsSeat.pressIn({ pid: 400, windowId: 44 }, "tab")).rejects.toThrow(/^tab: in a page/);
+});
+
 test("a line break the helper refuses (Enter would send a chat message) comes back as an error starting 'line break:'", async () => {
   const chrome = { hwnd: 44, pid: 400, cls: "Chrome_WidgetWin_1", title: "WhatsApp", frame: [0, 0, 900, 600] as Frame, core: 0, exe: "chrome.exe", caption: true };
   helper({ windows: [terminal, chrome], chars: () => { throw new Error("chars: Exception: line break: a line break typed here would press Enter, which sends the message in a chat app."); } }); // prettier-ignore

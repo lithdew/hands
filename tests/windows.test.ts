@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Abort, type Frame } from "../src/models.ts";
+import { SeatBusy } from "../src/seat.ts";
 import * as windows from "../src/windows.ts";
 
 const DISPLAY: Frame = [0, 0, 2560, 1600];
@@ -292,9 +293,184 @@ test("a click into a Chromium window is refused when the user never pauses, and 
   const clock = spyOn(performance, "now");
   let now = 0;
   clock.mockImplementation(() => (now += 1000)); // twenty seconds go by in a few rounds
-  await expect(windows.windowPointer(target, [[150, 150]])).rejects.toThrow("did not pause");
+  await expect(windows.windowPointer(target, [[150, 150]])).rejects.toThrow("the user was holding the left mouse button, so the click did not happen");
   clock.mockRestore();
   expect(asked("post")).toEqual([]);
+});
+
+test("a click into a page that waits for the user is shown while it waits, and a stop meanwhile ends it with nothing clicked", async () => {
+  const chrome = { hwnd: 44, pid: 400, cls: "Chrome_WidgetWin_1", title: "Mail", frame: [0, 0, 900, 600], core: 0, exe: "chrome.exe", caption: true };
+  let rounds = 0;
+  helper({ windows: [chrome], post: { ok: true }, idle: () => ({ idleMs: ++rounds < 4 ? 50 : 60_000, held: [], quiet: true, tick: 5 }) });
+  const shown: string[] = [];
+  windows.hooks.onSeatWait = (state, why) => shown.push(`${state}: ${why}`);
+  let now = 0;
+  const clock = spyOn(performance, "now").mockImplementation(() => (now += 700));
+  try {
+    const target = { pid: 400, windowId: 44, frame: [0, 0, 900, 600] as Frame, web: true };
+    await windows.windowPointer(target, [[150, 150]]);
+    expect(shown).toEqual(["waiting: clicking in the page", "free: clicking in the page"]); // the card says so, as for a borrow
+    expect(asked("post")).toHaveLength(3);
+    calls = [];
+    rounds = 0;
+    const clicking = windows.windowPointer(target, [[150, 150]]);
+    windows.interrupt(); // the user stops the hand while it waits
+    await expect(clicking).rejects.toThrow(Abort);
+    expect(asked("post")).toEqual([]);
+    expect(asked("guard")).toEqual([]);
+  } finally {
+    clock.mockRestore();
+    windows.hooks.onSeatWait = null;
+  }
+});
+
+test("a guarded click that opens a window of the page's makes it the hand's, and a handback that failed is tried once more from here", async () => {
+  spyOn(process, "kill").mockImplementation(() => true);
+  const chrome = { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Shop", frame: [0, 0, 900, 600], core: 0, exe: "chrome.exe", caption: true };
+  const signIn = { ...chrome, hwnd: 47, title: "Sign in" };
+  let launched = false;
+  let clicked = false;
+  let front = { hwnd: 11, pid: 100 };
+  helper({
+    processes: [{ pid: 400, cmd: '"C:\\chrome.exe"' }],
+    windows: () => [...(clicked ? [signIn] : []), ...(launched ? [chrome] : []), ...desk()],
+    foreground: () => front,
+    launch: () => ((launched = true), { pid: 400 }),
+    activate: ({ hwnd }) => ((front = { hwnd: hwnd as number, pid: 100 }), { ok: true }),
+    post: { ok: true },
+    // The click opened a sign-in window; Chrome took the foreground, and the helper's handback failed: the hand's window still has the keyboard.
+    guard: ({ begin }) => (begin ? { ok: true } : ((clicked = true), (front = { hwnd: 46, pid: 400 }), { taken: true, back: false, popups: [47] })),
+    close: { ok: true },
+  });
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://shop.example.com/");
+  calls = [];
+  await windows.windowPointer({ pid: 400, windowId: 46, frame: [0, 0, 900, 600], web: true }, [[150, 150]]);
+  expect(asked("activate")[0]).toEqual({ hwnd: 11 }); // the user's window, once more
+  expect(front.hwnd).toBe(11);
+  expect(asked("sink")).toContainEqual({ hwnd: 46 }); // and only then the hand's behind it
+  expect(asked("sink")).toContainEqual({ hwnd: 47 });
+  expect(windows.popupsOpened()).toEqual([47]);
+  expect(windows.popupsOpened()).toEqual([]); // said once
+  windows.release(false);
+  expect(asked("close")).toEqual([{ hwnd: 46 }, { hwnd: 47 }]); // the sign-in window goes with the hand's
+});
+
+test("a press through accessibility in the hand's page that opens a window makes it the hand's too", async () => {
+  spyOn(process, "kill").mockImplementation(() => true);
+  const chrome = { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Shop", frame: [0, 0, 900, 600], core: 0, exe: "chrome.exe", caption: true };
+  let launched = false;
+  let pressed = false;
+  helper({
+    processes: [{ pid: 400, cmd: '"C:\\chrome.exe"' }],
+    windows: () => [...(pressed ? [{ ...chrome, hwnd: 47, title: "Sign in" }] : []), ...(launched ? [chrome] : []), ...desk()],
+    launch: () => ((launched = true), { pid: 400 }),
+    exe: { name: "chrome" },
+    tree: { nodes: [node(1, -1, "AXGroup", "w", { frame: [0, 0, 500, 500] }), node(7, 1, "AXLink", "Sign in", { actions: ["AXPress"] })], capped: false },
+    act: () => ((pressed = true), { ok: true, popups: [47] }),
+    topmost: { ok: true },
+  });
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://shop.example.com/");
+  const [[link]] = windows.actionableElements(400, DISPLAY, { windowId: 46 });
+  expect(windows.axPress(link!.ref)).toBe(true);
+  expect(windows.popupsOpened()).toEqual([47]);
+  expect(windows.mainWindowId(400)).toBe(47); // the hand's own now, front-most of its windows there
+  windows.releaseDesktop();
+});
+
+test("a press in a page is made only once the user pauses, and gives up quickly for the pointer's longer wait; a value is SeatBusy, not a field that refuses", () => {
+  const chrome = { hwnd: 44, pid: 400, cls: "Chrome_WidgetWin_1", title: "Mail", frame: [0, 0, 900, 600], core: 0, exe: "chrome.exe", caption: true };
+  let idleMs = 50;
+  helper({
+    windows: [chrome],
+    exe: { name: "chrome" },
+    tree: { nodes: [node(1, -1, "AXGroup", "w", { frame: [0, 0, 500, 500] }), node(7, 1, "AXTextField", "To", { actions: ["AXPress"] })], capped: false },
+    idle: () => ({ idleMs, held: [], quiet: true, tick: 5 }),
+    act: { ok: true },
+    setValue: ({ text }) => (text === "busy" ? { ok: false, why: "busy: the user went back to the mouse or keyboard before the field was ready, so nothing was typed" } : { ok: true }),
+    topmost: { ok: true },
+  });
+  const [[field]] = windows.actionableElements(400, DISPLAY, { windowId: 44 });
+  let now = 0;
+  const clock = spyOn(performance, "now").mockImplementation(() => (now += 400));
+  try {
+    expect(windows.axPress(field!.ref)).toBe(false); // the user is typing: nothing pressed, and the tools' pointer click waits longer
+    expect(asked("act")).toEqual([]);
+    expect(() => windows.axSetValue(field!.ref, "hello")).toThrow(SeatBusy);
+    expect(asked("setValue")).toEqual([]);
+    idleMs = 60_000;
+    expect(() => windows.axSetValue(field!.ref, "busy")).toThrow("the user went back to the mouse or keyboard");
+    windows.interrupt();
+    expect(() => windows.axPress(field!.ref)).toThrow(Abort); // a stop is a stop, not a click that did not land
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+test("a menu is pressed only once the user pauses, under the seat's lock: an open menu holds its app's keyboard; the menu bar alone is only read", () => {
+  let idleMs = 200;
+  helper({ windows: desk(), menu: ({ path }) => ((path as string[]).length ? { pressed: "File > New" } : { items: ["File", "Edit"] }), idle: () => ({ idleMs, held: [], quiet: true, tick: 5 }) });
+  let now = 0;
+  const clock = spyOn(performance, "now").mockImplementation(() => (now += 300));
+  try {
+    expect(windows.menu(200, [])).toEqual({ items: ["File", "Edit"] });
+    expect(asked("idle")).toEqual([]);
+    expect(() => windows.menu(200, ["File", "New"])).toThrow("the user kept using the mouse or keyboard, so opening the menu did not happen");
+    expect(asked("menu")).toHaveLength(1);
+    idleMs = 60_000;
+    expect(windows.menu(200, ["File", "New"])).toEqual({ pressed: "File > New" });
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+test("a page's first read lifts its window over the user's only once they pause, and reads it where it lies when they do not", () => {
+  const mine = { hwnd: 44, pid: 400, cls: "Chrome_WidgetWin_1", title: "Claude", frame: [0, 0, 900, 600], core: 0, exe: "claude.exe", caption: true };
+  const cover = { hwnd: 11, pid: 100, cls: "X", title: "", frame: [0, 0, 2560, 1600], core: 0, exe: "WindowsTerminal.exe" };
+  let launched = false;
+  let idleMs = 50;
+  helper({
+    processes: [],
+    windows: () => (launched ? [cover, mine] : [cover]),
+    launch: () => ((launched = true), { pid: 0 }),
+    exe: { name: "claude" },
+    topmost: { ok: true },
+    idle: () => ({ idleMs, held: [], quiet: true, tick: 5 }),
+    tree: { nodes: [node(1, -1, "AXGroup", "")], capped: false }, // a page not switched on yet: nothing labelled
+  });
+  return (async () => {
+    windows.releaseDesktop();
+    await windows.runInBackground("claude.exe");
+    windows.actionableElements(400, DISPLAY, { windowId: 44 });
+    expect(asked("topmost")).toEqual([]); // the user is at work: no window of the hand's over theirs
+    expect(asked("tree")).toHaveLength(1);
+    idleMs = 60_000;
+    windows.actionableElements(400, DISPLAY, { windowId: 44 });
+    expect(asked("topmost")).toEqual([{ hwnd: 44, on: true }, { hwnd: 44, on: false }]);
+    windows.releaseDesktop();
+  })();
+});
+
+test("a field's value comes with it from the helper's tree, for the listing to show", () => {
+  const nodes = [
+    node(1, -1, "AXGroup", "w", { frame: [0, 0, 500, 500] }),
+    { ...node(2, 1, "AXTextField", "Search"), value: "flights to Lisbon" },
+    node(3, 1, "AXButton", "Go", { actions: ["AXPress"], frame: [300, 140, 40, 24] }),
+  ];
+  helper({ windows: desk(), exe: { name: "mspaint" }, tree: { nodes, capped: false } });
+  const [found] = windows.actionableElements(200, DISPLAY, { windowId: 22 });
+  expect(found.map((n) => [n.label, n.value])).toEqual([
+    ["Search", "flights to Lisbon"],
+    ["Go", undefined],
+  ]);
+});
+
+test("an app whose window a WebView2 fills shows a page, where Enter sends: the helper looks at its windows' children", () => {
+  helper({ windows: [{ hwnd: 90, pid: 900, cls: "TeamsWebView", title: "Chat | Microsoft Teams", frame: [0, 0, 1200, 800], core: 0, exe: "ms-teams.exe" }], exe: { name: "ms-teams" }, web: ({ pid }) => ({ web: pid === 900 }) });
+  expect(windows.isWebContentApp(900)).toBe(true);
+  expect(windows.isWebContentApp(200)).toBe(false);
+  expect(asked("web")).toEqual([{ pid: 900 }, { pid: 200 }]);
 });
 
 test("an abort: Ctrl-C, or the mouse in the corner of the display it is on", () => {
@@ -694,7 +870,7 @@ test("the browser's tabs, URL and loading state are read off its windows, and a 
   expect(asked("post").map((a) => [a.hwnd, a.kind, a.x, a.y])).toEqual([[45, "move", 711, 246], [45, "down", 711, 246], [45, "up", 711, 246]]);
   expect(asked("chars")).toEqual([{ hwnd: 45, text: "https://example.com/", direct: true }]);
   expect(asked("vkey")).toEqual([{ hwnd: 45, vk: 0x0d, direct: true }]);
-  expect(asked("guard")).toEqual([{ begin: true }, { hwnd: 45, sink: false }]); // the click brings Chrome forward for a moment, and it goes straight back
+  expect(asked("guard")).toEqual([{ begin: true, hwnd: 45, sink: false }, { hwnd: 45, sink: false }]); // the click brings Chrome forward for a moment, and it goes straight back
   expect(await windows.tabCommand("Google Chrome", "back", "44", undefined, true)).toBe("Flights | https://flights.example.com/");
   expect(asked("post").at(-1)).toEqual({ hwnd: 44, kind: "up", x: 196, y: 245 });
   expect(await windows.tabCommand("Google Chrome", "close_tab", "44", 1, true)).toBe("Inbox | ");

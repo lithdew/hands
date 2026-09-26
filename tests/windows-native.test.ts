@@ -60,6 +60,16 @@ describe.skipIf(!run)("the native helper", () => {
     expect(windows.native.call("ping")).toEqual({ ok: true });
   });
 
+  test("what a hand has out is known to it, and asked of a window that is not there, answered without touching anything", () => {
+    expect(windows.native.call("park", { hwnd: 1 })).toEqual({ ok: false, gone: true });
+    expect(windows.native.call("unpark", { hwnd: 1 })).toEqual({ ok: true, how: "none" });
+    expect(windows.native.call("seat", { state: "free" })).toEqual({ ok: true });
+    expect(windows.native.call("seat", { state: "abandon" })).toEqual({ ok: true }); // nothing held, nothing borrowed: nothing done
+    expect(windows.native.call("guard", { hwnd: 1, sink: true })).toEqual({ taken: false, back: true, popups: [] }); // an end with no begin
+    expect(() => windows.native.call("seat", { state: "sideways" })).toThrow("unknown seat state");
+    expect(windows.native.call("web", { pid: process.pid })).toEqual({ web: false });
+  });
+
   test("it leaves when its stdin closes", async () => {
     const proc = Bun.spawn([exe, "serve"], { stdin: "pipe", stdout: "ignore", stderr: "ignore" });
     await Bun.sleep(300);
