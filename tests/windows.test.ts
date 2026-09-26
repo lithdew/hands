@@ -579,6 +579,31 @@ test("a covered page that cannot be given a strip of screen is read from its acc
   windows.releaseDesktop();
 });
 
+test("a covered page that loaded out of sight has no tree to read, so its picture is read as usual", async () => {
+  const cover = { hwnd: 11, pid: 100, cls: "X", title: "", frame: DISPLAY, core: 0, exe: "WindowsTerminal.exe" };
+  const chrome = { hwnd: 46, pid: 400, cls: "Chrome_WidgetWin_1", title: "Example", frame: [100, 100, 1000, 700], core: 0, exe: "chrome.exe", caption: true };
+  let launched = false;
+  let front = { hwnd: 11, pid: 100 };
+  spyOn(process, "kill").mockImplementation(() => true);
+  helper({
+    processes: [{ pid: 400, cmd: '"C:\\chrome.exe"' }],
+    windows: () => (launched ? [cover, chrome] : [cover]),
+    foreground: () => front,
+    launch: () => ((launched = true), (front = { hwnd: 46, pid: 400 }), { pid: 400 }),
+    activate: ({ hwnd }) => ((front = { hwnd: hwnd as number, pid: 100 }), { ok: true }),
+    move: { ok: true },
+    capture: { width: 1000, height: 700 },
+    reg: { value: null },
+    tree: { nodes: [{ id: 1, parent: -1, role: "AXButton", label: "Reload", frame: [120, 110, 20, 20], actions: ["AXPress"] }], capped: false }, // the browser's own controls, and no page
+    ocr: [["Ada Lovelace", 1, [50, 60, 250, 90]]],
+  });
+  windows.releaseDesktop();
+  await windows.openBackgroundWindow("Google Chrome", "https://example.com/");
+  expect((await windows.screenshotWindow(46, "w.png")).stale).toBe(true);
+  expect(windows.recognizeText("w.png")).toEqual([["Ada Lovelace", 1, [50, 60, 250, 90]]]);
+  windows.releaseDesktop();
+});
+
 test("staging moves a window into the cascade on HANDS_SCREEN, and does nothing without it", async () => {
   helper({ displays: [{ index: 0, frame: DISPLAY }, { index: 1, frame: [2560, 0, 1920, 1080] }], move: { ok: true } });
   const saved = { screen: process.env.HANDS_SCREEN, slot: process.env.HANDS_SLOT };

@@ -1848,6 +1848,7 @@ async function navigateBehind(hwnd: number, url: string): Promise<boolean> {
   let view: BrowserView | null = null;
   if (!(await until(() => Boolean((view = viewOf(hwnd)).omnibox), 3000))) return false;
   const was = fullUrl(view!);
+  if (was !== null && plainUrl(was) === plainUrl(url)) return true; // already there: typing it again would only reload it, and the URL would not change to say so
   const holds = () => {
     const value = plainUrl(viewOf(hwnd).omniboxValue);
     if (value === plainUrl(url)) return true;
@@ -2171,15 +2172,18 @@ export async function screenshotWindow(windowId: number, path: string): Promise<
 /**
  * The text of a page whose picture may be old, read from its accessibility tree instead, which the browser keeps
  * current whether or not the window shows: each run of text with its rectangle in the capture's pixels, as OCR gives
- * it, for what lies in the capture (and in `rect`, when one is given). Nothing when the tree cannot be read.
+ * it, for what lies in the capture (and in `rect`, when one is given). Null when the page has no tree to read: Chrome
+ * builds a page's tree only while its window is in front, for a second or so (measured), so a page that loaded out of
+ * sight has none, though a new page is painted there (measured) and its picture is read as usual.
  */
-function pageText({ windowId, origin: [ox, oy], size: [width, height] }: { windowId: number; origin: Point; size: Point }, rect?: Box): OcrLine[] {
+function pageText({ windowId, origin: [ox, oy], size: [width, height] }: { windowId: number; origin: Point; size: Point }, rect?: Box): OcrLine[] | null {
   let reply: { nodes: TreeNode[] };
   try {
     reply = native.call("tree", { hwnd: windowId, cap: PAGE_TEXT_NODES, ms: PAGE_TEXT_MS }) as { nodes: TreeNode[] };
   } catch {
-    return [];
+    return null;
   }
+  if (!reply.nodes.some((node) => node.role === "AXStaticText" && node.label)) return null;
   const [rx1, ry1, rx2, ry2] = rect ?? [0, 0, width, height];
   const lines: OcrLine[] = [];
   for (const node of reply.nodes) {
@@ -2207,7 +2211,8 @@ export function captureAt(path: string): Capture {
  */
 export function recognizeText(path: string, rect?: Box): OcrLine[] {
   const shot = staleShots.get(path);
-  if (shot) return pageText(shot, rect); // an old picture's text would be old too: the page says what it holds now
+  const fromPage = shot ? pageText(shot, rect) : null; // an old picture's text would be old too: the page says what it holds now, when it has a tree to say it with
+  if (fromPage) return fromPage;
   const [x1, y1] = rect ? rect.map(Math.round) : [0, 0];
   const lines = native.call("ocr", { path, rect: rect?.map(Math.round) }) as [string, number, Box][];
   return lines.map(([text, confidence, [bx1, by1, bx2, by2]]) => [text, confidence, [x1! + bx1, y1! + by1, x1! + bx2, y1! + by2]]);
