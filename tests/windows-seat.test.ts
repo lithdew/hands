@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Frame } from "../src/models.ts";
+import { Abort, type Frame } from "../src/models.ts";
 import { SeatBusy, SeatTaken } from "../src/seat.ts";
 import * as windows from "../src/windows.ts";
 import { windowsSeat } from "../src/windows-seat.ts";
@@ -12,7 +12,7 @@ import { windowsSeat } from "../src/windows-seat.ts";
 type Args = Record<string, unknown>;
 type Reply = ((args: Args) => unknown) | object | null;
 let calls: [string, Args][];
-const HOUSEKEEPING: Record<string, Reply> = { displays: [{ index: 0, frame: [0, 0, 2560, 1600] }], sink: { ok: true }, recall: { ok: true }, send: { ok: true }, cursor: [700, 400], setCursor: { ok: true }, exe: { name: "Notepad", path: "" } }; // prettier-ignore
+const HOUSEKEEPING: Record<string, Reply> = { displays: [{ index: 0, frame: [0, 0, 2560, 1600] }], sink: { ok: true }, recall: { ok: true }, send: { ok: true }, cursor: [700, 400], setCursor: { ok: true }, exe: { name: "Notepad", path: "" }, seat: { ok: true } }; // prettier-ignore
 
 function helper(replies: Record<string, Reply>): void {
   spyOn(windows.native, "call").mockImplementation((command: string, args: Args = {}) => {
@@ -56,6 +56,7 @@ function machine(options: { idle?: () => object; input?: (args: Args) => object;
 let lockRoot: string;
 beforeEach(() => {
   calls = [];
+  windows.interrupt(false);
   windows.pace.persistMs = 0;
   windows.pace.seatWatchMs = 0;
   windows.pace.browserWatchMs = 0;
@@ -86,11 +87,14 @@ test("a borrow brings the hand's window forward, runs the work's input as timed 
   );
   expect(result).toBe("saved");
   expect(holding).toEqual(["holding"]); // the user was away: no wait worth showing
-  expect(asked("input")).toEqual([{ kind: "key", vk: 0x53, modifiers: [0x11], since: 777 }, { kind: "letgo" }]);
+  // The input is timed from the pause and names the window borrowed: the helper stops it once another comes in front.
+  expect(asked("input")).toEqual([{ kind: "key", vk: 0x53, modifiers: [0x11], since: 777, root: 55 }, { kind: "letgo" }]);
   expect(asked("activate")).toEqual([{ hwnd: 55 }, { hwnd: 11 }]);
   expect(seat.front).toBe(11);
-  expect(asked("setCursor")).toEqual([{ x: 700, y: 400 }]);
+  expect(asked("setCursor")).toEqual([{ x: 700, y: 400, unlessMoved: true }]);
   expect(asked("sink")).toEqual([{ hwnd: 55 }]);
+  // The helper knew of the borrow while it lasted, to give it back itself were the hand to go in the middle of it.
+  expect(asked("seat")).toEqual([{ state: "holding", before: 11, x: 700, y: 400, root: 55, sink: true }, { state: "free" }]);
   expect(existsSync(join(lockRoot, windows.SEAT_LOCK))).toBe(false);
 });
 
@@ -149,8 +153,8 @@ test("the user touching the mouse mid-borrow stops the work with SeatTaken, and 
   await expect(drawing).rejects.toBeInstanceOf(SeatTaken);
   await expect(drawing).rejects.toThrow("the user moved the mouse");
   expect(asked("input").at(-1)).toEqual({ kind: "letgo" }); // a button the drag held is let go
-  expect(seat.front).toBe(11);
-  expect(asked("setCursor")).toEqual([{ x: 700, y: 400 }]);
+  expect(seat.front).toBe(11); // they were still in the hand's window: theirs comes back in front
+  expect(asked("setCursor")).toEqual([{ x: 700, y: 400, unlessMoved: true }]); // and the cursor goes back only if they have not moved it
   expect(existsSync(join(lockRoot, windows.SEAT_LOCK))).toBe(false);
 });
 
@@ -246,4 +250,127 @@ test("the user's idle time is the helper's, which leaves out input the helper se
   mock.restore();
   helper({ idle: () => { throw new Error("idle: gone"); } }); // prettier-ignore
   expect(windowsSeat.userIdleMs()).toBe(0);
+});
+
+test("a hand stopped, paused or clicked while it waits for the seat never takes it: the wait ends with Abort, and nothing is moved or sent", async () => {
+  let rounds = 0;
+  machine({
+    idle: () => {
+      if (++rounds === 3) windows.interrupt(); // the user clicks the waiting hand, or says stop
+      return { idleMs: 100, held: [], quiet: true, tick: 1 };
+    },
+  });
+  const work = mock(async () => "pressed");
+  const waiting = windowsSeat.withSeat({ pid: 500, windowId: 66 }, work, { why: "pressing ctrl+s" });
+  await expect(waiting).rejects.toBeInstanceOf(Abort);
+  await expect(waiting).rejects.toThrow("stopped");
+  expect(work).not.toHaveBeenCalled();
+  expect(asked("activate")).toEqual([]);
+  expect(asked("input")).toEqual([]);
+  expect(existsSync(join(lockRoot, windows.SEAT_LOCK))).toBe(false);
+});
+
+test("a stop in the moment the user pauses, or already made, moves nothing either", async () => {
+  machine();
+  windows.interrupt(); // stopped before the wait began
+  await expect(windowsSeat.withSeat({ pid: 500, windowId: 66 }, async () => 1, { why: "a click" })).rejects.toBeInstanceOf(Abort);
+  await expect(windows.borrow({ pid: 500, windowId: 66 }, 1, async () => 1)).rejects.toBeInstanceOf(Abort);
+  expect(asked("activate")).toEqual([]);
+  expect(asked("foreground")).toEqual([]);
+});
+
+test("a stop in the middle of a borrow sends nothing more, and the seat still goes back", async () => {
+  const seat = machine();
+  windows.releaseDesktop();
+  await windows.runInBackground("Notepad");
+  calls = [];
+  const drawing = windowsSeat.withSeat(
+    { pid: 500, windowId: 55 },
+    async () => {
+      await windows.moveTo([10, 10]);
+      windows.interrupt(); // a pause or a stop, read while the work awaited
+      await windows.moveTo([20, 10]);
+      return "drawn";
+    },
+    { why: "drawing" },
+  );
+  await expect(drawing).rejects.toBeInstanceOf(Abort);
+  expect(asked("input").filter((a) => a.kind === "move")).toHaveLength(1);
+  expect(asked("input").at(-1)).toEqual({ kind: "letgo" });
+  expect(seat.front).toBe(11);
+  expect(existsSync(join(lockRoot, windows.SEAT_LOCK))).toBe(false);
+});
+
+test("the seat's lock is taken only once the user has paused, so that the panel lets clicks through only while the seat is in use", async () => {
+  let rounds = 0;
+  const locked: boolean[] = [];
+  machine({
+    idle: () => {
+      locked.push(existsSync(join(lockRoot, windows.SEAT_LOCK)));
+      return { idleMs: ++rounds < 4 ? 200 : 60_000, held: [], quiet: true, tick: 9 };
+    },
+  });
+  expect(await windowsSeat.withSeat({ pid: 500, windowId: 66 }, async () => existsSync(join(lockRoot, windows.SEAT_LOCK)), { why: "a click" })).toBe(true);
+  expect(locked).toEqual([false, false, false, false]); // not while the user was still at work
+  expect(existsSync(join(lockRoot, windows.SEAT_LOCK))).toBe(false);
+});
+
+test("a window that is gone is an error of its own, not the user being busy", async () => {
+  machine();
+  const borrowing = windowsSeat.withSeat({ pid: 500, windowId: 12345 }, async () => 1, { why: "a click" });
+  await expect(borrowing).rejects.toThrow("the window is gone");
+  await expect(borrowing).rejects.not.toBeInstanceOf(SeatBusy);
+});
+
+test("a hand that ends in the middle of a borrow gives it back through the helper, which knows what was out, and the borrow puts nothing back twice", async () => {
+  machine();
+  windows.releaseDesktop();
+  await windows.runInBackground("Notepad");
+  calls = [];
+  let abandoned = false;
+  await windowsSeat.withSeat(
+    { pid: 500, windowId: 55 },
+    async () => {
+      expect(existsSync(join(lockRoot, windows.SEAT_LOCK))).toBe(true);
+      windows.abandonSeat(); // a close, or an error that ends the process, while the work awaited
+      abandoned = true;
+      expect(existsSync(join(lockRoot, windows.SEAT_LOCK))).toBe(false); // the lock goes with it
+    },
+    { why: "pressing ctrl+s" },
+  );
+  expect(abandoned).toBe(true);
+  expect(asked("seat")).toEqual([{ state: "holding", before: 11, x: 700, y: 400, root: 55, sink: true }, { state: "abandon" }]);
+  expect(asked("activate")).toEqual([{ hwnd: 55 }]); // the helper put the user's window back, not this
+  expect(asked("setCursor")).toEqual([]);
+  windows.abandonSeat(); // nothing is out any more: nothing is asked
+  expect(asked("seat")).toHaveLength(2);
+});
+
+test("a user who took the seat back and went to a window of their own keeps it, and the next borrow waits for a longer pause", async () => {
+  let front = 11;
+  let launched = false;
+  let idleMs = 60_000;
+  helper({
+    processes: [{ pid: 500, cmd: "notepad.exe" }],
+    windows: () => (launched ? [terminal, theirs, mine] : [terminal, theirs]),
+    launch: () => ((launched = true), { pid: 0 }),
+    foreground: () => ({ hwnd: front, pid: 1 }),
+    activate: ({ hwnd }) => ((front = hwnd as number), { ok: true }),
+    idle: () => ({ idleMs, held: [], quiet: true, tick: 5 }),
+    input: (args) => {
+      if (args.kind === "letgo") return { ok: true };
+      front = 66; // the user clicked into their own window
+      return { ok: false, taken: "the user moved the mouse or typed" };
+    },
+  });
+  windows.releaseDesktop();
+  await windows.runInBackground("Notepad");
+  calls = [];
+  await expect(windowsSeat.withSeat({ pid: 500, windowId: 55 }, () => windows.press("s", ["ctrl"]), { why: "pressing ctrl+s" })).rejects.toBeInstanceOf(SeatTaken);
+  expect(asked("activate")).toEqual([{ hwnd: 55 }]); // their window is not taken from them
+  expect(front).toBe(66);
+  idleMs = 3000; // a pause that would do, but not so soon after they took the seat back
+  let now = 0;
+  spyOn(performance, "now").mockImplementation(() => (now += 400));
+  await expect(windowsSeat.withSeat({ pid: 500, windowId: 55 }, async () => 1, { why: "pressing ctrl+s", waitMs: 2000 })).rejects.toBeInstanceOf(SeatBusy);
 });
