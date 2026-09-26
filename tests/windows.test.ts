@@ -530,6 +530,27 @@ test("a window a guarded click opens after the helper has answered it is the han
   expect(asked("close")).toEqual([{ hwnd: 46 }, { hwnd: 47 }, { hwnd: 48 }]);
 });
 
+test("a value typed into a page keeps the seat's lock a moment past the helper's answer and no longer, though the read-back after it keeps the process busy and no timer can fire", () => {
+  const chrome = { hwnd: 44, pid: 400, cls: "Chrome_WidgetWin_1", title: "Contacts", frame: [0, 0, 900, 600], core: 0, exe: "chrome.exe", caption: true };
+  const lock = join(lockRoot, windows.SEAT_LOCK);
+  let answered = 0;
+  const reads: [number, boolean][] = []; // each read-back of the field: how long after the answer, and whether the lock was held
+  helper({
+    windows: [chrome],
+    exe: { name: "chrome" },
+    tree: { nodes: [node(1, -1, "AXGroup", "w", { frame: [0, 0, 500, 500] }), node(7, 1, "AXTextField", "Phone", { actions: ["AXPress"] })], capped: false },
+    setValue: () => ((answered = performance.now()), { ok: true, posted: true }),
+    value: () => (reads.push([performance.now() - answered, existsSync(lock)]), { value: "(555) 123-4567" }), // the page shows what it was given its own way
+    topmost: { ok: true },
+  });
+  const [[field]] = windows.actionableElements(400, DISPLAY, { windowId: 44 });
+  expect(windows.axSetValue(field!.ref, "5551234567")).toBe(true);
+  expect(reads.at(-1)![0]).toBeGreaterThan(1400); // read back its whole time, the value never the text typed
+  expect(reads.filter(([at]) => at < 450).every(([, held]) => held)).toBe(true); // held while the helper still watches behind its answer
+  expect(reads.filter(([at]) => at > 750).some(([, held]) => held)).toBe(false); // and let go at its time, in the middle of the read-back
+  expect(existsSync(lock)).toBe(false);
+});
+
 test("a press in a page is made only once the user pauses, and gives up quickly for the pointer's longer wait; a value is SeatBusy, not a field that refuses", () => {
   const chrome = { hwnd: 44, pid: 400, cls: "Chrome_WidgetWin_1", title: "Mail", frame: [0, 0, 900, 600], core: 0, exe: "chrome.exe", caption: true };
   let idleMs = 50;

@@ -265,6 +265,7 @@ function acted(): void {
  */
 export const native = {
   call(command: string, args: object = {}): any {
+    lingerDue(); // a stretch of synchronous calls holds up every timer
     if (!watching) lastCall = performance.now();
     let reply: string | undefined;
     for (let attempt = 0; reply === undefined; attempt++) {
@@ -1247,7 +1248,7 @@ function whenPausedSync(quietMs: number, until: number, what: string): () => voi
     const taken = pausedNow(quietMs);
     if (taken.release) return taken.release;
     if (performance.now() >= until) throw new SeatBusy(`${busyReason(taken.seat, taken.locked)}, so ${what} did not happen`);
-    Bun.sleepSync(SEAT_POLL_MS);
+    sleepSync(SEAT_POLL_MS);
   }
 }
 
@@ -1314,7 +1315,7 @@ function pausedSync<T>(work: () => T, what: string, quietMs = FLASH_QUIET_MS, wa
 // hand's click or borrow begins while that watch may still give the foreground back. This hand's own next use of the
 // seat takes the lock over (ownLinger) rather than waiting for itself.
 const LINGER_MS = 600;
-let lingering: { path: string; release: () => void; timer: ReturnType<typeof setTimeout> } | null = null;
+let lingering: { path: string; release: () => void; timer: ReturnType<typeof setTimeout>; until: number } | null = null;
 
 /** Let the seat's lock go LINGER_MS from now, unless this hand uses the seat again first. */
 function linger(release: () => void): void {
@@ -1325,7 +1326,24 @@ function linger(release: () => void): void {
     release();
   }, LINGER_MS);
   timer.unref?.();
-  lingering = { path: join(locks.root, SEAT_LOCK), release, timer };
+  lingering = { path: join(locks.root, SEAT_LOCK), release, timer, until: performance.now() + LINGER_MS };
+}
+
+/**
+ * The lingering lock let go once its time is up, whether its timer could fire or not: no timer fires while the process
+ * is busy with something synchronous (a field's value read back for seconds, a look's capture, OCR and tree read), and
+ * while the lock is held the panel lets every click through (src/panel.cs) and other hands wait. Asked at each call to
+ * the helper and around each synchronous sleep.
+ */
+function lingerDue(): void {
+  if (lingering && performance.now() >= lingering.until) endLinger();
+}
+
+/** Bun.sleepSync, around which a lingering lock whose time has come is let go (lingerDue). */
+function sleepSync(ms: number): void {
+  lingerDue();
+  Bun.sleepSync(ms);
+  lingerDue();
 }
 
 /** The seat's lock this hand still holds from its last guarded click, taken over for its next use of the seat; null when there is none. */
@@ -2606,7 +2624,7 @@ export function axSetValue(ref: unknown, value: string): boolean {
     // read back empty when asked at once and full 250 ms on (measured), and a long message takes longer to show. So the
     // value is waited for, a second and a half and more for a longer text, up to eight seconds.
     const wait = Math.min(8000, 1500 + 12 * value.length);
-    if (taken && posted) for (const end = performance.now() + wait; performance.now() < end && !holdsText(axValue(ref), value); ) Bun.sleepSync(50);
+    if (taken && posted) for (const end = performance.now() + wait; performance.now() < end && !holdsText(axValue(ref), value); ) sleepSync(50);
     return taken;
   } catch (error) {
     if (error instanceof SeatBusy || error instanceof Abort) throw error;
@@ -2819,7 +2837,7 @@ export function workingWindow(pid: number, preferred?: number): WorkingWindow | 
   if (entry.iconic && isOwn(entry, list)) {
     native.call("show", { hwnd: base }); // SW_SHOWNOACTIVATE
     native.call("sink", { hwnd: rootOf(entry, list).hwnd });
-    Bun.sleepSync(REPAINT_MS); // restored, it paints before it can be captured
+    sleepSync(REPAINT_MS); // restored, it paints before it can be captured
   }
   const dialog = dialogOf(entry, list);
   return { windowId: dialog?.hwnd ?? base, dialog: dialog ? dialog.title || "a dialog" : null, theirs: !isOwn(entry, list) };
@@ -2924,7 +2942,7 @@ function liftedRead(hwnd: number, read: () => TreeReply): TreeReply {
  */
 function awaitPage(reply: TreeReply, read: () => TreeReply): TreeReply {
   for (const end = performance.now() + LIFT_POLL_CAP_MS; !pageShown(reply.nodes) && performance.now() < end; ) {
-    Bun.sleepSync(LIFT_POLL_MS);
+    sleepSync(LIFT_POLL_MS);
     reply = read();
   }
   return reply;
