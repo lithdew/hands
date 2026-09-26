@@ -637,7 +637,7 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort }: ToolOpti
           } else {
             pinned = webWindow = await macos.openBackgroundWindow(browser, url);
             await macos.stageWindow(pinned.pid, pinned.windowId);
-            note ||= desktopNote(); // a browser that should have worked on the hand's own desktop, but did not
+            note += desktopNote(); // a browser that should have worked on the hand's own desktop, but did not
           }
           target = { app: browser, pid: pinned.pid, pinned };
           return moved((screen) => `opened ${screen.url ?? url}${new_tab ? " in a new tab" : ""} in your own window${note}`);
