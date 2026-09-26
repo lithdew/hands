@@ -303,7 +303,7 @@ export interface Known {
   lookup?: boolean;
 }
 
-const LINES = 3; // the dock shows three lines of an answer, of about 40 characters each
+const LINES = 3; // the dock shows three lines of an answer, of about 38 characters each
 
 /**
  * The dock's answer to how things are going: a line for each hand, the ones still at it first, from what the voice
@@ -311,8 +311,8 @@ const LINES = 3; // the dock shows three lines of an answer, of about 40 charact
  */
 export function progress(all: Known[]): string {
   if (!all.length) return "No hands are out.";
-  const each = all.length === 1 ? 120 : 42;
-  const lines = all.slice(0, all.length > LINES ? LINES - 1 : LINES).map((one) => cut(line(one), each));
+  const each = all.length === 1 ? 110 : 38;
+  const lines = all.slice(0, all.length > LINES ? LINES - 1 : LINES).map((one) => cut(line(all.length === 1 ? one : { ...one, minutes: undefined }), each));
   const rest = all.slice(lines.length).map((one) => one.hand);
   if (rest.length) lines.push(`${rest.length} more: ${names(rest)}.`);
   return lines.join("\n");

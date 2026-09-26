@@ -142,11 +142,25 @@ export function stale(now: number, shotAt: number): string {
   return seconds < 60 ? `${seconds}s ago` : `${Math.floor(seconds / 60)}m ago`;
 }
 
-/** What a lookup is searching for, from its action ("searching 'ramen near King's Cross'"), as its card says it. */
+/** How sure Jev must be, reading a done hand's last screen, that it shows the answer is so, for the receipt to say it saw it. */
+export const SEEN = 0.8;
+
+/** Whether a done hand's receipt says Jev saw its answer on its last screen: only when Jev was sure; below that, nothing is said. */
+export const seen = (hand: Pick<HandView, "status" | "checked">): boolean => hand.status === "done" && (hand.checked ?? 0) >= SEEN;
+
+/** How long the dock shows what came of a typed line: long enough to read it, and a few seconds for a few words. */
+export const lingers = (said: string): number => Math.min(10_000, Math.max(3000, 1500 + 60 * said.length));
+
+/**
+ * What a lookup is searching for, from its action ("searching “ramen near King's Cross”"), as its card says it: a
+ * search still going ends in "…". Only a quoted query is a query: "searching the web" is not a search for "the web".
+ */
 export function searching(action: string): string {
-  const query = /^searching\s+(.+)$/i.exec(action.trim())?.[1]?.trim();
-  if (!query) return action.trim() ? sentence(action.trim()) : "Searching the web";
-  return `Searching “${query.replace(/^['"‘“]+|['"’”]+$/g, "")}”`;
+  const said = action.trim();
+  if (!said) return "Searching the web…";
+  const query = /^searching\s+['"‘“](.+?)['"’”]?$/i.exec(said)?.[1]?.trim();
+  if (query) return `Searching “${query}”…`;
+  return /^searching\b/i.test(said) ? `${sentence(said)}…` : sentence(said);
 }
 
 /** Second-level names under which a country's sites sit: bbc.co.uk is "bbc", not "co". */

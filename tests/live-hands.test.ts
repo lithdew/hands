@@ -1025,7 +1025,7 @@ test("a typed question is answered in the dock from what the voice would be told
   hands[1]!.say({ type: "status", status: "done", answer: "Wrote it:\n\nLunch waits in warm light" });
   await Bun.sleep(5);
   const told = hands.map((one) => one.told.length);
-  expect(await live.ask("how's it going?", reads("question"))).toBe("Lefty is working: click “Search”.\nRighty is done: Wrote it: Lunch waits in…");
+  expect(await live.ask("how's it going?", reads("question"))).toBe("Lefty is working: click “Search”.\nRighty is done: Wrote it: Lunch…");
   expect(await live.ask("what did righty write?", reads("question", "righty"))).toBe("Righty is done: Wrote it: Lunch waits in warm light");
   expect(hands.map((one) => one.told.length)).toEqual(told);
 });

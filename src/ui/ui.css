@@ -28,14 +28,21 @@
   --slab: "Superclarendon", "Rockwell", Georgia, serif;
   --regular: 500;
 
-  /* Motion. Durations by how often a thing happens: what happens all the time barely moves, what is rare moves most. */
-  --t-tap: 100ms; /* a press, a hover */
-  --t-swap: 120ms; /* one picture over the last */
-  --t-quick: 180ms; /* the dock's colours, a sheet put away */
-  --t-move: 240ms; /* a fold, the hand in the picture */
-  --t-enter: 300ms; /* a sheet coming out */
-  --t-pop: 320ms; /* the palm waking */
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* what answers the user, and what comes in */
+  /*
+   * Motion. Durations by how often a thing happens: what happens all the time barely moves, what is rare moves most.
+   * What the user sees tens of times a day stays under 300 ms, and what goes is quicker than what comes. With less
+   * motion asked for, what moves does so at once, and colours and fades keep their time (the last two tokens).
+   */
+  --t-tap: 100ms; /* a hover, and what goes when the pointer does */
+  --t-press: 160ms; /* a press, and letting go */
+  --t-quick: 180ms; /* a sheet put away, a card folding, the palm resting small */
+  --t-move: 240ms; /* a card unfolding or widening, the hand in the picture */
+  --t-enter: 280ms; /* a sheet coming out */
+  --t-pop: 280ms; /* the palm waking */
+  --t-tint: 100ms; /* a colour under the pointer, a focus ring */
+  --t-fade: 180ms; /* a colour or a fade that comes with a change of state */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* what answers the user, what comes in, and what goes */
+  --ease-move: cubic-bezier(0.77, 0, 0.175, 1); /* something crossing the screen */
   --ease-glide: cubic-bezier(0.495, 0, 0.505, 1); /* the on-screen hand's own glide, so the one in the picture moves alike */
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   --spring: var(--ease-out); /* where linear() is not understood */
@@ -132,11 +139,14 @@ button {
   border-radius: 10px;
   padding: 6px 11px 7px;
   transition:
-    scale var(--t-tap) var(--ease-out),
-    background-color var(--t-tap) var(--ease-out);
+    scale var(--t-press) var(--ease-out),
+    background-color var(--t-tint) var(--ease-out),
+    color var(--t-tint) var(--ease-out);
 }
-button:hover {
-  background: var(--glove, #efe9dd);
+@media (hover: hover) and (pointer: fine) {
+  button:hover {
+    background: var(--glove, #efe9dd);
+  }
 }
 button:active {
   scale: 0.97;
@@ -170,8 +180,8 @@ kbd {
   overflow: hidden;
   transition:
     width var(--t-move) var(--ease-out),
-    transform var(--t-tap) var(--ease-out),
-    box-shadow var(--t-tap) var(--ease-out);
+    transform var(--t-press) var(--ease-out),
+    box-shadow var(--t-press) var(--ease-out);
 }
 /* watched big (theater), or with its sheet out: wide, the picture growing with it; a click on the picture again
    puts it back. The picture's cursor says which. */
@@ -211,15 +221,17 @@ kbd {
   transition-duration: 0s !important;
 }
 
+/* the name and the chips sit above a band of their own at the foot of the header, where the ticks run (.ticks) */
 .card header {
   position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   height: 42px;
-  padding: 0 11px 0 7px;
+  box-sizing: border-box;
+  padding: 0 11px 8px 7px;
   background-color: var(--head);
-  transition: background-color var(--t-move) var(--ease-out);
+  transition: background-color var(--t-fade) var(--ease-out);
   overflow: hidden;
 }
 .card[data-status="paused"] header {
@@ -256,7 +268,7 @@ kbd {
   border-radius: 1px;
   background: rgb(28 20 8 / 0.38);
   transform-origin: bottom;
-  animation: tick-in var(--t-move) var(--spring);
+  animation: tick-in var(--t-move) var(--ease-out);
 }
 .ticks i.err {
   background: var(--alarm);
@@ -284,12 +296,13 @@ kbd {
 }
 @keyframes tick {
   to {
-    scale: 1 1.9;
+    scale: 1 1.75; /* up to the band's top, clear of the name above it */
   }
 }
 @keyframes tick-in {
   from {
-    scale: 1 0;
+    scale: 1 0.3;
+    opacity: 0; /* inside the opaque header */
   }
 }
 /* done: one sheen across the header */
@@ -299,7 +312,7 @@ kbd {
   inset: 0;
   background: linear-gradient(100deg, transparent 35%, rgb(255 255 255 / 0.7) 50%, transparent 65%);
   translate: -100% 0;
-  animation: sheen 700ms var(--ease-glide) 120ms;
+  animation: sheen 640ms var(--ease-move) 120ms;
   pointer-events: none;
 }
 @keyframes sheen {
@@ -377,6 +390,7 @@ html.windows .name {
 }
 .chip.jev b {
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .chip.jev b:empty {
   display: none;
@@ -399,7 +413,7 @@ html.windows .name {
 .card[data-status="failed"] .chip.state {
   background: var(--alarm);
   color: var(--sheet);
-  animation: shake 320ms var(--ease-out);
+  animation: shake 280ms var(--ease-out);
 }
 .card[data-status="stopped"] .chip.state {
   background: transparent;
@@ -482,7 +496,8 @@ html.windows .name {
   opacity: 0.66;
 }
 
-/* what folds: a grid row that closes to nothing, so the column moves as smoothly as the card shrinks */
+/* what folds: a grid row that closes to nothing, so the column moves as smoothly as the card shrinks; it closes
+   quicker than it opens */
 .fold,
 .tell,
 .sheet {
@@ -497,6 +512,7 @@ html.windows .name {
 .card.strip .fold,
 .card.quiet .tell {
   grid-template-rows: 0fr;
+  transition-duration: var(--t-quick);
 }
 .sheet {
   grid-template-rows: 0fr;
@@ -529,7 +545,7 @@ html.windows .name {
   height: 100%;
   object-fit: contain;
   filter: contrast(0.97); /* lifts every channel off zero: no pixel of a picture is ever the key colour, a hole in the card */
-  transition: filter var(--t-quick) var(--ease-out);
+  transition: filter var(--t-fade) var(--ease-out);
 }
 .screen img:not([src]) {
   visibility: hidden;
@@ -664,6 +680,7 @@ html.windows .name {
   background: var(--ink);
   color: var(--sheet);
   font: 700 10px/1 var(--face);
+  font-variant-numeric: tabular-nums; /* "12s ago" */
   letter-spacing: 0.06em;
   pointer-events: none;
 }
@@ -767,13 +784,28 @@ html.windows .name {
   translate: 0 -4px;
   pointer-events: none;
   transition:
-    opacity var(--t-quick) var(--ease-out),
-    translate var(--t-quick) var(--ease-out);
+    opacity var(--t-tint) var(--ease-out),
+    translate var(--t-tap) var(--ease-out); /* going: quicker than coming */
 }
-.card:hover .tools {
-  opacity: 1;
-  translate: 0 0;
-  pointer-events: auto;
+@media (hover: hover) and (pointer: fine) {
+  .card:hover .tools {
+    opacity: 1;
+    translate: 0 0;
+    pointer-events: auto;
+    transition-duration: var(--t-fade), var(--t-quick);
+  }
+  .tools [data-cmd="stop"]:hover {
+    background: var(--alarm);
+    color: var(--sheet);
+  }
+}
+/* with no pointer to hover, they are always there */
+@media not ((hover: hover) and (pointer: fine)) {
+  .tools {
+    opacity: 1;
+    translate: 0 0;
+    pointer-events: auto;
+  }
 }
 .tools button {
   display: flex;
@@ -788,10 +820,6 @@ html.windows .name {
   width: 13px;
   height: 13px;
   fill: currentColor;
-}
-.tools [data-cmd="stop"]:hover {
-  background: var(--alarm);
-  color: var(--sheet);
 }
 .tools [data-cmd="show"]::after {
   content: " ↗";
@@ -839,6 +867,7 @@ html:not(.windows) [data-cmd="show"] {
 }
 .card.receipt .fold {
   grid-template-rows: 0fr;
+  transition-duration: var(--t-quick);
 }
 .card.receipt .mini[src] {
   display: block;
@@ -855,19 +884,48 @@ html:not(.windows) [data-cmd="show"] {
 .card.receipt .said {
   -webkit-line-clamp: 5;
 }
-/* under a receipt's answer, what it took: "12 steps · 5 by Jev · 0:52" */
-.tally {
+/* under a receipt's answer, what it took ("12 steps · 5 by Jev · 0:52"), and, when Jev read its last screen and was
+   sure the answer is there, a quiet check in the hand's colour: nothing at all when it was not sure */
+.foot {
   display: none;
-  margin: 4px 0 0;
+}
+.card.receipt .foot:has(.tally:not(:empty), .seen:not([hidden])) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.tally,
+.seen {
+  margin: 0;
   color: rgb(255 255 255 / 0.62);
   font: 600 11.5px/16px var(--face);
-  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+.tally {
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.card.receipt .tally:not(:empty) {
-  display: block;
+.tally:empty {
+  display: none;
+}
+.seen {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: rgb(255 255 255 / 0.8);
+}
+.seen svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: var(--glove);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* a lookup: no window, so no picture. While it searches, a glass circles over what it looks for; once it has
@@ -986,8 +1044,10 @@ html:not(.windows) [data-cmd="show"] {
   background: var(--ink);
   color: var(--sheet);
 }
-.ask [data-say]:hover {
-  color: var(--ink);
+@media (hover: hover) and (pointer: fine) {
+  .ask [data-say]:hover {
+    color: var(--ink);
+  }
 }
 /* and its glyph wears a badge, in the header, where a folded card shows it too */
 .card[data-status="needs_you"] .who {
@@ -1044,8 +1104,10 @@ html:not(.windows) [data-cmd="show"] {
   border-radius: 4px;
   background: transparent padding-box;
 }
-.log:hover::-webkit-scrollbar-thumb {
-  background-color: rgb(28 20 8 / 0.3);
+@media (hover: hover) and (pointer: fine) {
+  .log:hover::-webkit-scrollbar-thumb {
+    background-color: rgb(28 20 8 / 0.3);
+  }
 }
 .log li {
   margin: 0 0 8px;
@@ -1122,7 +1184,7 @@ html:not(.windows) [data-cmd="show"] {
   background: var(--sheet);
   color: var(--ink);
   font: var(--regular) 14px/1.3 var(--face);
-  transition: box-shadow var(--t-swap) var(--ease-out);
+  transition: box-shadow var(--t-tint) var(--ease-out);
 }
 .paper input::placeholder {
   color: #968c7c;
@@ -1134,8 +1196,10 @@ html:not(.windows) [data-cmd="show"] {
   background: var(--ink);
   color: var(--sheet);
 }
-.send:hover {
-  color: var(--ink);
+@media (hover: hover) and (pointer: fine) {
+  .send:hover {
+    color: var(--ink);
+  }
 }
 .controls {
   display: flex;
@@ -1179,6 +1243,7 @@ html:not(.windows) [data-cmd="show"] {
   background: var(--ink);
   color: var(--sheet);
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ------------------------------------------------------------------ the dock: the voice */
@@ -1195,9 +1260,16 @@ html:not(.windows) [data-cmd="show"] {
   color: var(--ink);
   overflow: hidden;
   transition:
-    background-color var(--t-quick) var(--ease-out),
-    color var(--t-quick) var(--ease-out),
-    width var(--t-move) var(--ease-out);
+    background-color var(--t-fade) var(--ease-out),
+    color var(--t-fade) var(--ease-out),
+    width var(--t-move) var(--ease-out),
+    translate var(--t-press) var(--ease-out),
+    box-shadow var(--t-press) var(--ease-out);
+}
+/* at rest it is pressed like a card when clicked to type to (ask.ts) */
+#dock.hint:active {
+  translate: 2px 2px;
+  box-shadow: 2px 2px 0 var(--ink);
 }
 /* the key is down: a ring around the dock, spreading with your voice */
 #dock.listening {
@@ -1251,10 +1323,125 @@ html:not(.windows) [data-cmd="show"] {
   background: rgb(255 255 255 / 0.5);
 }
 
-/* rested: a palm in the corner, which opens out under the pointer and whenever the key goes down */
+/*
+ * Typed to instead of talked to (ask.ts). At rest the whole dock is a place to click to type, and a small keyboard at
+ * its end says so. Out, the box stands where the words were; sent, your line shows as your words while the fingers
+ * drum, then what came of it under it, your line kept small above.
+ */
+#dock.hint {
+  cursor: text;
+}
+.type {
+  display: none;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 28px;
+  margin: 0 -6px 0 0;
+  padding: 0;
+  border: 1.5px solid rgb(28 20 8 / 0.42);
+  border-radius: 9px;
+  background: transparent;
+  cursor: pointer;
+}
+#dock.hint .type {
+  display: grid;
+}
+#dock.hint:not([data-needs=""]) .type {
+  display: none; /* a hand needs you: the hint says which, and how to answer, in the room the keyboard took */
+}
+#dock.compact .type {
+  visibility: hidden;
+}
+.type svg {
+  width: 19px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@media (hover: hover) and (pointer: fine) {
+  .type:hover {
+    border-color: var(--ink);
+    background: rgb(255 255 255 / 0.45);
+  }
+}
+.box {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  margin: 0;
+}
+.box input {
+  flex: 1;
+  min-width: 0;
+  height: 33px; /* as tall as the resting palm: the dock keeps its height, and the cards above stay where they are */
+  box-sizing: border-box;
+  padding: 0 34px 1px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  outline: none;
+  background: var(--sheet);
+  color: var(--ink);
+  font: 600 16px/1 var(--display);
+  cursor: text;
+}
+.box input::placeholder {
+  color: rgb(28 20 8 / 0.45);
+}
+.box input:focus-visible {
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.75); /* on the dock's yellow: the ring is light, the edge stays ink */
+}
+/* ↵ once there is something to send: what the keyboard does is not animated */
+.box kbd {
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  translate: 0 -50%;
+  border-color: rgb(28 20 8 / 0.35);
+  color: rgb(28 20 8 / 0.6);
+  visibility: hidden;
+  pointer-events: none;
+}
+.box input:not(:placeholder-shown) + kbd {
+  visibility: visible;
+}
+#dock.asking .words {
+  display: none;
+}
+#dock.typed .words {
+  font: 600 18px/24px var(--display);
+  white-space: normal;
+}
+#dock.answered .words {
+  font: 600 15px/19px var(--display);
+  white-space: normal;
+}
+.words q {
+  display: block;
+  font: 600 12px/15px var(--face);
+  opacity: 0.62;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.words .reply {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3; /* with the line above it, the three lines the dock keeps room for */
+  overflow: hidden;
+  white-space: pre-line;
+}
+
+/* rested: a palm in the corner, which opens out under the pointer and whenever the key goes down; it rests small
+   quicker than it opens out */
 #dock.compact {
   position: relative;
   width: 60px;
+  transition-duration: var(--t-fade), var(--t-fade), var(--t-quick), var(--t-press), var(--t-press);
 }
 /* and on it, how many hands need you */
 #dock.compact[data-needs]:not([data-needs=""])::after {
@@ -1271,6 +1458,7 @@ html:not(.windows) [data-cmd="show"] {
   color: var(--sheet);
   box-shadow: 0 0 0 1.5px var(--ink);
   font: 700 10px/16px var(--face);
+  font-variant-numeric: tabular-nums;
   text-align: center;
   animation: stamp 437ms var(--spring);
 }
@@ -1285,8 +1473,10 @@ html:not(.windows) [data-cmd="show"] {
 @media (hover: hover) and (pointer: fine) {
   #dock.compact:hover {
     width: var(--column);
+    transition-duration: var(--t-fade), var(--t-fade), var(--t-move), var(--t-press), var(--t-press);
   }
-  #dock.compact:hover .words {
+  #dock.compact:hover .words,
+  #dock.compact:hover .type {
     visibility: visible;
   }
 }
@@ -1354,7 +1544,7 @@ html:not(.windows) [data-cmd="show"] {
   transition:
     scale var(--t-pop) var(--spring),
     margin var(--t-pop) var(--ease-out),
-    opacity var(--t-quick) var(--ease-out);
+    opacity var(--t-fade) var(--ease-out);
 }
 .palm::after {
   content: "";
@@ -1401,13 +1591,14 @@ html:not(.windows) [data-cmd="show"] {
 #dock.offline .palm {
   opacity: 0.4;
 }
-/* thinking: the fingers drum, index to little finger, striking down into the table */
-#dock.thinking .palm i:not(:nth-child(5)) {
+/* thinking, or reading a typed line: the fingers drum, index to little finger, striking down into the table */
+#dock.thinking .palm i:not(:nth-child(5)),
+#dock.typed .palm i:not(:nth-child(5)) {
   animation: drum 960ms infinite;
 }
-#dock.thinking .palm i:nth-child(2) { animation-delay: 80ms; } /* prettier-ignore */
-#dock.thinking .palm i:nth-child(3) { animation-delay: 160ms; } /* prettier-ignore */
-#dock.thinking .palm i:nth-child(4) { animation-delay: 240ms; } /* prettier-ignore */
+#dock .palm i:nth-child(2) { animation-delay: 80ms; } /* prettier-ignore */
+#dock .palm i:nth-child(3) { animation-delay: 160ms; } /* prettier-ignore */
+#dock .palm i:nth-child(4) { animation-delay: 240ms; } /* prettier-ignore */
 @keyframes drum {
   0% {
     transform: translateY(0);
@@ -1424,14 +1615,23 @@ html:not(.windows) [data-cmd="show"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* every duration: a sheet put away no more slides the cards above it than one coming out does */
+  /* what moves does so at once: a sheet put away no more slides the cards above it than one coming out does. Colours
+     and fades keep their time (--t-tint, --t-fade), and so do the scripts' fades (motion.ts). */
   :root {
     --t-tap: 0ms;
-    --t-swap: 0ms;
+    --t-press: 0ms;
     --t-quick: 0ms;
     --t-move: 0ms;
     --t-enter: 0ms;
     --t-pop: 0ms;
+  }
+  button:active,
+  #dock.hint:active,
+  .card:not(.open):hover,
+  .card:not(.open):active {
+    scale: none;
+    translate: none;
+    transform: none;
   }
   .card header::before,
   .chip.state,
@@ -1445,7 +1645,8 @@ html:not(.windows) [data-cmd="show"] {
   .brief::before,
   .card[data-seat="holding"] header,
   #dock::after,
-  #dock.thinking .palm i {
+  #dock.thinking .palm i,
+  #dock.typed .palm i {
     animation: none !important;
   }
 }
