@@ -2,7 +2,8 @@
 //
 // Bun calls it synchronously over bun:ffi (kernel32 WriteFile/ReadFile), so a request is one JSON object
 // {cmd, ...} and its reply one JSON object, each framed as a 4-byte little-endian length. The process ends
-// when the pipe breaks or its stdin closes: whichever way Bun goes, the helper goes with it.
+// when the pipe breaks or its stdin closes: whichever way Bun goes, the helper goes with it, and takes down
+// the virtual desktops it made on the way out (Bun may have been killed with no chance to).
 //
 // Built by windows.ts with the C# 5 compiler that ships in Windows (.NET Framework csc.exe), together with
 // overlay.cs (the on-screen hand, dispatched as "hand"): no string interpolation, no ?., no out var, no
@@ -17,6 +18,7 @@ using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
 using System.IO.Pipes;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -33,6 +35,7 @@ static class Program
 {
     static volatile bool stop;
     static readonly JavaScriptSerializer json = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+    static readonly object gate = new object(); // one request at a time, and the cleanup at exit never in the middle of one
 
     static int Main(string[] args)
     {
@@ -46,6 +49,11 @@ static class Program
         {
             try { Stream input = Console.OpenStandardInput(); byte[] b = new byte[64]; while (input.Read(b, 0, b.Length) > 0) { } } catch (Exception) { }
             stop = true;
+            // Bun is gone, however it went. A request stuck in an app that does not answer is not waited for long.
+            bool entered = false;
+            try { entered = Monitor.TryEnter(gate, 3000); Desktops.Cleanup(); }
+            catch (Exception) { }
+            finally { if (entered) Monitor.Exit(gate); }
             Environment.Exit(0);
         });
         watch.IsBackground = true;
@@ -66,8 +74,11 @@ static class Program
                     if (body.Length < len) body = new byte[len];
                     if (!ReadExact(server, body, len)) break;
                     string reply;
-                    try { reply = json.Serialize(Dispatch(Encoding.UTF8.GetString(body, 0, len))); }
-                    catch (Exception e) { reply = json.Serialize(new Dictionary<string, object> { { "error", e.GetType().Name + ": " + e.Message } }); }
+                    lock (gate)
+                    {
+                        try { reply = json.Serialize(Dispatch(Encoding.UTF8.GetString(body, 0, len))); }
+                        catch (Exception e) { reply = json.Serialize(new Dictionary<string, object> { { "error", e.GetType().Name + ": " + e.Message } }); }
+                    }
                     byte[] bytes = Encoding.UTF8.GetBytes(reply);
                     byte[] framed = new byte[4 + bytes.Length];
                     System.Buffer.BlockCopy(BitConverter.GetBytes(bytes.Length), 0, framed, 0, 4);
@@ -96,7 +107,7 @@ static class Program
     public static long Long(string key) { object v; return req.TryGetValue(key, out v) && v != null ? Convert.ToInt64(v, CultureInfo.InvariantCulture) : 0; }
     public static int Int(string key) { return (int)Long(key); }
     static double Dbl(string key) { object v; return req.TryGetValue(key, out v) && v != null ? Convert.ToDouble(v, CultureInfo.InvariantCulture) : 0; }
-    static bool Bool(string key) { object v; return req.TryGetValue(key, out v) && v is bool && (bool)v; }
+    public static bool Bool(string key) { object v; return req.TryGetValue(key, out v) && v is bool && (bool)v; }
     static IntPtr Hwnd() { return new IntPtr(Long("hwnd")); }
     /** An array argument: the serializer hands one over as an ArrayList. */
     public static object[] Arr(string key)
@@ -120,13 +131,17 @@ static class Program
         {
             case "ping": return Ok();
             case "cursor": { Win.POINT p; Win.GetCursorPos(out p); return new object[] { p.x, p.y }; }
+            case "setCursor": return Seat.SetCursor(Int("x"), Int("y"));
+            case "idle": return Seat.Idle();
             case "foreground": return Foreground();
             case "displays": return Displays();
             case "windows": return Desk.List();
             case "processes": return Processes(Str("exe"));
+            case "children": return Children(Int("pid"));
             case "exe": return Exe(Int("pid"));
+            case "assoc": return Assoc(Str("ext"));
             case "launch": return Launch(Str("file"), Str("args"), Has("show") ? Int("show") : 4);
-            case "activate": return new Dictionary<string, object> { { "ok", Activate(Hwnd()) } };
+            case "activate": { bool ok = Activate(Hwnd()); return new Dictionary<string, object> { { "ok", ok }, { "foreground", Win.GetForegroundWindow().ToInt64() } }; }
             case "move": return Move();
             case "show": Win.ShowWindow(Hwnd(), Win.IsIconic(Hwnd()) ? 4 : 8); return Ok();
             case "close": Win.PostMessage(Hwnd(), 0x0010, IntPtr.Zero, IntPtr.Zero); return Ok();
@@ -138,13 +153,14 @@ static class Program
             case "ocr": return Ocr.Read(Str("path"), Arr("rect"));
             case "tree": return Uia.Tree(Hwnd(), Has("cap") ? Int("cap") : 4000, Has("ms") ? Int("ms") : 600);
             case "focused": return Uia.Focused();
-            case "act": return Uia.Act(Int("id"), Str("action"));
-            case "setValue": return Uia.SetValue(Int("id"), Str("text"));
+            case "act": return Uia.Act(Int("id"), Str("action"), !Has("sink") || Bool("sink"));
+            case "setValue": return Uia.SetValue(Int("id"), Str("text"), !Has("sink") || Bool("sink"));
             case "value": return Uia.Value(Int("id"));
             case "release": Uia.Release(); return Ok();
             case "post": return Input.Post(Hwnd(), Str("kind"), Int("x"), Int("y"));
-            case "chars": return Input.Chars(Hwnd(), Str("text"));
-            case "vkey": return Input.VKey(Hwnd(), Int("vk"));
+            case "guard": if (Bool("begin")) { Flash.Begin(); return Ok(); } return Flash.End(Hwnd(), !Has("sink") || Bool("sink"));
+            case "chars": return Input.Chars(Hwnd(), Str("text"), Bool("direct"));
+            case "vkey": return Input.VKey(Hwnd(), Int("vk"), Bool("direct"));
             case "wheel": return Input.Wheel(Hwnd(), Int("x"), Int("y"), Int("delta"), Bool("horizontal"));
             case "input": return Input.Send();
             case "clipboard": return Clipboard(Str("text"));
@@ -152,13 +168,14 @@ static class Program
             case "menu": return Uia.Menu(Hwnd(), Arr("path"));
             case "scrollPage": return Uia.ScrollPage(Hwnd(), Str("direction"));
             case "reg": return Reg(Str("key"), Str("name"));
-            case "desktop": return Desktops.Ensure(Str("name"));
-            case "desktops": return Desktops.Names();
-            case "send": Desktops.Need(Str("name")).MoveWindow(Hwnd(), true); return Ok();
-            case "recall": VirtualDesktop.Desktop.Current.MoveWindow(Hwnd(), true); return Ok(); // back to the desktop on screen, wherever it was
-            case "onDesktop": return Desktops.Has(Str("name"), Hwnd());
-            case "removeDesktop": return Desktops.Remove(Str("name"));
-            case "switch": Desktops.Need(Str("name")).MakeVisible(); return Ok();
+            case "desktop": return Desktops.Try(delegate { return Desktops.Ensure(Str("name")); });
+            case "desktops": return Desktops.Try(delegate { return Desktops.Names(); });
+            case "send": return Desktops.Try(delegate { return Desktops.Send(Str("name"), Hwnd()); });
+            case "recall": return Desktops.Try(delegate { VirtualDesktop.Desktop.Current.MoveWindow(Hwnd(), true); return Ok(); }); // back to the desktop on screen, wherever it was
+            case "onDesktop": return Desktops.Try(delegate { return Desktops.Has(Str("name"), Hwnd()); });
+            case "removeDesktop": return Desktops.Try(delegate { return Desktops.Remove(Str("name")); });
+            case "removeDesktops": return Desktops.Try(delegate { return Desktops.RemoveAll(Str("prefix")); });
+            case "switch": return Desktops.Try(delegate { Desktops.Need(Str("name")).MakeVisible(); return Ok(); });
             default: throw new ArgumentException("unknown command " + cmd);
         }
     }
@@ -186,11 +203,16 @@ static class Program
         return outp;
     }
 
-    /** Main processes of one executable, with their command lines: WMI is the one API that reads another process's arguments without debugging it. */
+    /**
+     * Main processes of one executable, with their command lines: WMI is the one API that reads another process's
+     * arguments without debugging it. Its Name is the file name alone, so a full path is asked for by its file name,
+     * and a WQL string escapes backslashes and quotes with a backslash.
+     */
     static object Processes(string exe)
     {
         List<object> outp = new List<object>();
-        string query = "SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name = '" + exe.Replace("'", "''") + "'";
+        string name = Path.GetFileName(exe);
+        string query = "SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name = '" + name.Replace("\\", "\\\\").Replace("'", "\\'") + "'";
         using (System.Management.ManagementObjectSearcher searcher = new System.Management.ManagementObjectSearcher(query))
         {
             foreach (System.Management.ManagementObject p in searcher.Get())
@@ -204,18 +226,55 @@ static class Program
 
     static object Exe(int pid)
     {
-        IntPtr h = Win.OpenProcess(0x1000, false, (uint)pid);
-        string path = "";
-        if (h != IntPtr.Zero)
-        {
-            try { StringBuilder b = new StringBuilder(1024); int n = 1024; if (Win.QueryFullProcessImageName(h, 0, b, ref n)) path = b.ToString(0, n); }
-            finally { Win.CloseHandle(h); }
-        }
+        string path = Desk.ImageOf((uint)pid);
         if (path.Length == 0) { try { path = Process.GetProcessById(pid).ProcessName + ".exe"; } catch (Exception) { } }
         return new Dictionary<string, object> { { "name", Path.GetFileNameWithoutExtension(path) }, { "path", path } };
     }
 
-    /** ShellExecuteEx with SW_SHOWNOACTIVATE: the app opens without the foreground moving. The pid can be a stub's (notepad, calc). */
+    /** Every process started by `pid`, and by those, as far down as it goes: an app's launcher can hand over to a child. */
+    static object Children(int pid)
+    {
+        Dictionary<uint, List<uint>> kids = new Dictionary<uint, List<uint>>();
+        IntPtr snap = Win.CreateToolhelp32Snapshot(0x2, 0); // TH32CS_SNAPPROCESS
+        if (snap == new IntPtr(-1)) return new object[0];
+        try
+        {
+            Win.PROCESSENTRY32 e = new Win.PROCESSENTRY32();
+            e.dwSize = (uint)Marshal.SizeOf(typeof(Win.PROCESSENTRY32));
+            for (bool more = Win.Process32First(snap, ref e); more; more = Win.Process32Next(snap, ref e))
+            {
+                List<uint> list;
+                if (!kids.TryGetValue(e.th32ParentProcessID, out list)) kids[e.th32ParentProcessID] = list = new List<uint>();
+                if (e.th32ProcessID != e.th32ParentProcessID) list.Add(e.th32ProcessID);
+            }
+        }
+        finally { Win.CloseHandle(snap); }
+        List<object> outp = new List<object>();
+        List<uint> queue = new List<uint>();
+        queue.Add((uint)pid);
+        for (int i = 0; i < queue.Count && queue.Count < 512; i++)
+        {
+            List<uint> list;
+            if (!kids.TryGetValue(queue[i], out list)) continue;
+            foreach (uint kid in list) if (!queue.Contains(kid)) { queue.Add(kid); outp.Add((long)kid); }
+        }
+        return outp;
+    }
+
+    /** The executable that opens a kind of file ("xlsx", ".txt"), by its file name, or "" when the shell names none. */
+    static object Assoc(string ext)
+    {
+        if (!ext.StartsWith(".")) ext = "." + ext;
+        StringBuilder b = new StringBuilder(1024);
+        uint n = 1024;
+        string exe = Win.AssocQueryString(0, 2, ext, "open", b, ref n) == 0 ? Path.GetFileName(b.ToString()) : ""; // ASSOCSTR_EXECUTABLE
+        return new Dictionary<string, object> { { "exe", exe } };
+    }
+
+    /**
+     * ShellExecuteEx with SW_SHOWNOACTIVATE: the app opens without the foreground moving. The pid can be a stub's (notepad,
+     * calc), so its executable is said too, and a shortcut's target: what the window that opens will belong to.
+     */
     static object Launch(string file, string args, int show)
     {
         Win.SHELLEXECUTEINFO info = new Win.SHELLEXECUTEINFO();
@@ -225,19 +284,43 @@ static class Program
         info.lpParameters = args;
         info.nShow = show;
         if (!Win.ShellExecuteEx(ref info)) throw new Exception("cannot start " + file + " (error " + Marshal.GetLastWin32Error() + ")");
-        int pid = info.hProcess != IntPtr.Zero ? Win.GetProcessId(info.hProcess) : 0;
-        if (info.hProcess != IntPtr.Zero) Win.CloseHandle(info.hProcess);
-        return new Dictionary<string, object> { { "pid", pid } };
+        int pid = 0;
+        string exe = "";
+        if (info.hProcess != IntPtr.Zero)
+        {
+            pid = Win.GetProcessId(info.hProcess);
+            exe = Path.GetFileName(Desk.ImageOf(info.hProcess));
+            Win.CloseHandle(info.hProcess);
+        }
+        string target = file.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(ShortcutTarget(file)) : "";
+        return new Dictionary<string, object> { { "pid", pid }, { "exe", exe }, { "target", target } };
+    }
+
+    /** What a shortcut starts, through the shell's own scripting object; "" for one that names no file (a packaged app's). */
+    static string ShortcutTarget(string path)
+    {
+        try
+        {
+            Type type = Type.GetTypeFromProgID("WScript.Shell");
+            object shell = Activator.CreateInstance(type);
+            object link = type.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { path });
+            object target = link.GetType().InvokeMember("TargetPath", BindingFlags.GetProperty, null, link, null);
+            return target as string ?? "";
+        }
+        catch (Exception) { return ""; }
     }
 
     /**
      * Bring a window to the front. SetForegroundWindow from a process that is not in front is refused; attached to the
      * input queue of the thread that is, it is allowed. Measured live on this machine: that is how the seat is handed back.
+     * After the user has been idle a long while it fails even so, unless input came first: a move of the cursor to where
+     * it is, which moves nothing (measured: 20 of 20 with it, two failures in a few without).
      */
     public static bool Activate(IntPtr hwnd)
     {
         if (Win.IsIconic(hwnd)) Win.ShowWindow(hwnd, 9);
         if (Win.GetForegroundWindow() == hwnd) return true;
+        Input.Nudge();
         bool ok = Win.SetForegroundWindow(hwnd);
         if (!ok || Win.GetForegroundWindow() != hwnd)
         {
@@ -312,27 +395,78 @@ static class Desk
         return e;
     }
 
+    /** The full path of a process's executable, or "" when it cannot be opened. */
+    public static string ImageOf(uint pid)
+    {
+        IntPtr h = Win.OpenProcess(0x1000, false, pid); // PROCESS_QUERY_LIMITED_INFORMATION
+        if (h == IntPtr.Zero) return "";
+        try { return ImageOf(h); }
+        finally { Win.CloseHandle(h); }
+    }
+
+    public static string ImageOf(IntPtr process)
+    {
+        StringBuilder b = new StringBuilder(1024);
+        int n = 1024;
+        return Win.QueryFullProcessImageName(process, 0, b, ref n) ? b.ToString(0, n) : "";
+    }
+
+    /** A process's executable by file name and its package family ("" for an app that is not packaged). */
+    static string[] ProcessOf(uint pid)
+    {
+        IntPtr h = Win.OpenProcess(0x1000, false, pid);
+        if (h == IntPtr.Zero) return new string[] { "", "" };
+        try
+        {
+            StringBuilder family = new StringBuilder(256);
+            uint n = 256;
+            string package = Win.GetPackageFamilyName(h, ref n, family) == 0 ? family.ToString() : "";
+            return new string[] { Path.GetFileName(ImageOf(h)), package };
+        }
+        finally { Win.CloseHandle(h); }
+    }
+
+    /** Where a minimized window goes back to, its restored frame: its frame on screen is a caption parked off every display. */
+    static Win.RECT Restored(IntPtr h)
+    {
+        Win.WINDOWPLACEMENT p = new Win.WINDOWPLACEMENT();
+        p.length = Marshal.SizeOf(typeof(Win.WINDOWPLACEMENT));
+        Win.GetWindowPlacement(h, ref p);
+        return p.rcNormalPosition;
+    }
+
     /**
-     * Ordinary windows front to back: visible, not minimized, not a tool window, bigger than a palette, not the shell's.
-     * A window the shell cloaks because it lies on another virtual desktop (DWM_CLOAKED_SHELL) is listed with `cloaked`
-     * true: a hand's own window on the hand's desktop. Any other cloaked window (a suspended UWP app's) is left out.
+     * Ordinary windows front to back: visible, not a tool window, bigger than a palette (a minimized one by its restored
+     * size), not the shell's. A window the shell cloaks because it lies on another virtual desktop (DWM_CLOAKED_SHELL) is
+     * listed with `cloaked` true: a hand's own window on the hand's desktop. Any other cloaked window (a suspended UWP
+     * app's) is left out. Each says what owns it (a dialog, its window), whether it takes input (a window under a modal
+     * dialog does not), whether it is minimized, whether it has a title bar or is a bare popup (a splash screen), and the
+     * executable and package of its process, which is how a window is known for the app that was started.
      */
     public static object List()
     {
         List<object> outp = new List<object>();
+        Dictionary<uint, string[]> processes = new Dictionary<uint, string[]>();
         for (IntPtr h = Win.GetTopWindow(IntPtr.Zero); h != IntPtr.Zero; h = Win.GetWindow(h, 2))
         {
-            if (!Win.IsWindowVisible(h) || Win.IsIconic(h)) continue;
+            if (!Win.IsWindowVisible(h)) continue;
             int cloaked = Cloaked(h);
             if ((Win.GetWindowLongPtr(h, -20).ToInt64() & 0x80) != 0 || (cloaked != 0 && cloaked != 2)) continue;
-            Win.RECT r = Frame(h);
+            bool iconic = Win.IsIconic(h);
+            Win.RECT r = iconic ? Restored(h) : Frame(h);
             if (r.R - r.L <= 50 || r.B - r.T <= 50) continue;
             string cls = ClassOf(h);
             if (cls == "Progman" || cls == "WorkerW" || cls == "Shell_TrayWnd" || cls == "Shell_SecondaryTrayWnd") continue;
             Entry e = Describe(h);
+            string[] process;
+            if (!processes.TryGetValue(e.pid, out process)) processes[e.pid] = process = ProcessOf(e.pid);
+            long style = Win.GetWindowLongPtr(h, -16).ToInt64();
             outp.Add(new Dictionary<string, object> {
                 { "hwnd", h.ToInt64() }, { "pid", e.pid }, { "cls", cls }, { "title", e.title },
                 { "frame", new object[] { r.L, r.T, r.R - r.L, r.B - r.T } }, { "core", e.core.ToInt64() }, { "cloaked", cloaked != 0 },
+                { "owner", Win.GetWindow(h, 4).ToInt64() }, { "enabled", Win.IsWindowEnabled(h) }, { "iconic", iconic },
+                { "caption", (style & 0x00C00000L) == 0x00C00000L }, { "popup", (style & 0x80000000L) != 0 },
+                { "exe", process[0] }, { "package", process[1] },
             });
         }
         return outp;
@@ -341,9 +475,42 @@ static class Desk
 
 // ------------------------------------------------------------ virtual desktops
 
-/** A desktop per hand, through the shell's internal interfaces (src/vendor/VirtualDesktop11-24H2.cs): the public IVirtualDesktopManager moves only its own process's windows. */
+/**
+ * A desktop per hand, through the shell's internal interfaces (src/vendor/VirtualDesktop11-24H2.cs): the public
+ * IVirtualDesktopManager moves only its own process's windows. Those interfaces live in Explorer, and die with it: a
+ * call that finds them disconnected connects again and is made once more. The desktops made here, and the windows
+ * sent to them, are remembered, so that the helper can take them down as it exits however its parent went.
+ */
 static class Desktops
 {
+    static readonly List<string> made = new List<string>();
+    static readonly List<IntPtr> sent = new List<IntPtr>();
+
+    public delegate object Call();
+
+    public static object Try(Call call)
+    {
+        try { return call(); }
+        catch (Exception e)
+        {
+            if (!Disconnected(e)) throw;
+            VirtualDesktop.DesktopManager.Reconnect();
+            return call();
+        }
+    }
+
+    /** RPC_E_DISCONNECTED and the RPC server's absence or failure (Explorer restarted), or a connection never made. */
+    static bool Disconnected(Exception e)
+    {
+        for (Exception at = e; at != null; at = at.InnerException)
+        {
+            if (at is NullReferenceException) return true;
+            uint code = (uint)Marshal.GetHRForException(at);
+            if (code == 0x80010108 || code == 0x800706BA || code == 0x800706BF) return true;
+        }
+        return false;
+    }
+
     static VirtualDesktop.Desktop Find(string name)
     {
         for (int i = 0; i < VirtualDesktop.Desktop.Count; i++) if (VirtualDesktop.Desktop.DesktopNameFromIndex(i) == name) return VirtualDesktop.Desktop.FromIndex(i);
@@ -366,8 +533,67 @@ static class Desktops
         {
             d = VirtualDesktop.Desktop.Create();
             d.SetName(name);
+            if (!made.Contains(name)) made.Add(name);
         }
         return new Dictionary<string, object> { { "index", VirtualDesktop.Desktop.FromDesktop(d) }, { "created", created } };
+    }
+
+    public static object Send(string name, IntPtr hwnd)
+    {
+        Need(name).MoveWindow(hwnd, true);
+        if (!sent.Contains(hwnd)) sent.Add(hwnd);
+        return new Dictionary<string, object> { { "ok", true } };
+    }
+
+    /**
+     * Take down every desktop whose name starts with `prefix` (what runs that died left behind), with whatever is on
+     * them brought to the desktop on screen and put behind the user's windows, not dropped over them: {removed}.
+     */
+    public static object RemoveAll(string prefix)
+    {
+        int removed = 0;
+        for (int i = VirtualDesktop.Desktop.Count - 1; i >= 0; i--)
+        {
+            string name = VirtualDesktop.Desktop.DesktopNameFromIndex(i);
+            if (prefix.Length == 0 || name == null || !name.StartsWith(prefix, StringComparison.Ordinal)) continue;
+            VirtualDesktop.Desktop d = VirtualDesktop.Desktop.FromIndex(i);
+            for (IntPtr h = Win.GetTopWindow(IntPtr.Zero); h != IntPtr.Zero; h = Win.GetWindow(h, 2)) Bring(d, h);
+            Remove(name);
+            removed++;
+        }
+        return new Dictionary<string, object> { { "removed", removed } };
+    }
+
+    /** A window on desktop `d` moved to the one on screen and sunk; nothing for a window elsewhere, or gone. */
+    static void Bring(VirtualDesktop.Desktop d, IntPtr h)
+    {
+        try
+        {
+            if (!Win.IsWindow(h) || !Win.IsWindowVisible(h) || !d.HasWindow(h)) return;
+            VirtualDesktop.Desktop.Current.MoveWindow(h, true);
+            Win.SetWindowPos(h, new IntPtr(1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010);
+        }
+        catch (Exception) { }
+    }
+
+    /** As the helper exits: the windows it sent come back behind the user's, and the desktops it made go. Nothing here throws. */
+    public static void Cleanup()
+    {
+        foreach (string name in made.ToArray())
+        {
+            try
+            {
+                Try(delegate
+                {
+                    VirtualDesktop.Desktop d = Find(name);
+                    if (d == null) return null;
+                    foreach (IntPtr h in sent) Bring(d, h);
+                    return Remove(name);
+                });
+            }
+            catch (Exception) { }
+        }
+        made.Clear();
     }
 
     public static object Names()
@@ -397,6 +623,7 @@ static class Desktops
         VirtualDesktop.Desktop fallback = VirtualDesktop.Desktop.Current;
         if (VirtualDesktop.Desktop.FromDesktop(fallback) == index) fallback = VirtualDesktop.Desktop.FromIndex(index == 0 ? 1 : 0);
         d.Remove(fallback);
+        made.Remove(name);
         return new Dictionary<string, object> { { "removed", true } };
     }
 }
@@ -414,10 +641,16 @@ static class Capture
         if (loadedPath == path && loaded != null) return loaded;
         System.Drawing.Bitmap fresh;
         using (System.Drawing.Image image = System.Drawing.Image.FromStream(new MemoryStream(File.ReadAllBytes(path)))) fresh = new System.Drawing.Bitmap(image);
-        if (loaded != null) loaded.Dispose();
-        loaded = fresh;
-        loadedPath = path;
+        Keep(path, fresh);
         return loaded;
+    }
+
+    /** A picture just written to `path`, kept as if it had been read back: the OCR that follows a capture needs no decode. */
+    static void Keep(string path, System.Drawing.Bitmap picture)
+    {
+        if (loaded != null && loaded != picture) loaded.Dispose();
+        loaded = picture;
+        loadedPath = path;
     }
 
     public static object Size(string path)
@@ -428,12 +661,17 @@ static class Capture
 
     /**
      * One window by PrintWindow(PW_RENDERFULLCONTENT), which DWM renders whole whether or not other windows cover it,
-     * cropped to the frame the user sees. A minimized window has nothing to render, so it is restored (without
-     * activation) first.
+     * cropped to the frame the user sees. A minimized window has nothing to render: with `restore` it is restored
+     * (without activation) first, and without, there is no picture (null) and it stays minimized.
      */
-    static System.Drawing.Bitmap Window(IntPtr hwnd)
+    static System.Drawing.Bitmap Window(IntPtr hwnd, bool restore)
     {
-        if (Win.IsIconic(hwnd)) { Win.ShowWindow(hwnd, 4); Thread.Sleep(400); }
+        if (Win.IsIconic(hwnd))
+        {
+            if (!restore) return null;
+            Win.ShowWindow(hwnd, 4);
+            Thread.Sleep(400);
+        }
         Win.RECT wr; Win.GetWindowRect(hwnd, out wr);
         Win.RECT fr = Desk.Frame(hwnd);
         int w = Math.Max(1, wr.R - wr.L), h = Math.Max(1, wr.B - wr.T);
@@ -459,14 +697,15 @@ static class Capture
     }
 
     /**
-     * How many distinct colours a window paints, sampled every fourth pixel and counted up to `cap`: a frame that
-     * has stopped drawing (a UWP app on a desktop that is not shown) is one colour, black, and no file is worth
-     * writing to learn that.
+     * How many distinct colours a window paints, sampled every fourth pixel and counted up to `cap`, and whether it is
+     * blank (see Blank): a frame that has stopped drawing (a UWP app on a desktop that is not shown) is one colour, and
+     * no file is worth writing to learn that.
      */
     public static object Colours(IntPtr hwnd, int cap)
     {
         HashSet<int> seen = new HashSet<int>();
-        using (System.Drawing.Bitmap shot = Window(hwnd))
+        bool blank;
+        using (System.Drawing.Bitmap shot = Window(hwnd, true))
         {
             BitmapData data = shot.LockBits(new System.Drawing.Rectangle(0, 0, shot.Width, shot.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppRgb);
             try
@@ -476,18 +715,95 @@ static class Capture
                         seen.Add(Marshal.ReadInt32(data.Scan0, y * data.Stride + x * 4) & 0xffffff);
             }
             finally { shot.UnlockBits(data); }
+            blank = Blank(shot, TitleBar(hwnd));
         }
-        return new Dictionary<string, object> { { "colours", seen.Count } };
+        return new Dictionary<string, object> { { "colours", seen.Count }, { "blank", blank } };
     }
 
-    /** A window, or one display by BitBlt, as a PNG or JPEG at `path`. */
+    /**
+     * Whether a picture shows nothing: one colour, give or take its lowest bits, over more than 97% of it below the
+     * title bar, sampled every sixth pixel. A window that has stopped drawing is black or one flat colour there, while
+     * its title bar can still carry the glyphs that fooled a count of colours (a blank ChatGPT window passed one).
+     */
+    static bool Blank(System.Drawing.Bitmap shot, int skip)
+    {
+        Dictionary<int, int> counts = new Dictionary<int, int>();
+        int total = 0, top = 0;
+        BitmapData data = shot.LockBits(new System.Drawing.Rectangle(0, 0, shot.Width, shot.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppRgb);
+        try
+        {
+            for (int y = Math.Min(Math.Max(0, skip), shot.Height - 1); y < shot.Height; y += 6)
+                for (int x = 0; x < shot.Width; x += 6)
+                {
+                    int colour = Marshal.ReadInt32(data.Scan0, y * data.Stride + x * 4) & 0xf8f8f8;
+                    int n;
+                    counts.TryGetValue(colour, out n);
+                    counts[colour] = ++n;
+                    if (n > top) top = n;
+                    total++;
+                }
+        }
+        finally { shot.UnlockBits(data); }
+        return total > 0 && top > total * 0.97;
+    }
+
+    /** The height of a window's title bar, in the picture's pixels: where the caption buttons end, or a standard one at the window's scale. */
+    static int TitleBar(IntPtr hwnd)
+    {
+        Win.RECT buttons;
+        if (Win.DwmGetWindowAttribute(hwnd, 5, out buttons, Marshal.SizeOf(typeof(Win.RECT))) == 0 && buttons.B > 0 && buttons.B < 200) return buttons.B; // DWMWA_CAPTION_BUTTON_BOUNDS
+        uint dpi = 96;
+        try { dpi = Math.Max(96u, Win.GetDpiForWindow(hwnd)); } catch (Exception) { }
+        return (int)(32 * dpi / 96);
+    }
+
+    /** A picture `width` wide, scaled down smoothly: a thumbnail of a window is read by a person. */
+    static System.Drawing.Bitmap Resize(System.Drawing.Bitmap from, int width)
+    {
+        int height = Math.Max(1, from.Height * width / from.Width);
+        System.Drawing.Bitmap to = new System.Drawing.Bitmap(width, height, PixelFormat.Format32bppRgb);
+        using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(to))
+        using (ImageAttributes edges = new ImageAttributes())
+        {
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+            edges.SetWrapMode(System.Drawing.Drawing2D.WrapMode.TileFlipXY); // no dark seam where the filter reads past the edge
+            g.DrawImage(from, new System.Drawing.Rectangle(0, 0, width, height), 0, 0, from.Width, from.Height, System.Drawing.GraphicsUnit.Pixel, edges);
+        }
+        return to;
+    }
+
+    static void Save(System.Drawing.Bitmap picture, Stream to, string format)
+    {
+        if (format != "jpeg") { picture.Save(to, ImageFormat.Png); return; }
+        ImageCodecInfo codec = null;
+        foreach (ImageCodecInfo c in ImageCodecInfo.GetImageEncoders()) if (c.MimeType == "image/jpeg") codec = c;
+        EncoderParameters p = new EncoderParameters(1);
+        p.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 80L);
+        picture.Save(to, codec, p);
+    }
+
+    /**
+     * A window, or one display by BitBlt, as a PNG or JPEG: written to `path`, and kept for the OCR that follows, or with
+     * `inline`, handed back in the reply as base64 (a thumbnail, with no file to write and read back). A window can be
+     * gone ({gone}), or minimized and not to be restored ({minimized}); `blank` says a window's picture shows nothing.
+     */
     public static object Take()
     {
         string path = Program.Str("path");
         string format = Program.Str("format");
         int max = Program.Int("max");
+        bool restore = !Program.Has("restore") || Program.Bool("restore");
         System.Drawing.Bitmap shot;
-        if (Program.Has("hwnd")) shot = Window(new IntPtr(Program.Long("hwnd")));
+        bool blank = false;
+        if (Program.Has("hwnd"))
+        {
+            IntPtr hwnd = new IntPtr(Program.Long("hwnd"));
+            if (!Win.IsWindow(hwnd)) return new Dictionary<string, object> { { "gone", true } };
+            shot = Window(hwnd, restore);
+            if (shot == null) return new Dictionary<string, object> { { "minimized", true } };
+            blank = Blank(shot, TitleBar(hwnd));
+        }
         else
         {
             System.Windows.Forms.Screen[] screens = System.Windows.Forms.Screen.AllScreens;
@@ -497,27 +813,35 @@ static class Capture
             shot = new System.Drawing.Bitmap(r.Width, r.Height, PixelFormat.Format32bppRgb);
             using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(shot)) g.CopyFromScreen(r.Left, r.Top, 0, 0, r.Size, System.Drawing.CopyPixelOperation.SourceCopy);
         }
-        using (shot)
+        System.Drawing.Bitmap saved = shot;
+        if (max > 0 && shot.Width > max)
         {
-            System.Drawing.Bitmap saved = shot;
-            if (max > 0 && shot.Width > max) saved = new System.Drawing.Bitmap(shot, new System.Drawing.Size(max, Math.Max(1, shot.Height * max / shot.Width)));
-            try
-            {
-                if (format == "jpeg")
-                {
-                    ImageCodecInfo codec = null;
-                    foreach (ImageCodecInfo c in ImageCodecInfo.GetImageEncoders()) if (c.MimeType == "image/jpeg") codec = c;
-                    EncoderParameters p = new EncoderParameters(1);
-                    p.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 80L);
-                    saved.Save(path, codec, p);
-                }
-                else saved.Save(path, ImageFormat.Png);
-                return new Dictionary<string, object> { { "width", saved.Width }, { "height", saved.Height } };
-            }
-            finally { if (saved != shot) saved.Dispose(); }
+            saved = Resize(shot, max);
+            shot.Dispose();
         }
+        Dictionary<string, object> reply = new Dictionary<string, object> { { "width", saved.Width }, { "height", saved.Height }, { "blank", blank } };
+        if (Program.Bool("inline"))
+        {
+            using (saved)
+            using (MemoryStream bytes = new MemoryStream())
+            {
+                Save(saved, bytes, format);
+                reply["bytes"] = Convert.ToBase64String(bytes.ToArray());
+            }
+            return reply;
+        }
+        try
+        {
+            using (FileStream file = File.Create(path)) Save(saved, file, format);
+        }
+        catch (Exception)
+        {
+            saved.Dispose();
+            throw;
+        }
+        Keep(path, saved);
+        return reply;
     }
-
 }
 
 // ------------------------------------------------------------ OCR
@@ -773,13 +1097,22 @@ static class Uia
 
     static System.Windows.Rect CurrentRect(AutomationElement el) { object r = el.GetCurrentPropertyValue(AutomationElement.BoundingRectangleProperty, true); return r is System.Windows.Rect ? (System.Windows.Rect)r : System.Windows.Rect.Empty; }
 
-    /** A posted click at an element's center: how a Chromium control is pressed without Chrome taking the seat, which every UIA action makes it do. */
-    static bool HasFocus(Node n)
+    /**
+     * Whether a Chromium element has the keyboard focus inside its own window: the element says so, or the window's
+     * thread has its focus in this window's page. Not the system's focus, which from behind lies in the user's window.
+     */
+    static bool FocusedIn(Node n)
     {
-        try { AutomationElement focused = AutomationElement.FocusedElement; return focused != null && Automation.Compare(focused, n.element); }
-        catch (Exception) { return false; }
+        try { object has = n.element.GetCurrentPropertyValue(AutomationElement.HasKeyboardFocusProperty, true); if (has is bool && (bool)has) return true; }
+        catch (Exception) { }
+        Win.GUITHREADINFO info = new Win.GUITHREADINFO();
+        info.cbSize = Marshal.SizeOf(typeof(Win.GUITHREADINFO));
+        uint pid;
+        uint thread = Win.GetWindowThreadProcessId(n.root, out pid);
+        return Win.GetGUIThreadInfo(thread, ref info) && info.hwndFocus != IntPtr.Zero && Win.IsChild(n.root, info.hwndFocus) && Desk.ClassOf(info.hwndFocus) == "Chrome_RenderWidgetHostHWND";
     }
 
+    /** A posted click at an element's center: how a Chromium control is pressed without Chrome taking the seat, which every UIA action makes it do. */
     static bool ClickOn(Node n, int count)
     {
         System.Windows.Rect r = CurrentRect(n.element);
@@ -790,26 +1123,89 @@ static class Uia
         return true;
     }
 
+    /** Where a Chromium window shows its page, on screen: its largest render widget, or the whole window when it has none. */
+    static Win.RECT PageOf(IntPtr root)
+    {
+        Win.RECT best = Desk.Frame(root);
+        long area = 0;
+        Win.EnumChildWindows(root, delegate (IntPtr c, IntPtr l)
+        {
+            if (!Win.IsWindowVisible(c) || Desk.ClassOf(c) != "Chrome_RenderWidgetHostHWND") return true;
+            Win.RECT r;
+            Win.GetWindowRect(c, out r);
+            long a = (long)(r.R - r.L) * (r.B - r.T);
+            if (a > area) { area = a; best = r; }
+            return true;
+        }, IntPtr.Zero);
+        return best;
+    }
+
+    static bool InPage(IntPtr root, System.Windows.Rect r)
+    {
+        if (r.IsEmpty) return false;
+        Win.RECT page = PageOf(root);
+        double x = r.X + r.Width / 2, y = r.Y + r.Height / 2;
+        return x >= page.L && x < page.R && y >= page.T && y < page.B;
+    }
+
+    /**
+     * A Chromium control is pressed by a posted click at its center. One scrolled out of the page's view is brought into
+     * it first (the scroll-item pattern, which works from behind), since a click outside the page lands on the toolbar or
+     * on nothing: "not visible" when it will not come.
+     */
+    static string PressChromium(Node n, bool sink)
+    {
+        System.Windows.Rect r = CurrentRect(n.element);
+        if (r.IsEmpty) return "no rect";
+        Flash.Begin();
+        try
+        {
+            if (!InPage(n.root, r))
+            {
+                Timed(delegate
+                {
+                    object p;
+                    if (n.element.TryGetCurrentPattern(ScrollItemPattern.Pattern, out p)) ((ScrollItemPattern)p).ScrollIntoView();
+                    return "ok";
+                });
+                Thread.Sleep(150);
+                if (!InPage(n.root, CurrentRect(n.element))) return "not visible: it would not scroll into the page's view";
+            }
+            return ClickOn(n, 1) ? "ok" : "no rect";
+        }
+        finally { Flash.End(n.root, sink); }
+    }
+
     delegate string Work();
+
+    /** A pattern call cut off after ActTimeoutMs, taken as done: it opened something modal and is waiting for it, and the next look will show what. */
     static string Timed(Work work)
+    {
+        Thread thread;
+        return Within(work, ActTimeoutMs, out thread) ?? "ok";
+    }
+
+    /** `work` on a thread of its own, given `ms`: its result, or null when it is still going (and `thread` is it). */
+    static string Within(Work work, int ms, out Thread thread)
     {
         string result = null;
         Exception failure = null;
-        Thread thread = new Thread(delegate () { try { result = work(); } catch (Exception e) { failure = e; } });
+        thread = new Thread(delegate () { try { result = work(); } catch (Exception e) { failure = e; } });
         thread.IsBackground = true;
         thread.Start();
-        if (!thread.Join(ActTimeoutMs)) return "ok"; // it opened something modal and is waiting for it; the next look will show what
+        if (!thread.Join(ms)) return null;
         if (failure != null) throw failure;
         return result;
     }
 
-    public static object Act(int id, string action)
+    /** An action on an element. `sink`: the element's window is the hand's own, to go back behind the user's after a click brings it forward (see Flash). */
+    public static object Act(int id, string action, bool sink)
     {
         Node n = Of(id);
         string result;
         if (action == "AXPress")
         {
-            if (n.chromium) result = ClickOn(n, 1) ? "ok" : "no rect";
+            if (n.chromium) result = PressChromium(n, sink);
             else result = Timed(delegate
             {
                 object p;
@@ -825,7 +1221,7 @@ static class Uia
                 return ClickOn(n, 1) ? "ok" : "the element offers no action";
             });
         }
-        else if (action == "AXConfirm") { Input.VKey(n.root, 0x0D); result = "ok"; }
+        else if (action == "AXConfirm") { Input.VKey(n.root, 0x0D, false); result = "ok"; }
         else if (action == "AXScrollToVisible")
         {
             object p;
@@ -836,14 +1232,21 @@ static class Uia
         return new Dictionary<string, object> { { "ok", result == "ok" }, { "why", result } };
     }
 
+    /** Said, word for word, when text with a line break is refused: the tools know it by its start. */
+    public const string LineBreak = "line break: a line break typed here would press Enter, which sends the message in a chat app. Type it as one line, or press shift+enter for the break with the real keyboard";
+
+    static Thread focusing; // the clicks into the last Chromium field, when they outlived their time: nothing is typed until they are done
+
     /**
      * A field's text. A classic edit control takes it as messages (select all, replace), which is what typing does and
-     * takes no focus. Chromium takes focus on a posted click (three: the whole text selected) and the characters posted.
-     * Anything else takes ValuePattern, which on some apps focuses the control but not the window.
+     * takes no focus, and a line break in it is text, not a key. Chromium takes focus on a posted click and then the
+     * characters posted (see SetChromium). Anything else takes ValuePattern, which on some apps focuses the control but
+     * not the window.
      */
-    public static object SetValue(int id, string text)
+    public static object SetValue(int id, string text, bool sink)
     {
         Node n = Of(id);
+        if (n.chromium) return SetChromium(n, text, sink);
         string result = Timed(delegate
         {
             object handle = n.element.GetCurrentPropertyValue(AutomationElement.NativeWindowHandleProperty, true);
@@ -852,26 +1255,7 @@ static class Uia
             if (kind == "Edit" || kind.StartsWith("RichEdit", StringComparison.OrdinalIgnoreCase))
             {
                 Win.SendMessage(window, 0x00B1, IntPtr.Zero, new IntPtr(-1)); // EM_SETSEL
-                Win.SendMessageText(window, 0x00C2, new IntPtr(1), text); // EM_REPLACESEL
-                return "ok";
-            }
-            if (n.chromium)
-            {
-                // Clicked once, and again half a second on when the click did not give it the focus (WhatsApp's search box
-                // swallows the first): separate clicks, not a double or triple click, which an editor built on a framework
-                // (WhatsApp's composer, on Lexical) answers by dropping what is then typed (measured). Text it holds is
-                // selected with a triple click first, for the new text to replace it, as an ordinary field expects.
-                for (int attempt = 0; ; attempt++)
-                {
-                    if (!ClickOn(n, 1)) return "no rect";
-                    Thread.Sleep(80);
-                    if (attempt == 2 || HasFocus(n)) break;
-                    Thread.Sleep(500);
-                }
-                object had;
-                string held = n.element.TryGetCurrentPattern(ValuePattern.Pattern, out had) ? ((ValuePattern)had).Current.Value : null;
-                if (!string.IsNullOrWhiteSpace(held)) { Thread.Sleep(500); ClickOn(n, 3); Thread.Sleep(60); }
-                Input.Chars(n.root, text);
+                Win.SendMessageText(window, 0x00C2, new IntPtr(1), text.Replace("\r\n", "\n").Replace("\n", "\r\n")); // EM_REPLACESEL
                 return "ok";
             }
             object p;
@@ -879,7 +1263,52 @@ static class Uia
             ((ValuePattern)p).SetValue(text);
             return "ok";
         });
-        return new Dictionary<string, object> { { "ok", result == "ok" }, { "why", result }, { "posted", n.chromium } }; // posted: as keystrokes, which the tree shows a beat later
+        return new Dictionary<string, object> { { "ok", result == "ok" }, { "why", result }, { "posted", false } };
+    }
+
+    /**
+     * Text into a Chromium field from behind. Clicked once, and again half a second on when the click did not give it the
+     * focus (WhatsApp's search box swallows the first): separate clicks, not a double or triple click, which an editor
+     * built on a framework (WhatsApp's composer, on Lexical) answers by dropping what is then typed (measured). Text it
+     * holds is selected with a triple click first, for the new text to replace it, as an ordinary field expects. The
+     * clicks get the pattern calls' time; the characters are posted after, all of them, before the reply, so the text is
+     * in when this returns and nothing is still typing behind a refusal. A line break would be Enter, which sends in a
+     * chat app: text with one is refused.
+     */
+    static object SetChromium(Node n, string text, bool sink)
+    {
+        if (text.IndexOf('\n') >= 0 || text.IndexOf('\r') >= 0) throw new Exception(LineBreak);
+        if (focusing != null && focusing.IsAlive) return new Dictionary<string, object> { { "ok", false }, { "why", "the last field is still being clicked into: look again first" }, { "posted", false } };
+        Thread clicks;
+        string focused;
+        Flash.Begin(); // the clicks bring the window forward for a moment (see Flash)
+        try
+        {
+            focused = Within(delegate
+            {
+                if (!ClickOn(n, 1)) return "no rect";
+                Thread.Sleep(80);
+                if (!FocusedIn(n))
+                {
+                    Thread.Sleep(500);
+                    ClickOn(n, 1);
+                    Thread.Sleep(80);
+                }
+                object had;
+                string held = n.element.TryGetCurrentPattern(ValuePattern.Pattern, out had) ? ((ValuePattern)had).Current.Value : null;
+                if (!string.IsNullOrWhiteSpace(held)) { Thread.Sleep(500); ClickOn(n, 3); Thread.Sleep(60); }
+                return "ok";
+            }, ActTimeoutMs, out clicks);
+        }
+        finally { Flash.End(n.root, sink); }
+        if (focused == null)
+        {
+            focusing = clicks;
+            return new Dictionary<string, object> { { "ok", false }, { "why", "the field did not answer the click in time" }, { "posted", false } };
+        }
+        if (focused != "ok") return new Dictionary<string, object> { { "ok", false }, { "why", focused }, { "posted", false } };
+        Input.Chars(n.root, text, false);
+        return new Dictionary<string, object> { { "ok", true }, { "why", "ok" }, { "posted", true } }; // posted: as keystrokes, which the tree shows a beat later
     }
 
     public static object Value(int id)
@@ -1013,38 +1442,83 @@ static class Uia
         return items;
     }
 
-    /** A menu command by its path off the menu bar. Opening a menu shows it on screen: on Windows an item is pressed only where it is open. */
+    /** The window's own menu bar: not the title bar's System menu, which UIA lists first and which holds only Restore, Move and Close. */
+    static AutomationElement MenuBarOf(AutomationElement window)
+    {
+        foreach (AutomationElement bar in window.FindAll(TreeScope.Descendants, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuBar)))
+        {
+            string id = "";
+            try { id = bar.Current.AutomationId; } catch (Exception) { }
+            string name = Name(bar);
+            if (id == "SystemMenuBar" || name == "System Menu Bar" || name == "System") continue;
+            return bar;
+        }
+        return null;
+    }
+
+    /**
+     * A menu command by its path off the menu bar. Opening a menu shows it on screen: on Windows an item is pressed only
+     * where it is open. Each press gets the pattern calls' time, since an item that opens a modal dialog does not return
+     * until the dialog closes; and whatever this opened that is still open at the end (a path that lists a menu, one that
+     * went wrong) is closed again, deepest first, since an open menu holds the app's keyboard.
+     */
     public static object Menu(IntPtr hwnd, object[] path)
     {
         AutomationElement window = AutomationElement.FromHandle(hwnd);
-        AutomationElement bar = window.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuBar));
-        if (bar == null) throw new Exception("this app has no menu bar to press");
+        AutomationElement bar = MenuBarOf(window);
+        if (bar == null) throw new Exception("this app has no menu bar: its commands are the buttons in its window (a ribbon, a toolbar), pressed by their index in `screen`");
         List<AutomationElement> items = MenuItems(bar);
+        List<AutomationElement> expanded = new List<AutomationElement>();
         AutomationElement at = null;
-        for (int depth = 0; depth < path.Length; depth++)
+        try
         {
-            string name = Convert.ToString(path[depth]);
-            AutomationElement found = null;
-            foreach (AutomationElement item in items) if (Plain(Name(item)) == Plain(name)) { found = item; break; }
-            if (found == null) throw new Exception("no " + json.Serialize(name) + " in " + (depth == 0 ? "the menu bar" : JoinPath(path, depth)) + "; it has: " + string.Join(", ", Names(items).ToArray()));
-            if (!found.Current.IsEnabled) throw new Exception(JoinPath(path, depth + 1) + " is unavailable right now. An app dims commands that have nothing to act on: put its cursor or selection where the command applies first.");
-            HashSet<long> before = TopWindows();
-            Press(found);
-            at = found;
-            Thread.Sleep(400);
-            items = OpenedItems(found, before);
-            if (items.Count == 0 && depth < path.Length - 1) throw new Exception(JoinPath(path, depth + 1) + " opened no menu");
+            for (int depth = 0; depth < path.Length; depth++)
+            {
+                string name = Convert.ToString(path[depth]);
+                AutomationElement found = null;
+                foreach (AutomationElement item in items) if (Plain(Name(item)) == Plain(name)) { found = item; break; }
+                if (found == null) throw new Exception("no " + json.Serialize(name) + " in " + (depth == 0 ? "the menu bar" : JoinPath(path, depth)) + "; it has: " + string.Join(", ", Names(items).ToArray()));
+                if (!found.Current.IsEnabled) throw new Exception(JoinPath(path, depth + 1) + " is unavailable right now. An app dims commands that have nothing to act on: put its cursor or selection where the command applies first.");
+                HashSet<long> before = TopWindows();
+                AutomationElement pressing = found;
+                Thread thread;
+                string how = Within(delegate { return Press(pressing); }, ActTimeoutMs, out thread);
+                if (how == null) return new Dictionary<string, object> { { "pressed", JoinPath(path, depth + 1) + " (it opened a window that is waiting for an answer)" } };
+                if (how == "expanded") expanded.Add(found);
+                at = found;
+                Thread.Sleep(400);
+                items = OpenedItems(found, before);
+                if (items.Count == 0 && depth < path.Length - 1) throw new Exception(JoinPath(path, depth + 1) + " opened no menu");
+            }
+            if (at == null || items.Count > 0) return new Dictionary<string, object> { { "items", Names(items) } };
+            return new Dictionary<string, object> { { "pressed", JoinPath(path, path.Length) } };
         }
-        if (at == null || items.Count > 0) return new Dictionary<string, object> { { "items", Names(items) } };
-        return new Dictionary<string, object> { { "pressed", JoinPath(path, path.Length) } };
+        finally
+        {
+            for (int i = expanded.Count - 1; i >= 0; i--)
+            {
+                AutomationElement item = expanded[i];
+                Thread thread;
+                try
+                {
+                    Within(delegate
+                    {
+                        object p;
+                        if (item.TryGetCurrentPattern(ExpandCollapsePattern.Pattern, out p) && ((ExpandCollapsePattern)p).Current.ExpandCollapseState != ExpandCollapseState.Collapsed) ((ExpandCollapsePattern)p).Collapse();
+                        return "ok";
+                    }, 500, out thread);
+                }
+                catch (Exception) { }
+            }
+        }
     }
     static readonly JavaScriptSerializer json = new JavaScriptSerializer();
     static string JoinPath(object[] path, int count) { List<string> parts = new List<string>(); for (int i = 0; i < count; i++) parts.Add(Convert.ToString(path[i])); return string.Join(" > ", parts.ToArray()); }
-    static void Press(AutomationElement item)
+    static string Press(AutomationElement item)
     {
         object p;
-        if (item.TryGetCurrentPattern(ExpandCollapsePattern.Pattern, out p)) { ((ExpandCollapsePattern)p).Expand(); return; }
-        if (item.TryGetCurrentPattern(InvokePattern.Pattern, out p)) { ((InvokePattern)p).Invoke(); return; }
+        if (item.TryGetCurrentPattern(ExpandCollapsePattern.Pattern, out p)) { ((ExpandCollapsePattern)p).Expand(); return "expanded"; }
+        if (item.TryGetCurrentPattern(InvokePattern.Pattern, out p)) { ((InvokePattern)p).Invoke(); return "invoked"; }
         throw new Exception(Name(item) + " did not accept the press");
     }
 
@@ -1109,15 +1583,57 @@ static class Input
         return cur;
     }
 
-    /** Where keys go: the window the app's own thread says has the focus, a UWP app's CoreWindow, or the window itself. */
+    /**
+     * Where keys go: the window the app's own thread says has the focus, when that is inside this window. A thread that
+     * is not in front has no focus to say (measured), and the window itself drops keys, so then the deepest visible text
+     * control in it: Notepad's editor (each tab has its own, and only the tab showing is visible), a dialog's first Edit,
+     * Excel's grid (all measured to take posted keys). Else a UWP app's CoreWindow, or the window itself: Chrome takes
+     * keys at its top-level window.
+     */
     static IntPtr KeyTarget(IntPtr top)
     {
         Win.GUITHREADINFO info = new Win.GUITHREADINFO();
         info.cbSize = Marshal.SizeOf(typeof(Win.GUITHREADINFO));
         uint pid; uint thread = Win.GetWindowThreadProcessId(top, out pid);
         if (Win.GetGUIThreadInfo(thread, ref info) && info.hwndFocus != IntPtr.Zero && (info.hwndFocus == top || Win.IsChild(top, info.hwndFocus))) return info.hwndFocus;
+        IntPtr text = IntPtr.Zero;
+        int deepest = -1;
+        Win.EnumChildWindows(top, delegate (IntPtr c, IntPtr l)
+        {
+            if (!Win.IsWindowVisible(c) || !Editable(Desk.ClassOf(c))) return true;
+            int depth = 0;
+            for (IntPtr p = Win.GetParent(c); p != IntPtr.Zero && p != top && depth < 32; p = Win.GetParent(p)) depth++;
+            if (depth > deepest) { deepest = depth; text = c; }
+            return true;
+        }, IntPtr.Zero);
+        if (text != IntPtr.Zero) return text;
         IntPtr core = Desk.CoreOf(top);
         return core != IntPtr.Zero ? core : top;
+    }
+
+    static bool Editable(string cls)
+    {
+        return cls == "Edit" || cls == "EXCEL7" || cls.StartsWith("RichEdit", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /**
+     * A Chromium window drops posted keys while it is not active, and takes them once told it is, with a posted
+     * WM_ACTIVATE: nothing moves and the window stays where it is (measured: characters into inputs and editable text,
+     * Enter, Escape, arrows, Tab). Nothing for any other window.
+     */
+    static void Awaken(IntPtr top)
+    {
+        if (Uia.IsChromium(top)) { Win.PostMessage(top, 0x0006, new IntPtr(1), IntPtr.Zero); Thread.Sleep(30); } // WM_ACTIVATE, WA_ACTIVE
+    }
+
+    /** Input the system counts as input, and which moves nothing: the cursor sent to where it is. What lets the helper bring a window forward after a long idle. */
+    public static void Nudge()
+    {
+        Win.POINT p;
+        Win.GetCursorPos(out p);
+        List<INPUT> inputs = new List<INPUT>();
+        inputs.Add(MoveTo(p.x, p.y));
+        SendAll(inputs);
     }
 
     static IntPtr Packed(int x, int y) { return new IntPtr((y << 16) | (x & 0xFFFF)); }
@@ -1141,10 +1657,29 @@ static class Input
         return new Dictionary<string, object> { { "ok", ok }, { "target", target.ToInt64() } };
     }
 
-    /** Text as WM_CHAR, one message a character: a key down as well would type twice in Chrome. Newlines and tabs go as keys. */
-    public static object Chars(IntPtr top, string text)
+    /**
+     * Text as WM_CHAR, one message a character: a key down as well would type twice in Chrome. A tab goes as the key.
+     * `direct` posts to the window itself rather than to its thread's focus (Chrome's omnibox, after a click on it).
+     * A line break is where typing from behind goes wrong, since Enter sends the message in a chat app's box: a Chromium
+     * window refuses one; a classic or rich edit control takes the whole text at its caret as a replacement of its
+     * selection, the break as text, which presses nothing; anything else gets Enter for it.
+     */
+    public static object Chars(IntPtr top, string text, bool direct)
     {
-        IntPtr target = KeyTarget(top);
+        IntPtr target = direct ? top : KeyTarget(top);
+        if (text.IndexOf('\n') >= 0)
+        {
+            string cls = Desk.ClassOf(target);
+            if (Uia.IsChromium(top) || cls.StartsWith("Chrome_", StringComparison.Ordinal)) throw new Exception(Uia.LineBreak);
+            if (cls == "Edit" || cls.StartsWith("RichEdit", StringComparison.OrdinalIgnoreCase))
+            {
+                IntPtr done;
+                if (Win.SendMessageTimeoutText(target, 0x00C2, new IntPtr(1), text.Replace("\r\n", "\n").Replace("\n", "\r\n"), 0x0002, 3000, out done) == IntPtr.Zero) // EM_REPLACESEL, SMTO_ABORTIFHUNG
+                    throw new Exception("the text field did not answer");
+                return new Dictionary<string, object> { { "ok", true }, { "target", target.ToInt64() } };
+            }
+        }
+        Awaken(top);
         foreach (char c in text)
         {
             if (c == '\n') Key(target, 0x0D);
@@ -1155,16 +1690,19 @@ static class Input
         return new Dictionary<string, object> { { "ok", true }, { "target", target.ToInt64() } };
     }
 
+    /** A key down and up, posted, with its scan code and, for an arrow or the like, the extended-key bit, which Excel's grid needs (measured). */
     static void Key(IntPtr target, int vk)
     {
         uint scan = Win.MapVirtualKey((uint)vk, 0);
-        Win.PostMessage(target, 0x0100, new IntPtr(vk), new IntPtr((long)(1 | (scan << 16))));
-        Win.PostMessage(target, 0x0101, new IntPtr(vk), new IntPtr((long)(1 | (scan << 16) | (0xC0u << 24))));
+        uint extended = Extended((ushort)vk) << 24;
+        Win.PostMessage(target, 0x0100, new IntPtr(vk), new IntPtr((long)(1 | (scan << 16) | extended)));
+        Win.PostMessage(target, 0x0101, new IntPtr(vk), new IntPtr((long)(1 | (scan << 16) | extended | (0xC0u << 24))));
     }
 
-    public static object VKey(IntPtr top, int vk)
+    public static object VKey(IntPtr top, int vk, bool direct)
     {
-        IntPtr target = KeyTarget(top);
+        IntPtr target = direct ? top : KeyTarget(top);
+        Awaken(top);
         Key(target, vk);
         return new Dictionary<string, object> { { "ok", true }, { "target", target.ToInt64() } };
     }
@@ -1188,7 +1726,17 @@ static class Input
     {
         if (inputs.Count == 0) return;
         uint sent = SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(INPUT)));
+        Seat.Injected();
         if (sent != inputs.Count) throw new Exception("SendInput sent " + sent + " of " + inputs.Count + " (error " + Marshal.GetLastWin32Error() + ")");
+    }
+
+    /** Let go of the mouse buttons this helper's input holds down (a drag cut short), whatever the user is doing. */
+    public static void LetGo()
+    {
+        List<INPUT> ups = new List<INPUT>();
+        foreach (int button in Seat.Pressed()) ups.Add(Mouse(button == 0x02 ? 0x0010u : 0x0004u, 0, 0, 0));
+        Seat.Released();
+        SendAll(ups);
     }
     static INPUT Mouse(uint flags, int dx, int dy, uint data)
     {
@@ -1206,23 +1754,38 @@ static class Input
         return Mouse(0x0001 | 0x8000 | 0x4000, nx, ny, 0); // MOVE | ABSOLUTE | VIRTUALDESK
     }
 
+    /**
+     * Input for the seat, through SendInput. Never while the user holds a modifier or a mouse button (a key-up sent then
+     * would let go of theirs, and a click would become a ctrl+click), and, with `since` (the tick a borrow began at),
+     * never once the user has touched the mouse or keyboard since: {ok: false, taken: why} instead, with any button this
+     * input held let go. "letgo" lets go of those buttons only.
+     */
     public static object Send()
     {
         string kind = Program.Str("kind");
+        if (kind == "letgo") { LetGo(); return new Dictionary<string, object> { { "ok", true } }; }
+        string taken = Seat.Interrupted((uint)Program.Long("since"));
+        if (taken != null)
+        {
+            LetGo();
+            return new Dictionary<string, object> { { "ok", false }, { "taken", taken } };
+        }
         List<INPUT> inputs = new List<INPUT>();
         bool right = Program.Str("button") == "right";
         uint down = right ? 0x0008u : 0x0002u, up = right ? 0x0010u : 0x0004u;
         switch (kind)
         {
-            case "move": inputs.Add(MoveTo(Program.Int("x"), Program.Int("y"))); break;
-            case "down": inputs.Add(Mouse(down, 0, 0, 0)); break;
-            case "up": inputs.Add(Mouse(up, 0, 0, 0)); break;
+            case "move": inputs.Add(MoveTo(Program.Int("x"), Program.Int("y"))); Seat.Cursor(Program.Int("x"), Program.Int("y")); break;
+            case "down": inputs.Add(Mouse(down, 0, 0, 0)); Seat.Press(right ? 0x02 : 0x01); break;
+            case "up": inputs.Add(Mouse(up, 0, 0, 0)); Seat.Release(right ? 0x02 : 0x01); break;
             case "click":
                 inputs.Add(MoveTo(Program.Int("x"), Program.Int("y")));
+                Seat.Cursor(Program.Int("x"), Program.Int("y"));
                 for (int i = 0; i < Math.Max(1, Program.Int("count")); i++) { inputs.Add(Mouse(down, 0, 0, 0)); inputs.Add(Mouse(up, 0, 0, 0)); }
                 break;
             case "wheel":
                 inputs.Add(MoveTo(Program.Int("x"), Program.Int("y")));
+                Seat.Cursor(Program.Int("x"), Program.Int("y"));
                 if (Program.Int("delta") != 0) inputs.Add(Mouse(0x0800, 0, 0, (uint)Program.Int("delta")));
                 if (Program.Int("horizontal") != 0) inputs.Add(Mouse(0x1000, 0, 0, (uint)Program.Int("horizontal")));
                 break;
@@ -1258,8 +1821,157 @@ static class Input
         SendAll(inputs);
         return new Dictionary<string, object> { { "ok", true } };
     }
-    static uint Extended(ushort vk) { return (vk >= 0x21 && vk <= 0x2E) || vk == 0xA3 || vk == 0xA5 || vk == 0x5B || vk == 0x5C ? 0x0001u : 0u; } // arrows, home/end, insert/delete, right ctrl/alt, win
+    static uint Extended(ushort vk) { return (vk >= 0x21 && vk <= 0x2E) || vk == 0xA3 || vk == 0xA5 || vk == 0x5B || vk == 0x5C || vk == 0x5D || vk == 0x6F ? 0x0001u : 0u; } // arrows, home/end, insert/delete, right ctrl/alt, win, apps, numpad divide
 
+}
+
+// ------------------------------------------------------------ a click into a Chromium window, from behind
+
+/**
+ * A posted click into a Chromium window makes Chrome bring that window forward: in front within 25 ms of the press,
+ * every time, whatever the window's styles or the messages sent first (measured). Left so, it would sit over the
+ * user's windows with their typing going into it. So such a click is guarded: the window the user has in front is
+ * remembered as it begins, and for a moment after the click, whenever the Chromium window has the foreground or lies
+ * above that one, the foreground goes back and the window behind again, at once. The flash lasts 30 to 60 ms. Bun
+ * takes the seat's lock and waits for the user to pause before a guarded click (src/windows.ts), so that the flash
+ * cannot catch their typing.
+ */
+static class Flash
+{
+    const int SettleMs = 30; // after the release, before the first handback: Chrome finishes taking the foreground
+    const int WatchMs = 600; // and a while more, for a second take (a bubble, a focus change)
+
+    static IntPtr front = IntPtr.Zero;
+
+    public static void Begin() { front = Win.GetForegroundWindow(); }
+
+    /** The window a window belongs to at the top: itself, or what owns it. */
+    static IntPtr Root(IntPtr h) { IntPtr r = Win.GetAncestor(h, 3); return r == IntPtr.Zero ? h : r; } // GA_ROOTOWNER
+
+    /** Whether `h` lies above `other` among the top-level windows. */
+    static bool Above(IntPtr h, IntPtr other)
+    {
+        for (IntPtr at = Win.GetWindow(h, 2); at != IntPtr.Zero; at = Win.GetWindow(at, 2)) if (at == other) return true; // GW_HWNDNEXT
+        return false;
+    }
+
+    /**
+     * Watch the moment after a guarded click in `root`, and give back what it takes: {taken, back}. The window goes
+     * behind the user's again when `sink` (it is the hand's own); a window of the user's is only handed back.
+     */
+    public static object End(IntPtr root, bool sink)
+    {
+        Stopwatch clock = Stopwatch.StartNew();
+        bool taken = false, back = true;
+        while (clock.ElapsedMilliseconds < SettleMs + WatchMs)
+        {
+            IntPtr fg = Win.GetForegroundWindow();
+            bool took = fg != IntPtr.Zero && fg != front && Root(fg) == root;
+            bool over = sink && front != IntPtr.Zero && Win.IsWindow(front) && Above(root, front);
+            if ((took || over) && clock.ElapsedMilliseconds >= SettleMs)
+            {
+                taken |= took;
+                if (took && front != IntPtr.Zero && Win.IsWindow(front)) back = Program.Activate(front);
+                if (sink) Win.SetWindowPos(root, new IntPtr(1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // HWND_BOTTOM, no activation
+            }
+            Thread.Sleep(5);
+        }
+        front = IntPtr.Zero;
+        return new Dictionary<string, object> { { "taken", taken }, { "back", back } };
+    }
+}
+
+// ------------------------------------------------------------ the seat, as a hand borrows it
+
+/**
+ * What a borrow of the seat needs to know (src/windows-seat.ts): how long the user has left the mouse and keyboard
+ * alone, what they are holding, and whether they have touched anything since a borrow began. GetLastInputInfo counts
+ * the helper's own SendInput too, so the tick after each is kept, and input that soon after it is taken for the helper's.
+ */
+static class Seat
+{
+    const uint Slack = 50; // ms after the helper's own input within which the last input is taken for it: three of the clock's 15.6 ms ticks
+    const int Wander = 4; // px the cursor may be from where the helper's input left it before the user is taken to have moved it
+
+    static uint injectedAt; // the tick after the helper's last SendInput, 0 before any
+    static uint userAt; // the tick of the latest input known to be the user's
+    static uint borrowSince; // the borrow `cursor` belongs to
+    static int[] cursor; // where the helper's pointer input left the cursor during that borrow, while it is known
+    static readonly List<int> pressed = new List<int>(); // mouse buttons (VK_LBUTTON, VK_RBUTTON) the helper's input holds down
+
+    static readonly int[] HeldKeys = { 0x10, 0x11, 0x12, 0x5B, 0x5C, 0x01, 0x02, 0x04, 0x05, 0x06 };
+    static readonly string[] HeldNames = { "shift", "ctrl", "alt", "win", "win", "the left mouse button", "the right mouse button", "the middle mouse button", "a mouse button", "a mouse button" };
+
+    static bool After(uint a, uint b) { return (int)(a - b) > 0; }
+
+    static uint LastInput()
+    {
+        Win.LASTINPUTINFO info = new Win.LASTINPUTINFO();
+        info.cbSize = (uint)Marshal.SizeOf(typeof(Win.LASTINPUTINFO));
+        return Win.GetLastInputInfo(ref info) ? info.dwTime : Win.GetTickCount();
+    }
+
+    /** The modifiers and mouse buttons the user is holding down: not a button the helper's own input is holding. */
+    static List<object> Held()
+    {
+        List<object> held = new List<object>();
+        for (int i = 0; i < HeldKeys.Length; i++)
+        {
+            if ((Win.GetAsyncKeyState(HeldKeys[i]) & 0x8000) == 0 || pressed.Contains(HeldKeys[i])) continue;
+            if (!held.Contains(HeldNames[i])) held.Add(HeldNames[i]);
+        }
+        return held;
+    }
+
+    /**
+     * {idleMs, held, quiet, state, tick}: how long since the user last touched the mouse or keyboard, what they hold, and
+     * whether the shell says they are not to be disturbed (SHQueryUserNotificationState: away or locked, a full-screen
+     * app, a D3D game, a presentation), with the tick it was asked at.
+     */
+    public static object Idle()
+    {
+        uint now = Win.GetTickCount();
+        uint last = LastInput();
+        if (userAt == 0 || injectedAt == 0 || After(last, injectedAt + Slack)) userAt = last;
+        int state = 0;
+        try { Win.SHQueryUserNotificationState(out state); } catch (Exception) { }
+        bool quiet = state != 1 && state != 2 && state != 3 && state != 4;
+        return new Dictionary<string, object> { { "idleMs", (long)(uint)(now - userAt) }, { "held", Held() }, { "quiet", quiet }, { "state", state }, { "tick", (long)now } };
+    }
+
+    /** Why the helper must not inject now, or null: the user holds something, or, since `since` (0: no borrow), touched anything. */
+    public static string Interrupted(uint since)
+    {
+        List<object> held = Held();
+        if (held.Count > 0) return "the user is holding " + held[0];
+        if (since == 0) return null;
+        if (since != borrowSince) { borrowSince = since; cursor = null; }
+        uint last = LastInput();
+        if (After(last, since) && (injectedAt == 0 || After(last, injectedAt + Slack))) return "the user moved the mouse or typed";
+        if (cursor != null)
+        {
+            Win.POINT p;
+            Win.GetCursorPos(out p);
+            if (Math.Abs(p.x - cursor[0]) > Wander || Math.Abs(p.y - cursor[1]) > Wander) return "the user moved the mouse";
+        }
+        return null;
+    }
+
+    public static void Injected() { injectedAt = Win.GetTickCount(); if (injectedAt == 0) injectedAt = 1; }
+    public static void Cursor(int x, int y) { cursor = new int[] { x, y }; }
+    public static void Press(int button) { if (!pressed.Contains(button)) pressed.Add(button); }
+    public static void Release(int button) { pressed.Remove(button); }
+    public static int[] Pressed() { return pressed.ToArray(); }
+    public static void Released() { pressed.Clear(); }
+
+    /** The cursor put back where the user left it; counted as the helper's own input, in case the system counts it at all. */
+    public static object SetCursor(int x, int y)
+    {
+        bool ok = Win.SetCursorPos(x, y);
+        Injected();
+        cursor = null;
+        return new Dictionary<string, object> { { "ok", ok } };
+    }
 }
 
 // ------------------------------------------------------------ Win32
@@ -1278,6 +1990,15 @@ static class Win
         public int cbSize; public uint fMask; public IntPtr hwnd; public string lpVerb, lpFile, lpParameters, lpDirectory;
         public int nShow; public IntPtr hInstApp, lpIDList; public string lpClass; public IntPtr hkeyClass; public uint dwHotKey; public IntPtr hIcon; public IntPtr hProcess;
     }
+    [StructLayout(LayoutKind.Sequential)] public struct LASTINPUTINFO { public uint cbSize, dwTime; }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct WINDOWPLACEMENT { public int length, flags, showCmd; public POINT ptMinPosition, ptMaxPosition; public RECT rcNormalPosition; }
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct PROCESSENTRY32
+    {
+        public uint dwSize, cntUsage, th32ProcessID; public IntPtr th32DefaultHeapID; public uint th32ModuleID, cntThreads, th32ParentProcessID;
+        public int pcPriClassBase; public uint dwFlags; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string szExeFile;
+    }
     public delegate bool EnumProc(IntPtr hwnd, IntPtr l);
 
     [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr ctx);
@@ -1289,9 +2010,25 @@ static class Win
     [DllImport("user32.dll")] public static extern IntPtr GetTopWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr hwnd, uint cmd);
     [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
+    [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsChild(IntPtr parent, IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern bool GetWindowPlacement(IntPtr hwnd, ref WINDOWPLACEMENT p);
+    [DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref LASTINPUTINFO info);
+    [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vk);
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
+    [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessageTimeoutText(IntPtr hwnd, uint msg, IntPtr w, string l, uint flags, uint ms, out IntPtr result);
+    [DllImport("shell32.dll")] public static extern int SHQueryUserNotificationState(out int state);
+    [DllImport("shlwapi.dll", CharSet = CharSet.Unicode)] public static extern uint AssocQueryString(uint flags, uint str, string assoc, string extra, StringBuilder outp, ref uint size);
+    [DllImport("kernel32.dll")] public static extern uint GetTickCount();
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern int GetPackageFamilyName(IntPtr process, ref uint length, StringBuilder name);
+    [DllImport("kernel32.dll")] public static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint pid);
+    [DllImport("kernel32.dll", EntryPoint = "Process32FirstW", CharSet = CharSet.Unicode)] public static extern bool Process32First(IntPtr snap, ref PROCESSENTRY32 e);
+    [DllImport("kernel32.dll", EntryPoint = "Process32NextW", CharSet = CharSet.Unicode)] public static extern bool Process32Next(IntPtr snap, ref PROCESSENTRY32 e);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] public static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int i);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr hwnd, StringBuilder s, int n);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr hwnd, StringBuilder s, int n);
