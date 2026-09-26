@@ -196,6 +196,28 @@ test("a steer is delivered, not done; to a hand at work it is the latest word on
   expect(known()[0]!.answer).toBeUndefined();
 });
 
+test("a spare process, already loaded, becomes the next hand: told who it is, then its task, and another spare follows", async () => {
+  try {
+    live.keepSpare(true, 10);
+    expect(commands.length).toBe(1);
+    expect(commands[0]!.slice(-2)).toEqual(["--json", "--spare"]);
+    live.dispatch("start_hands", { tasks: ["Open the calculator"] }, runs);
+    expect(commands.length).toBe(1); // no process of its own: it took the spare
+    const [become, prompt] = hands[0]!.told;
+    expect(become).toEqual({ type: "become", args: ["--json", "--name", "Lefty", "--color", "4f8cff", "--cwd", process.env.HANDS_WORK!, "--out", join(runs, "lefty")], env: { HANDS_SLOT: "0" } });
+    expect(prompt).toEqual({ type: "prompt", text: "Open the calculator" });
+    await Bun.sleep(40);
+    expect(commands.length).toBe(2); // the next spare
+    expect(commands[1]!.at(-1)).toBe("--spare");
+    hands[1]!.finish(1); // a spare that goes before it is needed
+    await Bun.sleep(10);
+    live.dispatch("start_hands", { tasks: ["Open Notepad"] }, runs);
+    expect(commands.at(-1)!.slice(-2)).toEqual(["--out", join(runs, "righty")]); // a process of its own, as before
+  } finally {
+    live.keepSpare(false);
+  }
+});
+
 test("a card says when its run stopped, so a card drawn later still says how long it took, and a resumed run clears it", async () => {
   live.dispatch("start_hands", { tasks: ["find flights to Tokyo"] }, runs);
   const card = () => live.cards().find((one) => one.id === "lefty")!;

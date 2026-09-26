@@ -466,7 +466,7 @@ async function manage(agent: Agent, record: (line: string) => void): Promise<voi
   process.on("unhandledRejection", fatal("unhandled rejection"));
 
   emit({ type: "ready" });
-  for await (const line of console) {
+  for await (const line of lines) {
     if (!line.trim()) continue;
     let command: Command;
     try {
@@ -506,6 +506,40 @@ export function letGo(keep: boolean, record: (line: string) => void, machine: Le
   }
 }
 
+/** What comes in on stdin, a line at a time, through one reader for the process's life: a spare reads its first line before it is a hand, and the rest are read as ever. */
+let input: AsyncIterator<string> | undefined;
+const lines: AsyncIterable<string> = { [Symbol.asyncIterator]: () => (input ??= console[Symbol.asyncIterator]()) };
+
+/**
+ * `--json --spare`: a hand's process started before there is a task for it (src/live.ts keeps one ready), since
+ * loading takes most of a second. Everything is loaded and, on Windows, the helper started; its first line says who it
+ * is, with the arguments and environment it would have been started with, and it goes on as that hand. Stdin ending
+ * first means it was never needed.
+ */
+async function spare(): Promise<void> {
+  if (onWindows()) {
+    try {
+      windows.native.call("foreground"); // the helper, started now, while nothing waits on it
+    } catch {
+      // the hand's first action starts it, and says why if it cannot
+    }
+  }
+  const reader = lines[Symbol.asyncIterator]();
+  for (;;) {
+    const next = await reader.next();
+    if (next.done) process.exit(0);
+    let become: { type?: unknown; args?: unknown; env?: unknown };
+    try {
+      become = JSON.parse(next.value);
+    } catch {
+      continue;
+    }
+    if (become.type !== "become" || !Array.isArray(become.args) || become.args.includes("--spare")) continue;
+    for (const [name, value] of Object.entries((become.env ?? {}) as Record<string, unknown>)) process.env[name] = String(value);
+    return main(become.args.map(String));
+  }
+}
+
 const USAGE = `usage: hands [prompt] [--name NAME] [--color HEX] [--no-hand] [--cwd DIR] [--out DIR] [--model provider/model] [--thinking LEVEL]
 
 An agent that works this ${MACHINE} for you while you keep using it: ${config.DEFAULT_MODEL} at ${config.DEFAULT_THINKING} effort, with read,
@@ -530,11 +564,13 @@ async function main(argv: string[]): Promise<void> {
       color: { type: "string", default: config.handColor() },
       "no-hand": { type: "boolean", default: false },
       json: { type: "boolean", default: false },
+      spare: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
   });
   if (values.help) return void console.log(USAGE);
   if (values.json) console.log = console.error; // stdout is the event stream: nothing else may write a line to it
+  if (values.spare) return spare();
   const tint = values.color === undefined ? undefined : tintOf(values.color);
   if (tint === null) {
     console.error(`--color wants a hex colour such as 4f8cff, not ${JSON.stringify(values.color)}`);
@@ -588,7 +624,7 @@ async function main(argv: string[]): Promise<void> {
     return letGo(true, record);
   }
   process.stdout.write("> ");
-  for await (const line of console) {
+  for await (const line of lines) {
     if (line.trim()) await run(line);
     process.stdout.write("> ");
   }

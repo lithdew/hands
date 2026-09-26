@@ -306,11 +306,9 @@ function spawnFor(hand: Hand, runs: string, task: string): void {
   const [runDir, cwd] = [runFolder(runs, hand.name), config.workFolder()];
   mkdirSync(runDir, { recursive: true });
   mkdirSync(cwd, { recursive: true });
-  const proc = outside.spawn(
-    [process.execPath, join(import.meta.dir, "agent.ts"), "--json", "--name", hand.name, "--color", hand.color, "--cwd", cwd, "--out", runDir],
-    resolve(import.meta.dir, ".."),
-    { ...process.env, HANDS_SLOT: String(CAST.findIndex(([one]) => one === hand.name)) }, // where on a HANDS_SCREEN stage its window goes
-  );
+  const args = ["--json", "--name", hand.name, "--color", hand.color, "--cwd", cwd, "--out", runDir];
+  const env = { HANDS_SLOT: String(CAST.findIndex(([one]) => one === hand.name)) }; // where on a HANDS_SCREEN stage its window goes
+  const proc = takeSpare(args, env) ?? outside.spawn([process.execPath, join(import.meta.dir, "agent.ts"), ...args], resolve(import.meta.dir, ".."), { ...process.env, ...env });
   Object.assign(hand, { proc, runDir, kind: "hand", status: "starting", action: "", glyph: POSES.wave[0], pose: "wave" });
   tell(hand, { type: "prompt", text: task }); // now, so that whatever it is told next comes after its task: `ready` is only a status
   for (const text of hand.added.splice(0)) tell(hand, { type: "steer", text });
@@ -326,6 +324,71 @@ function spawnFor(hand: Hand, runs: string, task: string): void {
     ended(hand, code);
   });
   changed();
+}
+
+// ------------------------------------------------------------------ the spare
+
+const SPARE_AFTER_MS = 1500; // a new spare starts this long after the last was taken, once the hand it became has started
+const SPARE_RETRY_MS = 30_000; // and this long after one went without being needed, or could not be started
+
+let spares = false; // `bun live` keeps a spare; tests do not, unless they ask
+let spareAfter = SPARE_AFTER_MS;
+let spare: { proc: HandProcess; alive: boolean } | null = null;
+let refill: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Keep one hand's process ready (agent.ts --spare): loaded, its helper started, waiting to be told who it is. A new
+ * hand takes it instead of starting a process of its own, which takes about 1.4 s before it can ask the model anything,
+ * most of it loading (measured). Off, the spare is ended.
+ */
+export function keepSpare(on: boolean, afterMs = SPARE_AFTER_MS): void {
+  [spares, spareAfter] = [on, afterMs];
+  clearTimeout(refill);
+  refill = undefined;
+  if (on) return startSpare();
+  const kept = spare;
+  spare = null;
+  if (kept?.alive) kept.proc.kill();
+}
+
+function startSpare(): void {
+  refill = undefined;
+  if (!spares || spare) return;
+  try {
+    const kept = { proc: outside.spawn([process.execPath, join(import.meta.dir, "agent.ts"), "--json", "--spare"], resolve(import.meta.dir, ".."), { ...process.env }), alive: true };
+    spare = kept;
+    void kept.proc.exited.then(() => {
+      kept.alive = false;
+      if (spare !== kept) return; // taken: its end is its hand's
+      spare = null;
+      spareLater(SPARE_RETRY_MS);
+    });
+  } catch (error) {
+    console.error(`[live] no spare hand: ${(error as Error).message}`);
+    spareLater(SPARE_RETRY_MS);
+  }
+}
+
+function spareLater(ms: number): void {
+  clearTimeout(refill);
+  refill = spares ? setTimeout(startSpare, ms) : undefined;
+}
+
+/** The spare, told who it is and so a hand now; null when none is ready. Another is started a little later. */
+function takeSpare(args: string[], env: Record<string, string>): HandProcess | null {
+  const kept = spare;
+  if (!kept?.alive) return null;
+  spare = null;
+  try {
+    kept.proc.stdin.write(`${JSON.stringify({ type: "become", args, env })}\n`);
+    kept.proc.stdin.flush();
+  } catch {
+    kept.proc.kill();
+    spareLater(SPARE_RETRY_MS);
+    return null;
+  }
+  spareLater(spareAfter);
+  return kept.proc;
 }
 
 /**
@@ -1539,6 +1602,7 @@ async function shutdown(code: number): Promise<void> {
  * that is ended leaves behind (its parked windows, a borrow of the mouse and keyboard) its helper puts back.
  */
 export function atExit(): void {
+  keepSpare(false);
   for (const one of hands.values()) if (!one.gone) end(one, true);
 }
 
@@ -1608,6 +1672,7 @@ async function main(argv: string[]): Promise<void> {
   // Ready before the first press: the session already started, the microphone already open and remembering, and Jev's connection open.
   void connect().catch(() => {});
   if (config.webMode() === "jev" && process.env.TYPESAFE_API_KEY) warmUp();
+  if (process.env.HANDS_SPARE !== "off") keepSpare(true); // the first hand's process, already loaded when it is asked for
   if (warm) {
     try {
       shell.mic.warm();
