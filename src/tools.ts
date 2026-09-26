@@ -27,6 +27,7 @@ import { hand, quote } from "./hand.ts";
 import { onWindows, platform as macos, seat } from "./platform.ts";
 import { Abort, center, type Field, type Item, type Point, repr, roleWord, type Screen, sizePt } from "./models.ts";
 import { bare, capture, glance, OcrCache, perceive, stillAs, type Thumb } from "./perception.ts";
+import { doneCheck, logTo, type PageLook, PageReflex, stillShows } from "./reflex.ts";
 import { leaning, runLine } from "./report.ts";
 import { type RunState, run } from "./runner.ts";
 import { type KeyTarget, SeatBusy, SeatTaken } from "./seat.ts";
@@ -127,12 +128,14 @@ export interface Finish {
   answer?: string;
   /** The hand left pages or files open for the user: its browser windows stay when it is dismissed (src/agent.ts). */
   keep_open?: boolean;
+  /** A done hand's last screen as Jev read it (src/reflex.ts): how likely it shows the answer is so, 0 to 1. Absent when nothing was checked. */
+  checked?: number;
 }
 
 /** What a read of the hand's browser window says: whether its page is loading, and, where one read gives them too (Windows), its URL and tabs. */
 type PageRead = { loading: boolean; url?: string | null; tabs?: macos.Tab[] };
 
-/** `listing` marks a result that describes the screen, which goes stale and is cut from the transcript like any other; `finish` carries the model's verdict. */
+/** `listing` marks a result that describes the screen, which goes stale and is cut from the transcript like any other; `finish` carries the model's verdict, with Jev's check of it. */
 export type Details = { listing?: true; finish?: Finish; moves?: number } | undefined; // moves: a clicker run's count of Jev's actions, for the card's ticks
 type Result = AgentToolResult<Details>;
 const say = (text: string): Result => ({ content: [{ type: "text", text }], details: undefined });
@@ -474,11 +477,43 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
     return seen;
   }
 
-  async function listing(screen: Screen, screenshot: boolean): Promise<[Result, Screen]> {
+  const reflexLog = logTo(runDir);
+  const pageReflex = new PageReflex({ log: reflexLog });
+  /** A web page in the hand's own browser window, and not a dialog over it: the only place the page reflex looks, and presses. */
+  const ownPage = (screen: Screen): boolean =>
+    target?.pinned !== undefined && screen.windowId === target.pinned.windowId && !screen.theirs && !screen.readOnly && !screen.dialog && /^https?:\/\//i.test(screen.url ?? "");
+
+  /**
+   * The window as the model reads it. A page of the hand's own is shown to Jev first when its words call for it
+   * (src/reflex.ts): a page that wants the user leads the listing with a line saying so, and a cookie banner is turned
+   * down from behind, as the clicker presses an item, and looked at again. `after` is that second look, which presses
+   * nothing: it says whether the banner went, and keeps the first look's line about the page when its own request failed.
+   */
+  async function listing(screen: Screen, screenshot: boolean, after?: { pressed: Item; first: PageLook }): Promise<[Result, Screen]> {
     const items = await perceive(screen, SCREEN_ITEMS, "", undefined, ocrCache);
     view = { screen, items };
     lastLook = performance.now();
-    const result: Result = { content: [{ type: "text", text: describe(screen, items) }], details: { listing: true } };
+    const seen = ownPage(screen) ? await pageReflex.look(screen, items, !after) : null;
+    const lead: string[] = [];
+    if (after) {
+      const what = repr(after.pressed.text);
+      const stays = stillShows(screen, items, after.pressed); // a press on a page can miss, and still say it was done
+      reflexLog({ reflex: "pressed", url: screen.url, item: after.pressed.text, banner: stays ? "still shows" : "gone" });
+      lead.push(stays ? `Jev pressed ${what} to turn down the cookie banner, but the banner still shows.` : `Jev turned down the cookie banner (pressed ${what}).`);
+    }
+    const note = seen?.note ?? (after && seen?.verdict.error ? after.first.note : null);
+    if (note) lead.push(note);
+    if (seen?.press) {
+      const what = repr(seen.press.text);
+      const pressed = await behind.click(seen.press, screen);
+      reflexLog({ reflex: "press", url: screen.url, item: seen.press.text, result: pressed });
+      if (/^(pressed|clicked) /.test(pressed)) {
+        view = null; // the page has changed under the listing just made
+        return listing(await grab(nextCapture()), screenshot, { pressed: seen.press, first: seen });
+      }
+      lead.push(`Jev picked ${what} to turn down the cookie banner, but ${pressed.replace(/^click .*? failed: /, "the press failed: ")}`);
+    }
+    const result: Result = { content: [{ type: "text", text: [...lead, describe(screen, items)].join("\n") }], details: { listing: true } };
     return [screenshot ? await withScreenshot(result, screen) : result, screen];
   }
   const nextCapture = () => join(runDir, `screen-${String(++captures).padStart(3, "0")}.png`);
@@ -1101,11 +1136,18 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
         answer: Type.String({ description: "Your short plain answer to the user, as you would say it: what you found or did (the numbers, names, dates), and where any file you made lives. One to three sentences, no markdown." }),
         keep_open: Type.Boolean({ description: "true when you left pages or files open for the user (results in tabs, a page to log in on); false when nothing you opened is for them." }),
       }),
-      execute: async (_id, params): Promise<Result> => {
+      execute: async (_id, params, signal): Promise<Result> => {
         const { outcome, summary, answer, keep_open } = params as Finish;
         const finish: Finish = { outcome, summary, keep_open: keep_open === true, ...(answer?.trim() ? { answer: answer.trim() } : {}) };
+        // Done, with a look at a window of the hand's own taken since its last action: Jev reads that screen for what the
+        // hand says (src/reflex.ts), in one request that gives up within REFLEX_MS. Anything else is not checked.
+        if (outcome === "done" && target && view && lastAction <= lastLook && !view.screen.readOnly && !view.screen.theirs) {
+          const checked = await doneCheck(view.screen, view.items, finish.answer ?? summary, { log: reflexLog, signal });
+          if (checked !== null) finish.checked = checked;
+        }
+        const check = finish.checked === undefined ? "" : ` Jev read the last screen as showing it at ${finish.checked.toFixed(2)}.`;
         // terminate: the run ends here, unless the user said something meanwhile, which pi still hands the model.
-        return { content: [{ type: "text", text: `recorded: ${outcome}.` }], details: { finish }, terminate: true };
+        return { content: [{ type: "text", text: `recorded: ${outcome}.${check}` }], details: { finish }, terminate: true };
       },
     },
   ];

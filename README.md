@@ -97,6 +97,7 @@ The language model goes through [pi-ai](https://github.com/earendil-works/pi/tre
 | `OPENAI_API_KEY` | required by `bun live` | the voice |
 | `HANDS_LIVE_MODEL`, `HANDS_LIVE_VOICE`, `HANDS_LIVE_BACKEND` | `gpt-live-1`, `marin`, `gpt-5.6-luna` | the voice, how it sounds, and the Responses model behind it that turns what was said into tool calls |
 | `HANDS_WEB` | `jev` | where a task the voice sends out goes (see [Lookups](#lookups)): `jev` lets Jev decide between a web lookup and a hand, `off` sends every task to a hand and gives hands no `web` tool, `always` looks every task up first |
+| `HANDS_REFLEXES` | on | `off` stops Jev's [reflexes](#reflexes): a page that needs you, a cookie banner turned down, a done answer checked against the last screen |
 | `HANDS_WEB_MODEL`, `HANDS_LOCATION` | `gpt-6-luna` (then `gpt-5.6-luna` if the account lacks it), none | the model that answers from a web search, and roughly where you are for one, as `Hong Kong` or `Hong Kong, HK` (the time zone always goes with it) |
 | `HANDS_WORK`, `HANDS_PROFILE` | `~/Documents/Hands`, `~/.hands/profile.md` | where `bun live`'s hands work, and what the voice knows of you (names as they are spelled), which it adds to |
 | `HANDS_KEY`, `HANDS_DESKTOP`, `HANDS_RECORDABLE` | `left-ctrl`, unset, unset | Windows only: the talk key, a virtual desktop per hand, and the hands and panel left in screen recordings |
@@ -236,6 +237,16 @@ The clipboard is yours, and hands leave it alone. A right click borrows the seat
 
 `click`, `type`, `key`, `scroll` and `drag` take `seat=true`, to do it with your own mouse and keyboard when from behind it had no effect. Coordinates are points of the latest capture, from its window's corner, so the model never sees a display origin or a Retina scale. Old `screen` results are cut from the transcript in batches, so a long task neither outgrows the context window nor re-uploads every screenshot each turn.
 
+### Reflexes
+
+A few things a hand learns from Jev without a turn of its model (`src/reflex.ts`), each one TypeSafe request of about a third of a second that gives up after 1.5 s and never fails the tool:
+
+- **A page that needs you.** A look at a page in the hand's own browser window whose words call for it (a password, a sentence about signing in that is not a link or a button, a CAPTCHA, a verification code, card details, a banner's button that declines) asks Jev whether it shows a cookie banner, a sign-in wall, a CAPTCHA, a code to enter or a payment form. It asks once per page, by its URL and the items those words are in, so an advert or a carousel that changes asks nothing more. A page whose words match without a wall pays that one request, about a third of a second, the first time; on Wikipedia, BBC News, the Guardian, Amazon, YouTube and eBay, looked at signed out, nothing matched. A wall at 0.8 or more leads the listing with one line, such as `Jev: this page wants a sign-in (0.93). If the task did not give you the credentials, finish with needs_you and say what the user must do.`
+- **A cookie banner turned down.** The only candidates are buttons and links whose whole label declines (Reject all, Decline, Deny, Do not consent, Necessary cookies only, Continue without accepting; a Close, Dismiss or × only as a button) and never accepts, and that sit near the banner's own cookie words, within a quarter of the capture's height. An invitation's Decline elsewhere on the page, a headline that says "reject" and a footer's X link are never offered. With the banner at 0.8 and Jev's pick among them at 0.7, it is pressed from behind as `click` presses an item, at most once per URL and never in a window of yours, and the new listing starts with `Jev turned down the cookie banner (pressed 'Reject all').`, or with `Jev pressed 'Reject all' to turn down the cookie banner, but the banner still shows.` when the button is still there beside those words.
+- **A done answer checked.** A hand that finishes as done, with a look at a window of its own taken after its last action, has that screen read for its answer. The reading, 0 to 1, rides in its status as `checked` and on its card, and at 0.8 or more the voice is told Jev saw it on the hand's screen.
+
+Nothing is asked without `TYPESAFE_API_KEY` or with `HANDS_REFLEXES=off`, and each request is logged with its milliseconds to `reflex.log` in the run folder.
+
 ## How a clicker step works
 
 ```
@@ -299,6 +310,7 @@ src/
   dates.ts        date parsing and "in N days" hints
   decide.ts       what Jev is told and asked, its answers read back and checked, the shared client
   gate.ts         Jev's look at a committing click's consequences
+  reflex.ts       Jev's reflexes: a page that needs the user, a cookie banner turned down, a done answer checked
   writer.ts       the writer model, structured replies, URL validation, the final answer
   actions.ts      one handler per action, each returning a history line
   runner.ts       the step loop, run folder, blank pages, stop rules, the hand-off for the answer

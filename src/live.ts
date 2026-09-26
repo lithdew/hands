@@ -123,8 +123,9 @@ const ordered = <T extends Pick<HandView, "status">>(all: Iterable<T>): T[] => {
 };
 
 const view = (hand: Hand): HandView => {
-  const { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since, until, window, kind, sources, pose, taps, glide } = hand;
-  return { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since, until, window, kind, sources, pose, taps, glide };
+  const { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since, until, window, kind, sources, pose, taps, glide, checked } = hand;
+  // Jev's check belongs to a done run alone: a card that has moved on since shows none.
+  return { id, name, color, task, status, action, glyph, at, size, viewing, answer, reason, seat, seatWhy, picture, since, until, window, kind, sources, pose, taps, glide, ...(status === "done" && checked !== undefined ? { checked } : {}) };
 };
 
 /** What the panel is shown of every card, now. */
@@ -612,7 +613,7 @@ async function drain(hand: Hand): Promise<void> {
 
 type HandEvent =
   | { type: "ready" | "clicked" }
-  | { type: "status"; status: Status; answer?: string; reason?: string }
+  | { type: "status"; status: Status; answer?: string; reason?: string; checked?: number } // checked: a done run's last screen as Jev read it (src/reflex.ts)
   | { type: "tool"; id?: string; name: string; args: string }
   | { type: "result"; id?: string; error: boolean; text: string; moves?: number }
   | { type: "say"; text: string }
@@ -632,10 +633,15 @@ function heard(hand: Hand, event: HandEvent): void {
   else if (event.type === "status") {
     clearTimeout(hand.starting);
     if (event.status === "working") {
-      [hand.status, hand.answer, hand.reason, hand.reported, hand.last, hand.until] = ["working", "", "", false, false, undefined]; // what it said when it was paused is not a result: a resumed run has none yet
+      [hand.status, hand.answer, hand.reason, hand.reported, hand.last, hand.until, hand.checked] = ["working", "", "", false, false, undefined, undefined]; // what it said when it was paused is not a result: a resumed run has none yet
       if (hand.held) tell(hand, { type: "steer", text: hand.held }); // the facts looked up alongside, come while it was paused or waited on the user
       hand.held = "";
-    } else settle(hand, event.status, event.answer ?? "", event.reason ?? "");
+    } else {
+      // Jev's reading of a done run's last screen, 0 to 1, for the card and the voice's note: nothing for any other ending.
+      const checked = event.checked;
+      hand.checked = event.status === "done" && typeof checked === "number" && Number.isFinite(checked) ? Math.min(1, Math.max(0, checked)) : undefined;
+      settle(hand, event.status, event.answer ?? "", event.reason ?? "");
+    }
   } else if (event.type === "cue") {
     if (event.subject) {
       const window = event.subject.window ?? null;
@@ -672,11 +678,14 @@ function settle(hand: Hand, status: Status, answer: string, reason = "", quietly
   if (quietly) aside(`${hand.name}'s process has ended${summary ? `: ${summary}` : "."}`);
   else if (status === "stopped" || status === "paused") aside(`${hand.name} is now ${status}${summary ? `: ${summary}` : "."}`);
   else if (status === "done" && hand.kind === "lookup") aloud(`${hand.name} looked it up: ${summary || "it found nothing to report."} (The question: ${cap(hand.task, TASK_CHARS)})`, hand);
-  else if (status === "done") aloud(`${hand.name} has finished${summary ? `: ${summary}` : ", with nothing to report."} (Its task: ${cap(hand.task, TASK_CHARS)})`, hand);
+  else if (status === "done") aloud(`${hand.name} has finished${summary ? `: ${summary}` : ", with nothing to report."}${seen(hand)} (Its task: ${cap(hand.task, TASK_CHARS)})`, hand);
   else if (status === "needs_you") aloud(`${hand.name} needs you: ${summary || "it is waiting for you."}`, hand);
   else if (status === "failed") aloud(`${hand.name} couldn't finish: ${summary || "it gave no reason."}`, hand);
   changed();
 }
+
+/** What the voice is told of Jev's check of a done hand's last screen (src/reflex.ts): that Jev saw it there, at SEEN_AT or more; otherwise nothing. */
+const seen = (hand: Hand): string => (hand.checked !== undefined && hand.checked >= config.SEEN_AT ? " Jev saw it on the hand's screen." : "");
 
 /** A hand's process has ended. Unless it was dismissed, that is a failure, whatever it was doing, and the last lines of its stderr say why. */
 function ended(hand: Hand, code: number): void {

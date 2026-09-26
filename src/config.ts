@@ -36,6 +36,19 @@ export const SHOW_PAGE_MS = 400; // how long a blank page's window is held in fr
 export const SHOW_PAGE_WAIT_MS = 5000; // how long that waits for the user to pause
 /** Jev's model: pinned, unless TYPESAFE_DEFAULT_MODEL names another. */
 export const jevModel = (): string => process.env.TYPESAFE_DEFAULT_MODEL?.trim() || DEFAULT_JEV_MODEL;
+
+// Jev's reflexes (src/reflex.ts): a look at a page of the hand's own, and at its last screen when it says it is done,
+// each one request with no model turn. The bars are set here, not yet measured on hands' own pages.
+export const REFLEX_MS = 1500; // one attempt, no retry: a warm answer takes about 330 ms, a cold one about a second
+export const WALL_AT = 0.8; // the page wants the user: a sign-in, a CAPTCHA, a code, payment details
+export const BANNER_AT = 0.8; // a cookie banner is showing
+export const DECLINE_AT = 0.7; // the button Jev picked to turn it down is pressed
+export const SEEN_AT = 0.8; // a done hand's check the voice says was seen on its screen
+export const REFLEX_ITEMS = 250; // items a page's question shows Jev: those its word triggers matched first, then the rest in reading order
+export const CHECK_ITEMS = 200; // items the done check shows Jev: those that share most words with the answer
+export const CHECK_CHARS = 200; // an item's text as the done check reads it
+/** Whether the reflexes run: HANDS_REFLEXES is not off, and there is a TypeSafe key to ask Jev with. */
+export const reflexes = (): boolean => !["off", "0", "false", "no"].includes((process.env.HANDS_REFLEXES ?? "").trim().toLowerCase()) && Boolean(process.env.TYPESAFE_API_KEY);
 export const DEFAULT_MODEL = "openai-codex/gpt-6-astra"; // provider/model, resolved through pi-ai
 export const DEFAULT_THINKING = "low";
 export const DEFAULT_SERVICE_TIER = "priority";

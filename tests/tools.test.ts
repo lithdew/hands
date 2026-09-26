@@ -32,13 +32,17 @@ beforeAll(async () => {
 });
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 const SETTLING = settling.unchangedMs;
+const REFLEXES = process.env.HANDS_REFLEXES;
 beforeEach(() => {
   guardMachine();
   settling.unchangedMs = 0; // a picture that never changes would keep every look waiting for a late reaction
+  process.env.HANDS_REFLEXES = "off"; // Jev's reflexes (src/reflex.ts) only where a test turns them on: whatever key .env holds, no look asks Jev
 });
 afterEach(() => {
   mock.restore();
   settling.unchangedMs = SETTLING;
+  if (REFLEXES === undefined) delete process.env.HANDS_REFLEXES;
+  else process.env.HANDS_REFLEXES = REFLEXES;
 });
 
 const field = (label: string, x: number, y: number, extra: Partial<AxNode> = {}): AxNode => ({ role: "AXTextField", label, x, y, w: 100, h: 20, pressable: true, ref: { label }, ...extra });
@@ -1073,4 +1077,204 @@ test("the screenshots of a run folder carry on from the last one there", () => {
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }
+});
+
+// ------------------------------------------------------------------ Jev's reflexes
+
+const noul = (value: number) => ({ type: "noul", noul: value });
+const calm = { cookie_banner: noul(0.02), sign_in_wall: noul(0.02), captcha: noul(0.01), code_needed: noul(0.01), payment_form: noul(0.01) };
+
+/** A browser window of the hand's own, showing `url`. */
+function ownBrowser(url: string) {
+  spyOn(macos, "openBackgroundWindow").mockImplementation(async () => ({ pid: PID, windowId: WINDOW, scripted: String(WINDOW) }));
+  spyOn(macos, "stageWindow").mockImplementation(async () => {});
+  spyOn(macos, "browserLoading").mockImplementation(async () => false);
+  spyOn(macos, "browserUrl").mockImplementation(async () => url);
+  spyOn(macos, "browserTabs").mockImplementation(async () => [{ scripted: String(WINDOW), window: 1, tab: 1, active: true, title: "News", url }]);
+}
+
+/** TYPESAFE_API_KEY set, and the reflexes on, for the length of one test. */
+const reflexesOn = <T>(work: () => Promise<T>): Promise<T> =>
+  withKey(async () => {
+    delete process.env.HANDS_REFLEXES;
+    return work();
+  });
+
+test("Jev turns a cookie banner down in the hand's own browser window: 'Reject all' is pressed from behind, never 'Accept all', the page is looked at again, and the listing says so", async () => {
+  const story = button("Top story", 300, 100);
+  const choices = [button("Accept all", 300, 250), button("Reject all", 380, 250)];
+  let gone = false; // the banner, once turned down
+  desk({ app: "Google Chrome" });
+  spyOn(macos, "actionableElements").mockImplementation(() => [gone ? [story] : [story, ...choices], [], false]);
+  spyOn(macos, "recognizeText").mockImplementation(() => (gone ? [] : [["We use cookies to improve your experience", 1, [100, 400, 700, 440]]]));
+  spyOn(macos, "screenshotWindow").mockImplementation(async () => ({ path: gone ? changed : picture, width: 800, height: 600 }));
+  ownBrowser("https://news.example.com/");
+  const pressed = spyOn(macos, "axPress").mockImplementation((ref) => ((gone = (ref as { label: string }).label === "Reject all"), true));
+  const sent = jev((state) => ({ ...calm, cookie_banner: noul(0.97), decline: jevAnswer(idOf(state, "Reject all"), 0.92) }));
+  await reflexesOn(async () => {
+    const { call } = hands();
+    const listing = await call("browser", { action: "open", url: "https://news.example.com" });
+    expect(listing).toStartWith("opened https://news.example.com/ in your own window\nJev turned down the cookie banner (pressed 'Reject all').\nGoogle Chrome, the window you are working in");
+    expect(listing).toContain("button 'Top story'");
+    expect(listing).not.toContain("Accept all"); // the listing is the new look, without the banner
+    expect(pressed.mock.calls.map(([ref]) => (ref as { label: string }).label)).toEqual(["Reject all"]);
+    expect(sent).toHaveLength(1);
+    expect(Object.keys(sent[0]!.questions.decline!.criteria!)).toEqual([idOf(sent[0]!.state, "Reject all"), "none_of_these"]);
+    // The banner back on the same URL: the page as first seen, whose verdict is kept, and nothing is pressed again.
+    gone = false;
+    spyOn(macos, "screenshotWindow").mockImplementation(async () => ({ path: picture, width: 800, height: 600 }));
+    const again = await call("screen");
+    expect(again).not.toContain("Jev turned down");
+    expect(pressed).toHaveBeenCalledTimes(1);
+    expect(sent).toHaveLength(1);
+  });
+});
+
+test("a press that says it was done while the banner still shows is said as such, and not tried again on that page", async () => {
+  desk({ app: "Google Chrome", nodes: [button("Accept all", 300, 250), button("Reject all", 380, 250)], lines: [["This site uses cookies", 1, [100, 400, 700, 440]]] });
+  ownBrowser("https://news.example.com/");
+  const pressed = spyOn(macos, "axPress").mockImplementation(() => true); // taken as pressed, and missed
+  const sent = jev((state) => ({ ...calm, cookie_banner: noul(0.97), decline: jevAnswer(idOf(state, "Reject all"), 0.92) }));
+  await reflexesOn(async () => {
+    const { call } = hands();
+    const listing = await call("browser", { action: "open", url: "https://news.example.com" });
+    expect(listing).toStartWith("opened https://news.example.com/ in your own window\nJev pressed 'Reject all' to turn down the cookie banner, but the banner still shows.\nGoogle Chrome");
+    expect(listing).not.toContain("Jev turned down");
+    expect(listing).toContain("button 'Accept all'");
+    expect(await call("screen")).not.toContain("Jev pressed");
+    expect(pressed).toHaveBeenCalledTimes(1);
+    expect(sent).toHaveLength(1);
+  });
+});
+
+/** A sign-in form under a cookie banner that 'Reject all' takes away: the listing `browser open` gives, with Jev's second answer (the page without its banner) from `second`. */
+async function wallUnderBanner(second: () => Record<string, unknown>): Promise<string> {
+  const choices = [button("Accept all", 300, 250), button("Reject all", 380, 250)];
+  const form = [field("Email or phone", 300, 100), button("Next", 300, 150)];
+  let gone = false;
+  desk({ app: "Google Chrome" });
+  spyOn(macos, "actionableElements").mockImplementation(() => [gone ? form : [...form, ...choices], [], false]);
+  const heading: Line = ["Sign in to continue to Mail", 1, [100, 20, 700, 60]];
+  spyOn(macos, "recognizeText").mockImplementation(() => (gone ? [heading] : [heading, ["We use cookies to improve your experience", 1, [100, 400, 700, 440]]]));
+  spyOn(macos, "screenshotWindow").mockImplementation(async () => ({ path: gone ? changed : picture, width: 800, height: 600 }));
+  ownBrowser("https://mail.example.com/");
+  spyOn(macos, "axPress").mockImplementation((ref) => ((gone = (ref as { label: string }).label === "Reject all"), true));
+  const sent = jev((state) => ({ ...calm, cookie_banner: noul(0.97), sign_in_wall: noul(0.93), decline: jevAnswer(idOf(state, "Reject all"), 0.92) }), second);
+  const listing = await reflexesOn(() => hands().call("browser", { action: "open", url: "https://mail.example.com" }));
+  expect(sent).toHaveLength(2);
+  return listing;
+}
+
+test("a sign-in wall under a cookie banner: after the press, the second look's own line, or the first look's when the second request failed", async () => {
+  const opened = "opened https://mail.example.com/ in your own window\nJev turned down the cookie banner (pressed 'Reject all').";
+  const wall = (score: string) => `Jev: this page wants a sign-in (${score}). If the task did not give you the credentials, finish with needs_you and say what the user must do.`;
+  const failed = await wallUnderBanner(() => {
+    throw new APIConnectionError("socket closed");
+  });
+  expect(failed).toStartWith(`${opened}\n${wall("0.93")}\nGoogle Chrome, the window you are working in`);
+  mock.restore();
+  guardMachine();
+  expect(await wallUnderBanner(() => ({ ...calm, sign_in_wall: noul(0.91) }))).toStartWith(`${opened}\n${wall("0.91")}\nGoogle Chrome`);
+  mock.restore();
+  guardMachine();
+  expect(await wallUnderBanner(() => calm)).toStartWith(`${opened}\nGoogle Chrome`); // Jev saw no wall without the banner
+});
+
+test("a press the page did not take is said, with the listing as it was", async () => {
+  desk({ app: "Google Chrome", nodes: [button("Accept all", 300, 250), button("Reject all", 380, 250)], lines: [["This site uses cookies", 1, [100, 400, 700, 440]]] });
+  ownBrowser("https://news.example.com/");
+  spyOn(macos, "axPress").mockImplementation(() => false);
+  spyOn(macos, "revealWindow").mockImplementation(async () => true);
+  spyOn(macos, "windowPointer").mockImplementation(async () => {
+    throw new SeatBusy("the user did not pause long enough for a click");
+  });
+  jev((state) => ({ ...calm, cookie_banner: noul(0.97), decline: jevAnswer(idOf(state, "Reject all"), 0.92) }));
+  await reflexesOn(async () => {
+    const listing = await hands().call("browser", { action: "open", url: "https://news.example.com" });
+    expect(listing).toContain("\nJev picked 'Reject all' to turn down the cookie banner, but the press failed: the user did not pause long enough for a click.");
+    expect(listing).toContain("button 'Accept all'");
+  });
+});
+
+test("a page of the hand's own that wants a sign-in leads its listing with Jev's line, asked once for the page", async () => {
+  desk({ app: "Google Chrome", nodes: [field("Email or phone", 300, 200), button("Next", 300, 260)], lines: [["Sign in to continue to Mail", 1, [100, 100, 700, 140]]] });
+  ownBrowser("https://accounts.example.com/signin");
+  const sent = jev(() => ({ ...calm, sign_in_wall: noul(0.93) }));
+  await reflexesOn(async () => {
+    const { call } = hands();
+    const listing = await call("browser", { action: "open", url: "https://accounts.example.com/signin" });
+    const wall = "Jev: this page wants a sign-in (0.93). If the task did not give you the credentials, finish with needs_you and say what the user must do.";
+    expect(listing).toStartWith(`opened https://accounts.example.com/signin in your own window\n${wall}\nGoogle Chrome, the window you are working in`);
+    expect(await call("screen")).toStartWith(`${wall}\nGoogle Chrome`);
+    expect(sent).toHaveLength(1);
+  });
+});
+
+test("the page reflex never asks about, or presses in, the user's own window or screen", async () => {
+  const banner = [button("Accept all", 300, 250), button("Reject all", 380, 250)];
+  desk({ app: "Google Chrome", nodes: banner, lines: [["We use cookies", 1, [100, 400, 700, 440]]], working: { windowId: WINDOW, dialog: null, theirs: true } });
+  spyOn(macos, "browserUrl").mockImplementation(async () => "https://news.example.com/");
+  const pressed = spyOn(macos, "axPress").mockImplementation(() => true);
+  const sent = jev((state) => ({ ...calm, cookie_banner: noul(0.99), decline: jevAnswer(idOf(state, "Reject all"), 0.99) }));
+  await reflexesOn(async () => {
+    expect(await hands().call("open_app", { name: "Google Chrome" })).not.toContain("Jev turned down");
+    spyOn(macos, "frontmostAppAndPid").mockImplementation(async () => ["Google Chrome", 700]);
+    spyOn(macos, "frontmostWindowBounds").mockImplementation(async () => [0, 0, 400, 300]);
+    spyOn(macos, "displayFor").mockImplementation(() => ({ index: 0, frame: [0, 0, 400, 300] }));
+    spyOn(macos, "screenshot").mockImplementation(async () => ({ path: picture, width: 800, height: 600 }));
+    spyOn(macos, "focusedField").mockImplementation(() => null);
+    expect(await hands().call("screen")).toContain("the user's own screen, only to read");
+  });
+  expect(sent).toEqual([]);
+  expect(pressed).not.toHaveBeenCalled();
+});
+
+test("finish done checks the answer against the hand's current look; needs_you, a stale look and the user's screen are not checked", async () => {
+  desk({ lines: [["Born 26 December 1791, London", 1, [100, 100, 400, 130]]] });
+  spyOn(seat, "pressIn").mockImplementation(async () => {});
+  const sent = jev(() => ({ shows: noul(0.94) }));
+  await reflexesOn(async () => {
+    const { call, find } = hands();
+    await call("open_app", { name: "TextEdit" });
+    const finish = (outcome: string) => find("finish").execute("call", { outcome, summary: "Found it.", answer: "Babbage was born in 1791.", keep_open: false });
+    const done = await finish("done");
+    expect(done.details).toEqual({ finish: { outcome: "done", summary: "Found it.", answer: "Babbage was born in 1791.", keep_open: false, checked: 0.94 } });
+    expect(done.content).toEqual([{ type: "text", text: "recorded: done. Jev read the last screen as showing it at 0.94." }]);
+    expect((sent[0]!.state as unknown as { claim: string }).claim).toBe("Babbage was born in 1791.");
+    expect(sent[0]!.state.elements.some((line) => line.includes("'Born 26 December 1791, London'"))).toBe(true);
+    expect((await finish("needs_you")).details.finish.checked).toBeUndefined();
+    await call("key", { keys: "return" }); // an action, and no look since
+    expect((await finish("done")).details.finish).not.toHaveProperty("checked");
+    expect(sent).toHaveLength(1);
+  });
+  // The user's own screen, only read: nothing of the hand's to check.
+  spyOn(macos, "frontmostAppAndPid").mockImplementation(async () => ["Mail", 700]);
+  spyOn(macos, "frontmostWindowBounds").mockImplementation(async () => [0, 0, 400, 300]);
+  spyOn(macos, "displayFor").mockImplementation(() => ({ index: 0, frame: [0, 0, 400, 300] }));
+  spyOn(macos, "screenshot").mockImplementation(async () => ({ path: picture, width: 800, height: 600 }));
+  spyOn(macos, "focusedField").mockImplementation(() => null);
+  spyOn(macos, "browserUrl").mockImplementation(async () => null);
+  await reflexesOn(async () => {
+    const { call, find } = hands();
+    await call("screen");
+    expect((await find("finish").execute("call", { outcome: "done", summary: "Read it.", keep_open: false })).details.finish).not.toHaveProperty("checked");
+  });
+  expect(sent).toHaveLength(1);
+});
+
+test("a done check Jev fails on leaves the finish as it was, at once", async () => {
+  desk({ lines: [["Born 26 December 1791", 1, [100, 100, 400, 130]]] });
+  spyOn(globalThis, "fetch").mockImplementation((async () => {
+    throw new Error("no network in tests");
+  }) as never);
+  spyOn(TypeSafeClient.prototype, "systemOne").mockImplementation((async () => {
+    throw new APIConnectionError("socket closed");
+  }) as never);
+  await reflexesOn(async () => {
+    const { call, find } = hands();
+    await call("open_app", { name: "TextEdit" });
+    const done = await find("finish").execute("call", { outcome: "done", summary: "Found it.", keep_open: false });
+    expect(done.details).toEqual({ finish: { outcome: "done", summary: "Found it.", keep_open: false } });
+    expect(done.content).toEqual([{ type: "text", text: "recorded: done." }]);
+  });
 });
