@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
-import { cap, cast, context, dispatch, glance, isoTime, joined, named, nextShot, runFolder, sameTask, samplesOf, snapshot, steered, voiceSummary } from "../src/live.ts";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { cap, cast, context, dispatch, FRONTEND, glance, isoTime, joined, named, nextShot, notesThatFit, occlusionNotice, runFolder, sameTask, samplesOf, snapshot, steered, usage, voiceSummary } from "../src/live.ts";
 import { cushion } from "../src/shell.ts";
 
 const hand = (name: string, extra = {}) => ({ id: name.toLowerCase(), name, status: "working" as const, task: `task of ${name}`, action: "", recent: [] as string[], answer: "", reason: "", since: 0, reported: false, ...extra });
@@ -150,6 +152,48 @@ test("the samples of a WAV are its data chunk, wherever the other chunks have pu
   wav.set([1, 2, 3, 4], 34);
   expect([...samplesOf(wav)]).toEqual([1, 2, 3, 4]);
   expect(() => samplesOf(wav.subarray(0, 20))).toThrow();
+});
+
+test("the voice sends a question about how things are going to the backend, and then tells the user what it answered", () => {
+  expect(FRONTEND).toContain("The user asks how things are going, or how a hand is doing. Delegate it so the backend can look");
+  // What it may say of a backend's reply: not only who is on it, whatever was asked.
+  const replies = FRONTEND.slice(FRONTEND.indexOf("When the backend replies"), FRONTEND.indexOf("Nothing else about a delegation."));
+  expect(replies).toContain("It answered a question about how things are going: tell the user its answer");
+  expect(replies).toContain("It asked hands to stop, or dismissed them: say so");
+  // And a result it may give: from a note that a hand finished, or from that answer.
+  const results = FRONTEND.split("\n").find((line) => line.includes("any other result may come only from"))!;
+  expect(results).toContain("the backend's answer to a question about how things are going");
+});
+
+test("notes go to the voice whole, the oldest first, as many as fit in one, and never none", () => {
+  const note = (n: number) => "x".repeat(n);
+  expect(notesThatFit([note(500), note(500), note(498)])).toBe(3); // 1498 with the two line breaks
+  expect(notesThatFit([note(500), note(500), note(499)])).toBe(2);
+  expect(notesThatFit([note(1600), note(10)])).toBe(1);
+  expect(notesThatFit([])).toBe(0);
+});
+
+test("the startup notice gives the line that turns occlusion tracking off, as the README gives it", () => {
+  const notice = occlusionNotice("Google Chrome");
+  const line = notice.match(/`([^`]+)`/)?.[1];
+  expect(line).toBe("reg add HKCU\\Software\\Policies\\Google\\Chrome /v NativeWindowOcclusionEnabled /t REG_DWORD /d 0 /f");
+  const readme = readFileSync(join(import.meta.dir, "..", "README.md"), "utf8");
+  expect(readme).toContain(line!);
+  expect(readme).toMatch(/^## Windows\r?$/m);
+  expect(readme).toContain("**Browsing fully out of sight**");
+  expect(notice).toContain('"Browsing fully out of sight"');
+  expect(occlusionNotice("Microsoft Edge")).toContain("HKCU\\Software\\Policies\\Microsoft\\Edge");
+});
+
+test("--cold-mic says what a press loses: on Windows the arming too, a quarter of a second in all", () => {
+  const flat = (text: string) => text.replace(/\s+/g, " ");
+  expect(flat(usage())).toContain("Cold, about a tenth of a second at the start of each press is lost.");
+  process.env.HANDS_PLATFORM = "windows";
+  try {
+    expect(flat(usage())).toContain("Cold, about a quarter of a second at the start of each press is lost: the key counts only once it has been held for a fifth of a second");
+  } finally {
+    delete process.env.HANDS_PLATFORM;
+  }
 });
 
 test("a tool call about a hand that is not out says who is, and does nothing", () => {

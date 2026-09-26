@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as live from "../src/live.ts";
 import type { Shell } from "../src/shell.ts";
+import * as windows from "../src/windows.ts";
 
 // The orchestrator with its outside replaced: each hand a scripted process (what it is told, what it says, when it
 // goes), and the voice a scripted Live session. Nothing here starts a process or opens a socket.
@@ -372,4 +373,153 @@ test("a fact the backend remembers goes in the user's profile, and every later s
   const start = sessions.at(-1)!.sent[0]!.session;
   expect(start.instructions).toContain("Kartikay (not Kartike) is a colleague.");
   expect(start.delegation.responses.instructions).toContain("Kartikay (not Kartike) is a colleague.");
+});
+
+test("Show is carried out by the hand, which knows where it keeps its window; a hand whose process has gone is shown from here; on the Mac it is nothing", async () => {
+  const present = spyOn(windows, "present").mockImplementation(() => true);
+  live.dispatch("start_hands", { tasks: ["find flights to Tokyo", "open Notepad"] }, runs);
+  hands[0]!.say({ type: "cue", subject: { window: 4242, origin: [0, 0] }, size: [1280, 800] });
+  hands[1]!.say({ type: "cue", subject: { window: 99, origin: [0, 0] }, size: [800, 600] });
+  await Bun.sleep(5);
+  live.command({ cmd: "show", hand: "lefty" }); // the Mac's panel offers no Show, and one that comes anyway does nothing
+  expect(hands[0]!.told.at(-1)).toEqual({ type: "prompt", text: "find flights to Tokyo" });
+  process.env.HANDS_PLATFORM = "windows";
+  try {
+    live.command({ cmd: "show", hand: "lefty" });
+    expect(hands[0]!.told.at(-1)).toEqual({ type: "show", window: 4242 }); // parked off the screens, it is the hand that knows where to
+    expect(present).not.toHaveBeenCalled();
+    hands[1]!.finish(1);
+    await Bun.sleep(20);
+    live.command({ cmd: "show", hand: "righty" });
+    expect(present).toHaveBeenCalledWith(99);
+  } finally {
+    delete process.env.HANDS_PLATFORM;
+  }
+});
+
+test("notes that waited go to the voice whole, as many as fit in one, and a hand counts as told only once its note has gone", async () => {
+  const cities = ["Tokyo", "Osaka", "Kyoto", "Sapporo", "Nagoya"];
+  const task = (city: string) => `Find the cheapest direct flight from Hong Kong to ${city} next Friday morning, with one checked bag, and compare the fares on two sites`;
+  live.dispatch("start_hands", { tasks: cities.map(task) }, runs);
+  hands[0]!.say({ type: "status", status: "done", answer: "Tokyo: HK$2,100." });
+  await Bun.sleep(5);
+  const session = sessions.at(-1)!;
+  const said = () => session.notes("session.commentary.append");
+  const told = () => known().filter((one) => one.reported).map((one) => one.hand);
+  jest.useFakeTimers();
+  session.emit("session.output_transcript.delta", { delta: "Lefty found Tokyo.", start_ms: 1000, end_ms: 1800 });
+  for (let i = 1; i < cities.length; i++) hands[i]!.say({ type: "status", status: "done", answer: `${cities[i]}: ${"a fare worth telling you about, ".repeat(12)}` });
+  await settle();
+  expect(said().length).toBe(1);
+  jest.advanceTimersByTime(2000); // it has finished speaking
+  expect(said().length).toBe(2);
+  const notes = said()[1]!.split("\n");
+  expect(notes.map((note) => note.split(" has finished")[0])).toEqual(["Righty", "Thumbs", "Pinky"]);
+  for (const note of notes) expect(note).toEndWith("compare the fares on two sites)"); // each of them whole
+  expect(told()).toEqual(["Lefty", "Righty", "Thumbs", "Pinky"]);
+  jest.advanceTimersByTime(15_000); // it said nothing of them: what is left goes all the same
+  expect(said().at(-1)).toStartWith("Index has finished: Nagoya");
+  expect(told()).toContain("Index");
+});
+
+test("a press cancelled before the session has started sends none of what it heard; one that is not, all of it", async () => {
+  const listening: ((pcm: Uint8Array) => void)[] = [];
+  const body = {
+    mic: { warm() {}, listen: (onChunk: (pcm: Uint8Array) => void) => void listening.push(onChunk), rest() {} },
+    speaker: { play() {}, hush() {} },
+    panel: { fit() {}, room: () => 800, focus() {} },
+    thumbnail: () => null,
+    holdKey() {},
+    frontWindow: () => null,
+  } as unknown as Shell;
+  const heard = () => sessions.flatMap((session) => session.sent.filter((event) => event.type === "session.input_audio.append"));
+  live.talk("down", body);
+  expect(live.voice.state).toBe("connecting");
+  listening[0]!(new Uint8Array(3840)); // what the microphone remembered, and a word: buffered while the session starts
+  live.talk("cancel", body); // a key typed with it: it was a shortcut, not talk
+  await settle();
+  expect(sessions.length).toBe(1);
+  expect(heard()).toEqual([]);
+  live.talk("down", body);
+  listening[1]!(new Uint8Array(3840));
+  await settle();
+  expect(heard().length).toBe(1);
+  live.talk("cancel", body);
+});
+
+test("an instruction typed into the card of a hand whose process has gone does not become its task", async () => {
+  live.dispatch("start_hands", { tasks: ["open Excel"] }, runs);
+  hands[0]!.complain("error: the Windows helper went away (write error 232)");
+  hands[0]!.finish(1);
+  await Bun.sleep(20);
+  live.command({ cmd: "steer", hand: "lefty", text: "try again" });
+  live.command({ cmd: "resume", hand: "lefty" });
+  expect(known()[0]).toMatchObject({ task: "open Excel", status: "failed" });
+  expect(known()[0]!.reason).toContain("the Windows helper went away");
+});
+
+test("leaving at once, the hands still out are ended, and a hand already told to close is left to put its windows away and go", async () => {
+  stubborn = true;
+  live.dispatch("start_hands", { tasks: ["open Paint", "open Notepad"] }, runs);
+  live.dispatch("close_hands", { hands: ["Lefty"] }, runs);
+  live.atExit();
+  expect(hands[0]!.killed).toBe(false);
+  expect(hands[1]!.killed).toBe(true);
+  hands[0]!.finish(0); // it went, in its own time
+});
+
+test("closed from its card, by Clear done or by the voice, a hand is told only to close: whether its pages stay is what it finished saying", async () => {
+  live.dispatch("start_hands", { tasks: ["find lunch nearby", "find flights to Tokyo", "open Notepad", "open Paint"] }, runs);
+  hands[0]!.say({ type: "status", status: "done", answer: "I left Yashima's page open in a tab of mine." });
+  hands[1]!.say({ type: "status", status: "done", answer: "Two direct flights, both on Friday." });
+  await Bun.sleep(5);
+  live.command({ cmd: "clear" });
+  live.command({ cmd: "close", hand: "thumbs" });
+  live.dispatch("close_hands", { hands: ["Pinky"] }, runs);
+  for (const hand of hands) expect(hand.told.at(-1)).toEqual({ type: "close" });
+});
+
+test("a resumed hand has no answer yet: what it had said when it was paused is not a result", async () => {
+  live.dispatch("start_hands", { tasks: ["find flights to Tokyo"] }, runs);
+  hands[0]!.say({ type: "status", status: "working" });
+  hands[0]!.say({ type: "status", status: "paused", answer: "So far, two direct flights." });
+  await Bun.sleep(5);
+  expect(known()[0]).toMatchObject({ status: "paused", answer: "So far, two direct flights." });
+  live.command({ cmd: "resume", hand: "lefty" });
+  expect(hands[0]!.told.at(-1)).toEqual({ type: "resume" });
+  hands[0]!.say({ type: "status", status: "working" });
+  await Bun.sleep(5);
+  expect(known()[0]!.status).toBe("working");
+  expect(known()[0]!.answer).toBeUndefined();
+});
+
+test("what a hand says after it was dismissed is not said by the voice", async () => {
+  stubborn = true;
+  live.dispatch("start_hands", { tasks: ["find lunch nearby"] }, runs);
+  hands[0]!.say({ type: "status", status: "working" });
+  await Bun.sleep(5);
+  live.dispatch("close_hands", { hands: ["Lefty"] }, runs);
+  hands[0]!.say({ type: "status", status: "done", answer: "Yashima, at 12:30." }); // already on its way when it was dismissed
+  await Bun.sleep(5);
+  expect(sessions.flatMap((session) => session.notes("session.commentary.append"))).toEqual([]);
+  hands[0]!.finish(0);
+});
+
+test("a hand ended from here has its desktop taken down with its windows brought behind the user's first", async () => {
+  const calls: [string, object][] = [];
+  spyOn(windows.native, "call").mockImplementation((command: string, args: object = {}) => void calls.push([command, args]));
+  [process.env.HANDS_PLATFORM, process.env.HANDS_DESKTOP] = ["windows", "1"];
+  try {
+    stubborn = true;
+    jest.useFakeTimers();
+    live.dispatch("start_hands", { tasks: ["open Paint"] }, runs);
+    live.dispatch("close_hands", { hands: ["Lefty"] }, runs);
+    jest.advanceTimersByTime(2100);
+    await settle();
+    expect(hands[0]!.killed).toBe(true);
+    expect(calls).toEqual([["removeDesktops", { prefix: "Hands: Lefty" }]]);
+  } finally {
+    delete process.env.HANDS_PLATFORM;
+    delete process.env.HANDS_DESKTOP;
+  }
 });

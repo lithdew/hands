@@ -41,7 +41,51 @@ export const handColor = (): string | undefined => process.env.HANDS_COLOR || un
 export const liveModel = (): string => process.env.HANDS_LIVE_MODEL || "gpt-live-1";
 export const liveVoice = (): string => process.env.HANDS_LIVE_VOICE || "marin";
 export const liveBackend = (): string => process.env.HANDS_LIVE_BACKEND || "gpt-5.6-luna";
-/** Where the hands `hands live` sends out keep what they make: Documents\Hands in the user's folder (~/Documents/Hands on a Mac), or HANDS_WORK. */
-export const workFolder = (): string => process.env.HANDS_WORK || join(homedir(), "Documents", "Hands");
+/** Where the hands `hands live` sends out keep what they make: Hands in the user's Documents (~/Documents/Hands on a Mac), or HANDS_WORK. */
+export const workFolder = (): string => process.env.HANDS_WORK || join(documentsFolder(), "Hands");
+
+const SHELL_FOLDERS = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders";
+let documents: string | undefined;
+
+/**
+ * The user's Documents folder, where Explorer shows it. On Windows that is wherever the user's shell folders say (a
+ * OneDrive backup moves it to OneDrive\Documents, for one), read from the registry once; on a Mac, and whenever that
+ * cannot be read, ~/Documents.
+ */
+export function documentsFolder(): string {
+  if (documents === undefined) {
+    let found: string | null = null;
+    if (process.platform === "win32") {
+      try {
+        const query = Bun.spawnSync(["reg.exe", "query", SHELL_FOLDERS, "/v", "Personal"], { stdout: "pipe", stderr: "ignore", timeout: 5000 });
+        found = shellFolder(query.stdout.toString());
+      } catch {
+        // no reg.exe to ask: the folder in the user's profile, then
+      }
+    }
+    documents = found ?? join(homedir(), "Documents");
+  }
+  return documents;
+}
+
+/**
+ * The Documents folder in what `reg query` says of the user's shell folders: its value, with the variables in it
+ * (%USERPROFILE%, as Windows writes it) filled in from `env`. Null when there is none, when a variable in it is not
+ * set, or when it is not a whole path.
+ */
+export function shellFolder(query: string, env: Record<string, string | undefined> = process.env): string | null {
+  const value = query.match(/^\s*Personal\s+REG_(?:EXPAND_)?SZ\s+(.+?)\s*$/m)?.[1];
+  if (!value) return null;
+  const names = Object.keys(env);
+  let missing = false;
+  const path = value.replace(/%([^%]+)%/g, (_, name: string) => {
+    const key = names.find((one) => one.toLowerCase() === name.toLowerCase()); // Windows' variables are the same in any case
+    const found = key === undefined ? undefined : env[key];
+    if (!found) missing = true;
+    return found ?? "";
+  });
+  return !missing && /^(?:[A-Za-z]:\\|\\\\)/.test(path) ? path : null;
+}
+
 /** What the voice knows about the user, one line each (names, contacts, words it would mishear): ~/.hands/profile.md, or HANDS_PROFILE. */
 export const profilePath = (): string => process.env.HANDS_PROFILE || join(homedir(), ".hands", "profile.md");
