@@ -901,6 +901,7 @@ export function releaseDesktop(): void {
   browserWindows.clear();
   inFront.clear();
   primed.clear();
+  unlifted.clear();
   stale.clear();
   parked.clear();
   tabsSeen.clear();
@@ -2651,7 +2652,85 @@ interface TreeNode {
 }
 
 const ROOT = -1;
-const primed = new Set<number>(); // Chromium windows whose page tree has been switched on
+type TreeReply = { nodes: TreeNode[]; capped: boolean };
+const primed = new Map<number, string>(); // Chromium windows of the hand's whose page came back after a lift, and the address it came back at
+const unlifted = new Map<number, { address: string; lifts: number }>(); // lifts that brought no page back, for the address they were made at
+const LIFTS_PER_PAGE = 2; // a page that stays blank through this many lifts (about:blank, a page with nothing on it) is not lifted again
+const LIFT_POLL_MS = 100;
+const LIFT_POLL_CAP_MS = 500; // how long a lifted window is read again for its page to come up: Chrome may not notice at once that it shows
+const PRIME_NODES = 600; // enough of a tree to reach past the browser's toolbar into the page
+const PAGE_ROLES = new Set(["AXStaticText", "AXLink", "AXTextField", "AXTextArea", "AXComboBox", "AXCheckBox", "AXRadioButton", "AXRow", "AXCell", "AXImage"]);
+const OMNIBOX = /^address and search bar$/i;
+
+/** The address a browser window's omnibox shows, from its tree; "" in a window with none (an app drawn as a page). */
+const addressIn = (nodes: TreeNode[]): string => nodes.find((node) => OMNIBOX.test(node.label))?.value ?? "";
+
+/**
+ * Whether a tree holds the page and not only the browser around it: a labelled node of a kind a page has (text, a
+ * link, a field, an image) below the omnibox, or anywhere in a window with no omnibox. The tab strip, the toolbar and
+ * the bookmarks are there whether or not the page's tree is, so they say nothing.
+ */
+function pageShown(nodes: TreeNode[]): boolean {
+  const bar = nodes.find((node) => OMNIBOX.test(node.label) && node.frame !== null)?.frame;
+  const top = bar ? bar[1] + bar[3] : Number.NEGATIVE_INFINITY;
+  return nodes.some((node) => node.label !== "" && PAGE_ROLES.has(node.role) && node.frame !== null && node.frame[1] >= top);
+}
+
+/**
+ * A read of a window of the hand's held over the user's windows for a moment, topmost and without activation, which is
+ * what makes Chrome build a page's tree (measured: 54 ms, the seat untouched); read again every LIFT_POLL_MS until the
+ * page comes up or LIFT_POLL_CAP_MS pass; and put back behind their windows.
+ */
+function liftedRead(hwnd: number, read: () => TreeReply): TreeReply {
+  native.call("topmost", { hwnd, on: true });
+  try {
+    let reply = read();
+    for (const end = performance.now() + LIFT_POLL_CAP_MS; !pageShown(reply.nodes) && performance.now() < end; reply = read()) Bun.sleepSync(LIFT_POLL_MS);
+    return reply;
+  } finally {
+    native.call("topmost", { hwnd, on: false });
+    native.call("sink", { hwnd }); // NOTOPMOST would leave it over the user's windows: back behind them
+  }
+}
+
+/** A lift's result kept: the address a page came back at, or one more lift that brought none. */
+function lifted(hwnd: number, address: string, shown: boolean): void {
+  if (shown) {
+    primed.set(hwnd, address);
+    unlifted.delete(hwnd);
+    return;
+  }
+  const before = unlifted.get(hwnd);
+  unlifted.set(hwnd, { address, lifts: before?.address === address ? before.lifts + 1 : 1 });
+}
+
+/** Whether a read that found no page should lift the window: not at an address a lift already brought a page back at, nor past LIFTS_PER_PAGE at one it never did. */
+function liftFor(hwnd: number, address: string): boolean {
+  const tried = unlifted.get(hwnd);
+  return primed.get(hwnd) !== address && !(tried?.address === address && tried.lifts >= LIFTS_PER_PAGE);
+}
+
+/**
+ * Show a page of the hand's that reads as blank to its browser (the clicker, src/runner.ts): its window is lifted over
+ * the user's for a moment, once they pause, whether or not it was lifted before, and its tree read until the page comes
+ * up. True when the page's own nodes came back. False, having done nothing, for a window that is not a browser window
+ * of the hand's own or is on the hand's own desktop, and when the user did not pause.
+ */
+export function primePage(windowId: number): boolean {
+  const list = windowList();
+  const window = list.find((w) => w.hwnd === windowId);
+  if (!window || !window.cls.startsWith("Chrome_WidgetWin") || window.cloaked || !isOwn(window, list)) return false;
+  const read = () => native.call("tree", { hwnd: windowId, cap: PRIME_NODES }) as TreeReply;
+  try {
+    const reply = pausedSync(() => liftedRead(windowId, read), "showing the page to the browser");
+    const shown = pageShown(reply.nodes);
+    lifted(windowId, addressIn(reply.nodes), shown);
+    return shown;
+  } catch (error) {
+    if (error instanceof SeatBusy) return false;
+    throw error;
+  }
+}
 
 /** The roles one control can show up as twice in UIA (a list item and its link, a button and its image), best first: the one kept. */
 const ROLE_RANK = ["AXLink", "AXButton", "AXTab", "AXCheckBox", "AXRadioButton", "AXTextField", "AXTextArea", "AXComboBox", "AXPopUpButton", "AXMenuButton", "AXRow", "AXCell", "AXImage"];
@@ -2699,8 +2778,9 @@ function tidy(found: AxNode[], tree: Map<number, TreeNode>, window: WindowEntry 
  * Labelled controls of one process: the on-screen ones in pixels, the pressable off-screen ones, and whether a cap
  * cut the walk short. `display` is the captured display's frame. The window named by id is walked alone, wherever it
  * sits in the stack; without one, the app's front-most window. Chrome builds a page's tree only once the page has
- * shown, so a covered Chromium window of the hand's own whose page loaded unseen is lifted (without activation) for
- * that first look (measured: 54 ms, the seat untouched). Never a window of the user's, and not one on the hand's own
+ * shown, so a covered Chromium window of the hand's own whose page reads with no tree (it loaded unseen, or was
+ * navigated to) is lifted (without activation) and read until its page comes up (see liftedRead), once per address that
+ * a lift brings a page back at. Never a window of the user's, and not one on the hand's own
  * desktop (a lift shows nothing there, and a browser is only taken there when it needs none). The lifted window lies
  * over the user's for the walk, where their click would land in it: so the lift waits, a moment, for the user to pause,
  * under the seat's lock, and when they do not, the page is read without it (and looked at again next time). A field's
@@ -2713,26 +2793,19 @@ export function actionableElements(pid: number, display: Frame, options: WalkOpt
   const list = windowList();
   const window = list.find((w) => w.hwnd === hwnd);
   const web = window ? window.cls.startsWith("Chrome_WidgetWin") : isWebContentApp(pid);
-  const read = () => native.call("tree", { hwnd, cap: walk.nodeCap, ms: walk.timeCap === undefined ? undefined : Math.round(walk.timeCap * 1000) }) as { nodes: TreeNode[]; capped: boolean };
-  const lifted = () => {
-    native.call("topmost", { hwnd, on: true });
+  const read = () => native.call("tree", { hwnd, cap: walk.nodeCap, ms: walk.timeCap === undefined ? undefined : Math.round(walk.timeCap * 1000) }) as TreeReply;
+  // Read as it lies first: a page whose tree is on needs no lift. One with none is lifted at an address no lift has
+  // brought its page back at yet, so a page navigated to is lifted too; one that stays blank, only a couple of times.
+  let reply = read();
+  if (web && window !== undefined && !window.cloaked && isOwn(window, list) && !pageShown(reply.nodes) && liftFor(hwnd, addressIn(reply.nodes)) && !showing(hwnd)) {
+    const address = addressIn(reply.nodes);
     try {
-      return read();
-    } finally {
-      native.call("topmost", { hwnd, on: false });
-      native.call("sink", { hwnd }); // NOTOPMOST would leave it over the user's windows: back behind them
-    }
-  };
-  let reply: { nodes: TreeNode[]; capped: boolean } | null = null;
-  if (web && window !== undefined && isOwn(window, list) && !primed.has(hwnd) && !window.cloaked && !showing(hwnd)) {
-    try {
-      reply = pausedSync(lifted, "the first read of the page", FLASH_QUIET_MS, LIFT_WAIT_MS);
+      reply = pausedSync(() => liftedRead(hwnd, read), "the first read of the page", FLASH_QUIET_MS, LIFT_WAIT_MS);
+      lifted(hwnd, address, pageShown(reply.nodes));
     } catch (error) {
-      if (!(error instanceof SeatBusy)) throw error; // the user is busy: read as it lies
+      if (!(error instanceof SeatBusy)) throw error; // the user is busy: read as it lies, and lifted another time
     }
   }
-  reply ??= read();
-  if (reply.nodes.some((n) => n.role !== "AXGroup" || n.label)) primed.add(hwnd);
   const byId = new Map<number, TreeNode>();
   const kids = new Map<number, number[]>();
   for (const node of reply.nodes) {
