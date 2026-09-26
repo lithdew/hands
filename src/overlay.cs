@@ -159,6 +159,7 @@ class HandFigure
     const int W = 420, H = 312, BOX = 96, GLYPH = 72, MARGIN = 12, TAG = 36, TAG_FONT = 15, TOUCH_X = 210, TOUCH_Y = 132;
     const double SWAP_MS = 160, FOLLOW_MS = 30, HOVER_MS = 40, APPEAR_MS = 200, LEAVE_MS = 220, PULSE_S = 1.2, LEAN = 0.1, GLIDE_DAMPING = 0.78;
     const double TAP_S = 0.18, DIP_S = 0.07, HOLD_S = 0.03, RIPPLE_S = 0.42, PRESS_S = 0.5; // a press: down, held, let go; a double click's second tap; its ripple; all of it
+    const double CHEER_S = 0.45, CHEER_GAP_S = 0.12; // done: each of its two rings, and the wait before the second
     const string HOLDING = "using your mouse & keyboard", WAITING = "waiting for you to pause";
     public static readonly Color GOLD = Color.FromArgb(255, 199, 56), INK = Color.FromArgb(23, 23, 28);
     // The glyph of each pose (hand.ts POSES), and where it touches what it points at, as a fraction of its box: a fingertip,
@@ -379,6 +380,7 @@ class HandFigure
                 }
             }
         if (Pose == "press") Press(look, t, px);
+        if (Pose == "done" && !Calm) Cheer(look, t, px);
         double entrance = Calm ? 1 : 0.9 + 0.1 * Spring(Math.Max(0, now - appeared) / 1000, 0.3, 0.15);
         if (left > 0 && now > left) { double gone = Ease5(Math.Min(1, (now - left) / LEAVE_MS)); entrance = Calm ? 1 : 1 - 0.06 * gone; look.Drop = Calm ? 0 : 4 * k * gone; }
         look.Grow = Swell(now) * entrance * (Seat == "holding" && !Calm ? pop.At((now - seated) / 1000) : 1);
@@ -408,6 +410,17 @@ class HandFigure
         }
     }
 
+    /** Done: two rings leave the thumb, one after the other, as the glyph pops up. With the system's animations off there are none, as there is no pop. */
+    void Cheer(HandLook look, double t, double px)
+    {
+        for (int i = 0; i < 2; i++)
+        {
+            double p = (t - i * CHEER_GAP_S) / CHEER_S;
+            if (p < 0 || p >= 1) continue;
+            look.Rings.Add(new double[] { (8 + (30 - 8 * i) * Ease5(p)) * px, (2 - 1.4 * p) * px, (0.75 - 0.2 * i) * (1 - p) });
+        }
+    }
+
     /** Whether something is under way that wants every frame; a resting pose, a hand that only breathes, does with half. */
     public bool Busy(double now)
     {
@@ -415,6 +428,7 @@ class HandFigure
         if (following ? since < 5 * FOLLOW_MS : glideMs > 0 && since < glideMs) return true;
         if (!Calm) foreach (var move in moves) if (move.Running(t)) return true;
         if (Pose == "press" && t >= 0 && t < (taps - 1) * TAP_S + PRESS_S) return true;
+        if (Pose == "done" && !Calm && t >= 0 && t < CHEER_GAP_S + CHEER_S) return true;
         if (now - hoverAt < 5 * HOVER_MS || now - appeared < 400 || (left > 0 && now > left)) return true;
         return now - swapped < SWAP_MS || Seat == "holding";
     }
