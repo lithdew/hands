@@ -169,14 +169,16 @@ const introduces = (block: Block) => /:\s*$/.test(words(block)) || (block.runs.l
 
 /**
  * What a card shows of an answer: a heading that leads in, the first paragraph, and the list that paragraph
- * introduces, or the list the answer opens with. Everything else is on the sheet.
+ * introduces, or the list the answer opens with. A first paragraph that ends in a colon brings the paragraph it
+ * introduces instead, when that is what follows ("wrote the haiku:" and the haiku). Everything else is on the sheet.
  */
 export function gist(markdown: string): string {
   const taken: Block[] = [];
   for (const one of blocks(markdown)) {
     const last = taken[taken.length - 1];
-    const said = taken.some((block) => block.kind !== "h");
-    if (one.kind !== "li" && said) break;
+    const lead = taken.filter((block) => block.kind !== "h");
+    const opener = lead.length === 1 && lead[0]!.kind === "p" && /:\s*$/.test(words(lead[0]!));
+    if (one.kind !== "li" && lead.length && !(opener && one.kind === "p")) break;
     if (one.kind === "li" && last?.kind === "p" && !introduces(last)) break;
     taken.push(one);
   }
