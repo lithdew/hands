@@ -5,10 +5,11 @@
  * - A page of the hand's own browser window that needs the user (a sign-in, a CAPTCHA, a verification code, payment
  *   details) is recognised at once, and its listing starts with a line that says so and what to do.
  * - A cookie banner there is turned down: Jev picks the button that declines the optional cookies, among the ones
- *   whose words read as declining and never as accepting, and the tools press it from behind.
+ *   near the banner's words whose whole label declines and never accepts, and the tools press it from behind.
  * - A hand that finishes as done has its answer checked against its last screen: how likely that screen shows it so.
  *
- * A page is asked about only when cheap word triggers match among its items, and once per page (its URL and items).
+ * A page is asked about only when cheap word triggers match among its items, and once per page (its URL and the items
+ * its questions turn on).
  * The items go once, in state, a line each with a bare id, as src/decide.ts sends them. Every request gives up after
  * REFLEX_MS with no retry, nothing here ever throws, and nothing is asked without TYPESAFE_API_KEY or with
  * HANDS_REFLEXES=off. Each request is logged, with its milliseconds, to reflex.log in the run folder.
@@ -16,7 +17,7 @@
 
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
-import { type ChoiceResponse, choice, noul, type Questions, type TypeSafeClient } from "@typesafe-ai/sdk";
+import { choice, noul, type Questions, type TypeSafeClient } from "@typesafe-ai/sdk";
 import * as config from "./config.ts";
 import { failure, itemLine, jevClient, NONE } from "./decide.ts";
 import { fromAx, type Item, region, repr, type Screen } from "./models.ts";
@@ -50,29 +51,77 @@ const CODE =
   /\bverification code\b|\bone[- ]time (code|password|passcode|pin)\b|\b(2|two)[- ](step|factor)\b|\b2fa\b|\bauthenticator\b|\benter (the|your) (\d[- ]digit )?code\b|\bsecurity code\b/i;
 const PAYMENT = /\b(card ?number|credit card|debit card|cvc|cvv|cardholder|name on (the )?card|expir(y|ation) date|billing address)\b|\bmm ?\/ ?yy\b/i;
 
-/** Words that turn down a banner: reject, decline, necessary or essential only, refuse, deny, continue without accepting, close. */
-const DECLINES =
-  /\b(reject|decline|refuse|deny|disagree|dismiss|close)\b|\bno,? thanks\b|\bcontinue without (accepting|agreeing|consent)|\b(necessary|essential|required)( cookies)? only\b|\bonly (allow |use )?(the )?(strictly )?(necessary|essential|required)\b/i;
+/**
+ * A whole label that turns a banner down: Reject all, Decline, Deny, Refuse optional cookies, Disagree and close, Do not
+ * consent, Necessary cookies only, Only allow essential cookies, Continue without accepting, No thanks. A label must be
+ * one of these from end to end: a link that says "Senate votes to reject bill" or a button that says "Decline
+ * invitation" is not one.
+ */
+const DECLINE_LABEL = new RegExp(
+  `^(?:${[
+    String.raw`(?:i )?(?:reject|decline|deny|refuse|disagree)(?: all| everything)?(?: (?:optional|non-?essential|non-?necessary|unnecessary|additional|other|marketing|advertising|analytics|tracking|third[- ]party))?(?: cookies| trackers| tracking)?(?: and (?:close|continue))?`,
+    String.raw`(?:i )?(?:do not|don't) consent`,
+    String.raw`(?:use |allow )?(?:the )?(?:strictly )?(?:necessary|essential|required)(?: cookies)? only`,
+    String.raw`only (?:use |allow )?(?:the )?(?:strictly )?(?:necessary|essential|required)(?: cookies)?`,
+    String.raw`continue without (?:accepting|agreeing|consent(?:ing)?)(?: cookies)?`,
+    String.raw`no,? thanks`,
+  ].join("|")})$`,
+);
+/** A whole label that closes a banner: Close, Dismiss, Close cookie banner, or only its cross. Only ever a button's: an "X" link is the social network. */
+const CLOSE_LABEL = /^(?:(?:close|dismiss)(?: (?:this|the))?(?: (?:cookie|consent|privacy))?(?: (?:banner|notice|message|dialog|popup|pop-up|window|bar))?|[x×✕✖╳])$/;
 /** Words that accept: never pressed, whatever else the label says. `without accepting` is not accepting. */
 const ACCEPTS = /(?<!without )\b(accept|agree)|\ballow all\b|\bok(ay)?\b|\bgot it\b|\bi understand\b/i;
-/** A close button that is only its cross. */
-const CROSS = /^\s*[x×✕✖╳]\s*$/i;
 
-/** The buttons and links whose words turn a cookie banner down, and never accept it: the only things the reflex may press. */
-export const declining = (items: Item[]): Item[] =>
-  items.filter((it) => fromAx(it) && (it.role === "button" || it.role === "link") && (DECLINES.test(it.text) || CROSS.test(it.text)) && !ACCEPTS.test(it.text));
+/** A label as the vocabulary reads it: one line in lower case, without the arrows and stops a button's words may end with. */
+const label = (text: string): string =>
+  text
+    .replace(/\s+/g, " ")
+    .replace(/’/g, "'")
+    .trim()
+    .replace(/[\s.!:›»→>]+$/u, "")
+    .toLowerCase();
+
+/** A button or link whose whole label turns a cookie banner down, and never accepts it; a close label or a cross only on a button. */
+const declines = (it: Item): boolean => {
+  if (!fromAx(it) || (it.role !== "button" && it.role !== "link")) return false;
+  const said = label(it.text);
+  if (ACCEPTS.test(said)) return false;
+  return DECLINE_LABEL.test(said) || (it.role === "button" && CLOSE_LABEL.test(said));
+};
 
 /**
- * What a page's items show that may be worth a question: cookie words with a button that declines; a password, a
- * sentence about signing in, or a sign-in beside an account field (a lone "Sign in" link in a header is not one); a
- * CAPTCHA; a code to enter; payment details.
+ * How near a banner's controls sit to its words, as parts of the capture: within a quarter of its height above or
+ * below, and half its width beside (a bar across the bottom has its words on the left and its buttons on the right).
  */
-export function signs(items: Item[]): Set<Sign> {
+const NEAR_DOWN = 0.25;
+const NEAR_ACROSS = 0.5;
+const near = (screen: Screen, a: Item, b: Item): boolean =>
+  Math.max(0, a.x1 - b.x2, b.x1 - a.x2) <= NEAR_ACROSS * screen.image.width && Math.max(0, a.y1 - b.y2, b.y1 - a.y2) <= NEAR_DOWN * screen.image.height;
+
+/**
+ * The only things the reflex may press: buttons and links whose whole label turns a cookie banner down and never
+ * accepts it, near the banner's own words. Those words are any item with cookie words but a link (a footer's
+ * "Cookie policy" is on every page), or a candidate that names cookies itself. A Decline, Deny or Close elsewhere on
+ * the page (an invitation's, an access request's, a video's) is not near them, and is never offered.
+ */
+export function declining(screen: Screen, items: Item[]): Item[] {
+  const controls = items.filter(declines);
+  if (!controls.length) return [];
+  const words = items.filter((it) => COOKIE.test(it.text) && (it.role !== "link" || controls.includes(it)));
+  return controls.filter((it) => words.some((banner) => near(screen, it, banner)));
+}
+
+/**
+ * What a page's items show that may be worth a question: a button that declines beside cookie words; a password, a
+ * sentence about signing in that is not a link or a button (a lone "Sign in" link, or Amazon's "Hello, sign in", in a
+ * header is not one), or a sign-in beside an account field; a CAPTCHA; a code to enter; payment details.
+ */
+export function signs(screen: Screen, items: Item[], candidates = declining(screen, items)): Set<Sign> {
   const found = new Set<Sign>();
   const any = (words: RegExp) => items.some((it) => words.test(it.text));
-  if (any(COOKIE) && declining(items).length) found.add("cookie");
+  if (candidates.length) found.add("cookie");
   const signIn = items.filter((it) => SIGN_IN.test(it.text));
-  const sentence = signIn.some((it) => it.text.trim().split(/\s+/).length >= 3);
+  const sentence = signIn.some((it) => it.role !== "link" && it.role !== "button" && it.text.trim().split(/\s+/).length >= 3);
   const accountField = items.some((it) => it.role === "field" && ACCOUNT_FIELD.test(it.text) && !/\bsearch\b/i.test(it.text));
   if (any(PASSWORD) || sentence || (signIn.length && accountField)) found.add("sign_in");
   if (any(CAPTCHA)) found.add("captcha");
@@ -81,7 +130,7 @@ export function signs(items: Item[]): Set<Sign> {
   return found;
 }
 
-/** Whether an item carries any trigger's words: such items go to Jev first when a page lists more than it is shown. */
+/** Whether an item carries any trigger's words: such items go to Jev first when a page lists more than it is shown, and mark the page apart from another (fingerprint). */
 const telling = (it: Item): boolean => [COOKIE, PASSWORD, SIGN_IN, CAPTCHA, CODE, PAYMENT].some((words) => words.test(it.text));
 
 // ------------------------------------------------------------------ the page's question
@@ -113,8 +162,11 @@ const WALL_NOTES: Record<Wall, (at: string) => string> = {
 export interface Verdict {
   /** cookie_banner and each wall, 0 to 1; empty when the request failed. */
   scores: Partial<Record<Wall | "cookie_banner", number>>;
-  /** Its pick among the declining buttons, when it was offered any. */
-  decline: ChoiceResponse | null;
+  /**
+   * Its pick among the declining buttons, when it was offered any: the pick's place in their list (null for
+   * none_of_these), which is the same button on a later look at the same page, whose items may have other indices.
+   */
+  decline: { pick: number | null; confidence: number } | null;
   ms: number;
   error?: string;
 }
@@ -157,8 +209,9 @@ export async function askPage(client: () => Jev, screen: Screen, items: Item[], 
       if (value !== null) scores[name] = value;
     }
     const picked = said.decline;
-    const offered = new Set([...candidates.map((it) => String(it.index)), NONE]);
-    const decline = picked && typeof picked.choice === "string" && offered.has(picked.choice) && typeof picked.confidence === "number" ? (picked as unknown as ChoiceResponse) : null;
+    const at = typeof picked?.choice === "string" ? candidates.findIndex((it) => String(it.index) === picked.choice) : -1;
+    const known = at >= 0 || picked?.choice === NONE; // a pick that was never offered is no pick
+    const decline = known && typeof picked?.confidence === "number" ? { pick: at >= 0 ? at : null, confidence: picked.confidence } : null;
     return { scores, decline, ms: ms() };
   } catch (error) {
     return { scores: {}, decline: null, ms: ms(), error: failure(error) };
@@ -182,11 +235,23 @@ export interface PageLook {
 const REMEMBERED = 200; // pages whose verdict is kept, so a page looked at again costs nothing
 
 /**
+ * A page as the reflex remembers it: its URL, and the items its questions turn on (those with a trigger's words, its
+ * fields, and the buttons that decline). An advert, a carousel or a line of OCR noise that changes is the same page,
+ * and asks nothing more.
+ */
+const fingerprint = (url: string, items: Item[], candidates: Item[]): string =>
+  String(Bun.hash([url, ...items.filter((it) => telling(it) || it.role === "field" || candidates.includes(it)).map((it) => `${it.role} ${it.text}`)].join("\n")));
+
+/** Whether a button pressed to turn a banner down is still there on a later look, beside the banner's words: the press did not take. */
+export const stillShows = (screen: Screen, items: Item[], pressed: Item): boolean =>
+  declining(screen, items).some((it) => it.role === pressed.role && it.text === pressed.text);
+
+/**
  * The page reflex of one hand. `look` is given every listing of a web page in the hand's own browser window (the
  * tools decide which those are): it asks Jev once per page, when the page's words call for it, and says what it found.
  */
 export class PageReflex {
-  private seen = new Map<string, Verdict>(); // by page: its URL and its items
+  private seen = new Map<string, Verdict>(); // by page (fingerprint)
   private declined = new Set<string>(); // URLs whose banner a press was picked for
   constructor(private readonly options: { client?: () => Jev; log?: Log } = {}) {}
 
@@ -195,12 +260,12 @@ export class PageReflex {
     try {
       const url = screen.url;
       if (!config.reflexes() || !url || !/^https?:\/\//i.test(url)) return null;
-      const found = signs(items);
+      const candidates = declining(screen, items);
+      const found = signs(screen, items, candidates);
       if (!found.size) return null;
-      const page = String(Bun.hash(`${url}\n${items.map((it) => `${it.role} ${it.text}`).join("\n")}`));
+      const page = fingerprint(url, items, candidates);
       let verdict = this.seen.get(page);
       const fresh = verdict === undefined;
-      const candidates = declining(items);
       if (!verdict) {
         verdict = await askPage(this.options.client ?? jevClient, screen, items, candidates);
         if (this.seen.size >= REMEMBERED) this.seen.delete(this.seen.keys().next().value!);
@@ -210,7 +275,8 @@ export class PageReflex {
       const where = url.replace(/#.*$/, "");
       const { decline } = verdict;
       const banner = (verdict.scores.cookie_banner ?? 0) >= config.BANNER_AT;
-      const pick = banner && decline && decline.choice !== NONE && decline.confidence >= config.DECLINE_AT ? candidates.find((it) => String(it.index) === decline.choice) : undefined;
+      const chosen = decline?.pick != null ? candidates[decline.pick] : undefined;
+      const pick = banner && chosen && decline!.confidence >= config.DECLINE_AT ? chosen : undefined;
       const pressing = pick && press && !this.declined.has(where) ? pick : null;
       if (pressing) this.declined.add(where);
       if (fresh) {
@@ -220,7 +286,7 @@ export class PageReflex {
           signs: [...found],
           ms: verdict.ms,
           scores: verdict.scores,
-          ...(decline ? { decline: { choice: decline.choice, text: candidates.find((it) => String(it.index) === decline.choice)?.text ?? null, confidence: decline.confidence } } : {}),
+          ...(decline ? { decline: { choice: chosen?.text ?? NONE, confidence: decline.confidence } } : {}),
           ...(candidates.length ? { candidates: candidates.map((it) => it.text) } : {}),
           ...(note ? { note } : {}),
           ...(pressing ? { press: pressing.text } : {}),

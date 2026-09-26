@@ -1002,13 +1002,64 @@ test("Jev turns a cookie banner down in the hand's own browser window: 'Reject a
     expect(pressed.mock.calls.map(([ref]) => (ref as { label: string }).label)).toEqual(["Reject all"]);
     expect(sent).toHaveLength(1);
     expect(Object.keys(sent[0]!.questions.decline!.criteria!)).toEqual([idOf(sent[0]!.state, "Reject all"), "none_of_these"]);
-    // The banner back on the same URL: Jev is asked about the page, which changed, and nothing is pressed again.
+    // The banner back on the same URL: the page as first seen, whose verdict is kept, and nothing is pressed again.
     gone = false;
     spyOn(macos, "screenshotWindow").mockImplementation(async () => ({ path: picture, width: 800, height: 600 }));
     const again = await call("screen");
     expect(again).not.toContain("Jev turned down");
     expect(pressed).toHaveBeenCalledTimes(1);
+    expect(sent).toHaveLength(1);
   });
+});
+
+test("a press that says it was done while the banner still shows is said as such, and not tried again on that page", async () => {
+  desk({ app: "Google Chrome", nodes: [button("Accept all", 300, 250), button("Reject all", 380, 250)], lines: [["This site uses cookies", 1, [100, 400, 700, 440]]] });
+  ownBrowser("https://news.example.com/");
+  const pressed = spyOn(macos, "axPress").mockImplementation(() => true); // taken as pressed, and missed
+  const sent = jev((state) => ({ ...calm, cookie_banner: noul(0.97), decline: jevAnswer(idOf(state, "Reject all"), 0.92) }));
+  await reflexesOn(async () => {
+    const { call } = hands();
+    const listing = await call("browser", { action: "open", url: "https://news.example.com" });
+    expect(listing).toStartWith("opened https://news.example.com/ in your own window\nJev pressed 'Reject all' to turn down the cookie banner, but the banner still shows.\nGoogle Chrome");
+    expect(listing).not.toContain("Jev turned down");
+    expect(listing).toContain("button 'Accept all'");
+    expect(await call("screen")).not.toContain("Jev pressed");
+    expect(pressed).toHaveBeenCalledTimes(1);
+    expect(sent).toHaveLength(1);
+  });
+});
+
+/** A sign-in form under a cookie banner that 'Reject all' takes away: the listing `browser open` gives, with Jev's second answer (the page without its banner) from `second`. */
+async function wallUnderBanner(second: () => Record<string, unknown>): Promise<string> {
+  const choices = [button("Accept all", 300, 250), button("Reject all", 380, 250)];
+  const form = [field("Email or phone", 300, 100), button("Next", 300, 150)];
+  let gone = false;
+  desk({ app: "Google Chrome" });
+  spyOn(macos, "actionableElements").mockImplementation(() => [gone ? form : [...form, ...choices], [], false]);
+  const heading: Line = ["Sign in to continue to Mail", 1, [100, 20, 700, 60]];
+  spyOn(macos, "recognizeText").mockImplementation(() => (gone ? [heading] : [heading, ["We use cookies to improve your experience", 1, [100, 400, 700, 440]]]));
+  spyOn(macos, "screenshotWindow").mockImplementation(async () => ({ path: gone ? changed : picture, width: 800, height: 600 }));
+  ownBrowser("https://mail.example.com/");
+  spyOn(macos, "axPress").mockImplementation((ref) => ((gone = (ref as { label: string }).label === "Reject all"), true));
+  const sent = jev((state) => ({ ...calm, cookie_banner: noul(0.97), sign_in_wall: noul(0.93), decline: jevAnswer(idOf(state, "Reject all"), 0.92) }), second);
+  const listing = await reflexesOn(() => hands().call("browser", { action: "open", url: "https://mail.example.com" }));
+  expect(sent).toHaveLength(2);
+  return listing;
+}
+
+test("a sign-in wall under a cookie banner: after the press, the second look's own line, or the first look's when the second request failed", async () => {
+  const opened = "opened https://mail.example.com/ in your own window\nJev turned down the cookie banner (pressed 'Reject all').";
+  const wall = (score: string) => `Jev: this page wants a sign-in (${score}). If the task did not give you the credentials, finish with needs_you and say what the user must do.`;
+  const failed = await wallUnderBanner(() => {
+    throw new APIConnectionError("socket closed");
+  });
+  expect(failed).toStartWith(`${opened}\n${wall("0.93")}\nGoogle Chrome, the window you are working in`);
+  mock.restore();
+  guardMachine();
+  expect(await wallUnderBanner(() => ({ ...calm, sign_in_wall: noul(0.91) }))).toStartWith(`${opened}\n${wall("0.91")}\nGoogle Chrome`);
+  mock.restore();
+  guardMachine();
+  expect(await wallUnderBanner(() => calm)).toStartWith(`${opened}\nGoogle Chrome`); // Jev saw no wall without the banner
 });
 
 test("a press the page did not take is said, with the listing as it was", async () => {

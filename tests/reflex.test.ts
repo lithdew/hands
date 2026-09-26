@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { APITimeoutError, type ChoiceQuestion } from "@typesafe-ai/sdk";
 import { type Item, item } from "../src/models.ts";
-import { CHECK, COOKIE_BANNER, DECLINE, declining, doneCheck, PageReflex, pageRequest, signs, type Verdict, wallNote, WALL_QUESTIONS } from "../src/reflex.ts";
+import { CHECK, COOKIE_BANNER, DECLINE, declining, doneCheck, PageReflex, pageRequest, signs, stillShows, type Verdict, wallNote, WALL_QUESTIONS } from "../src/reflex.ts";
 import { screen } from "./helpers.ts";
 
 // Jev here is a fake client: each request is kept with its options, and answered by the test's own function.
@@ -55,34 +55,68 @@ const banner = (): Item[] => [
 // ------------------------------------------------------------------ the words
 
 test("the words that make a page worth asking about: a bare Sign in link, a footer's cookie statement or plain text ask nothing", () => {
-  expect(signs([control(0, "Log in", "link"), control(1, "Search Wikipedia", "field"), words(2, "Cookie statement")])).toEqual(new Set());
-  expect(signs(banner())).toEqual(new Set(["cookie"]));
-  expect(signs([words(0, "We use cookies."), control(1, "Accept all", "button")])).toEqual(new Set()); // nothing to turn it down with
-  expect(signs([control(0, "Password", "field")])).toEqual(new Set(["sign_in"]));
-  expect(signs([words(0, "Sign in to continue to YouTube")])).toEqual(new Set(["sign_in"]));
-  expect(signs([control(0, "Sign in", "button"), control(1, "Email or phone", "field")])).toEqual(new Set(["sign_in"]));
-  expect(signs([words(0, "Verify you are human by completing the action below.")])).toEqual(new Set(["captcha"]));
-  expect(signs([words(0, "I'm not a robot")])).toEqual(new Set(["captcha"]));
-  expect(signs([words(0, "Enter the 6-digit code we sent to your phone"), words(1, "2-Step Verification")])).toEqual(new Set(["code"]));
-  expect(signs([control(0, "Card number", "field"), control(1, "MM / YY", "field")])).toEqual(new Set(["payment"]));
+  expect(signs(news, [control(0, "Log in", "link"), control(1, "Search Wikipedia", "field"), words(2, "Cookie statement")])).toEqual(new Set());
+  expect(signs(news, banner())).toEqual(new Set(["cookie"]));
+  expect(signs(news, [words(0, "We use cookies."), control(1, "Accept all", "button")])).toEqual(new Set()); // nothing to turn it down with
+  expect(signs(news, [control(0, "Cookie policy", "link"), control(1, "Close", "button")])).toEqual(new Set()); // a footer's link is on every page, not a banner
+  expect(signs(news, [control(0, "Password", "field")])).toEqual(new Set(["sign_in"]));
+  expect(signs(news, [words(0, "Sign in to continue to YouTube")])).toEqual(new Set(["sign_in"]));
+  expect(signs(news, [control(0, "Hello, sign in Account & Lists", "link"), control(1, "Sign in to your account", "button")])).toEqual(new Set()); // a header's link or button
+  expect(signs(news, [control(0, "Sign in", "button"), control(1, "Email or phone", "field")])).toEqual(new Set(["sign_in"]));
+  expect(signs(news, [words(0, "Verify you are human by completing the action below.")])).toEqual(new Set(["captcha"]));
+  expect(signs(news, [words(0, "I'm not a robot")])).toEqual(new Set(["captcha"]));
+  expect(signs(news, [words(0, "Enter the 6-digit code we sent to your phone"), words(1, "2-Step Verification")])).toEqual(new Set(["code"]));
+  expect(signs(news, [control(0, "Card number", "field"), control(1, "MM / YY", "field")])).toEqual(new Set(["payment"]));
 });
 
-test("a banner's buttons that may be pressed read as declining and never as accepting, and are buttons or links", () => {
+test("a banner's buttons that may be pressed: a whole label that declines and never accepts, a button or a link, and a close or a cross only as a button", () => {
   const labels = [
     "Reject all", "Decline", "Necessary cookies only", "Use essential cookies only", "Only allow essential cookies", "Continue without accepting",
-    "Refuse", "Deny", "Disagree and close", "Close", "×", "Accept all", "Agree and close", "Allow all", "OK", "Got it", "Accept only essential cookies", "Manage options",
+    "Refuse", "Deny", "Disagree and close", "Close", "×", "X", "Do not consent", "Reject All Cookies", "Continue without agreeing →", "Decline optional cookies",
+    "Accept all", "Agree and close", "Allow all", "OK", "Got it", "Accept only essential cookies", "Manage options",
+    "Decline invitation", "Save and close", "Reject changes", "Close account", "Dismiss all notifications",
   ]; // prettier-ignore
-  const items = labels.map((label, i) => control(i, label, "button"));
-  expect(declining(items).map((it) => it.text)).toEqual([
-    "Reject all", "Decline", "Necessary cookies only", "Use essential cookies only", "Only allow essential cookies", "Continue without accepting", "Refuse", "Deny", "Disagree and close", "Close", "×",
+  const items = [words(0, "We use cookies"), ...labels.map((label, i) => ({ ...control(i + 1, label, "button"), y1: 150, y2: 180 }))];
+  expect(declining(news, items).map((it) => it.text)).toEqual([
+    "Reject all", "Decline", "Necessary cookies only", "Use essential cookies only", "Only allow essential cookies", "Continue without accepting", "Refuse", "Deny", "Disagree and close",
+    "Close", "×", "X", "Do not consent", "Reject All Cookies", "Continue without agreeing →", "Decline optional cookies",
   ]); // prettier-ignore
-  expect(declining([words(0, "Reject all"), control(1, "Reject all", "link"), control(2, "Reject all", "checkbox")]).map((it) => it.index)).toEqual([1]); // words off the picture are not a control
+  const cookies = words(0, "We use cookies");
+  expect(declining(news, [cookies, words(1, "Reject all"), control(2, "Reject all", "link"), control(3, "Reject all", "checkbox")]).map((it) => it.index)).toEqual([2]); // words off the picture are not a control
+  const links = ["Senate votes to reject bill", "Stocks decline sharply", "X", "Close", "×"].map((label, i) => control(i + 1, label, "link"));
+  expect(declining(news, [cookies, ...links])).toEqual([]); // a headline, the social network, and no close link
+});
+
+test("a Decline, Deny or Close elsewhere on the page is never offered: only the banner's own, beside its words", () => {
+  const at = (it: Item, y: number): Item => ({ ...it, y1: y, y2: y + 30 });
+  const page = [
+    at(words(0, "You're invited: Design review, Friday 10:00"), 120),
+    at(control(1, "Accept", "button"), 180),
+    at(control(2, "Decline", "button"), 180),
+    at(control(3, "Close", "button"), 240),
+    at(words(4, "We use cookies to improve your experience."), 1050),
+    at(control(5, "Accept all", "button"), 1110),
+    at(control(6, "Cookie settings", "button"), 1110),
+    at(control(7, "X", "link"), 1160), // the footer's link to the social network
+  ];
+  expect(declining(news, page)).toEqual([]);
+  expect(signs(news, page)).toEqual(new Set()); // so nothing is asked, and nothing pressed
+  const own = [...page, at(control(8, "Reject all", "button"), 1110), at(control(9, "Close", "button"), 1040)];
+  expect(declining(news, own).map((it) => it.index)).toEqual([8, 9]);
+  expect(Object.keys((pageRequest(news, own, declining(news, own)).questions.decline as ChoiceQuestion).criteria)).toEqual(["8", "9", "none_of_these"]);
+});
+
+test("a button pressed to turn a banner down still shows while it is still beside the banner's words", () => {
+  const reject = banner()[3]!;
+  expect(stillShows(news, banner(), reject)).toBe(true);
+  expect(stillShows(news, [words(0, "Today's headline: the river rises")], reject)).toBe(false);
+  expect(stillShows(news, [words(0, "Today's headline: the river rises"), control(3, "Reject all", "button")], reject)).toBe(false); // no cookie words beside it
 });
 
 // ------------------------------------------------------------------ the page's question
 
 test("the page's one request: the items once in state with bare ids, the five questions, and a pick among the declining buttons alone", () => {
-  const { state, questions } = pageRequest(news, banner(), declining(banner()));
+  const { state, questions } = pageRequest(news, banner(), declining(news, banner()));
   expect(state).toMatchObject({ url: "https://news.example.com/today", title: "Today's news" });
   expect(state.elements).toEqual([
     "0: text \"Today's headline: the river rises\" (top-left)",
@@ -102,10 +136,12 @@ test("the page's one request: the items once in state with bare ids, the five qu
 test("a page with more items than a question shows keeps the ones that tell first, then the rest in reading order", () => {
   const many = Array.from({ length: 400 }, (_, i) => words(i, `paragraph ${i}`));
   many[390] = control(390, "Reject all", "button");
-  many[380] = words(380, "This site uses cookies");
-  const { state } = pageRequest(news, many, declining(many));
+  many[389] = words(389, "This site uses cookies");
+  const candidates = declining(news, many);
+  expect(candidates.map((it) => it.index)).toEqual([390]);
+  const { state } = pageRequest(news, many, candidates);
   expect(state.elements).toHaveLength(250);
-  expect(state.elements.at(-2)).toStartWith("380: text 'This site uses cookies'");
+  expect(state.elements.at(-2)).toStartWith("389: text 'This site uses cookies'");
   expect(state.elements.at(-1)).toStartWith("390: button 'Reject all'");
   expect(state.elements[0]).toStartWith("0: text 'paragraph 0'");
 });
@@ -139,12 +175,14 @@ test("a sign-in wall: one short request with no retry, its line for the listing,
   expect(typeof logged[0]!.ms).toBe("number");
 });
 
-test("a page is asked about once: the same page again costs nothing and says the same; changed items are a new page", async () => {
+test("a page is asked about once: the same page again costs nothing and says the same; changed items that tell are a new page", async () => {
   const jev = fakeJev(() => ({ ...quiet, captcha: noul(0.9) }));
   const reflex = new PageReflex({ client: jev.client });
   const check = [words(0, "Verify you are human"), control(1, "Verify", "button")];
   expect((await reflex.look(news, check))?.note).toStartWith("Jev: this page shows a CAPTCHA (0.90)");
   expect((await reflex.look(news, check))?.note).toStartWith("Jev: this page shows a CAPTCHA (0.90)");
+  // An advert, a carousel or OCR noise that changes around the words that tell is the same page.
+  expect((await reflex.look(news, [words(0, "Sponsored: river cruises"), ...check.map((it) => ({ ...it, index: it.index + 1 }))]))?.note).toStartWith("Jev: this page shows a CAPTCHA");
   expect(jev.sent).toHaveLength(1);
   await reflex.look(news, [...check, words(2, "Checking your browser before accessing news.example.com")]);
   expect(jev.sent).toHaveLength(2);
@@ -195,7 +233,7 @@ test("a cookie banner at 0.8 with Jev's pick at 0.7 names the declining button t
   const seen = await reflex.look(news, banner());
   expect(seen?.press?.text).toBe("Reject all");
   expect(seen?.note).toBeNull();
-  // The banner again on the same URL (a changed page, so Jev is asked again): nothing more is pressed there.
+  // The banner again on the same URL (with another fragment, so Jev is asked again): nothing more is pressed there.
   const again = await reflex.look(screen({ url: "https://news.example.com/today#top" }), [...banner(), words(5, "Live: the river at noon")]);
   expect(jev.sent).toHaveLength(2);
   expect(again?.press).toBeNull();
@@ -218,6 +256,15 @@ test("no press below the bars, on none_of_these, on a pick that was not offered,
   const reflex = new PageReflex({ client: jev.client });
   expect((await reflex.look(news, banner(), false))?.press).toBeNull();
   expect((await reflex.look(news, banner()))?.press?.text).toBe("Reject all"); // not pressed before, so still due
+});
+
+test("the same page with other items around its banner asks nothing more, and its pick is the same button under its new index", async () => {
+  const jev = fakeJev((sent) => ({ ...quiet, cookie_banner: noul(0.96), decline: picked(Object.keys(sent.questions.decline!.criteria!)[0]!, 0.91) }));
+  const reflex = new PageReflex({ client: jev.client });
+  expect((await reflex.look(news, banner(), false))?.press).toBeNull();
+  const shifted = [words(0, "Breaking: the bridge reopens"), ...banner().map((it) => ({ ...it, index: it.index + 1 }))];
+  expect((await reflex.look(news, shifted))?.press).toMatchObject({ index: 4, text: "Reject all" });
+  expect(jev.sent).toHaveLength(1);
 });
 
 // ------------------------------------------------------------------ the done check

@@ -27,7 +27,7 @@ import { hand, quote } from "./hand.ts";
 import { onWindows, platform as macos, seat } from "./platform.ts";
 import { Abort, center, type Field, type Item, type Point, repr, roleWord, type Screen, sizePt } from "./models.ts";
 import { capture, glance, OcrCache, perceive, stillAs, type Thumb } from "./perception.ts";
-import { doneCheck, logTo, PageReflex } from "./reflex.ts";
+import { doneCheck, logTo, type PageLook, PageReflex, stillShows } from "./reflex.ts";
 import { leaning, runLine } from "./report.ts";
 import { type RunState, run } from "./runner.ts";
 import { type KeyTarget, SeatBusy, SeatTaken } from "./seat.ts";
@@ -442,24 +442,30 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
   /**
    * The window as the model reads it. A page of the hand's own is shown to Jev first when its words call for it
    * (src/reflex.ts): a page that wants the user leads the listing with a line saying so, and a cookie banner is turned
-   * down from behind, as the clicker presses an item, and looked at again. `again` is that second look: nothing more is pressed.
+   * down from behind, as the clicker presses an item, and looked at again. `after` is that second look, which presses
+   * nothing: it says whether the banner went, and keeps the first look's line about the page when its own request failed.
    */
-  async function listing(screen: Screen, screenshot: boolean, again = false): Promise<[Result, Screen]> {
+  async function listing(screen: Screen, screenshot: boolean, after?: { pressed: Item; first: PageLook }): Promise<[Result, Screen]> {
     const items = await perceive(screen, SCREEN_ITEMS, "", undefined, ocrCache);
     view = { screen, items };
     lastLook = performance.now();
-    const seen = ownPage(screen) ? await pageReflex.look(screen, items, !again) : null;
-    const lead = seen?.note ? [seen.note] : [];
+    const seen = ownPage(screen) ? await pageReflex.look(screen, items, !after) : null;
+    const lead: string[] = [];
+    if (after) {
+      const what = repr(after.pressed.text);
+      const stays = stillShows(screen, items, after.pressed); // a press on a page can miss, and still say it was done
+      reflexLog({ reflex: "pressed", url: screen.url, item: after.pressed.text, banner: stays ? "still shows" : "gone" });
+      lead.push(stays ? `Jev pressed ${what} to turn down the cookie banner, but the banner still shows.` : `Jev turned down the cookie banner (pressed ${what}).`);
+    }
+    const note = seen?.note ?? (after && seen?.verdict.error ? after.first.note : null);
+    if (note) lead.push(note);
     if (seen?.press) {
       const what = repr(seen.press.text);
       const pressed = await behind.click(seen.press, screen);
       reflexLog({ reflex: "press", url: screen.url, item: seen.press.text, result: pressed });
       if (/^(pressed|clicked) /.test(pressed)) {
         view = null; // the page has changed under the listing just made
-        const [next, shown] = await listing(await grab(nextCapture()), screenshot, true);
-        const [first, ...rest] = next.content;
-        const text = first?.type === "text" ? first.text : "";
-        return [{ ...next, content: [{ type: "text", text: `Jev turned down the cookie banner (pressed ${what}).\n${text}` }, ...rest] }, shown];
+        return listing(await grab(nextCapture()), screenshot, { pressed: seen.press, first: seen });
       }
       lead.push(`Jev picked ${what} to turn down the cookie banner, but ${pressed.replace(/^click .*? failed: /, "the press failed: ")}`);
     }
