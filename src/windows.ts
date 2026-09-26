@@ -728,7 +728,8 @@ function keepOnDesktop(): void {
   if (sent.size === 0 && own.size === 0) return;
   const list = windowList();
   const now = performance.now();
-  const front = (native.call("foreground") as { hwnd: number }).hwnd;
+  let front = (native.call("foreground") as { hwnd: number }).hwnd;
+  if (takeBack(front, list)) front = 0; // it came up by itself after an action, and is behind the user's windows again
   const frontRoot = list.find((w) => w.hwnd === front);
   if (frontRoot) inFront.set(rootOf(frontRoot, list).hwnd, now);
   const theirs = (windowId: number) => windowId === front || now - (inFront.get(windowId) ?? -Infinity) < FRONT_MS;
@@ -765,7 +766,7 @@ function keepOnDesktop(): void {
 function watchOwn(): void {
   if (watcher || process.env.NODE_ENV === "test") return;
   watcher = setInterval(() => {
-    if (performance.now() - lastCall > AWAKE_MS || borrowed !== null) return; // asleep, or in the middle of a borrow, which puts its window back itself
+    if (performance.now() - lastCall > AWAKE_MS || borrowed !== null || guarding) return; // asleep, or in the middle of a borrow or a guarded click, which put their window back themselves
     watching = true;
     try {
       keepOnDesktop();
@@ -1152,6 +1153,8 @@ function flashingSync<T>(work: () => T, fallback: T): T {
   }
 }
 
+let guarding = false; // a guarded click is under way: the window it brings forward for a moment is not the user's doing
+
 /**
  * A posted click or drag into a window: guarded (see flashing) when the window is Chromium's, the helper watching the
  * moment after it and handing the foreground back; a window of the hand's own also goes back behind the user's.
@@ -1163,30 +1166,45 @@ async function guarded<T>(hwnd: number, web: boolean, work: () => Promise<T>): P
   const sink = entry !== undefined && isOwn(entry, list);
   return flashing(async () => {
     native.call("guard", { begin: true });
+    guarding = true;
     try {
       return await work();
     } finally {
-      native.call("guard", { hwnd, sink });
+      try {
+        native.call("guard", { hwnd, sink });
+      } finally {
+        guarding = false;
+      }
     }
   });
 }
 
+const HANDBACK_MS = 2000; // how long after an action a window of the hand's that comes up in front is taken to have done so by itself
+let handBack: { to: number; until: number } | null = null; // the window the user had in front before the last action, while that holds
+
 /**
- * After an action from behind: when it brought a window of the hand's to the front (a dialog it opened comes up in
+ * After an action from behind: when it brings a window of the hand's to the front (a dialog it opened comes up in
  * front, and takes its owner with it; Notepad on a press: both measured), the window the user had goes back in front
- * and the hand's behind theirs. A window the user brought forward is left alone.
+ * and the hand's behind theirs, now or, for a dialog that is slower to come, at the next look or watch within
+ * HANDBACK_MS. A window of the user's they brought forward meanwhile is left alone.
  */
 function giveBack(front: number): void {
   if (borrowed !== null || !front) return;
-  const now = (native.call("foreground") as { hwnd: number }).hwnd;
-  if (!now || now === front) return;
-  const list = windowList();
-  const entry = list.find((w) => w.hwnd === now);
-  if (!entry || !isOwn(entry, list)) return;
-  const root = rootOf(entry, list);
-  if (list.some((w) => w.hwnd === front)) native.call("activate", { hwnd: front });
+  handBack = { to: front, until: performance.now() + HANDBACK_MS };
+  takeBack(frontWindow());
+}
+
+/** The seat handed back from a window of the hand's that `now` (the window in front) is, while an action's handback holds: true when it was. */
+function takeBack(now: number, list?: WindowEntry[]): boolean {
+  if (!handBack || borrowed !== null || performance.now() > handBack.until || !now || now === handBack.to) return false;
+  const all = list ?? windowList();
+  const entry = all.find((w) => w.hwnd === now);
+  if (!entry || !isOwn(entry, all)) return false;
+  const root = rootOf(entry, all);
+  if (all.some((w) => w.hwnd === handBack!.to)) native.call("activate", { hwnd: handBack.to });
   native.call("sink", { hwnd: root.hwnd });
   inFront.delete(root.hwnd);
+  return true;
 }
 
 /** The window in front, for giveBack; 0 when the helper cannot say. */
@@ -1215,6 +1233,7 @@ export async function borrow<T>(target: KeyTarget, since: number, work: () => Pr
   const mine = isOwn(entry, list);
   const away = root.cloaked === true; // on the hand's desktop, where the seat cannot reach it
   const watched = before === target.windowId || before === root.hwnd; // the user had it in front: it stays there
+  handBack = null; // the borrow brings the window forward itself, and puts everything back as it ends
   try {
     if (away) native.call("recall", { hwnd: root.hwnd });
     native.call("activate", { hwnd: target.windowId });

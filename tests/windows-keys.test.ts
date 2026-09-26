@@ -169,3 +169,34 @@ test("a dialog that comes up in front after a key from behind is sent back, and 
   expect(asked("sink")).toEqual([{ hwnd: 55 }]); // its owner, and the dialog with it
   expect(front.hwnd).toBe(11);
 });
+
+test("a dialog slower to come up is sent back at the next look; a while after the action, a window of the hand's in front is the user's choice", async () => {
+  const dialog = { hwnd: 57, pid: 500, cls: "#32770", title: "Open", frame: [50, 50, 300, 200] as Frame, core: 0, exe: "Notepad.exe", owner: 55, caption: true };
+  let front = { hwnd: 11, pid: 100 };
+  let list: object[] = [terminal, theirs];
+  helper({
+    processes: [{ pid: 500, cmd: "notepad.exe" }],
+    windows: () => list,
+    launch: () => ((list = [terminal, theirs, mine]), { pid: 0 }),
+    foreground: () => front,
+    activate: ({ hwnd }) => ((front = { hwnd: hwnd as number, pid: 100 }), { ok: true }),
+    capture: { width: 400, height: 500 },
+    vkey: { ok: true },
+  });
+  windows.releaseDesktop();
+  await windows.runInBackground("Notepad");
+  await windowsSeat.pressIn({ pid: 500, windowId: 55 }, "return");
+  calls = [];
+  list = [dialog, { ...mine, enabled: false }, terminal, theirs];
+  front = { hwnd: 57, pid: 500 }; // up in front, half a second on
+  await windows.screenshotWindow(57, "w.png");
+  expect(asked("activate")).toEqual([{ hwnd: 11 }]);
+  expect(front.hwnd).toBe(11);
+  const clock = spyOn(performance, "now");
+  clock.mockImplementation(() => Date.now() + 60_000); // long after
+  calls = [];
+  front = { hwnd: 55, pid: 500 }; // the user clicked into the hand's window
+  await windows.screenshotWindow(55, "w.png");
+  expect(asked("activate")).toEqual([]);
+  clock.mockRestore();
+});
