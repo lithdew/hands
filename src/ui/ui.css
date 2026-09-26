@@ -229,6 +229,8 @@ kbd {
  * Along the foot of the header, a tick for each step it has taken, the latest last: done, gone wrong in the alarm
  * colour, or still running, when it beats. Jev's are striped, and grow with its moves. While the hand thinks between
  * steps, an empty tick waits for the next. They show on a folded card too, so a folded hand still shows its rhythm.
+ * They start at the left; a row longer than the header (Jev's ticks are wide) keeps its right end, the latest and
+ * the one running, and loses its oldest off the left.
  */
 .ticks {
   position: absolute;
@@ -237,8 +239,16 @@ kbd {
   bottom: 3px;
   height: 4px;
   display: flex;
+  justify-content: flex-end;
   gap: 2px;
+  overflow-x: clip; /* across only: a running tick grows up out of the row */
   pointer-events: none;
+}
+/* the room the ticks leave, after them: it holds them at the left until they fill the row */
+.ticks::before {
+  content: "";
+  order: 2;
+  flex: 1 0 0;
 }
 .ticks i {
   flex: none;
@@ -264,6 +274,7 @@ kbd {
 }
 .card[data-status="working"] .ticks:not(:has(i.run))::after {
   content: "";
+  order: 1;
   flex: none;
   width: 5px;
   border-radius: 1px;
