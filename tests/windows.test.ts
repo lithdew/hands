@@ -584,8 +584,20 @@ test("captures name the window or the display, and a window that is gone says so
   helper({ capture: ({ hwnd }) => (hwnd === 99 ? { gone: true } : { width: hwnd ? 886 : 2560, height: hwnd ? 593 : 1600 }) });
   expect(await windows.screenshotWindow(22, "w.png")).toEqual({ path: "w.png", width: 886, height: 593 });
   expect(await windows.screenshot({ index: 0, frame: DISPLAY }, "d.png")).toEqual({ path: "d.png", width: 2560, height: 1600 });
-  expect(asked("capture")).toEqual([{ hwnd: 22, path: "w.png", format: "png" }, { display: 0, path: "d.png", format: "png" }]);
+  expect(asked("capture")).toEqual([{ hwnd: 22, path: "w.png", format: "png", thumb: 8 }, { display: 0, path: "d.png", format: "png", thumb: 8 }]);
   await expect(windows.screenshotWindow(99, "w.png")).rejects.toThrow("the window is gone");
+});
+
+test("a capture comes with its grey copy at 1/8 scale, made by the helper from the picture it has in hand, for the OCR cache; only the latest capture's is kept", async () => {
+  const grey = Buffer.from([10, 20, 30, 40, 50, 60]);
+  helper({ capture: ({ hwnd }) => (hwnd === 23 ? { width: 24, height: 16 } : { width: 24, height: 16, thumb: grey.toString("base64"), thumbWidth: 3, thumbHeight: 2 }) });
+  await windows.screenshotWindow(22, "w.png");
+  expect(windows.captureThumb("w.png", 8)).toEqual({ data: new Uint8Array(grey), width: 3, height: 2 });
+  expect(windows.captureThumb("w.png", 4)).toBeNull(); // another scale is made from the file
+  expect(windows.captureThumb("other.png", 8)).toBeNull();
+  await windows.screenshotWindow(23, "x.png"); // a helper that made none
+  expect(windows.captureThumb("x.png", 8)).toBeNull();
+  expect(windows.captureThumb("w.png", 8)).toBeNull();
 });
 
 test("a thumbnail is the helper's JPEG, never restores a minimized window, and says blank or gone rather than sending a black box", () => {

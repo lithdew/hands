@@ -297,9 +297,15 @@ export function ocrRegion(screen: Screen): Box {
 /** OCR one rectangle of the capture. Boxes come back in full-capture pixels, so nothing downstream knows a crop happened. */
 export const ocrCrop = (image: Capture, rect: Box): Line[] => macos.recognizeText(image.path, rect);
 
-/** A grayscale copy at 1/divisor scale. Averaged down, which smooths away the compression noise that would otherwise read as a change. */
+/**
+ * A grayscale copy at 1/divisor scale. Averaged down, which smooths away the compression noise that would otherwise read
+ * as a change. On Windows the helper makes it with the capture, from the picture it has in hand (src/windows.ts
+ * captureThumb); decoding the file again is for a capture it did not make one for.
+ */
 export async function thumbnail(image: Capture, divisor = THUMB_DIVISOR): Promise<Thumb> {
   const [width, height] = [Math.max(1, Math.floor(image.width / divisor)), Math.max(1, Math.floor(image.height / divisor))];
+  const made = onWindows() ? windows.captureThumb(image.path, divisor) : null;
+  if (made && made.width === width && made.height === height) return made;
   const data = await sharp(image.path).greyscale().resize(width, height, { fit: "fill", kernel: "linear" }).raw().toBuffer();
   return { data, width, height };
 }

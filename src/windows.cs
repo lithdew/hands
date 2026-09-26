@@ -876,6 +876,8 @@ static class Capture
         try
         {
             using (FileStream file = File.Create(path)) Save(saved, file, format);
+            int divisor = Program.Int("thumb");
+            if (divisor > 0) Thumb(saved, divisor, reply);
         }
         catch (Exception)
         {
@@ -884,6 +886,39 @@ static class Capture
         }
         Keep(path, saved);
         return reply;
+    }
+
+    /**
+     * A grey copy of a capture at 1/`divisor` scale, each pixel the mean of the block it stands for, in the reply as
+     * base64 ("thumb", with "thumbWidth" and "thumbHeight"): what the OCR cache compares captures by, which Bun
+     * otherwise decodes the whole PNG again to make (125 ms a look, measured).
+     */
+    static void Thumb(System.Drawing.Bitmap picture, int divisor, Dictionary<string, object> reply)
+    {
+        int w = Math.Max(1, picture.Width / divisor), h = Math.Max(1, picture.Height / divisor);
+        BitmapData data = picture.LockBits(new System.Drawing.Rectangle(0, 0, picture.Width, picture.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppRgb);
+        byte[] pixels = new byte[data.Stride * picture.Height];
+        try { Marshal.Copy(data.Scan0, pixels, 0, pixels.Length); }
+        finally { picture.UnlockBits(data); }
+        int stride = data.Stride;
+        int bw = Math.Max(1, Math.Min(divisor, picture.Width)), bh = Math.Max(1, Math.Min(divisor, picture.Height));
+        byte[] grey = new byte[w * h];
+        for (int ty = 0; ty < h; ty++)
+        {
+            for (int tx = 0; tx < w; tx++)
+            {
+                long sum = 0;
+                for (int y = ty * bh; y < ty * bh + bh; y++)
+                {
+                    int at = y * stride + tx * bw * 4;
+                    for (int x = 0; x < bw; x++, at += 4) sum += 54 * pixels[at + 2] + 183 * pixels[at + 1] + 19 * pixels[at]; // Rec. 709 luma, out of 256
+                }
+                grey[ty * w + tx] = (byte)Math.Min(255, (sum / (bw * bh) + 128) >> 8);
+            }
+        }
+        reply["thumb"] = Convert.ToBase64String(grey);
+        reply["thumbWidth"] = w;
+        reply["thumbHeight"] = h;
     }
 }
 

@@ -2299,10 +2299,30 @@ export async function frontmostWindowCenter(pid?: number | null): Promise<Point 
 
 // ------------------------------------------------------------------ capture and OCR
 
+type CaptureReply = { width: number; height: number; gone?: boolean; thumb?: string; thumbWidth?: number; thumbHeight?: number };
+
+// A capture's grey copy at 1/8 scale, which the helper makes from the picture it has in hand (Capture.Thumb in
+// windows.cs): what the OCR cache compares captures by (src/perception.ts thumbnail, whose THUMB_DIVISOR this is).
+// Decoding the PNG again to make it cost 125 ms a look (measured). Only the latest capture's is kept.
+const THUMB_DIVISOR = 8;
+let thumbOf: { path: string; hwnd: number; data: Uint8Array; width: number; height: number } | null = null; // hwnd 0 for a display
+
+function keepThumb(path: string, hwnd: number, reply: CaptureReply): void {
+  thumbOf = reply.thumb && reply.thumbWidth && reply.thumbHeight ? { path, hwnd, data: new Uint8Array(Buffer.from(reply.thumb, "base64")), width: reply.thumbWidth, height: reply.thumbHeight } : null;
+}
+
+/** The grey copy of the capture at `path` at 1/`divisor` scale, when the helper made it with the capture; null otherwise. */
+export function captureThumb(path: string, divisor: number): { data: Uint8Array; width: number; height: number } | null {
+  if (!thumbOf || thumbOf.path !== path || divisor !== THUMB_DIVISOR) return null;
+  const { data, width, height } = thumbOf;
+  return data.length === width * height ? { data, width, height } : null;
+}
+
 /** One display as a PNG at `path`. */
 export async function screenshot(display: Display, path: string): Promise<Capture> {
-  const { width, height } = native.call("capture", { display: display.index, path, format: "png" }) as { width: number; height: number };
-  return { path, width, height };
+  const reply = native.call("capture", { display: display.index, path, format: "png", thumb: THUMB_DIVISOR }) as CaptureReply;
+  keepThumb(path, 0, reply);
+  return { path, width: reply.width, height: reply.height };
 }
 
 const REPAINT_MS = 300; // how long a page given a strip of screen takes to paint again
@@ -2326,7 +2346,8 @@ export async function screenshotWindow(windowId: number, path: string): Promise<
     if (await reveal(windowId)) await sleep(REPAINT_MS);
     else stale.add(windowId);
   }
-  const reply = native.call("capture", { hwnd: windowId, path, format: "png" }) as { width: number; height: number; gone?: boolean };
+  const reply = native.call("capture", { hwnd: windowId, path, format: "png", thumb: THUMB_DIVISOR }) as CaptureReply;
+  keepThumb(path, windowId, reply);
   if (reply.gone) throw new Error("the window is gone; look again");
   if (entry?.iconic && isOwn(entry, list)) native.call("sink", { hwnd: rootOf(entry, list).hwnd });
   for (const [shot, of] of staleShots) if (of.windowId === windowId || shot === path) staleShots.delete(shot);
