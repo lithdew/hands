@@ -79,6 +79,7 @@ let size: Point = [0, 0]; // how big the subject was at the last look
 let last: Point = [0, 0];
 let perPoint = 1; // the subject's pixels to a point, as the renderer last said
 let resting: ReturnType<typeof setTimeout> | undefined;
+let cues = 0; // cues struck so far: a glide's pose is not struck over a later cue's
 let via = ""; // who is acting for the hand just now (Jev, while the clicker runs): its labels say so
 
 /** No renderer will answer those waiting on one now: they go on at once, as they would once they had waited long enough. */
@@ -188,17 +189,20 @@ export const hand = {
   },
 
   /**
-   * Strike a pose, gliding to `at` first when the action has a place. Resolves once the hand is there, so that what it
-   * presses answers to it; with no renderer drawing the glide there is nothing to wait for.
+   * Strike a pose, gliding to `at` first when the action has a place. Resolves once the hand is there; with no renderer
+   * drawing the glide there is nothing to wait for. A click or typing does not wait for it (src/tools.ts): the pose then
+   * comes as the glide ends, unless another cue has come meanwhile, which the hand is showing by then.
    */
   async cue(pose: Pose, label: string, at?: Point, extra: Pick<Cue, "count" | "swipe"> = {}): Promise<void> {
     if (!watched()) return;
     clearTimeout(resting);
+    const mine = ++cues;
     if (via && label) label = `${via} › ${label}`;
     if (at) {
       const ms = glideMs(last, at, perPoint);
       send({ pose: pose === "draw" ? pose : "point", label, at: (last = at), ms }); // a pen stays a pen between strokes
       if (renderer) await Bun.sleep(ms);
+      if (mine !== cues) return;
     }
     send({ pose, label, ...extra });
   },

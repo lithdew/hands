@@ -380,6 +380,18 @@ test("a click the guard could not make for a busy user says so, and does not sen
   await expect(clicked).rejects.toThrow("nothing was done (clicking 'Send'): the user did not pause long enough for a click. The user was busy, or another hand had the mouse and keyboard; try again shortly.");
 });
 
+test("a click and typing go as the hand glides to them: nothing waits for the glide", async () => {
+  desk({ nodes: [button("Send", 300, 200), field("To", 150, 80)] });
+  spyOn(macos, "axPress").mockImplementation(() => true);
+  spyOn(macos, "axSetValue").mockImplementation(() => true);
+  spyOn(macos, "axValue").mockImplementation(() => "Taro");
+  const { call } = hands();
+  const listing = await call("open_app", { name: "TextEdit" });
+  spyOn(hand, "cue").mockImplementation(() => new Promise<void>(() => {})); // a glide that never ends
+  expect(await call("click", { item: Number(/(\d+) button 'Send'/.exec(listing)![1]) })).toBe("pressed 'Send' via accessibility");
+  expect(await call("type", { item: Number(/(\d+) field 'To'/.exec(listing)![1]), text: "Taro" })).toBe("set 'To' to 'Taro'");
+});
+
 test("a line break a page refuses from behind is sent back as advice, and seat=true types it with shift+Enter between the lines", async () => {
   desk({ web: true, app: "Slack" });
   spyOn(seat, "typeIn").mockImplementation(async () => {

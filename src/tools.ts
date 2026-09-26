@@ -699,7 +699,7 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
         if (!it && (x === undefined || y === undefined)) throw new Error("give an item, or both x and y");
         const [px, py] = it ? spot(screen, it) : [x!, y!];
         const what = it ? repr(it.text) : `at ${px},${py}`;
-        await hand.cue("press", `click${it ? ` ${quote(it.text)}` : ""}`, [px, py], { count });
+        void hand.cue("press", `click${it ? ` ${quote(it.text)}` : ""}`, [px, py], { count }); // the hand glides there as the click goes: nothing waits for it
         if (borrow) {
           return seatAction(`clicking ${what}`, async () => {
             await macos.clickAt(onScreenNow(px, py), { count });
@@ -795,7 +795,7 @@ export function computerTools({ runDir, cwd = process.cwd(), onAbort, writer = n
           return acted(`typed ${typed} into ${app}${returned}`);
         }
         const { it, ref } = control(index);
-        await hand.cue("write", `typing ${quote(text)}`, spot(current().screen, it));
+        void hand.cue("write", `typing ${quote(text)}`, spot(current().screen, it)); // the hand glides there as the typing goes: nothing waits for it
         if (borrow) {
           const [px, py] = spot(current().screen, it);
           return seatAction(`typing into ${repr(it.text)}`, async () => {

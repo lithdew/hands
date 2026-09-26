@@ -140,6 +140,19 @@ test("a glide is timed in the points the renderer says the pixels make", async (
   expect(cues.find((cue) => cue.ms !== undefined)).toEqual({ pose: "point", label: "click", at: [1000, 1100], ms: glideMs([0, 0], [500, 0]) });
 });
 
+test("a glide nothing waits for strikes its pose as it ends, unless a later cue has come meanwhile", async () => {
+  const cues = started({ HANDS_PLATFORM: "windows", HANDS_SLOT: "0" });
+  await hand.unseen(async () => {}); // the renderer is up and answering
+  hand.look({ window: 7, origin: [0, 0] }, [800, 600]);
+  void hand.cue("press", "click", [700, 500]); // a click does not wait for the hand to get there
+  hand.look({ window: 7, origin: [0, 0] }, [800, 600]); // and the next look comes before the glide ends
+  await Bun.sleep(glideMs([400, 300], [700, 500]) + 60);
+  expect(cues.at(-1)).toEqual({ pose: "look", label: "looking" }); // the look stands: no tap struck over it
+  void hand.cue("press", "click", [100, 100]);
+  await Bun.sleep(glideMs([700, 500], [100, 100]) + 60);
+  expect(cues.at(-1)).toEqual({ pose: "press", label: "click" });
+});
+
 test("a hand whose renderer has gone still tells its orchestrator every cue: its window, its size and the seat; only the glides are no longer waited for", async () => {
   const cues = started({ HANDS_PLATFORM: "windows", HANDS_SLOT: "0" });
   const renderer = spawns!.mock.results[0]!.value as Bun.Subprocess;
