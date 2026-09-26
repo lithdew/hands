@@ -208,25 +208,60 @@ kbd {
 .card[data-status="paused"] header {
   background-image: repeating-linear-gradient(135deg, rgb(28 20 8 / 0.11) 0 6px, transparent 6px 12px); /* held: hatched */
 }
-/* at work: a hairline runs along the foot of the header, as long as it is */
-.card[data-status="working"] header::after {
-  content: "";
+/*
+ * Along the foot of the header, a tick for each step it has taken, the latest last: done, gone wrong in the alarm
+ * colour, or still running, when it beats. Jev's are striped, and grow with its moves. While the hand thinks between
+ * steps, an empty tick waits for the next. They show on a folded card too, so a folded hand still shows its rhythm.
+ */
+.ticks {
   position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 28%;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--ink);
-  opacity: 0.4;
-  animation: run 1.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  left: 44px;
+  right: 11px;
+  bottom: 3px;
+  height: 4px;
+  display: flex;
+  gap: 2px;
+  pointer-events: none;
 }
-@keyframes run {
-  from {
-    translate: -100% 0;
-  }
+.ticks i {
+  flex: none;
+  width: 5px;
+  border-radius: 1px;
+  background: rgb(28 20 8 / 0.38);
+  transform-origin: bottom;
+  animation: tick-in var(--t-move) var(--spring);
+}
+.ticks i.err {
+  background: var(--alarm);
+}
+.ticks i.jev {
+  width: calc(9px + var(--moves, 0) * 2px);
+  background: repeating-linear-gradient(90deg, var(--ink) 0 2px, transparent 2px 3.5px);
+  transition: width var(--t-move) var(--ease-out);
+}
+.ticks i.jev.err {
+  background: repeating-linear-gradient(90deg, var(--alarm) 0 2px, transparent 2px 3.5px);
+}
+.card[data-status="working"] .ticks i.run {
+  animation: tick 900ms var(--ease-out) infinite alternate;
+}
+.card[data-status="working"] .ticks:not(:has(i.run))::after {
+  content: "";
+  flex: none;
+  width: 5px;
+  border-radius: 1px;
+  box-shadow: inset 0 0 0 1px rgb(28 20 8 / 0.45);
+  transform-origin: bottom;
+  animation: tick 900ms var(--ease-out) infinite alternate;
+}
+@keyframes tick {
   to {
-    translate: 360% 0;
+    scale: 1 1.9;
+  }
+}
+@keyframes tick-in {
+  from {
+    scale: 1 0;
   }
 }
 /* done: one sheen across the header */
@@ -294,6 +329,34 @@ html.windows .name {
 .chip.front {
   display: none;
   background: transparent;
+}
+/* Jev, TypeSafe's classifier, is driving this hand: its name, and how many moves it has made */
+.chip.jev {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--ink);
+  color: var(--sheet);
+  animation: stamp 437ms var(--spring);
+}
+.chip.jev::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--glove);
+  animation: beat 900ms var(--ease-out) infinite alternate;
+}
+.chip.jev b {
+  font-weight: 600;
+}
+.chip.jev b:empty {
+  display: none;
+}
+@keyframes beat {
+  to {
+    scale: 0.5;
+  }
 }
 .card.viewed .chip.front {
   display: block;
@@ -462,6 +525,15 @@ html.windows .name {
   margin-right: 6px;
   font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
 }
+.card.jev .subtitle::before {
+  content: "Jev"; /* its move, not the hand's own */
+  padding: 1px 5px 2px;
+  border-radius: 5px;
+  background: var(--glove);
+  color: var(--ink);
+  font: 700 11px/1 var(--face);
+  vertical-align: 1px;
+}
 .card[data-status="working"]:not(.pictured) .view {
   min-height: 104px; /* the task, and under it the subtitle, until the picture comes */
 }
@@ -585,6 +657,20 @@ html:not(.windows) [data-cmd="show"] {
 }
 .card.receipt .said {
   -webkit-line-clamp: 5;
+}
+/* under a receipt's answer, what it took: "12 steps · 5 by Jev · 0:52" */
+.tally {
+  display: none;
+  margin: 4px 0 0;
+  color: rgb(255 255 255 / 0.62);
+  font: 600 11.5px/16px var(--face);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card.receipt .tally:not(:empty) {
+  display: block;
 }
 .said {
   margin: 0;
@@ -1076,9 +1162,12 @@ html:not(.windows) [data-cmd="show"] {
     --t-enter: 0ms;
     --t-pop: 0ms;
   }
-  .card header::after,
   .card header::before,
   .chip.state,
+  .chip.jev,
+  .chip.jev::before,
+  .ticks i,
+  .ticks::after,
   #dock::after,
   #dock.thinking .palm i {
     animation: none !important;

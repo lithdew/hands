@@ -8,7 +8,7 @@
 
 import { finished } from "./fold.ts";
 import { EASE_OUT, ms, settle } from "./motion.ts";
-import { says, sentence, sight } from "./rules.ts";
+import { driver, moved, says, sentence, type Step, sight, steps, tally } from "./rules.ts";
 import type { ClientMessage, HandView, LogEntry, Status } from "./state.ts";
 import { blocks } from "./text.ts";
 
@@ -38,7 +38,11 @@ export interface Card {
   of: number | null | undefined; // the window the picture is of: the one the state last said was drawing (see track)
   clock: string; // how long it has been at it, frozen when it stops
   leaving: boolean;
+  steps: Step[]; // its tool calls, from its transcript, as the header's ticks show them
+  act: string; // the action it was last painted with, so each of Jev's moves is counted once
 }
+
+const TICKS = 24; // the most steps the header shows: the latest
 
 const template = document.getElementById("card") as HTMLTemplateElement;
 
@@ -60,7 +64,7 @@ const put = (target: HTMLElement, text: string): boolean => {
 export function build(id: string, act: (message: ClientMessage) => void, toggle: (id: string) => void, closeKey: string): Card {
   const root = (template.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
   root.dataset.id = id;
-  const card: Card = { id, root, view: null, frames: [...root.querySelectorAll<HTMLImageElement>(".screen img")], url: "", frame: 0, ratio: null, of: undefined, clock: "", leaving: false };
+  const card: Card = { id, root, view: null, frames: [...root.querySelectorAll<HTMLImageElement>(".screen img")], url: "", frame: 0, ratio: null, of: undefined, clock: "", leaving: false, steps: [], act: "" };
   for (const selector of ["header", ".fold", ".tell"]) part(card, selector).addEventListener("click", () => toggle(id));
   part(card, ".close-key").textContent = closeKey;
   part<HTMLFormElement>(card, "form").addEventListener("submit", (event) => {
@@ -111,10 +115,24 @@ export function paint(card: Card, hand: HandView, place: { folded: boolean; bare
   root.classList.toggle("viewed", hand.viewing && !place.open);
   if (busy(hand) || !card.clock) card.clock = elapsed(hand.since);
 
+  // Jev drives while the clicker runs (a clicker call without its result), or while the action has Jev's name before it.
+  const running = card.steps.at(-1);
+  const clicking = running?.jev && running.ok === null ? running : undefined;
+  const { jev: named, label } = driver(hand.action);
+  const jev = hand.status === "working" && (named || !!clicking);
+  if (jev && clicking && moved(card.act, hand.action)) {
+    clicking.moves++;
+    ticks(card);
+  }
+  card.act = hand.action;
+  root.classList.toggle("jev", jev);
+  part(card, ".chip.jev").hidden = !jev;
+  put(part(card, ".chip.jev b"), clicking?.moves ? `· ${clicking.moves}` : "");
+
   put(part(card, ".who"), identity(hand.name));
   put(part(card, ".name"), hand.name);
   put(part(card, "time"), card.clock);
-  put(part(card, ".doing"), hand.status === "working" ? hand.action || "thinking" : hand.status === "starting" ? hand.task : "");
+  put(part(card, ".doing"), hand.status === "working" ? label || "thinking" : hand.status === "starting" ? hand.task : "");
   const chip = part(card, ".chip.state");
   const word = hand.seat === "holding" ? "using your mouse" : hand.seat === "waiting" ? "waiting for you" : CHIP[hand.status];
   if (put(chip, word) && before) settle(chip); // a status change, set down where the eye is
@@ -125,7 +143,8 @@ export function paint(card: Card, hand: HandView, place: { folded: boolean; bare
   // Over, and unfolded: a receipt, its answer first and a small picture of its window beside it.
   const receipt = finished(hand.status) && !place.folded && !place.open;
   root.classList.toggle("receipt", receipt);
-  root.classList.toggle("quiet", !(said || (receipt && shown(card))) || place.open || place.bare || (place.folded && busy(hand) && !hand.seat));
+  root.classList.toggle("quiet", !(said || (receipt && (shown(card) || card.steps.length > 0))) || place.open || place.bare || (place.folded && busy(hand) && !hand.seat));
+  put(part(card, ".tally"), card.steps.length ? tally(card.steps, card.clock) : "");
   put(part(card, ".brief"), hand.task);
   picture(card);
   mini(card);
@@ -186,7 +205,7 @@ function picture(card: Card): void {
   const subtitle = part(card, ".subtitle");
   subtitle.hidden = hand.status !== "working";
   subtitle.dataset.glyph = hand.glyph;
-  if (put(subtitle, sentence(hand.action || "thinking")) && !subtitle.hidden) settle(subtitle);
+  if (put(subtitle, sentence(driver(hand.action).label || "thinking")) && !subtitle.hidden) settle(subtitle);
   if (!card.ratio && hand.size) card.root.style.setProperty("--ratio", String(hand.size[0] / hand.size[1])); // until the first frame says otherwise
   const marker = part(card, ".marker");
   // The hand is placed in its window's own points: over another window's picture, it would point at nothing there.
@@ -275,12 +294,33 @@ export function line(entry: LogEntry): HTMLElement {
   return made;
 }
 
-/** New lines on the sheet; a transcript scrolled to its end stays at its end. */
+/** New lines on the sheet, and the steps they make in the header; a transcript scrolled to its end stays at its end. */
 export function write(card: Card, entries: LogEntry[], reset = false): void {
   const log = part(card, ".log");
   const pinned = log.scrollHeight - log.scrollTop - log.clientHeight < 24;
   if (reset) log.replaceChildren();
   log.append(...entries.map(line));
   if (pinned) log.scrollTop = log.scrollHeight;
+  card.steps = steps(entries, reset ? [] : card.steps);
+  ticks(card);
+}
+
+/**
+ * The ticks along the foot of the header, a step each, the latest last: done, gone wrong, or still running; Jev's
+ * striped, and wider with each of its moves. The same elements are kept and only their class changes, so a new
+ * step is the only one that grows in.
+ */
+function ticks(card: Card): void {
+  const row = part(card, ".ticks");
+  const latest = card.steps.slice(-TICKS);
+  while (row.children.length < latest.length) row.append(element("i"));
+  while (row.children.length > latest.length) row.lastElementChild!.remove();
+  for (const [index, step] of latest.entries()) {
+    const tick = row.children[index] as HTMLElement;
+    const name = `${step.ok === null ? "run" : step.ok ? "ok" : "err"}${step.jev ? " jev" : ""}`;
+    if (tick.className !== name) tick.className = name;
+    if (step.jev) tick.style.setProperty("--moves", String(Math.min(step.moves, 10)));
+    else tick.style.removeProperty("--moves");
+  }
 }
 

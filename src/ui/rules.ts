@@ -25,6 +25,56 @@ export function says(hand: Pick<HandView, "status" | "seat" | "seatWhy" | "answe
 }
 
 /**
+ * A tool call, as the ticks along a card's header show it: done (true), gone wrong (false), or still running (null).
+ * A call of the clicker's is Jev's, and counts Jev's own moves while it runs (see `moved`).
+ */
+export interface Step {
+  ok: boolean | null;
+  jev: boolean;
+  moves: number;
+}
+
+/**
+ * The steps these lines add to `into`: a step for each tool call, settled by its result. A clicker call that
+ * returns with its goal not achieved went wrong, whatever else it says.
+ */
+export function steps(entries: LogEntry[], into: Step[] = []): Step[] {
+  for (const entry of entries) {
+    if (entry.kind === "tool") into.push({ ok: null, jev: entry.text.startsWith("clicker "), moves: 0 });
+    else if (entry.kind === "result" || entry.kind === "error") {
+      const running = into.find((step) => step.ok === null); // results come in the order their calls did
+      if (running) running.ok = entry.kind === "result" && !(running.jev && /"goal_achieved": ?false/.test(entry.text));
+    }
+  }
+  return into;
+}
+
+/** How a finished hand's receipt counts its work: "12 steps · 5 by Jev · 0:52". A clicker call is as many steps as Jev's moves in it. */
+export function tally(all: Step[], clock: string): string {
+  const jev = all.reduce((sum, step) => sum + (step.jev ? Math.max(1, step.moves) : 0), 0);
+  const total = all.filter((step) => !step.jev).length + jev;
+  return [total ? `${total} step${total === 1 ? "" : "s"}` : "", jev ? `${jev} by Jev` : "", clock].filter(Boolean).join(" · ");
+}
+
+/** What goes before each action of Jev's while it drives, in a hand's tag and so in its action: "Jev › click “Next”". */
+const JEV = /^Jev\s*[›>]\s*/;
+
+/** An action as the card shows it, without Jev's name before it, and whether it had it. */
+export function driver(action: string): { jev: boolean; label: string } {
+  const named = JEV.exec(action);
+  return named ? { jev: true, label: action.slice(named[0].length) } : { jev: false, label: action };
+}
+
+/** What a hand says between its moves: resting, looking, waiting, or the clicker taking a goal. */
+const RESTING = /^(thinking|looking|waiting\b|clicker:)/;
+
+/** Whether an action that changed from `before` to `after` is a move: new words, and ones that act. */
+export function moved(before: string, after: string): boolean {
+  const next = driver(after).label;
+  return next !== "" && next !== driver(before).label && !RESTING.test(next);
+}
+
+/**
  * Whether these lines start a hand's transcript. A task is its first line and comes at no other time, so lines that
  * bring one for a card still out are a new hand's: one that took a closed hand's name before the page heard that the
  * closed one had gone. A transcript sent afresh (on connecting) starts with the task too, and is not a new hand.

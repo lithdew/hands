@@ -140,7 +140,7 @@ function update(): void {
     const ratio = card?.url ? card.ratio : hand.size ? hand.size[0] / hand.size[1] : null;
     const said = says(hand);
     // A receipt's words stand beside its small picture, where fewer of them fit on a line.
-    shapes.set(hand.id, { ratio, words: said !== "", lines: lines(said, finished(hand.status) && card?.url ? RECEIPT_CHARS : CARD_CHARS) });
+    shapes.set(hand.id, { ratio, words: said !== "", lines: lines(said, finished(hand.status) && card?.url ? RECEIPT_CHARS : CARD_CHARS), tally: (card?.steps.length ?? 0) > 0 });
   }
   const layout = arrange(hands, shapes, room - extra(), open);
   // Crowded past folding: the column stops at the room and the cards scroll inside it, so the top ones stay reachable.

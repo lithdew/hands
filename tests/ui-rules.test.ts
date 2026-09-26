@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { anew, closes, type Press, says, sight } from "../src/ui/rules.ts";
+import { anew, closes, driver, moved, type Press, says, sight, steps, tally } from "../src/ui/rules.ts";
 import type { HandView } from "../src/ui/state.ts";
 
 const view = (extra: Partial<HandView>): HandView => ({ id: "lefty", name: "Lefty", color: "4f8cff", task: "Book a table", status: "working", action: "", glyph: "👆", at: null, size: null, viewing: false, answer: "", reason: "", seat: "", seatWhy: "", picture: "none", since: 0, ...extra }); // prettier-ignore
@@ -13,6 +13,55 @@ test("a hand at work says what it is doing on its picture, not under it; the res
   expect(says(view({ status: "failed", reason: "The page would not load." }))).toBe("The page would not load.");
   expect(says(view({ status: "done", answer: "Wrote the haiku:\n\nLunch waits" }))).toBe("Wrote the haiku:\nLunch waits");
   expect(says(view({ status: "stopped" }))).toBe("");
+});
+
+test("a step for each tool call, settled by its result; the clicker's are Jev's, and fail when its goal was not reached", () => {
+  const made = steps([
+    { kind: "task", text: "Book a table" },
+    { kind: "tool", text: 'click {"index":4}' },
+    { kind: "result", text: "clicked" },
+    { kind: "tool", text: 'type {"text":"Dishoom"}' },
+    { kind: "error", text: "no such field" },
+    { kind: "say", text: "Trying the clicker." },
+    { kind: "tool", text: 'clicker {"goal":"choose 21 September"}' },
+  ]);
+  expect(made).toEqual([
+    { ok: true, jev: false, moves: 0 },
+    { ok: false, jev: false, moves: 0 },
+    { ok: null, jev: true, moves: 0 },
+  ]);
+  // Lines that come later settle what is running, into the same steps.
+  steps([{ kind: "result", text: '{ "outcome": "stopped: not sure", "goal_achieved": false, "answer": null }' }], made);
+  expect(made[2]!.ok).toBe(false);
+  expect(steps([{ kind: "tool", text: 'clicker {"goal":"x"}' }, { kind: "result", text: '{ "outcome": "done", "goal_achieved": true }' }])[0]!.ok).toBe(true);
+  // A result with no call waiting for it changes nothing.
+  expect(steps([{ kind: "result", text: "stray" }])).toEqual([]);
+});
+
+test("a receipt's tally counts each of Jev's moves as a step of its own, and the time it took", () => {
+  const all = [
+    { ok: true, jev: false, moves: 0 },
+    { ok: true, jev: true, moves: 5 },
+    { ok: false, jev: false, moves: 0 },
+    { ok: true, jev: true, moves: 0 }, // a clicker call whose moves were not seen still counts as one
+  ];
+  expect(tally(all, "0:52")).toBe("8 steps · 6 by Jev · 0:52");
+  expect(tally([{ ok: true, jev: false, moves: 0 }], "0:07")).toBe("1 step · 0:07");
+  expect(tally([], "0:07")).toBe("0:07");
+});
+
+test("Jev's moves are told by its name before the action, and counted once each, never its rests", () => {
+  expect(driver("Jev › click “Next”")).toEqual({ jev: true, label: "click “Next”" });
+  expect(driver("Jev > typing “ramen”")).toEqual({ jev: true, label: "typing “ramen”" });
+  expect(driver("click “Next”")).toEqual({ jev: false, label: "click “Next”" });
+  expect(moved("clicker: “choose 21 September”", "Jev › click “September”")).toBe(true);
+  expect(moved("Jev › click “September”", "Jev › thinking")).toBe(false);
+  expect(moved("Jev › thinking", "Jev › click “September”")).toBe(true); // the same click again, after a rest, is another move
+  expect(moved("Jev › click “21”", "Jev › click “21”")).toBe(false);
+  expect(moved("click “21”", "Jev › click “21”")).toBe(false);
+  expect(moved("thinking", "Jev › looking")).toBe(false);
+  expect(moved("thinking", "Jev › clicker: “x”")).toBe(false);
+  expect(moved("thinking", "")).toBe(false);
 });
 
 test("a task in lines for a card still out is a new hand under its name; the same task sent afresh on connecting is not", () => {

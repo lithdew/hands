@@ -28,6 +28,9 @@ test("a finished hand unfolds as a receipt, never a full picture, and working ha
   expect(unfolded({ ratio: null, words: true, lines: 2 }, MOST, { status: "done" })).toBe(SIZE.strip + SIZE.pad + 2 * SIZE.line);
   expect(unfolded({ ratio: 1.6, words: false }, MOST, { status: "stopped" })).toBe(SIZE.strip + SIZE.pad + SIZE.mini);
   expect(unfolded({ ratio: null, words: false }, MOST, { status: "stopped" })).toBe(SIZE.strip);
+  // Under the answer, the tally of its steps, when it took any.
+  expect(unfolded({ ...WIDE, tally: true }, MOST, { status: "done" })).toBe(SIZE.strip + SIZE.pad + SIZE.receipt * SIZE.line + SIZE.tally);
+  expect(unfolded({ ratio: 1.6, words: false, tally: true }, MOST, { status: "stopped" })).toBe(SIZE.strip + SIZE.pad + SIZE.mini);
   // A hand still at work keeps its picture; before it has one, what it is doing stands under its task.
   expect(unfolded(WIDE, MOST, { status: "working" })).toBe(unfolded(WIDE));
   expect(unfolded({ ratio: null, words: false }, MOST, { status: "working" })).toBe(SIZE.strip + SIZE.rule + SIZE.brief + SIZE.subtitle);

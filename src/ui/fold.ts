@@ -23,6 +23,7 @@ export const SIZE = {
   subtitle: 20, // under that task, what a hand at work is doing, until its picture comes
   mini: 70, // a finished hand's small picture, beside its answer
   receipt: 5, // lines of a finished hand's answer
+  tally: 20, // under that answer, how many steps it took and how long
   ask: 34, // under what a hand that needs you says, the buttons that answer it
   dock: 100, // the dock at its tallest, three lines of words: kept free, so that no card folds because the voice is talking
   sheet: 96, // an open card's box and buttons, without its transcript
@@ -47,12 +48,14 @@ export const order = <T extends Pick<HandView, "status">>(hands: T[]): T[] => [.
 
 /**
  * What a card has to show: its picture's width over its height (null until there is one: the task stands there
- * instead), whether it has words under it, and how many lines those take (see `lines`; as many as fit, unsaid).
+ * instead), whether it has words under it, how many lines those take (see `lines`; as many as fit, unsaid), and
+ * whether its receipt counts steps it took.
  */
 export interface Shape {
   ratio: number | null;
   words: boolean;
   lines?: number;
+  tally?: boolean;
 }
 
 type Of = Pick<HandView, "status"> & Partial<Pick<HandView, "seat">>;
@@ -80,7 +83,7 @@ const asks = (hand?: Of): number => (hand?.status === "needs_you" ? SIZE.ask : 0
  */
 export const unfolded = (shape: Shape, most: number = SIZE.picture[1], hand?: Of): number => {
   if (hand && finished(hand.status)) {
-    const body = Math.max(shape.ratio ? SIZE.mini : 0, said(shape, SIZE.receipt));
+    const body = Math.max(shape.ratio ? SIZE.mini : 0, said(shape, SIZE.receipt) + (shape.tally ? SIZE.tally : 0));
     return SIZE.strip + (body ? SIZE.pad + body : 0);
   }
   const picture = shape.ratio ? tall(shape, most) : SIZE.brief + (hand?.status === "working" ? SIZE.subtitle : 0);
